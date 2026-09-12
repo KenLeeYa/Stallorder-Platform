@@ -1,9 +1,12 @@
+begin;
 -- Amendments are independent immutable documents. A reprint only satisfies its own document.
+set local lock_timeout = '5s';
+set local statement_timeout = '60s';
 alter table public.print_jobs add column if not exists amendment_id uuid;
-drop index public.print_jobs_initial_order_unique;
+drop index print_jobs_initial_order_unique;
 create unique index print_jobs_initial_order_unique on public.print_jobs(order_id)
 where reprint_of_id is null and amendment_id is null;
-drop index public.print_jobs_order_rule_unique;
+drop index print_jobs_order_rule_unique;
 create unique index print_jobs_order_rule_unique on public.print_jobs(order_id, print_rule_id)
 where print_rule_id is not null and (reprint_of_id is null or is_routing_copy) and amendment_id is null;
 create unique index print_jobs_amendment_destination_unique on public.print_jobs(
@@ -225,3 +228,4 @@ begin
 end;
 $function$
 ;
+commit;

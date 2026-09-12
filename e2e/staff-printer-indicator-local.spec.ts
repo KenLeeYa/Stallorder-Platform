@@ -5,10 +5,10 @@ import { test, expect, type Page } from "@playwright/test";
 test.use({ browserName: process.env.LOCAL_QA_BROWSER === "webkit" ? "webkit" : "chromium", userAgent: "StarWebPRNTBrowser/3.0 iPad", serviceWorkers: "block" });
 test.skip(process.env.LOCAL_PRINTER_INDICATOR_QA !== "true", "Explicit local QA only; printer transport is simulated.");
 const slug = "aming-chicken";
-const origin = "http://127.0.0.1:3018";
+const origin = process.env.PLAYWRIGHT_APP_URL ?? "http://127.0.0.1:3018";
 
 test.beforeEach(async ({ page }) => {
-  if (process.env.PLAYWRIGHT_APP_URL !== origin) throw new Error("LOCAL_TARGET_MISMATCH");
+  if (!["http://127.0.0.1:3018", "http://127.0.0.1:3028"].includes(origin)) throw new Error("LOCAL_TARGET_MISMATCH");
   page.on("pageerror", error => console.log("QA_PAGE_ERROR:", error.message));
   await page.addInitScript(() => {
     const device = window as typeof window & { qaPrinter: string };

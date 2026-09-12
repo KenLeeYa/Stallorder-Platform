@@ -56,7 +56,7 @@ export function StallMenuAnnouncementManager({ stallId, timeZone, initial }: {
     <p className="text-sm leading-6 text-stone-600">顧客進入線上 Menu 時顯示一則公告；關閉後可再次點「查看店家公告」。特殊店休提醒會優先顯示。</p>
     <button type="button" aria-pressed={draft.enabled} onClick={() => setDraft({ ...draft, enabled: !draft.enabled })}
       className={field + (draft.enabled ? " border-teal-700 text-teal-800" : "")}>{draft.enabled ? "公告開啟" : "公告關閉"}</button>
-    <label className="block font-semibold">公告標題<input className={field} value={draft.title} maxLength={80} required={draft.enabled}
+    <label className="block font-semibold">公告標題<input type="text" className={field} value={draft.title} maxLength={80} required={draft.enabled}
       onChange={event => setDraft({ ...draft, title: event.target.value })} placeholder="例如：本週來店優惠" /></label>
     <label className="block font-semibold">公告內容<textarea className={field + " min-h-40 whitespace-pre-wrap"} value={draft.content} maxLength={2000} required={draft.enabled}
       onChange={event => setDraft({ ...draft, content: event.target.value })} placeholder="填寫活動、優惠或營運提醒。支援換行，顧客可關閉後繼續查看菜單。" /></label>

@@ -4,6 +4,18 @@ import { allowedPushEndpoint, decryptSubscription, encryptSubscription, pushConf
 
 describe("staff push endpoint, encryption and receipts", () => {
   it.each([
+    ["mailto:test@example.com", true], ["https://app.qidaigo.com", true],
+    ["http://app.qidaigo.com", false], ["https://", false], ["invalid", false],
+    ["mailto:invalid", false], ["https://user:password@app.qidaigo.com", false],
+  ])("validates the VAPID contact URI: %s", (subject, accepted) => {
+    const ec = createECDH("prime256v1"); ec.generateKeys();
+    const config = pushConfig({ WEB_PUSH_ENABLED: "true", WEB_PUSH_VAPID_SUBJECT: subject,
+      WEB_PUSH_VAPID_PUBLIC_KEY: ec.getPublicKey().toString("base64url"),
+      WEB_PUSH_VAPID_PRIVATE_KEY: Buffer.from(ec.getPrivateKey().toString("hex").padStart(64, "0"), "hex").toString("base64url"),
+      WEB_PUSH_ENCRYPTION_KEY: randomBytes(32).toString("base64") });
+    expect(config !== null).toBe(accepted);
+  });
+  it.each([
     "http://fcm.googleapis.com/send/id", "https://127.0.0.1/x", "https://fcm.googleapis.com.evil.com/x",
     "https://evilpush.apple.com/x", "https://fcm.googleapis.com:444/x", "https://user@fcm.googleapis.com/x",
     "https://fcm.googleapis.com/x#fragment", "file:///etc/passwd",

@@ -1,10 +1,11 @@
-import { test, expect, type BrowserContext, type Page, type APIResponse } from "@playwright/test";
+import { test, expect, type BrowserContext, type Page, type APIResponse, type Locator } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import type { StaffOrderDto } from "../src/lib/orders";
 
 test.describe.configure({ mode: "serial" });
+test.use({ browserName: process.env.LOCAL_QA_BROWSER === "webkit" ? "webkit" : "chromium" });
 test.skip(process.env.LOCAL_CATALOG_AMENDMENTS_QA !== "true", "Explicit local QA only; fixtures remain for manual testing.");
 const base = process.env.PLAYWRIGHT_APP_URL ?? "";
 const org = "11111111-1111-4111-8111-111111111111";
@@ -19,6 +20,12 @@ let printerId: string;
 let savedCapacity: { maxOrdersPerWindow: number; maxItemsPerWindow: number; autoResumeEnabled: boolean } | undefined;
 const orders: Array<{ id: string; orderNo: string; scenario: string }> = [];
 const errors: string[] = [];
+
+async function waitForHydratedControl(control: Locator) {
+  await expect.poll(() => control.evaluate(element => Object.entries(element).some(([key, value]) =>
+    key.startsWith("__reactProps$") && typeof (value as { onClick?: unknown }).onClick === "function")),
+  { message: "等待 React 控制項完成 hydration" }).toBe(true);
+}
 
 async function result(response: Pick<APIResponse, "text" | "status" | "url">, status = 200) {
   const text = await response.text();
@@ -61,7 +68,10 @@ async function patchOrder(order: StaffOrderDto, items: unknown[], extra = {}) {
 
 test.beforeAll(async ({ browser }) => {
   test.setTimeout(120_000);
-  if (base !== "http://127.0.0.1:3018" || new URL(process.env.DATABASE_URL!).hostname !== "127.0.0.1" || new URL(process.env.DATABASE_URL!).port !== "55722") throw new Error("LOCAL_QA_TARGET_MISMATCH");
+  const database = new URL(process.env.DATABASE_URL!);
+  const retainedTarget = base === "http://127.0.0.1:3018" && database.pathname === "/postgres";
+  const releaseTarget = base === "http://127.0.0.1:3028" && database.pathname === "/stallorder_release_primary_20260912";
+  if ((!retainedTarget && !releaseTarget) || database.hostname !== "127.0.0.1" || database.port !== "55722") throw new Error("LOCAL_QA_TARGET_MISMATCH");
   db = new PrismaClient();
   context = await browser.newContext({ baseURL: base, viewport: { width: 1440, height: 1000 } });
   page = await context.newPage(); page.setDefaultTimeout(15_000); page.on("pageerror", (error) => errors.push(error.message));
@@ -218,12 +228,14 @@ test("電腦平板手機供應選單與勾選控制正常，巢狀視窗保持�
     await page.setViewportSize({ width, height: 950 });
     await page.goto(`/merchant/catalog?organizationId=${org}`);
     if (width < 768) {
+      await waitForHydratedControl(page.getByTestId("open-catalog-navigator"));
       await page.getByTestId("open-catalog-navigator").click();
       await page.getByTestId("catalog-navigator-dialog").getByRole("searchbox").fill(`QA 主餐 ${stamp}`);
       await page.getByRole("button", { name: `操作：QA 主餐 ${stamp}`, exact: true }).click();
     }
     const scope = width < 768 ? page.getByTestId("catalog-navigator-dialog") : page.getByRole("region", { name: "商品批次管理" });
     const status = scope.getByRole("button", { name: new RegExp(`QA 主餐 ${stamp}：.+設定供應狀態`) }).first();
+    await waitForHydratedControl(status);
     await status.click();
     const dialog = page.getByRole("dialog", { name: "設定供應狀態" });
     await expect(dialog).toBeVisible();
@@ -290,7 +302,10 @@ test("店員畫面可增刪已出單餐點並驗證必選註記", async () => {
   await printCommand({ operation: "SUCCESS", jobId: original.id });
   await page.setViewportSize({ width: 1024, height: 900 });
   await page.goto("/staff/aming-chicken");
-  await page.getByTestId("staff-order-list-pane").getByRole("button").filter({ hasText: created.orderNo }).click();
+  const ticket = page.getByTestId("staff-order-list-pane").getByRole("button").filter({ hasText: created.orderNo });
+  await waitForHydratedControl(ticket);
+  await ticket.click();
+  await expect(ticket).toHaveAttribute("aria-current", "true");
   await page.getByTestId("staff-order-actions-pane").getByRole("button", { name: "修改訂單內容", exact: true }).click();
   const dialog = page.getByRole("dialog").filter({ has: page.locator("#order-edit-title") });
   await dialog.locator("#order-edit-product").selectOption(custom);

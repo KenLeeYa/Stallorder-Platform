@@ -6,7 +6,7 @@ import { writeFileSync } from "node:fs";
 test.describe.configure({ mode: "serial" });
 test.use({ browserName: process.env.LOCAL_QA_BROWSER === "webkit" ? "webkit" : "chromium" });
 test.skip(process.env.LOCAL_STAFF_PUSH_QA !== "true", "Requires explicit retained local QA fixture environment.");
-const origin = "http://127.0.0.1:3018";
+const origin = process.env.PLAYWRIGHT_APP_URL ?? "http://127.0.0.1:3018";
 const org = "11111111-1111-4111-8111-111111111111";
 const stall = "22222222-2222-4222-8222-222222222222";
 const slug = "aming-chicken";
@@ -20,8 +20,11 @@ const pageErrors: string[] = [];
 const layouts: unknown[] = [];
 test.beforeAll(async ({ browser }) => {
   test.setTimeout(120_000);
-  if (process.env.PLAYWRIGHT_APP_URL !== origin || new URL(process.env.DATABASE_URL!).hostname !== "127.0.0.1"
-    || new URL(process.env.DATABASE_URL!).port !== "55722") throw new Error("LOCAL_TARGET_MISMATCH");
+  const database = new URL(process.env.DATABASE_URL!);
+  const retainedTarget = origin === "http://127.0.0.1:3018" && database.pathname === "/postgres";
+  const releaseTarget = origin === "http://127.0.0.1:3028" && database.pathname === "/stallorder_release_primary_20260912";
+  if ((!retainedTarget && !releaseTarget) || database.hostname !== "127.0.0.1"
+    || database.port !== "55722") throw new Error("LOCAL_TARGET_MISMATCH");
   db = new PrismaClient();
   context = await browser.newContext({ baseURL: origin, viewport: { width: 1440, height: 1000 } });
   page = await context.newPage();
@@ -177,7 +180,11 @@ test("商家公告編輯預覽及手機平板視窗不超出畫面", async () =>
     expect(box!.x).toBeGreaterThanOrEqual(0); expect(box!.x + box!.width).toBeLessThanOrEqual(width + 1);
     await dialog.getByRole("button", { name: "我知道了" }).click();
   }
+  const savedResponse = page.waitForResponse(response => response.url().endsWith(announcementUrl) && response.request().method() === "PATCH");
   await page.getByRole("button", { name: "儲存公告", exact: true }).click();
+  const saved = await savedResponse;
+  expect(saved.status()).toBe(200);
+  revision = (await saved.json()).announcement.revision;
   await expect(page.getByRole("status")).toContainText("公告已儲存");
   await page.screenshot({ path: process.env.LOCAL_QA_EVIDENCE + "/merchant-announcement.png" });
   expect(pageErrors).toEqual([]);
@@ -206,6 +213,8 @@ test("店休優先、公告視窗焦點、暗色與資料庫讀取權限", async
     await announcement.getByRole("button", { name: "我知道了" }).focus();
     await page.keyboard.press("Tab");
     await expect(announcement.getByRole("button", { name: "關閉公告" })).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    await expect(announcement.getByRole("button", { name: "我知道了" })).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(announcement).toHaveCount(0);
   } finally {

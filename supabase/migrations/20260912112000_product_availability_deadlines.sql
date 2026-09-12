@@ -1,7 +1,10 @@
+begin;
 -- Daily/manual availability is separate from persistent numeric stock.
+set local lock_timeout = '5s';
+set local statement_timeout = '60s';
 alter table public.stall_products add column if not exists sold_out_until timestamptz;
 
-create or replace function public.product_next_service_day(p_stall_id uuid)
+create function public.product_next_service_day(p_stall_id uuid)
 returns timestamptz language sql stable set search_path = public, pg_temp as $$
   select (
     date_trunc('day', (now() at time zone s.timezone) - make_interval(hours => coalesce(os.business_day_cutoff_hour, 0)))
@@ -11,12 +14,12 @@ returns timestamptz language sql stable set search_path = public, pg_temp as $$
   where s.id = p_stall_id;
 $$;
 
-create or replace function public.product_manual_pause_active(p_sold_out boolean, p_until timestamptz)
+create function public.product_manual_pause_active(p_sold_out boolean, p_until timestamptz)
 returns boolean language sql stable parallel safe as $$
   select p_sold_out and (p_until is null or p_until > now());
 $$;
 
-create or replace function public.set_product_sold_out_deadline()
+create function public.set_product_sold_out_deadline()
 returns trigger language plpgsql set search_path = public, pg_temp as $$
 begin
   if not new.is_sold_out then
@@ -32,8 +35,14 @@ create trigger stall_products_sold_out_deadline
 before insert or update of is_sold_out, sold_out_until on public.stall_products
 for each row execute function public.set_product_sold_out_deadline();
 
-update public.stall_products set sold_out_until = public.product_next_service_day(stall_id)
-where is_sold_out and sold_out_until is null;
+revoke all on function public.product_next_service_day(uuid) from public, anon, authenticated;
+revoke all on function public.product_manual_pause_active(boolean, timestamptz) from public, anon, authenticated;
+revoke all on function public.set_product_sold_out_deadline() from public, anon, authenticated;
+grant execute on function public.product_next_service_day(uuid) to service_role;
+grant execute on function public.product_manual_pause_active(boolean, timestamptz) to service_role;
+
+-- Existing pause deadlines are backfilled only on the verified Primary writer
+-- after schema Apply, then replicated. DR schema Apply must not change data.
 
 comment on column public.stall_products.sold_out_until is
   'Manual pause expires at this instant. Numeric stock is never reset. Permanent delisting uses is_enabled=false.';
@@ -706,7 +715,7 @@ end;
 $function$
 ;
 
-CREATE OR REPLACE FUNCTION public.create_public_order_with_free_lottery_reward_targeted(p_order_id uuid, p_qr_token text, p_session_token_hash text, p_device_hash text, p_ip_hash text, p_qr_token_hash text, p_behavior_hash text, p_idempotency_key uuid, p_idempotency_hash text, p_customer_name text, p_customer_phone text, p_delivery_address text, p_customer_note text, p_items jsonb, p_tracking_token_hash text, p_pickup_code_hash text, p_request_id text, p_wait_acknowledged boolean, p_requested_fulfillment_at timestamp with time zone, p_lottery_draw_id uuid)
+CREATE OR REPLACE FUNCTION public.create_public_order_with_free_lottery_reward_targeted(p_order_id uuid, p_qr_token text, p_session_token_hash text, p_device_hash text, p_ip_hash text, p_qr_token_hash text, p_behavior_hash text, p_idempotency_key uuid, p_idempotency_hash text, p_customer_name text, p_customer_phone text, p_delivery_address text, p_customer_note text, p_items jsonb, p_tracking_token_hash text, p_pickup_code_hash text, p_request_id text, p_wait_acknowledged boolean, p_requested_fulfillment_at timestamptz, p_lottery_draw_id uuid)
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -911,3 +920,4 @@ AS $function$
   order by ranked_products.rank;
 $function$
 ;
+commit;

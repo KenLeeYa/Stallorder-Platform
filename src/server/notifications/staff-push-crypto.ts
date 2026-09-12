@@ -29,10 +29,15 @@ export function pushConfig(env: Record<string, string | undefined> = process.env
   const privateKey = env.WEB_PUSH_VAPID_PRIVATE_KEY ?? "";
   const encryptionKey = env.WEB_PUSH_ENCRYPTION_KEY ?? "";
   const subject = env.WEB_PUSH_VAPID_SUBJECT ?? "";
+  let validSubject = /^mailto:[^\s@]+@[^\s@]+\.[^\s@]+$/.test(subject);
+  try {
+    const contact = new URL(subject);
+    validSubject ||= contact.protocol === "https:" && !contact.username && !contact.password;
+  } catch { /* Invalid contact URIs keep push disabled. */ }
   if (Buffer.from(publicKey, "base64url").length !== 65
     || Buffer.from(privateKey, "base64url").length !== 32
     || Buffer.from(encryptionKey, "base64").length !== 32
-    || !/^mailto:[^\s@]+@[^\s@]+\.[^\s@]+$/.test(subject)) return null;
+    || !validSubject) return null;
   try {
     const ec = createECDH("prime256v1");
     ec.setPrivateKey(Buffer.from(privateKey, "base64url"));

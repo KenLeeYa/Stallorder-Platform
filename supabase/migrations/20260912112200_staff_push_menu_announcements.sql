@@ -1,4 +1,7 @@
+begin;
 -- Opt-in staff notifications. Browser DB roles cannot read endpoints or credentials.
+set local lock_timeout = '5s';
+set local statement_timeout = '60s';
 create table public.stall_menu_announcements (
   stall_id uuid primary key references public.stalls(id) on delete cascade,
   enabled boolean not null default false,
@@ -48,15 +51,23 @@ create index staff_push_delivery_subscription_idx on public.staff_push_deliverie
 alter table public.stall_menu_announcements enable row level security;
 alter table public.staff_push_subscriptions enable row level security;
 alter table public.staff_push_deliveries enable row level security;
-revoke all on public.stall_menu_announcements, public.staff_push_subscriptions, public.staff_push_deliveries from public, anon, authenticated;
-grant all on public.stall_menu_announcements, public.staff_push_subscriptions, public.staff_push_deliveries to service_role;
+revoke all on table public.stall_menu_announcements, public.staff_push_subscriptions, public.staff_push_deliveries from public, anon, authenticated;
+grant select, insert, update, delete on table public.stall_menu_announcements, public.staff_push_subscriptions, public.staff_push_deliveries to service_role;
+
+create trigger backend_writable_guard before insert or update or delete on public.stall_menu_announcements
+for each statement execute function app_private.enforce_backend_writable();
+create trigger backend_writable_guard before insert or update or delete on public.staff_push_subscriptions
+for each statement execute function app_private.enforce_backend_writable();
+create trigger backend_writable_guard before insert or update or delete on public.staff_push_deliveries
+for each statement execute function app_private.enforce_backend_writable();
 
 -- The order transaction covers every creation path, including Edge RPC.
 -- Only INSERT queues delivery; payment, amendment and completion updates never alert.
 create function app_private.enqueue_staff_new_order_push()
 returns trigger language plpgsql security definer set search_path = pg_catalog, public as $$
 begin
-  if new.status::text in ('CANCELLED', 'EXPIRED', 'COMPLETED') or new.source = 'OFFLINE_POS' then
+  if new.status::text in ('CANCELLED', 'EXPIRED', 'COMPLETED')
+    or new.origin = 'OFFLINE_POS'::public.order_origin or new.source = 'OFFLINE_POS' then
     return new;
   end if;
   insert into public.staff_push_deliveries(subscription_id, order_id)
@@ -69,3 +80,4 @@ $$;
 revoke all on function app_private.enqueue_staff_new_order_push() from public, anon, authenticated;
 create trigger staff_new_order_push after insert on public.orders
 for each row execute function app_private.enqueue_staff_new_order_push();
+commit;
