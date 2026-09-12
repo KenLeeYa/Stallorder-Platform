@@ -81,6 +81,12 @@ Web Push 鎖屏音效由作業系統／瀏覽器通知類別控制，不能以�
 
 本次證據目錄：`C:/Users/KY/.codex/visualizations/2026/09/06/01a0761b-0cdb-73e1-82cc-59a3e93d5d66/release-local-features-20260912`。
 
+## 正式回填執行器修正
+
+- Apply `34699557366` 已完成同版三支 Primary migration、history／lint 及未綁正式網址的部署，停在舊售完資料回填。Supabase CLI 2.109.1 的 `db query --file` 使用 prepared statement，對含 `BEGIN`、`SET LOCAL`、`DO`、`UPDATE` 及 `COMMIT` 的 SQL 檔回傳 `cannot insert multiple commands into a prepared statement`；該檔尚未執行，Edge 部署與 promote 均略過。
+- 改用 `psql --no-psqlrc --set ON_ERROR_STOP=1 --file` 執行原檔。SQL、交易、5 秒鎖等待／60 秒 statement timeout、Primary writer fence、僅回填未設期限的售完商品及庫存／永久停用保留規則全部不變。CI 先確認 `psql` 可用，契約測試防止多段 SQL 再走單一 prepared statement。
+- 本機已用同一支 CLI 2.109.1 重現錯誤，再用正式同一個 SQL 檔與 `psql` 於獨立 clone 驗證：Primary 回填 1 筆、重跑 0 筆；排除截止時間後的全商品資料摘要不變；DR 拒絕且全商品資料摘要不變。39 項 migration／workflow 契約測試通過。僅在合成 QA clone 準備舊版無期限資料，正式環境沒有停用 trigger；測試 DB `stallorder_release_backfill_regression_20260912` 保留。新版本仍需 staging、main、全套檢查與新的 Plan／Apply，不重用失敗收據或直接跳過回填。
+
 ## 測試服務收尾
 
 - `stallorder_release_primary_20260912`、`stallorder_release_dr_20260912`、`stallorder_release_dr_wrapped_20260912` 位於已使用中的本機 `supabase_db_stallorder-catalog-ops-20260907`／55722，只保留合成 QA 資料，未啟用排程。
