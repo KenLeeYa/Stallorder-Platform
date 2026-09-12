@@ -31,6 +31,7 @@ Run repository-declared commands for:
 - fresh database rebuild, migration contract, pgTAP/RLS, DB lint;
 - production guardrails, production build, dependency audit;
 - affected Playwright/E2E roles and responsive matrix;
+- Staff current/future order boards can coexist. Scope item/action assertions to the selected canonical order ID; a global pane test ID or arbitrary first match can inspect another order. Preserve workflow assertions and fail-on-flaky behavior.
 - performance measurement and security scan/remediation.
 
 Commit only reviewed paths. Re-run any invalidated evidence after merge/rebase/dependency or migration changes.
