@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { hashClientIp } from "@/lib/security";
 import { effectiveProductPrice } from "@/lib/shared-catalog";
 import { invalidatePublicMenu } from "@/lib/public-menu";
+import { isProductSoldOut } from "@/lib/product-availability";
 
 type RouteContext = { params: Promise<{ stallId: string }> };
 class StallCatalogConflict extends Error {}
@@ -65,14 +66,37 @@ export async function PATCH(request: Request, context: RouteContext) {
         }
         return stockChanges.length;
       }
-      if (command.operation === "BULK_SOLD_OUT" || command.operation === "BULK_ENABLED") {
+      if (command.operation === "BULK_AVAILABILITY" || command.operation === "BULK_SOLD_OUT" || command.operation === "BULK_ENABLED") {
         const ownedCount = await transaction.stallProduct.count({
           where: { stallId, organizationId, productId: { in: command.productIds } },
         });
         if (ownedCount !== command.productIds.length) throw new StallCatalogConflict("NOT_FOUND");
+        let data: Prisma.StallProductUpdateManyMutationInput;
+        if (command.operation === "BULK_AVAILABILITY") {
+          const [deadline] = await transaction.$queryRaw<Array<{ until: Date | null; valid: boolean }>>(Prisma.sql`
+            select case ${command.mode}
+              when 'TODAY' then public.product_next_service_day(s.id)
+              when 'TEMPORARY' then now() + make_interval(mins => ${command.minutes ?? 0}::integer)
+              when 'UNTIL_DATE' then (${command.resumeDate ?? "2000-01-01"}::date + make_interval(hours => coalesce(os.business_day_cutoff_hour, 0))) at time zone s.timezone
+              else null end as until,
+              (${command.mode} <> 'UNTIL_DATE' or ${command.resumeDate ?? "2000-01-01"}::date > (now() at time zone s.timezone)::date) as valid
+            from public.stalls s left join public.stall_ordering_settings os on os.stall_id = s.id
+            where s.id = ${stallId}::uuid and s.organization_id = ${organizationId}::uuid
+          `);
+          if (!deadline?.valid) throw new StallCatalogConflict("INVALID_RESUME_DATE");
+          data = {
+            isEnabled: command.mode !== "PERMANENT",
+            isSoldOut: command.mode !== "AVAILABLE" && command.mode !== "PERMANENT",
+            soldOutUntil: deadline.until,
+          };
+        } else {
+          data = command.operation === "BULK_SOLD_OUT"
+            ? { isSoldOut: command.isSoldOut, soldOutUntil: null }
+            : { isEnabled: command.isEnabled };
+        }
         const changed = await transaction.stallProduct.updateMany({
           where: { stallId, organizationId, productId: { in: command.productIds } },
-          data: command.operation === "BULK_SOLD_OUT" ? { isSoldOut: command.isSoldOut } : { isEnabled: command.isEnabled },
+          data,
         });
         return changed.count;
       }
@@ -107,7 +131,7 @@ export async function PATCH(request: Request, context: RouteContext) {
           source.product_id,
           source.price_override,
           source.is_enabled,
-          source.is_sold_out,
+          false,
           source.available_from,
           source.available_until,
           source.sort_order,
@@ -119,7 +143,6 @@ export async function PATCH(request: Request, context: RouteContext) {
         on conflict (stall_id, product_id) do update set
           price_override = excluded.price_override,
           is_enabled = excluded.is_enabled,
-          is_sold_out = excluded.is_sold_out,
           available_from = excluded.available_from,
           available_until = excluded.available_until,
           sort_order = excluded.sort_order,
@@ -132,7 +155,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       organizationId,
       stallId,
       actorProfileId: authorization.principal.user.id,
-      action: command.operation === "BULK_STOCK" ? "STALL_PRODUCTS_STOCK_CHANGED" : command.operation === "BULK_ENABLED" ? "STALL_PRODUCTS_ENABLED_CHANGED" : command.operation === "BULK_SOLD_OUT" ? "STALL_PRODUCTS_BULK_SOLD_OUT_CHANGED" : "STALL_CATALOG_COPIED",
+      action: command.operation === "BULK_STOCK" ? "STALL_PRODUCTS_STOCK_CHANGED" : command.operation === "BULK_AVAILABILITY" ? "STALL_PRODUCTS_AVAILABILITY_CHANGED" : command.operation === "BULK_ENABLED" ? "STALL_PRODUCTS_ENABLED_CHANGED" : command.operation === "BULK_SOLD_OUT" ? "STALL_PRODUCTS_BULK_SOLD_OUT_CHANGED" : "STALL_CATALOG_COPIED",
       entityType: "STALL_CATALOG",
       entityId: stallId,
       outcome: "SUCCESS",
@@ -144,6 +167,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         changedCount,
         ...(command.operation === "BULK_SOLD_OUT" ? { isSoldOut: command.isSoldOut }
           : command.operation === "BULK_ENABLED" ? { isEnabled: command.isEnabled }
+          : command.operation === "BULK_AVAILABILITY" ? { mode: command.mode, minutes: command.minutes ?? null, resumeDate: command.resumeDate ?? null, productIds: command.productIds.join(",") }
           : command.operation === "BULK_STOCK" ? {}
           : { sourceStallId: command.sourceStallId }),
       },
@@ -156,6 +180,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   } catch (error) {
     if (!(error instanceof StallCatalogConflict)) throw error;
     const stockErrors: Record<string, string> = {
+      INVALID_RESUME_DATE: "恢復日期需晚於店家今天的日期。若要立即恢復，請選擇供應中。",
       STOCK_CHANGED: "庫存剛被訂單或其他店員更新，整批未儲存。請重新整理後確認剩餘份數。",
       STOCK_UNLIMITED: "不限量商品請先設定目前剩餘份數，再使用增加補貨。",
       STOCK_LIMIT: "庫存不可超過 1,000,000 份。",
@@ -192,7 +217,8 @@ async function getStallProducts(stallId: string, organizationId: string) {
     priceOverride: assignment.priceOverride,
     effectivePrice: effectiveProductPrice(assignment.product.defaultPrice, assignment.priceOverride),
     isEnabled: assignment.isEnabled,
-    isSoldOut: assignment.isSoldOut,
+    isSoldOut: isProductSoldOut(assignment),
+    soldOutUntil: assignment.soldOutUntil,
     stockRemaining: assignment.stockRemaining,
     stockVersion: assignment.stockVersion,
     sortOrder: assignment.sortOrder,

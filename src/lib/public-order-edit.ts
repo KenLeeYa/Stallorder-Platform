@@ -160,6 +160,7 @@ export async function editTrackedPublicOrder(input: {
           stallId: order.stallId,
           productId: { in: input.request.items.map((item) => item.productId) },
           isSoldOut: true,
+          OR: [{ soldOutUntil: null }, { soldOutUntil: { gt: new Date() } }],
         },
       });
       if (soldOutItems > 0) throw new StaffOrderCreateError("PRODUCT_UNAVAILABLE");

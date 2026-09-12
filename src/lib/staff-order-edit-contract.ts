@@ -26,6 +26,8 @@ const publicOrderAmendmentSchema = z.object({
 }).strict();
 
 export const updateStaffOrderItemsSchema = z.object({
+  changeId: z.string().uuid(),
+  expectedUpdatedAt: z.string().datetime({ offset: true }),
   items: z.array(z.discriminatedUnion("kind", [existingItemSchema, newItemSchema])).min(1).max(100),
   publicAmendment: publicOrderAmendmentSchema.optional(),
 }).strict().superRefine((value, context) => {

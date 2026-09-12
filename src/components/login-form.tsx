@@ -22,6 +22,7 @@ type LocalQaAccount = {
   label: string;
   email: string;
   password: string;
+  nextPath?: string;
 };
 
 type LoginAudience = "MERCHANT" | "STAFF";
@@ -71,7 +72,7 @@ export function LoginForm({
     if (!isSubmitting) passwordDialogRef.current?.close();
   }
 
-  async function authenticate(email: FormDataEntryValue | null, password: FormDataEntryValue | null) {
+  async function authenticate(email: FormDataEntryValue | null, password: FormDataEntryValue | null, fallbackNextPath?: string) {
     setSubmissionError("");
     setIsSubmitting(true);
     try {
@@ -82,7 +83,7 @@ export function LoginForm({
         body: JSON.stringify({
           email,
           password,
-          next: requestedNextPath,
+          next: requestedNextPath ?? fallbackNextPath,
         }),
       });
       const result = await response.json();
@@ -124,7 +125,7 @@ export function LoginForm({
           <p className="text-xs font-semibold text-teal-900">本機測試快速登入</p>
           <div data-testid="local-qa-login-grid" className="mt-2 grid grid-cols-2 gap-2">
             {localQaAccounts.map((account) => (
-              <button key={account.email} type="button" disabled={!isClientReady || isSubmitting} onClick={() => void authenticate(account.email, account.password)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-teal-300 bg-white px-3 text-sm font-semibold text-teal-900 hover:bg-teal-100 disabled:opacity-50">
+              <button key={account.email} type="button" disabled={!isClientReady || isSubmitting} onClick={() => void authenticate(account.email, account.password, account.nextPath)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-teal-300 bg-white px-3 text-sm font-semibold text-teal-900 hover:bg-teal-100 disabled:opacity-50">
                 <LogIn className="h-4 w-4" />{account.label}
               </button>
             ))}

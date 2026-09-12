@@ -502,6 +502,8 @@ model Organization {
 }
 
 model Stall {
+  menuAnnouncement       StallMenuAnnouncement?
+  pushSubscriptions      StaffPushSubscription[]
   id                     String                   @id @default(uuid()) @db.Uuid
   organizationId         String                   @map("organization_id") @db.Uuid
   name                   String
@@ -597,6 +599,7 @@ model Stall {
 }
 
 model Profile {
+  pushSubscriptions        StaffPushSubscription[]
   id                       String                    @id @default(uuid()) @db.Uuid
   authUserId               String?                   @unique @map("auth_user_id") @db.Uuid
   email                    String?                   @unique
@@ -1832,6 +1835,64 @@ model BillingNotification {
   @@map("billing_notifications")
 }
 
+model StallMenuAnnouncement {
+  stallId   String   @id @map("stall_id") @db.Uuid
+  enabled   Boolean  @default(false)
+  title     String   @default("") @db.VarChar(80)
+  content   String   @default("") @db.VarChar(2000)
+  startsAt  DateTime? @map("starts_at") @db.Timestamptz(6)
+  endsAt    DateTime? @map("ends_at") @db.Timestamptz(6)
+  revision  String   @default(uuid()) @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  stall     Stall    @relation(fields: [stallId], references: [id], onDelete: Cascade)
+
+  @@map("stall_menu_announcements")
+}
+
+model StaffPushSubscription {
+  id                    String   @id @default(uuid()) @db.Uuid
+  stallId               String   @map("stall_id") @db.Uuid
+  profileId             String   @map("profile_id") @db.Uuid
+  sessionFamilyId       String   @map("session_family_id") @db.Uuid
+  sessionVersion        Int      @map("session_version")
+  endpointHash          String   @unique @map("endpoint_hash") @db.VarChar(64)
+  encryptedSubscription String   @map("encrypted_subscription")
+  vapidKeyHash          String   @map("vapid_key_hash") @db.VarChar(64)
+  enabled               Boolean  @default(true)
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  stall                 Stall    @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  profile               Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  deliveries            StaffPushDelivery[]
+
+  @@index([stallId, enabled], map: "staff_push_subscription_stall_idx")
+  @@index([profileId, sessionFamilyId], map: "staff_push_subscription_owner_idx")
+  @@map("staff_push_subscriptions")
+}
+
+model StaffPushDelivery {
+  id             String   @id @default(uuid()) @db.Uuid
+  subscriptionId String   @map("subscription_id") @db.Uuid
+  orderId        String?  @map("order_id") @db.Uuid
+  status         String   @default("PENDING")
+  attempts       Int      @default(0)
+  availableAt    DateTime @default(now()) @map("available_at") @db.Timestamptz(6)
+  expiresAt      DateTime @default(dbgenerated("(now() + '00:05:00'::interval)")) @map("expires_at") @db.Timestamptz(6)
+  leaseToken     String?  @map("lease_token") @db.Uuid
+  claimedAt      DateTime? @map("claimed_at") @db.Timestamptz(6)
+  errorCode      String?  @map("error_code") @db.VarChar(80)
+  sentAt         DateTime? @map("sent_at") @db.Timestamptz(6)
+  displayedAt    DateTime? @map("displayed_at") @db.Timestamptz(6)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  subscription   StaffPushSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  order          Order?   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriptionId, orderId])
+  @@index([status, availableAt], map: "staff_push_delivery_queue_idx")
+  @@index([subscriptionId, createdAt(sort: Desc)], map: "staff_push_delivery_subscription_idx")
+  @@map("staff_push_deliveries")
+}
+
 model NotificationOutbox {
   id                    String              @id @default(uuid()) @db.Uuid
   organizationId        String              @map("organization_id") @db.Uuid
@@ -2183,6 +2244,7 @@ model StallProduct {
   priceOverride  Int?         @map("price_override")
   isEnabled      Boolean      @default(true) @map("is_enabled")
   isSoldOut      Boolean      @default(false) @map("is_sold_out")
+  soldOutUntil   DateTime?    @map("sold_out_until") @db.Timestamptz(6)
   stockRemaining Int?        @map("stock_remaining")
   stockVersion   Int         @default(0) @map("stock_version")
   stockStartedAt DateTime?   @map("stock_started_at") @db.Timestamptz
@@ -2681,6 +2743,7 @@ model OrderSession {
 }
 
 model Order {
+  pushDeliveries           StaffPushDelivery[]
   stockAllocations         Json                @default("{}") @map("stock_allocations")
   stockConsumed            Boolean             @default(false) @map("stock_consumed")
   id                       String              @id @default(uuid()) @db.Uuid
@@ -3116,6 +3179,7 @@ model PrintJob {
   printRuleId     String?        @map("print_rule_id") @db.Uuid
   requestedById  String?        @map("requested_by") @db.Uuid
   reprintOfId    String?        @map("reprint_of_id") @db.Uuid
+  amendmentId   String?        @map("amendment_id") @db.Uuid
   isRoutingCopy   Boolean        @default(false) @map("is_routing_copy")
   documentType    PrintDocumentType @default(KITCHEN_TICKET) @map("document_type")
   status         PrintJobStatus @default(PENDING)

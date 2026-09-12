@@ -550,6 +550,7 @@ export async function getReorderPreparationContext(orderId: string) {
           priceOverride: true,
           isEnabled: true,
           isSoldOut: true,
+          soldOutUntil: true,
           availableFrom: true,
           availableUntil: true,
         },

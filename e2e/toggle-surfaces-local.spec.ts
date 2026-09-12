@@ -17,6 +17,7 @@ test.afterAll(async () => { await prisma.$disconnect(); });
 
 for (const [surface, route] of [
   ["catalog", `/merchant/catalog?organizationId=${organizationId}`],
+  ["stall-catalog", "/merchant/aming-chicken"],
   ["business-hours", `/merchant/stalls/${stallId}/settings/business-hours`],
   ["capacity", `/merchant/stalls/${stallId}/capacity`],
   ["schedule", `/merchant/stalls/${stallId}/schedule`],
@@ -38,25 +39,54 @@ for (const [surface, route] of [
     await expect(controls.first()).toBeVisible();
     if (surface === "catalog") {
       const all = page.getByRole("checkbox", { name: /全選本清單/ });
+      await expect.poll(() => all.evaluate((element) => Object.entries(element).some(([key, value]) =>
+        key.startsWith("__reactProps$") && typeof value?.onChange === "function"))).toBe(true);
       await all.check();
-      await expect(page.getByRole("button", { name: "批次售完", exact: true })).toBeEnabled();
+      await expect(page.getByRole("button", { name: "批次供應設定", exact: true })).toBeEnabled();
       await all.uncheck();
-      await expect(page.getByRole("button", { name: "批次售完", exact: true })).toBeDisabled();
+      await expect(page.getByRole("button", { name: "批次供應設定", exact: true })).toBeDisabled();
     }
     for (const width of [320, 390, 768, 1440]) {
       await page.setViewportSize({ width, height: 1000 });
       if (surface === "catalog" && width < 768) await page.getByRole("button", { name: "全部商品庫存", exact: true }).click();
+      if (surface === "stall-catalog" && width < 768) {
+        const trigger = page.getByRole("button", { name: "攤位商品設定", exact: true });
+        await expect.poll(() => trigger.evaluate((element) => Object.entries(element).some(([key, value]) =>
+          key.startsWith("__reactProps$") && typeof value?.onClick === "function"))).toBe(true);
+        await trigger.click();
+        await expect(page.getByRole("dialog")).toBeVisible();
+      }
       for (const mode of ["standard", "senior"]) {
         await page.locator("html").evaluate((html, value) => { html.dataset.interfaceMode = value; }, mode);
         const sizes = await controls.evaluateAll((inputs) => inputs.map((input) => {
           const rect = input.getBoundingClientRect();
-          return { width: rect.width, height: rect.height, appearance: getComputedStyle(input).appearance };
+          const target = (input.closest("label") ?? input).getBoundingClientRect();
+          return { width: rect.width, height: rect.height, targetWidth: target.width, targetHeight: target.height,
+            compact: input.classList.contains("ordering-checkbox"), appearance: getComputedStyle(input).appearance };
         }));
         expect(sizes.length).toBeGreaterThan(0);
         for (const size of sizes) {
-          expect(size.width).toBeGreaterThanOrEqual(44);
-          expect(size.height).toBeGreaterThanOrEqual(44);
-          expect(size.appearance).toBe("none");
+          expect(size.targetWidth).toBeGreaterThanOrEqual(mode === "senior" ? 56 : 44);
+          expect(size.targetHeight).toBeGreaterThanOrEqual(mode === "senior" ? 56 : 44);
+          if (size.compact) {
+            expect(size.width).toBeGreaterThanOrEqual(24);
+            expect(size.width).toBeLessThanOrEqual(28);
+            expect(size.height).toBe(size.width);
+            expect(size.appearance).toBe("auto");
+          } else {
+            expect(size.width).toBeGreaterThanOrEqual(44);
+            expect(size.height).toBeGreaterThanOrEqual(44);
+            expect(size.appearance).toBe("none");
+          }
+        }
+        if ((surface === "catalog" && width >= 768) || surface === "stall-catalog") {
+          const item = page.locator('input.ordering-checkbox[aria-label^="選取 "]:visible:not(:disabled)').first();
+          await expect(item).not.toBeChecked();
+          await item.locator("..").click({ position: { x: 2, y: 2 } });
+          await expect(item).toBeChecked();
+          await item.focus();
+          await page.keyboard.press("Space");
+          await expect(item).not.toBeChecked();
         }
         const overflow = await page.evaluate(() => ({ page: document.documentElement.scrollWidth, viewport: window.innerWidth }));
         if (overflow.page > overflow.viewport) {
@@ -64,15 +94,15 @@ for (const [surface, route] of [
           console.log(JSON.stringify({ surface, width, mode, nodes }));
         }
         expect(overflow.page, `${surface}/${width}/${mode}`).toBeLessThanOrEqual(overflow.viewport);
-        if ([390, 768].includes(width) && mode === "standard") await page.screenshot({ path: testInfo.outputPath(`${surface}-${width}.png`), fullPage: true });
+        if ([390, 768].includes(width) && mode === "standard") await page.screenshot({ path: testInfo.outputPath(`${surface}-${width}.png`), fullPage: surface !== "stall-catalog" });
       }
-      if (surface === "catalog" && width < 768) await page.getByRole("dialog").getByRole("button", { name: /關閉/ }).click();
+      if (["catalog", "stall-catalog"].includes(surface) && width < 768) await page.getByRole("dialog").getByRole("button", { name: /關閉/ }).click();
     }
     expect(errors).toEqual([]);
   });
 }
 
-test("Staff item selection switches never cover item details or production actions", async ({ page }, testInfo) => {
+test("Staff item selection checkboxes never cover item details or production actions", async ({ page }, testInfo) => {
   test.setTimeout(120_000);
   const order = await prisma.order.findFirstOrThrow({
     where: {
@@ -116,7 +146,7 @@ test("Staff item selection switches never cover item details or production actio
         const rows = await switches.evaluateAll((controls) => controls.map((control) => {
           const row = control.closest("li")!;
           const details = row.querySelector(":scope > div")!;
-          const toggle = control.getBoundingClientRect();
+          const toggle = control.closest("label")!.getBoundingClientRect();
           const content = details.getBoundingClientRect();
           const parent = row.getBoundingClientRect();
           return {
@@ -150,10 +180,12 @@ test("Staff item selection switches never cover item details or production actio
     await expect(first).not.toBeChecked();
     await page.screenshot({ path: testInfo.outputPath(`staff-item-switches-${width}.png`) });
   }
+  await page.emulateMedia({ media: "print" });
+  await expect(page.locator(".ordering-checkbox-target").first()).toBeHidden();
   expect(errors).toEqual([]);
 });
 
-test("Staff modifier switches change the actual cart draft without submitting an order", async ({ page }, testInfo) => {
+test("Staff modifier checkboxes change the actual cart draft without submitting an order", async ({ page }, testInfo) => {
   test.setTimeout(120_000);
   await establishLocalTestSession(page, prisma, ownerId);
   await gotoLocalPath(page, "/staff/aming-chicken");
@@ -162,12 +194,12 @@ test("Staff modifier switches change the actual cart draft without submitting an
   const product = page.getByTestId("staff-product-card").filter({ hasText: "香酥雞排" }).first();
   await product.getByTestId("staff-open-product-configurator").click();
   const configurator = page.getByTestId("staff-product-configurator");
-  const choice = configurator.getByRole("checkbox").filter({ has: page.locator(".selection-toggle") }).first();
+  const choice = configurator.getByRole("checkbox").filter({ has: page.locator(".ordering-selection-mark") }).first();
   await expect(choice).toBeVisible();
   const selected = await choice.getAttribute("aria-checked");
   await choice.click();
   await expect(choice).toHaveAttribute("aria-checked", selected === "true" ? "false" : "true");
-  await expect(choice.locator(".selection-toggle")).toHaveAttribute("data-checked", selected === "true" ? "false" : "true");
+  await expect(choice.locator(".ordering-selection-mark")).toHaveAttribute("data-checked", selected === "true" ? "false" : "true");
   await choice.focus();
   await page.keyboard.press("Space");
   await expect(choice).toHaveAttribute("aria-checked", selected!);
@@ -177,13 +209,16 @@ test("Staff modifier switches change the actual cart draft without submitting an
       await page.locator("html").evaluate((html, value) => { html.dataset.interfaceMode = value; }, mode);
       const bounds = await choice.boundingBox();
       expect(bounds?.height).toBeGreaterThanOrEqual(44);
+      const marker = await choice.locator(".ordering-selection-mark").boundingBox();
+      expect(marker?.width).toBeLessThanOrEqual(28);
+      expect(marker?.width).toBe(marker?.height);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     }
     await page.screenshot({ path: testInfo.outputPath(`staff-modifiers-${width}.png`) });
   }
 });
 
-test("Customer modifier and utensils switches remain usable through cart review", async ({ page }, testInfo) => {
+test("Customer modifier and utensils checkboxes remain usable through cart review", async ({ page }, testInfo) => {
   test.setTimeout(120_000);
   const qr = await prisma.qrCode.findFirstOrThrow({
     where: { stallId, state: "ACTIVE", diningTableId: null, expiresAt: null },
@@ -198,7 +233,7 @@ test("Customer modifier and utensils switches remain usable through cart review"
   const choice = configurator.getByRole("checkbox").first();
   await choice.click();
   await expect(choice).toBeChecked();
-  await expect(choice.locator(".selection-toggle")).toHaveAttribute("data-checked", "true");
+  await expect(choice.locator(".ordering-selection-mark")).toHaveAttribute("data-checked", "true");
   await choice.focus();
   await page.keyboard.press("Space");
   await expect(choice).not.toBeChecked();

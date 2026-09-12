@@ -143,10 +143,20 @@ test("內用顧客名稱與桌位欄位在桌面版對齊", async ({ page }, tes
       return {
         display: style.display,
         flexWrap: style.flexWrap,
-        overflowY: style.overflowY,
+        overflowX: style.overflowX,
       };
     }),
-  ).toEqual({ display: "flex", flexWrap: "nowrap", overflowY: "visible" });
+  ).toEqual({ display: "flex", flexWrap: "nowrap", overflowX: "auto" });
+  expect(
+    await functionGrid.evaluate(
+      (element) => element.scrollHeight <= element.clientHeight + 1,
+    ),
+  ).toBe(true);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+    ),
+  ).toBe(true);
   const desktopFunctionPositions = await functionGrid
     .locator(":scope > *")
     .evaluateAll((elements) =>

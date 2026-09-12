@@ -1,3 +1,4 @@
+import { manualProductPauseActive } from "../_shared/product-availability.ts";
 import { getAllowedOrigins } from "../_shared/env.ts";
 import {
   errorMessage,
@@ -116,7 +117,7 @@ Deno.serve(async (request) => {
       productIds.length === 0
         ? Promise.resolve({ data: [], error: null })
         : context.admin.from("stall_products")
-          .select("product_id, price_override, is_enabled, is_sold_out, available_from, available_until")
+          .select("product_id, price_override, is_enabled, is_sold_out, sold_out_until, available_from, available_until")
           .eq("stall_id", context.order.stall_id)
           .in("product_id", productIds)
           .limit(100),
@@ -227,7 +228,7 @@ function selectQrCode(qrCodes: QrCode[], fulfillmentType: string, diningTableId:
 function rebuildItems(input: {
   items: Array<{ id: string; product_id: string | null; name: string; unit_price: number; quantity: number; note: string | null; status: string }>;
   historicalNotes: Array<{ order_item_id: string; note_option_id: string | null }>;
-  stallProducts: Array<{ product_id: string; price_override: number | null; is_enabled: boolean; is_sold_out: boolean; available_from: string | null; available_until: string | null }>;
+  stallProducts: Array<{ product_id: string; price_override: number | null; is_enabled: boolean; is_sold_out: boolean; sold_out_until?: string | null; available_from: string | null; available_until: string | null }>;
   products: Array<{ id: string; name: string; default_price: number; kind: string; is_active: boolean }>;
   noteAssignments: Array<{ product_id: string; note_group_id: string }>;
   groups: Array<{ id: string; is_required: boolean; min_selections: number }>;
@@ -260,8 +261,9 @@ function rebuildItems(input: {
     const isWithinWindow = assignment
       && (!assignment.available_from || Date.parse(assignment.available_from) <= input.now)
       && (!assignment.available_until || Date.parse(assignment.available_until) > input.now);
-    if (!item.product_id || !product?.is_active || !assignment?.is_enabled || assignment.is_sold_out || !isWithinWindow) {
-      unavailable.push({ name: item.name, reason: assignment?.is_sold_out ? "目前售罄" : "目前無法供應" });
+    const paused = manualProductPauseActive(assignment?.is_sold_out === true, assignment?.sold_out_until);
+    if (!item.product_id || !product?.is_active || !assignment?.is_enabled || paused || !isWithinWindow) {
+      unavailable.push({ name: item.name, reason: paused ? "目前售罄" : "目前無法供應" });
       continue;
     }
     const productGroups = assignedGroups.get(item.product_id) ?? new Set<string>();

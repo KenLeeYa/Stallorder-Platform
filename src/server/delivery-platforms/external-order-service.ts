@@ -334,7 +334,7 @@ async function prepareMappedItems(
         stallId,
         productId: { in: productIds },
         isEnabled: true,
-        isSoldOut: false,
+        OR: [{ isSoldOut: false }, { soldOutUntil: { lte: new Date() } }],
         product: { isActive: true },
       },
       select: {

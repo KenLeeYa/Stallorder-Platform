@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import { isProductSoldOut } from "@/lib/product-availability";
 import { mergeEnabledLocales, normalizeEnabledLocales } from "@/lib/enabled-locales";
 import { calculateTranslationCoverage } from "@/lib/translation-completeness";
 
@@ -91,7 +92,7 @@ export async function getOrganizationEnabledLocales(organizationId: string, stal
 }
 
 export async function getLocalizedStallPreview(organizationId: string, stallId: string) {
-  return prisma.stall.findFirst({
+  const stall = await prisma.stall.findFirst({
     where: { id: stallId, organizationId, isActive: true },
     select: {
       id: true,
@@ -105,6 +106,8 @@ export async function getLocalizedStallPreview(organizationId: string, stallId: 
         select: {
           priceOverride: true,
           isSoldOut: true,
+          soldOutUntil: true,
+          stockRemaining: true,
           product: {
             select: {
               id: true,
@@ -157,4 +160,5 @@ export async function getLocalizedStallPreview(organizationId: string, stallId: 
       },
     },
   });
+  return stall ? { ...stall, stallProducts: stall.stallProducts.map((item) => ({ ...item, isSoldOut: isProductSoldOut(item) })) } : null;
 }

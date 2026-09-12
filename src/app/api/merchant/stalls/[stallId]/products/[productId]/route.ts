@@ -1,3 +1,4 @@
+import { isProductSoldOut } from "@/lib/product-availability";
 import { NextResponse } from "next/server";
 import { recordAuditEvent } from "@/lib/audit";
 import { authorizeStallManagementApiRequest } from "@/lib/authorization";
@@ -62,7 +63,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (
     parsed.data.checkoutUpsellSelected
     && !wasCheckoutUpsellSelected
-    && (!existing.product.isActive || !parsed.data.isEnabled || parsed.data.isSoldOut)
+    && (!existing.product.isActive || !(parsed.data.isEnabled ?? existing.isEnabled) || (parsed.data.isSoldOut ?? isProductSoldOut(existing)))
   ) {
     return NextResponse.json(
       { error: "請先啟用並恢復供應商品，再設為結帳推薦。" },
@@ -95,6 +96,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         priceOverride: true,
         isEnabled: true,
         isSoldOut: true,
+        soldOutUntil: true,
         sortOrder: true,
         availableFrom: true,
         availableUntil: true,
@@ -154,6 +156,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     {
       stallProduct: {
         ...stallProduct,
+        isSoldOut: isProductSoldOut(stallProduct),
         checkoutUpsellSelected,
         effectivePrice: effectiveProductPrice(
           stallProduct.product.defaultPrice,

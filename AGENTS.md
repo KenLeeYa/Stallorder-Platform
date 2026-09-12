@@ -24,6 +24,16 @@ Before release, verify that code, executable tests, repository documentation, th
 - Record what remains running, what stopped, and how to resume. A stopped Engine is not proof that unwanted containers will remain stopped after Engine startup; reconcile the running allowlist after starting Docker Desktop.
 - See `docs/LOCAL_TEST_SERVICE_LIFECYCLE.md` for the current service inventory and safe stop/start procedure.
 
+## Production availability after the 2026-09-12 DR incident
+
+- User-confirmed context as of 2026-09-12: StallOrder has not publicly launched; three merchants are testing, and this incident occurred outside system-use hours. This context does not relax Production availability or release checks.
+- Before changes to application features, authentication, environment variables, deployment, domains, Access, database or DR, map affected login/order paths and capture the healthy Production baseline: actual project, deployment, aliases, backend target, commit and health. Verify a compatible recovery target before writing remotely.
+- Keep Primary and DR project bindings explicit, including child-process environment variables. Read provider state back; `.vercel/project.json`, a successful command or a green Plan alone is not proof of the actual target. DR-only changes must leave Primary deployment, aliases and backend unchanged.
+- Use one coordinated remote writer across tasks. Check Production before changes, after each remote step that can affect it, periodically during long-running deployment work, and after completion. Include login/staff entry, health and the affected QR, pickup, delivery or staff order flows with authorized test accounts/data.
+- If Production regresses or target identity differs from the plan, stop further release writes and prioritize recovery within existing authorization. Restore an explicitly verified healthy artifact; do not assume the immediately previous deployment is safe. Database writer changes require the existing failback procedure.
+- Confirm recovery using provider readback and the real Production hostname, not only cleanup success. Separate passed, failed and skipped checks; missing authenticated/valid-QR tests must not be counted as passed or described as full flow verification. CI/Plan success is not deployment success, and recovery does not automatically resume paused DR publication.
+- Record receipts and remaining verification gaps. Follow `docs/incidents/2026-09-12-dr-production-outage.md`, `docs/INCIDENT_RESPONSE.md` and `docs/PRODUCTION_ROLLBACK.md`; retain these requirements when preparing another release worktree.
+
 ## 1. Think Before Coding
 
 **Don't assume. Don't hide confusion. Surface tradeoffs.**

@@ -17,10 +17,12 @@ export function SpecialClosureNoticeDialog({
   closure,
   locale,
   timeZone,
+  onSettled,
 }: {
   closure: SpecialClosureNotice;
   locale: AppLocale;
   timeZone: string;
+  onSettled?: () => void;
 }) {
   const hydrated = useSyncExternalStore(subscribeToHydration, clientHydrationSnapshot, serverHydrationSnapshot);
   const [dismissedSignature, setDismissedSignature] = useState<string | null>(null);
@@ -38,6 +40,10 @@ export function SpecialClosureNoticeDialog({
   const open = appliesToday
     && dismissedSignature !== signature
     && readDismissedSignature(storageKey) !== signature;
+
+  useEffect(() => {
+    if (hydrated && !open) onSettled?.();
+  }, [hydrated, open, onSettled]);
 
   useEffect(() => {
     if (!open) return;

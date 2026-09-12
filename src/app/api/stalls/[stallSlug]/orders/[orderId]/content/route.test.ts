@@ -33,7 +33,11 @@ beforeEach(() => {
   });
   mocks.validateCsrf.mockReturnValue(true);
   mocks.readJson.mockResolvedValue({
-    data: { items: [{ kind: "EXISTING", itemId, quantity: 2 }] },
+    data: {
+      items: [{ kind: "EXISTING", itemId, quantity: 2 }],
+      expectedUpdatedAt: "2026-09-12T00:00:00.000Z",
+      changeId: "66666666-6666-4666-8666-666666666666",
+    },
   });
   mocks.edit.mockResolvedValue({
     order: { id: orderId, orderNo: "A001" },
@@ -86,5 +90,11 @@ describe("staff order content edit route", () => {
       outcome: "FAILURE",
       metadata: { reason: "ORDER_ALREADY_STARTED" },
     }));
+  });
+
+  it("rejects edits from an old client without version and retry identity", async () => {
+    mocks.readJson.mockResolvedValue({ data: { items: [{ kind: "EXISTING", itemId, quantity: 2 }] } });
+    expect((await patch()).status).toBe(400);
+    expect(mocks.edit).not.toHaveBeenCalled();
   });
 });

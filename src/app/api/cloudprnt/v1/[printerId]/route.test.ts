@@ -489,6 +489,7 @@ function buildJob(payload: unknown, status: "PENDING" | "PRINTING") {
       requestedFulfillmentAt: null,
       committedFulfillmentAt: null,
       items: [{
+        id: "77777777-7777-4777-8777-777777777777",
         name: "牛肉湯河粉",
         quantity: 2,
         note: "不要香菜",

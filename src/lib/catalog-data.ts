@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import { isProductSoldOut } from "@/lib/product-availability";
 
 export async function getOrganizationCatalog(organizationId: string, authorizedStallIds: string[]) {
   const [categories, groups, products, orderingSettings] = await Promise.all([
@@ -62,6 +63,7 @@ export async function getOrganizationCatalog(organizationId: string, authorizedS
             priceOverride: true,
             isEnabled: true,
             isSoldOut: true,
+            soldOutUntil: true,
             stockRemaining: true,
             stockVersion: true,
             sortOrder: true,
@@ -114,6 +116,8 @@ export async function getOrganizationCatalog(organizationId: string, authorizedS
       ...product,
       stallProducts: product.stallProducts.map((assignment) => ({
         ...assignment,
+        isSoldOut: isProductSoldOut(assignment),
+        soldOutUntil: assignment.soldOutUntil?.toISOString() ?? null,
         checkoutUpsellSelected: checkoutUpsellIdsByStall
           .get(assignment.stallId)
           ?.has(product.id) ?? false,
