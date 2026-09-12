@@ -87,6 +87,12 @@ Web Push 鎖屏音效由作業系統／瀏覽器通知類別控制，不能以�
 - 改用 `psql --no-psqlrc --set ON_ERROR_STOP=1 --file` 執行原檔。SQL、交易、5 秒鎖等待／60 秒 statement timeout、Primary writer fence、僅回填未設期限的售完商品及庫存／永久停用保留規則全部不變。CI 先確認 `psql` 可用，契約測試防止多段 SQL 再走單一 prepared statement。
 - 本機已用同一支 CLI 2.109.1 重現錯誤，再用正式同一個 SQL 檔與 `psql` 於獨立 clone 驗證：Primary 回填 1 筆、重跑 0 筆；排除截止時間後的全商品資料摘要不變；DR 拒絕且全商品資料摘要不變。39 項 migration／workflow 契約測試通過。僅在合成 QA clone 準備舊版無期限資料，正式環境沒有停用 trigger；測試 DB `stallorder_release_backfill_regression_20260912` 保留。新版本仍需 staging、main、全套檢查與新的 Plan／Apply，不重用失敗收據或直接跳過回填。
 
+## 跨角色預約單測試定位修正
+
+- main CI `34703696898` 的預約單跨角色測試曾同時找到兩個 `staff-order-items-pane`，觸發 Playwright strict mode；重試雖通過，既有 `failOnFlakyTests` 正確阻止發布。資料庫與顧客 Tracker 的前置斷言已通過，失敗發生在全頁定位重複的今日／預約看板，不能當成商品遺失或忽略失敗直接發布。
+- 品項與操作區改以已建立訂單 ID 對應的 `aria-labelledby` 定界，並確認清單卡片 `aria-current=true`；保留商品、註記、移除品項、取餐時間、DB、Staff、KDS 與 Tracker 斷言。應用、SQL、schema、timeout 與 retry 規則不變。
+- Chromium／WebKit 各用目標看板在前、在後兩種雙看板 fixture 驗證：舊全頁定位確定因歧義失敗，新定位均唯一命中指定訂單。這是定位器回歸證據，完整訂單流程仍需修正版本的 CI／隔離 Preview 與新 Plan／Apply；證據為 `staff-order-selector-regression.json`。
+
 ## 測試服務收尾
 
 - `stallorder_release_primary_20260912`、`stallorder_release_dr_20260912`、`stallorder_release_dr_wrapped_20260912` 位於已使用中的本機 `supabase_db_stallorder-catalog-ops-20260907`／55722，只保留合成 QA 資料，未啟用排程。
