@@ -139,7 +139,15 @@ test("retained peak-hour orders raise quotes, pause safely, recover automaticall
     await page.setViewportSize({ width, height: 900 });
     await gotoLocalPath(page, "/staff/" + slug);
     await dismissStaffStartReminder(page);
-    await expect(page.getByTestId("staff-order-list-pane")).toBeVisible();
+    const staffOrderCard = page.getByTestId("staff-order-list-pane")
+      .getByRole("button")
+      .filter({ hasText: stored.find(order => order.id === orders[5].id)!.orderNo });
+    await expect(staffOrderCard).toContainText("尖峰範例 6");
+    await staffOrderCard.click();
+    await expect(staffOrderCard).toHaveAttribute("aria-current", "true");
+    await expect(page.locator(
+      `[data-testid="staff-order-items-pane"][aria-labelledby="staff-order-items-title-${orders[5].id}"]`,
+    ).filter({ visible: true })).toContainText(product.name);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await page.screenshot({ path: test.info().outputPath("surge-staff-" + width + ".png") });
     await gotoLocalPath(page, "/kitchen?stall=" + slug);
