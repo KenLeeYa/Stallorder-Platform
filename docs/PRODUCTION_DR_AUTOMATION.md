@@ -109,6 +109,24 @@ The authenticated generated-deployment probe relies on the workflow-scoped
 Vercel CLI 56.3.1 forwards that option to the underlying curl process, which
 rejects it before the probe runs. Apply `34557436938` demonstrated this failure
 and completed its exact-resource rollback before the invocation was corrected.
+Apply `34714729792` later deployed to the correct independent DR project but
+stopped with `DR_ENTRY_PROBE_JSON_MISSING`. Its resources were rolled back and
+independently read back as absent; the Primary alias and healthy deployment
+remained unchanged. That receipt did not retain the HTTP response status, so it
+does not establish whether the generated-deployment request was denied or
+redirected. Local requests through the same CLI 56.3.1 reproduced the identical
+old error for both an empty HTTP 403 and an empty HTTP 307.
+
+The generated-deployment probe now passes native curl flags after `--`, captures
+HTTP status and content type separately from the body, and requires HTTP 200
+with JSON before checking DR readiness. It does not follow redirects or accept
+an HTTP error merely because its body contains JSON. Failure evidence contains
+only the status, an allowlisted content-type category, body byte count and the
+probe stage; no body, cookies, redirect URL or credentials are retained. Missing
+transport metadata and malformed JSON also fail closed. A fresh protected
+Plan/Apply is still needed to determine and resolve any live provider/runtime
+failure; this diagnostic correction alone is not a successful DR publication.
+
 Apply `34592363378` later proved why the direct HTTPS gate is necessary: Vercel
 reported the custom domain configured before its origin certificate was ready,
 so Cloudflare Access admitted the QA token but the proxied origin handshake

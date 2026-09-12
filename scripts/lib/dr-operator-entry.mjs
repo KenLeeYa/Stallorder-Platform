@@ -78,6 +78,31 @@ export function sanitizeProviderErrorCode(payload) {
   return /^[A-Za-z0-9_.:-]{1,80}$/u.test(code) ? code : null;
 }
 
+export function parseDrOperatorProbeOutput(output) {
+  const metadata = /\n__STALLORDER_DR_PROBE__:([1-5][0-9]{2}):([^\r\n]*)\r?\n?$/u.exec(output);
+  const status = metadata ? Number(metadata[1]) : null;
+  const mime = metadata?.[2].split(";", 1)[0].trim().toLowerCase();
+  const contentType = mime === "application/json" ? "JSON"
+    : mime === "text/html" ? "HTML" : mime ? "OTHER" : "MISSING";
+  const body = metadata ? output.slice(0, metadata.index) : "";
+  const failProbe = (reason) => {
+    const error = new Error(`DR_ENTRY_PROBE_${reason}`);
+    error.failureStage = "PROBE_GENERATED_DEPLOYMENT";
+    error.probeHttpStatus = status;
+    error.probeContentType = contentType;
+    error.probeBodyBytes = Buffer.byteLength(body);
+    throw error;
+  };
+  if (!metadata) failProbe("TRANSPORT_METADATA_MISSING");
+  if (status !== 200) failProbe(`HTTP_${status}`);
+  if (contentType !== "JSON") failProbe("CONTENT_TYPE_INVALID");
+  try {
+    return JSON.parse(body);
+  } catch {
+    failProbe("JSON_INVALID");
+  }
+}
+
 export function classifyExclusiveVercelDomainSet(domains, hostname) {
   if (!Array.isArray(domains) || typeof hostname !== "string" || !hostname) {
     return "invalid";

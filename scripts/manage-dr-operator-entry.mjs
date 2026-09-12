@@ -12,6 +12,7 @@ import {
   classifyDirectVercelTlsResponse,
   isPlanOwnedDrDeployment,
   missingActiveEdgeFunctions,
+  parseDrOperatorProbeOutput,
   primaryVercelStateMatches,
   sanitizeProviderErrorCode,
   validateApprovedDrOperatorEntryPlan,
@@ -360,6 +361,9 @@ async function applyEntry(plan) {
       reasonCode: error instanceof Error ? error.message : "DR_ENTRY_APPLY_FAILED",
       failedStage: error?.failureStage ?? "DR_ENTRY_APPLY",
       providerErrorCode: error?.providerErrorCode ?? null,
+      probeHttpStatus: error?.probeHttpStatus ?? null,
+      probeContentType: error?.probeContentType ?? null,
+      probeBodyBytes: error?.probeBodyBytes ?? null,
       rollbackCompleted: rollbackResult.completed === true,
       failedAt: new Date().toISOString(),
     }).catch(() => {});
@@ -631,10 +635,12 @@ async function vercelCurl(baseUrl, targetProjectId) {
     "--deployment",
     baseUrl,
     "--yes",
+    "--",
+    "--silent", "--show-error",
+    "--connect-timeout", "15", "--max-time", "60",
+    "--write-out", "\n__STALLORDER_DR_PROBE__:%{http_code}:%{content_type}\n",
   ], "DR_ENTRY_PROTECTED_PROBE_FAILED", targetProjectId);
-  const start = output.indexOf("{");
-  if (start < 0) throw new Error("DR_ENTRY_PROBE_JSON_MISSING");
-  return JSON.parse(output.slice(start));
+  return parseDrOperatorProbeOutput(output);
 }
 
 async function assertDeploymentProjectIdentity(deploymentUrl, targetProjectId) {
