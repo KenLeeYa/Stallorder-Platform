@@ -260,7 +260,9 @@ export function StallCatalogSettings({
                 <div key={product.productId} className="grid gap-3 py-4 lg:grid-cols-[minmax(180px,1fr)_150px_90px_auto] lg:items-end">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <input className="ordering-checkbox" type="checkbox" aria-label={m("選取 {productName}", { productName: product.name })} checked={selectedProductIds.has(product.productId)} onChange={(event) => setSelectedProductIds((current) => { const next = new Set(current); if (event.target.checked) next.add(product.productId); else next.delete(product.productId); return next; })} />
+                      <label className="ordering-checkbox-target grid shrink-0 place-items-center">
+                        <input className="ordering-checkbox" type="checkbox" aria-label={m("選取 {productName}", { productName: product.name })} checked={selectedProductIds.has(product.productId)} onChange={(event) => setSelectedProductIds((current) => { const next = new Set(current); if (event.target.checked) next.add(product.productId); else next.delete(product.productId); return next; })} />
+                      </label>
                       <h3 className="font-semibold">{product.name}</h3><button type="button" onClick={() => setStockIds([product.productId])} className="min-h-10 rounded-md border border-stone-300 px-2 text-xs font-semibold">庫存：{product.stockRemaining == null ? "不限量" : product.stockRemaining + " 份"}</button>
                       {product.groupName ? <span className="rounded-md bg-stone-100 px-2 py-0.5 text-xs text-stone-600">{product.groupName}</span> : null}
                       {product.checkoutUpsellSelected ? <span className="rounded-full bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-800">{m("結帳推薦中")}</span> : null}

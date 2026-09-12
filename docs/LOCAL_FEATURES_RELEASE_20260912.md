@@ -68,6 +68,14 @@ Web Push 鎖屏音效由作業系統／瀏覽器通知類別控制，不能以�
 - TypeScript、production build、UI audit 通過；ESLint 0 errors、5 個既有 Next 導航 warnings；依賴 audit 0 vulnerabilities。最終 revision 的 CI／Preview 仍須確認，尚不可標記 Released。
 - 正式首頁、商家／店員登入及 health 在 11:09、11:41 台北時間均 HTTP 200；這些唯讀檢查不等同實際帳密登入、下單或推播實機測試。
 
+## PR 驗證與修正紀錄
+
+- PR #344 首輪 CI `34672596186` 停在舊的「批次售完」按鈕測試。已改走「批次供應設定 → 今日售完 → 確認」實際流程，並驗證截止時間已儲存、庫存份數保持不變；本機重測通過。
+- 商家模組完整流程已更新按鈕名稱並通過本機驗證。保留的備份 fixture 因大量舊測試訂單而自動暫停點餐，重測僅在獨立 scratch DB 準備開店／QR 啟用條件；完成後已還原原暫停狀態與容量設定，不修改正式限流或營運規則。
+- 勾選框改小後，共用商品與攤位商品列表缺少足夠觸控範圍，已由失敗的實際頁面測試重現並補上 label。勾選圖示保持 24–28px，正常／長者模式可點範圍至少 44／56px；測試包含點外緣、Space 切換及各尺寸不溢出。
+- CodeQL 曾指出測試中的說明網址正規表示式過寬，已改成精確 URL 比對。`3b96c17` 的 CodeQL 通過，分支未結案警示為零。
+- `3b96c17` 的隔離 Preview `34672596121` 通過：72 files／1619 pgTAP tests、部署／翻譯 smoke、合成 OAuth 與外送流程。唯讀 smoke 原始 20/20 含兩項 skip（Preview 不測正式 root／WWW，未提供正式專用 QR），實際執行 18 項；health 為 ok／DEGRADED。此收據不得替代後續變更 SHA 的 CI／Preview，仍須全套重跑。
+
 本次證據目錄：`C:/Users/KY/.codex/visualizations/2026/09/06/01a0761b-0cdb-73e1-82cc-59a3e93d5d66/release-local-features-20260912`。
 
 ## 測試服務收尾

@@ -17,6 +17,7 @@ test.afterAll(async () => { await prisma.$disconnect(); });
 
 for (const [surface, route] of [
   ["catalog", `/merchant/catalog?organizationId=${organizationId}`],
+  ["stall-catalog", "/merchant/aming-chicken"],
   ["business-hours", `/merchant/stalls/${stallId}/settings/business-hours`],
   ["capacity", `/merchant/stalls/${stallId}/capacity`],
   ["schedule", `/merchant/stalls/${stallId}/schedule`],
@@ -38,25 +39,54 @@ for (const [surface, route] of [
     await expect(controls.first()).toBeVisible();
     if (surface === "catalog") {
       const all = page.getByRole("checkbox", { name: /全選本清單/ });
+      await expect.poll(() => all.evaluate((element) => Object.entries(element).some(([key, value]) =>
+        key.startsWith("__reactProps$") && typeof value?.onChange === "function"))).toBe(true);
       await all.check();
-      await expect(page.getByRole("button", { name: "批次售完", exact: true })).toBeEnabled();
+      await expect(page.getByRole("button", { name: "批次供應設定", exact: true })).toBeEnabled();
       await all.uncheck();
-      await expect(page.getByRole("button", { name: "批次售完", exact: true })).toBeDisabled();
+      await expect(page.getByRole("button", { name: "批次供應設定", exact: true })).toBeDisabled();
     }
     for (const width of [320, 390, 768, 1440]) {
       await page.setViewportSize({ width, height: 1000 });
       if (surface === "catalog" && width < 768) await page.getByRole("button", { name: "全部商品庫存", exact: true }).click();
+      if (surface === "stall-catalog" && width < 768) {
+        const trigger = page.getByRole("button", { name: "攤位商品設定", exact: true });
+        await expect.poll(() => trigger.evaluate((element) => Object.entries(element).some(([key, value]) =>
+          key.startsWith("__reactProps$") && typeof value?.onClick === "function"))).toBe(true);
+        await trigger.click();
+        await expect(page.getByRole("dialog")).toBeVisible();
+      }
       for (const mode of ["standard", "senior"]) {
         await page.locator("html").evaluate((html, value) => { html.dataset.interfaceMode = value; }, mode);
         const sizes = await controls.evaluateAll((inputs) => inputs.map((input) => {
           const rect = input.getBoundingClientRect();
-          return { width: rect.width, height: rect.height, appearance: getComputedStyle(input).appearance };
+          const target = (input.closest("label") ?? input).getBoundingClientRect();
+          return { width: rect.width, height: rect.height, targetWidth: target.width, targetHeight: target.height,
+            compact: input.classList.contains("ordering-checkbox"), appearance: getComputedStyle(input).appearance };
         }));
         expect(sizes.length).toBeGreaterThan(0);
         for (const size of sizes) {
-          expect(size.width).toBeGreaterThanOrEqual(44);
-          expect(size.height).toBeGreaterThanOrEqual(44);
-          expect(size.appearance).toBe("none");
+          expect(size.targetWidth).toBeGreaterThanOrEqual(mode === "senior" ? 56 : 44);
+          expect(size.targetHeight).toBeGreaterThanOrEqual(mode === "senior" ? 56 : 44);
+          if (size.compact) {
+            expect(size.width).toBeGreaterThanOrEqual(24);
+            expect(size.width).toBeLessThanOrEqual(28);
+            expect(size.height).toBe(size.width);
+            expect(size.appearance).toBe("auto");
+          } else {
+            expect(size.width).toBeGreaterThanOrEqual(44);
+            expect(size.height).toBeGreaterThanOrEqual(44);
+            expect(size.appearance).toBe("none");
+          }
+        }
+        if ((surface === "catalog" && width >= 768) || surface === "stall-catalog") {
+          const item = page.locator('input.ordering-checkbox[aria-label^="選取 "]:visible:not(:disabled)').first();
+          await expect(item).not.toBeChecked();
+          await item.locator("..").click({ position: { x: 2, y: 2 } });
+          await expect(item).toBeChecked();
+          await item.focus();
+          await page.keyboard.press("Space");
+          await expect(item).not.toBeChecked();
         }
         const overflow = await page.evaluate(() => ({ page: document.documentElement.scrollWidth, viewport: window.innerWidth }));
         if (overflow.page > overflow.viewport) {
@@ -64,9 +94,9 @@ for (const [surface, route] of [
           console.log(JSON.stringify({ surface, width, mode, nodes }));
         }
         expect(overflow.page, `${surface}/${width}/${mode}`).toBeLessThanOrEqual(overflow.viewport);
-        if ([390, 768].includes(width) && mode === "standard") await page.screenshot({ path: testInfo.outputPath(`${surface}-${width}.png`), fullPage: true });
+        if ([390, 768].includes(width) && mode === "standard") await page.screenshot({ path: testInfo.outputPath(`${surface}-${width}.png`), fullPage: surface !== "stall-catalog" });
       }
-      if (surface === "catalog" && width < 768) await page.getByRole("dialog").getByRole("button", { name: /關閉/ }).click();
+      if (["catalog", "stall-catalog"].includes(surface) && width < 768) await page.getByRole("dialog").getByRole("button", { name: /關閉/ }).click();
     }
     expect(errors).toEqual([]);
   });

@@ -126,7 +126,9 @@ export function SharedCatalogBoard({ currency, categories, groups, products, sta
         </div>
         <div className="max-h-[65vh] min-h-0 overflow-y-auto md:max-h-none md:flex-1">
           {visible.map((row) => <article key={row.id} data-testid="catalog-management-row" className="flex flex-wrap items-center gap-3 border-b border-stone-100 p-3">
-            <input className="ordering-checkbox" type="checkbox" aria-label={`選取 ${row.name}`} disabled={!row.isAssigned} checked={selected.has(row.id)} onChange={(e) => setSelected((current) => { const next=new Set(current); if(e.target.checked) next.add(row.id); else next.delete(row.id); return next; })} />
+            <label className="ordering-checkbox-target grid shrink-0 place-items-center">
+              <input className="ordering-checkbox" type="checkbox" aria-label={`選取 ${row.name}`} disabled={!row.isAssigned} checked={selected.has(row.id)} onChange={(e) => setSelected((current) => { const next=new Set(current); if(e.target.checked) next.add(row.id); else next.delete(row.id); return next; })} />
+            </label>
             <div className="min-w-32 flex-1"><p className="text-xs text-stone-600">{categories.find((category) => category.id === row.categoryId)?.name} / {groups.find((group) => group.id === row.groupId)?.name ?? "未分組商品"}</p><h3 className="font-semibold">{row.name}</h3><p className="text-xs text-stone-500">{!row.isAssigned ? "未指派此攤位 · " : ""}{!row.isActive ? "主檔停用 · " : ""}{!row.assignment.isEnabled ? "未供應 · " : ""}{isProductSoldOut(row.assignment, now) ? "手動售完 · " : ""}{row.assignment.stockRemaining === 0 ? "庫存售完" : row.assignment.stockRemaining == null ? "不限量" : `剩餘 ${row.assignment.stockRemaining} 份`}</p></div>
             <span className="text-sm tabular-nums">{formatMoney(row.assignment.priceOverride ?? row.defaultPrice, currency, "zh-TW")}</span>
             <ProductAvailabilityButton name={row.name} assignment={row.assignment} disabled={!row.isAssigned || busy} onClick={() => setAvailabilityProducts(stockRows([row]))} />
