@@ -77,6 +77,7 @@ This gate runs before any Git link, deployment, custom-domain/alias binding, or 
 - Re-run local gates and Production remote dry-run/lint before any write.
 - Build an unbound deployment artifact first.
 - Apply migrations, verify history/lint, deploy and verify Edge Functions, then promote the exact artifact.
+- Execute transaction SQL files with `psql --no-psqlrc --set ON_ERROR_STOP=1 --file`; Supabase CLI 2.109.1 `db query --file` uses a prepared statement and rejects multi-command files. Verify the client is available in CI and exercise both successful Primary backfill and rejected DR backfill through the actual file executor before release.
 - Production smoke covers public site/QR plus authenticated critical flows using approved non-destructive test strategy.
 - On failure, stop before promotion where possible or execute the repository rollback contract. Never improvise destructive rollback.
 
