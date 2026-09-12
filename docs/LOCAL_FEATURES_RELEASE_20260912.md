@@ -75,6 +75,8 @@ Web Push 鎖屏音效由作業系統／瀏覽器通知類別控制，不能以�
 - 勾選框改小後，共用商品與攤位商品列表缺少足夠觸控範圍，已由失敗的實際頁面測試重現並補上 label。勾選圖示保持 24–28px，正常／長者模式可點範圍至少 44／56px；測試包含點外緣、Space 切換及各尺寸不溢出。
 - CodeQL 曾指出測試中的說明網址正規表示式過寬，已改成精確 URL 比對。`3b96c17` 的 CodeQL 通過，分支未結案警示為零。
 - `3b96c17` 的隔離 Preview `34672596121` 通過：72 files／1619 pgTAP tests、部署／翻譯 smoke、合成 OAuth 與外送流程。唯讀 smoke 原始 20/20 含兩項 skip（Preview 不測正式 root／WWW，未提供正式專用 QR），實際執行 18 項；health 為 ok／DEGRADED。此收據不得替代後續變更 SHA 的 CI／Preview，仍須全套重跑。
+- `d738ee0` 的隔離 Preview `34674428828` 與安全掃描通過；CI `34674428833` 前三分片通過，第四分片在多攤位分派測試仍尋找舊 switch role 時失敗。已改用 checkbox，保留兩攤位分派及不同價格的 DB／顧客菜單斷言，並等待攤位切換按鈕完成 hydration 後操作。獨立乾淨資料庫回歸涵蓋 Google mock 登入、商品分派、各角色／跨組織權限及手機操作。
+- 現行 main `b2ee581` 的唯讀 DR schema Plan `34675293492` 確認沒有舊 migration 待同步，dry-run 與 lint 通過，Apply 全部跳過。這是整合前基線收據，不能用於套用本次三支新 migration；正式套用仍需最終 main／staging tree 的新 Plan。
 
 本次證據目錄：`C:/Users/KY/.codex/visualizations/2026/09/06/01a0761b-0cdb-73e1-82cc-59a3e93d5d66/release-local-features-20260912`。
 
