@@ -50,6 +50,11 @@ describe("reviewed availability, amendment and push release migrations", () => {
     const dr = readFileSync(resolve(import.meta.dirname, "../../.github/workflows/production-dr-operations.yml"), "utf8");
     expect(production.indexOf("backfill-product-availability-deadlines.sql")).toBeGreaterThan(production.indexOf("Apply pending migrations"));
     expect(dr).not.toContain("backfill-product-availability-deadlines.sql");
+    const backfillStep = production.split("- name: Backfill legacy availability deadlines on the verified Primary writer")[1].split("- name:")[0];
+    expect(backfillStep).toContain('psql --dbname "$SUPABASE_CI_DATABASE_URL"');
+    expect(backfillStep).toContain("--no-psqlrc --set ON_ERROR_STOP=1");
+    expect(backfillStep).not.toContain("supabase db query");
+    expect(production).toContain("run: psql --version");
   });
 
   it("fences new operational tables and excludes replayed offline orders", () => {

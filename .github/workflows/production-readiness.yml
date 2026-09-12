@@ -67,6 +67,8 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: 2.109.1
+      - name: Verify PostgreSQL SQL-file client
+        run: psql --version
       - run: npm ci
       - run: npm run prisma:generate
       - run: npm run production:check
@@ -329,9 +331,9 @@ jobs:
       - name: Backfill legacy availability deadlines on the verified Primary writer
         if: inputs.apply_migrations
         run: |
-          supabase db query --db-url "$SUPABASE_CI_DATABASE_URL" \
-            --file scripts/sql/backfill-product-availability-deadlines.sql \
-            --log-level error
+          psql --dbname "$SUPABASE_CI_DATABASE_URL" \
+            --no-psqlrc --set ON_ERROR_STOP=1 \
+            --file scripts/sql/backfill-product-availability-deadlines.sql
       - name: Deploy Production Edge Functions
         if: inputs.apply_migrations
         env:
