@@ -15,6 +15,7 @@ const responses = {
   "/ready": [200, "application/json; charset=utf-8", '{"status":"READY"}'],
   "/denied": [403, "", ""],
   "/redirect": [307, "", ""],
+  "/auth-redirect": [302, "text/plain", "Redirecting...\n"],
   "/blocked": [503, "application/json", '{"status":"BLOCKED"}'],
   "/html": [200, "text/html", '<html>private-provider-response</html>'],
   "/invalid": [200, "application/json", 'private-invalid-json'],
@@ -24,6 +25,7 @@ const server = createServer((request, response) => {
   response.writeHead(status, {
     ...(type ? { "content-type": type } : {}),
     ...(status === 307 ? { location: "/ready?secret=private-redirect-token" } : {}),
+    ...(status === 302 ? { location: "https://vercel.com/sso-api?secret=private-redirect-token" } : {}),
   });
   response.end(body);
 });
@@ -38,8 +40,9 @@ afterAll(async () => {
 });
 
 async function probe(path) {
-  const runVercel = async (args, _errorCode, projectId) => {
+  const runVercel = async (args, _errorCode, projectId, credential) => {
     expect(projectId).toBe("prj_drfixture");
+    expect(credential).toBe("dr-fixture-credential-only");
     expect(args.slice(0, 6)).toEqual(["curl", path, "--deployment", baseUrl, "--yes", ...(args.length > 5 ? ["--"] : [])]);
     const separator = args.indexOf("--");
     const flags = separator < 0 ? [] : args.slice(separator + 1);
@@ -49,7 +52,7 @@ async function probe(path) {
   const invoke = new Function("runVercel", "planProbePath", "parseDrOperatorProbeOutput", `${probeSource}\nreturn vercelCurl;`)(
     runVercel, () => path, entry.parseDrOperatorProbeOutput,
   );
-  return invoke(baseUrl, "prj_drfixture");
+  return invoke(baseUrl, "prj_drfixture", "dr-fixture-credential-only");
 }
 
 describe("generated DR deployment probe through the actual curl response", () => {
@@ -81,5 +84,12 @@ describe("generated DR deployment probe through the actual curl response", () =>
   it("rejects missing transport metadata even if the body claims READY", () => {
     expect(() => entry.parseDrOperatorProbeOutput('{"status":"READY"}'))
       .toThrow("DR_ENTRY_PROBE_TRANSPORT_METADATA_MISSING");
+  });
+
+  it("classifies an authentication redirect without retaining its URL or secret", async () => {
+    const error = await probe("/auth-redirect").catch((value) => value);
+    expect(error.message).toBe("DR_ENTRY_PROBE_HTTP_302");
+    expect(error.probeRedirectKind).toBe("VERCEL_AUTH");
+    expect(JSON.stringify(error)).not.toMatch(/private|https:|vercel\.com/u);
   });
 });

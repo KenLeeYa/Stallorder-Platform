@@ -79,18 +79,25 @@ export function sanitizeProviderErrorCode(payload) {
 }
 
 export function parseDrOperatorProbeOutput(output) {
-  const metadata = /\n__STALLORDER_DR_PROBE__:([1-5][0-9]{2}):([^\r\n]*)\r?\n?$/u.exec(output);
+  const metadata = /\n__STALLORDER_DR_PROBE__:([1-5][0-9]{2}):([^\r\n]*)(?:\r?\n__STALLORDER_DR_REDIRECT__:([^\r\n]*))?\r?\n?$/u.exec(output);
   const status = metadata ? Number(metadata[1]) : null;
   const mime = metadata?.[2].split(";", 1)[0].trim().toLowerCase();
   const contentType = mime === "application/json" ? "JSON"
     : mime === "text/html" ? "HTML" : mime ? "OTHER" : "MISSING";
   const body = metadata ? output.slice(0, metadata.index) : "";
+  let redirectKind = metadata?.[3] ? "OTHER" : "NONE";
+  try {
+    if (new URL(metadata?.[3]).hostname === "vercel.com") redirectKind = "VERCEL_AUTH";
+  } catch {
+    // Only a fixed category is retained, never the redirect URL or query.
+  }
   const failProbe = (reason) => {
     const error = new Error(`DR_ENTRY_PROBE_${reason}`);
     error.failureStage = "PROBE_GENERATED_DEPLOYMENT";
     error.probeHttpStatus = status;
     error.probeContentType = contentType;
     error.probeBodyBytes = Buffer.byteLength(body);
+    error.probeRedirectKind = redirectKind;
     throw error;
   };
   if (!metadata) failProbe("TRANSPORT_METADATA_MISSING");
@@ -140,6 +147,7 @@ export function buildVercelCliEnvironment({
   baseEnv,
   vercelTeamId,
   projectId,
+  automationBypassSecret,
 }) {
   if (!/^team_[A-Za-z0-9]+$/u.test(vercelTeamId ?? "")) {
     throw new Error("DR_ENTRY_VERCEL_CLI_TEAM_INVALID");
@@ -151,6 +159,7 @@ export function buildVercelCliEnvironment({
     ...baseEnv,
     VERCEL_ORG_ID: vercelTeamId,
     VERCEL_PROJECT_ID: projectId,
+    VERCEL_AUTOMATION_BYPASS_SECRET: automationBypassSecret,
   };
 }
 
@@ -315,7 +324,7 @@ export function buildDrOperatorEntryPlan(input) {
       "require an exact healthy app.qidaigo.com alias and deployment snapshot before every DR mutation",
       "create a one-hour Cloudflare Access QA service token and a self-hosted dr.qidaigo.com application limited to Cloudflare account members",
       "create an unlinked stallorder-dr Vercel project with Standard deployment protection for generated deployment URLs",
-      "deploy the exact source commit with Vercel CLI explicitly bound to the new DR project, then read back its actual project identity",
+      "prepare and read back the DR project's automation credential before building, then deploy the exact source with explicitly isolated Vercel credentials and read back its actual project identity",
       "verify the generated deployment rejects unauthenticated access and the authenticated operator probe reports READY",
       "bind dr.qidaigo.com, promote the exact staged deployment, create its Cloudflare CNAME as DNS-only, prove direct Vercel HTTPS readiness, then enable the proxy",
       "verify unauthenticated edge denial, service-token QA, origin JWT validation, DR services and app.qidaigo.com health",

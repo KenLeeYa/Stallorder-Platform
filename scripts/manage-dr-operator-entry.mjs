@@ -237,6 +237,7 @@ async function applyEntry(plan) {
     await linkProject(targetProjectId);
     await assertPrimaryStateUnchanged(plan);
 
+    const probeCredential = await prepareDeploymentProtectionCredential(targetProjectId);
     const deploymentUrl = await deployDrRuntime(plan, accessResources, targetProjectId);
     const targetDeployment = await assertDeploymentProjectIdentity(
       deploymentUrl,
@@ -244,7 +245,7 @@ async function applyEntry(plan) {
     );
     await assertPrimaryStateUnchanged(plan);
     const unauthenticatedDeploymentStatus = await assertProtected(deploymentUrl);
-    const deploymentProbe = await vercelCurl(deploymentUrl, targetProjectId);
+    const deploymentProbe = await vercelCurl(deploymentUrl, targetProjectId, probeCredential);
     assertProbeReady(deploymentProbe, plan.target.runtime);
     const supabaseServices = await verifyDrSupabaseServices(plan.target.runtime);
 
@@ -364,6 +365,7 @@ async function applyEntry(plan) {
       probeHttpStatus: error?.probeHttpStatus ?? null,
       probeContentType: error?.probeContentType ?? null,
       probeBodyBytes: error?.probeBodyBytes ?? null,
+      probeRedirectKind: error?.probeRedirectKind ?? null,
       rollbackCompleted: rollbackResult.completed === true,
       failedAt: new Date().toISOString(),
     }).catch(() => {});
@@ -545,6 +547,30 @@ async function removeTemporaryQaAccess(resources) {
   }
 }
 
+async function prepareDeploymentProtectionCredential(targetProjectId) {
+  if (targetProjectId === sourceProjectId) {
+    throw new Error("DR_ENTRY_TARGET_PROJECT_COLLIDES_WITH_SOURCE");
+  }
+  const created = await vercel(`/v1/projects/${targetProjectId}/protection-bypass`, {
+    method: "PATCH",
+    body: "{}",
+  }, "PREPARE_DR_PROBE_CREDENTIAL");
+  const credentials = Object.entries(created.protectionBypass ?? {})
+    .filter(([, value]) => value?.scope === "automation-bypass");
+  const credential = credentials[0]?.[0];
+  const project = await vercel(`/v9/projects/${targetProjectId}`, {}, "READ_DR_PROBE_CREDENTIAL");
+  if (
+    credentials.length !== 1
+    || !/^[A-Za-z0-9_-]{16,256}$/u.test(credential ?? "")
+    || project.id !== targetProjectId
+    || project.name !== "stallorder-dr"
+    || project.protectionBypass?.[credential]?.scope !== "automation-bypass"
+  ) {
+    throw new Error("DR_ENTRY_PROBE_CREDENTIAL_READBACK_FAILED");
+  }
+  return credential;
+}
+
 async function deployDrRuntime(plan, accessResources, targetProjectId) {
   assertDrEnvironmentBindings(plan.target.runtime.supabaseProjectRef);
   const deploymentArgs = [
@@ -628,7 +654,7 @@ async function promoteDrDeployment(deploymentUrl, targetProjectId, plan) {
   throw new Error("DR_ENTRY_PROMOTE_DOMAIN_READBACK_TIMEOUT");
 }
 
-async function vercelCurl(baseUrl, targetProjectId) {
+async function vercelCurl(baseUrl, targetProjectId, probeCredential) {
   const output = await runVercel([
     "curl",
     planProbePath(),
@@ -638,8 +664,8 @@ async function vercelCurl(baseUrl, targetProjectId) {
     "--",
     "--silent", "--show-error",
     "--connect-timeout", "15", "--max-time", "60",
-    "--write-out", "\n__STALLORDER_DR_PROBE__:%{http_code}:%{content_type}\n",
-  ], "DR_ENTRY_PROTECTED_PROBE_FAILED", targetProjectId);
+    "--write-out", "\n__STALLORDER_DR_PROBE__:%{http_code}:%{content_type}\n__STALLORDER_DR_REDIRECT__:%{redirect_url}\n",
+  ], "DR_ENTRY_PROTECTED_PROBE_FAILED", targetProjectId, probeCredential);
   return parseDrOperatorProbeOutput(output);
 }
 
@@ -1241,11 +1267,12 @@ function cloudflareHeaders() {
   return { authorization: `Bearer ${cloudflareToken}`, "content-type": "application/json" };
 }
 
-async function runVercel(commandArgs, errorCode, projectId) {
+async function runVercel(commandArgs, errorCode, projectId, automationBypassSecret) {
   const env = buildVercelCliEnvironment({
     baseEnv: process.env,
     vercelTeamId,
     projectId,
+    automationBypassSecret,
   });
   try {
     const result = await execFileAsync("vercel", commandArgs, {

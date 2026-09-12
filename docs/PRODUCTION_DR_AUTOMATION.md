@@ -127,6 +127,24 @@ transport metadata and malformed JSON also fail closed. A fresh protected
 Plan/Apply is still needed to determine and resolve any live provider/runtime
 failure; this diagnostic correction alone is not a successful DR publication.
 
+Apply `34721025820` identified HTTP 302 at the generated-deployment probe and
+rolled back completely. Vercel account events show the DR automation credential
+was created only after the build, at 21:52:34.348 UTC; the DR project was deleted
+at 21:52:35.902 UTC after the failed request. The CLI waits only one second after
+generating the credential. This establishes the problematic ordering, not the
+provider's internal propagation delay or the redirect destination.
+
+Apply now prepares the automation credential through the project-scoped
+[Protection Bypass API](https://vercel.com/docs/rest-api/projects/update-protection-bypass-for-automation)
+before building. It reads the credential back from the exact new DR project,
+then supplies it only to the generated-deployment probe through the child
+environment. An inherited automation credential from another project is never
+used. The credential stays in memory and is not added to the Plan, evidence,
+command arguments or application configuration. No extra retry, redirect
+following or relaxation of HTTP/readiness/access gates is introduced. Failure
+evidence classifies a redirect as `NONE`, `VERCEL_AUTH` or `OTHER` without saving
+its URL or query. A fresh live Apply must still prove the corrected sequence.
+
 Apply `34592363378` later proved why the direct HTTPS gate is necessary: Vercel
 reported the custom domain configured before its origin certificate was ready,
 so Cloudflare Access admitted the QA token but the proxied origin handshake
