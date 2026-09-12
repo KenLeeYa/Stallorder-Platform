@@ -54,7 +54,8 @@ describe("StaffOrderBoard presentation characterization", () => {
     expect(presentationSource).toMatch(/<header[\s\S]*data-testid="staff-function-grid"[\s\S]*<WorkModeSwitcher[\s\S]*<WorkspaceSwitcher[\s\S]*<PwaControls[\s\S]*<\/header>/);
     expect(presentationSource).toContain("overflow-x-auto");
     expect(presentationSource).toContain('const staffFunctionTileClass = "inline-grid h-11 w-11');
-    expect(presentationSource).toContain("sm:overflow-x-visible");
+    // Overflow must stay scrollable at tablet widths so the notification/printer controls remain reachable.
+    expect(presentationSource).not.toContain("sm:overflow-x-visible");
     expect(presentationSource).toContain('data-testid="staff-function-status-group"');
     expect(presentationSource).toContain('data-testid="staff-function-order-group"');
     expect(presentationSource).toContain("min-w-0 overflow-x-clip overflow-y-visible");
@@ -79,7 +80,7 @@ describe("StaffOrderBoard presentation characterization", () => {
     expect(presentationSource).toContain('data-testid="staff-order-master-detail"');
     expect(presentationSource).toContain('data-testid="staff-order-items-pane"');
     expect(presentationSource).toContain('data-testid="staff-order-actions-pane"');
-    expect(presentationSource).toContain("md:grid-cols-[minmax(13rem,0.78fr)_minmax(0,1.25fr)_minmax(12rem,0.82fr)]");
+    expect(presentationSource).toContain("md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.25fr)_minmax(0,0.85fr)]");
     expect(presentationSource).toContain("md:hidden print:block");
     expect(presentationSource).toContain("desktopWorkspace");
 

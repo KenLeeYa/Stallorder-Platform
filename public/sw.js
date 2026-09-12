@@ -10,6 +10,82 @@ const SHELL_ASSETS = [
 ];
 const UNSYNCHRONIZED_STATUSES = new Set(["PENDING", "PROCESSING", "FAILED", "CONFLICT", "REJECTED"]);
 
+// Separate from the offline order database: persist deduplication across SW restarts.
+async function pushReceipts() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open("stallorder-push-receipts", 1);
+    request.onupgradeneeded = () => request.result.createObjectStore("shown");
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+async function pushWasShown(tag) {
+  const db = await pushReceipts();
+  try {
+    return await new Promise((resolve, reject) => {
+      const request = db.transaction("shown").objectStore("shown").get(tag);
+      request.onsuccess = () => resolve(Boolean(request.result));
+      request.onerror = () => reject(request.error);
+    });
+  } finally { db.close(); }
+}
+async function rememberPush(tag) {
+  const db = await pushReceipts();
+  try {
+    await new Promise((resolve, reject) => {
+      const transaction = db.transaction("shown", "readwrite");
+      const store = transaction.objectStore("shown");
+      store.put(Date.now(), tag);
+      const cursor = store.openCursor();
+      cursor.onsuccess = () => {
+        const entry = cursor.result;
+        if (!entry) return;
+        if (entry.value < Date.now() - 86_400_000) entry.delete();
+        entry.continue();
+      };
+      transaction.oncomplete = resolve;
+      transaction.onerror = () => reject(transaction.error);
+    });
+  } finally { db.close(); }
+}
+const pushInFlight = new Map();
+self.addEventListener("push", (event) => {
+  let payload;
+  try { payload = event.data?.json(); } catch { return; }
+  if (payload?.type !== "STAFF_NEW_ORDER" || !/^staff-order-[a-f0-9-]{36}$/.test(payload.tag ?? "")
+    || !/^\/staff\/[a-zA-Z0-9%_-]+$/.test(payload.url ?? "")) return;
+  const task = pushInFlight.get(payload.tag) ?? (async () => {
+    const shown = await pushWasShown(payload.tag).catch(() => false);
+    if (!shown) {
+      await self.registration.showNotification(payload.title, {
+        body: payload.body, icon: "/icons/stallorder-192.png", badge: "/icons/stallorder-192.png",
+        // Request the OS alert sound; device/channel settings still take precedence.
+        tag: payload.tag, silent: false, renotify: false, data: { url: payload.url },
+      });
+      await rememberPush(payload.tag).catch(() => undefined);
+    }
+    await fetch("/api/push/receipt", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: payload.deliveryId, token: payload.receiptToken }),
+    }).catch(() => undefined);
+  })();
+  pushInFlight.set(payload.tag, task);
+  event.waitUntil(task.finally(() => pushInFlight.delete(payload.tag)));
+});
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const path = event.notification.data?.url;
+  if (!/^\/staff\/[a-zA-Z0-9%_-]+$/.test(path ?? "")) return;
+  event.waitUntil((async () => {
+    const url = new URL(path, self.location.origin);
+    const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    const client = windows.find(candidate => new URL(candidate.url).origin === url.origin
+      && new URL(candidate.url).pathname === url.pathname);
+    if (client) { await client.focus(); return; }
+    await self.clients.openWindow(url.href);
+  })());
+});
+
 async function notifyClients(message) {
   const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
   for (const client of clients) client.postMessage(message);
@@ -131,6 +207,10 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("message", (event) => {
+  if (event.data?.type === "STAFF_PUSH_CAPABILITY") {
+    event.ports?.[0]?.postMessage({ supported: true, silent: false });
+    return;
+  }
   if (event.data?.type === "CHECK_UPDATE_SAFETY") {
     event.waitUntil(countUnsynchronizedRecords().then((pendingRecords) => {
       event.source?.postMessage({ type: "SW_UPDATE_SAFETY", pendingRecords });

@@ -397,13 +397,11 @@ test.describe("多攤位商戶關鍵流程", () => {
     const assignmentDialog = page.getByRole("dialog", {
       name: `分派「${sharedProductName}」`,
     });
-    const allStallsSwitch = assignmentDialog.getByRole("switch", {
+    const allStallsCheckbox = assignmentDialog.getByRole("checkbox", {
       name: "全部授權攤位",
     });
-    await expect(allStallsSwitch).toBeEnabled();
-    if ((await allStallsSwitch.getAttribute("aria-checked")) !== "true") {
-      await allStallsSwitch.click();
-    }
+    await expect(allStallsCheckbox).toBeEnabled();
+    await allStallsCheckbox.check();
     const saveAssignmentsButton = assignmentDialog.getByRole("button", {
       name: "儲存分派",
     });
@@ -1097,6 +1095,7 @@ async function openCompactSwitcher(
 ) {
   const trigger = page.getByRole("button", { name: triggerName, exact: true });
   await expect(trigger).toBeVisible();
+  await waitForReactHandler(trigger, "onClick");
   await trigger.click();
   await expect(page.getByRole("dialog", { name: dialogName })).toBeVisible();
 }

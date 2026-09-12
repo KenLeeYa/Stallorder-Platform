@@ -1,5 +1,7 @@
 "use client";
 
+import { ProductAvailabilityButton, ProductAvailabilityEditor, useAvailabilityClock } from "@/components/product-availability-editor";
+import { isProductSoldOut } from "@/lib/product-availability";
 import { useMemo, useState } from "react";
 import { Layers3, Pencil } from "lucide-react";
 import { csrfHeaders } from "@/lib/csrf-client";
@@ -11,7 +13,7 @@ type Group = { id: string; categoryId: string; name: string; isActive: boolean; 
 type Product = {
   id: string; categoryId: string; groupId: string | null; name: string;
   defaultPrice: number; isActive: boolean; sortOrder: number;
-  stallProducts: Array<{ stallId: string; isEnabled: boolean; isSoldOut: boolean; priceOverride: number | null; stockRemaining?: number | null; stockVersion?: number }>;
+  stallProducts: Array<{ stallId: string; isEnabled: boolean; isSoldOut: boolean; soldOutUntil?: string | null; priceOverride: number | null; stockRemaining?: number | null; stockVersion?: number }>;
 };
 
 export function SharedCatalogBoard({ currency, categories, groups, products, stalls, onEdit, onEditCategory, onEditGroup, onMore, onUpdated }: {
@@ -29,6 +31,8 @@ export function SharedCatalogBoard({ currency, categories, groups, products, sta
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [stockProducts, setStockProducts] = useState<StockProduct[] | null>(null);
+  const [availabilityProducts, setAvailabilityProducts] = useState<StockProduct[] | null>(null);
+  const now = useAvailabilityClock();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const catalogRows = useMemo(() => products.map((product) => {
@@ -36,11 +40,11 @@ export function SharedCatalogBoard({ currency, categories, groups, products, sta
     return { ...product, isAssigned: Boolean(assignment), assignment: assignment ?? { stallId, isEnabled: false, isSoldOut: false, priceOverride: null, stockRemaining: null, stockVersion: 0 } };
   }), [products, stallId]);
   const assigned = catalogRows.filter((row) => row.isAssigned);
-  const soldCount = assigned.filter((row) => row.assignment.isSoldOut || row.assignment.stockRemaining === 0).length;
+  const soldCount = assigned.filter((row) => isProductSoldOut(row.assignment, now) || row.assignment.stockRemaining === 0).length;
   const visible = catalogRows.filter((row) =>
     (!categoryId || row.categoryId === categoryId)
     && (groupId === null || (groupId === "" ? row.groupId === null : row.groupId === groupId))
-    && (!soldOutOnly || row.assignment.isSoldOut || row.assignment.stockRemaining === 0)
+    && (!soldOutOnly || isProductSoldOut(row.assignment, now) || row.assignment.stockRemaining === 0)
     && row.name.toLocaleLowerCase().includes(search.toLocaleLowerCase())
   ).sort((a,b) => a.sortOrder-b.sortOrder || a.name.localeCompare(b.name,"zh-TW"));
   const selectable = visible.filter((row) => row.isAssigned);
@@ -114,19 +118,20 @@ export function SharedCatalogBoard({ currency, categories, groups, products, sta
           {groupId === "" ? <p className="mt-2 text-sm text-stone-600">系統清單：這些商品尚未指定群組。請編輯商品的「群組」欄位完成歸組。</p> : null}
         </div>
         <div className="flex flex-wrap items-center gap-2 border-b border-stone-200 p-3">
-          <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={allSelected} onChange={(e) => setSelected(e.target.checked ? new Set(selectable.map((row) => row.id)) : new Set())} />全選本清單（{visible.length}）</label>
+          <label className="flex min-h-11 items-center gap-2 text-sm"><input className="ordering-checkbox" type="checkbox" checked={allSelected} onChange={(e) => setSelected(e.target.checked ? new Set(selectable.map((row) => row.id)) : new Set())} />全選本清單（{visible.length}）</label>
           <span className="text-sm text-stone-500">已選 {selectedIds.length} 項</span>
-          <button type="button" disabled={busy || !selectedIds.length} onClick={() => void bulk("BULK_SOLD_OUT",true)} className={button}>批次售完</button>
+          <button type="button" disabled={busy || !selectedIds.length} onClick={() => setAvailabilityProducts(stockRows(visible.filter((row) => selected.has(row.id))))} className={button}>批次供應設定</button>
           <button type="button" disabled={busy || !selectedIds.length} onClick={() => void bulk("BULK_SOLD_OUT",false)} className={button}>恢復供應</button>
-          <button type="button" disabled={busy || !selectedIds.length} onClick={() => void bulk("BULK_ENABLED",false)} className={button}>停止供應</button>
-          <button type="button" disabled={busy || !selectedIds.length} onClick={() => void bulk("BULK_ENABLED",true)} className={button}>開放供應</button>
           <button type="button" disabled={busy || !selectedIds.length} onClick={() => setStockProducts(stockRows(visible.filter((row) => selected.has(row.id))))} className={button}>設定所選庫存</button>
         </div>
         <div className="max-h-[65vh] min-h-0 overflow-y-auto md:max-h-none md:flex-1">
           {visible.map((row) => <article key={row.id} data-testid="catalog-management-row" className="flex flex-wrap items-center gap-3 border-b border-stone-100 p-3">
-            <input type="checkbox" aria-label={`選取 ${row.name}`} disabled={!row.isAssigned} checked={selected.has(row.id)} onChange={(e) => setSelected((current) => { const next=new Set(current); if(e.target.checked) next.add(row.id); else next.delete(row.id); return next; })} />
-            <div className="min-w-32 flex-1"><p className="text-xs text-stone-600">{categories.find((category) => category.id === row.categoryId)?.name} / {groups.find((group) => group.id === row.groupId)?.name ?? "未分組商品"}</p><h3 className="font-semibold">{row.name}</h3><p className="text-xs text-stone-500">{!row.isAssigned ? "未指派此攤位 · " : ""}{!row.isActive ? "主檔停用 · " : ""}{!row.assignment.isEnabled ? "未供應 · " : ""}{row.assignment.isSoldOut ? "手動售完 · " : ""}{row.assignment.stockRemaining === 0 ? "庫存售完" : row.assignment.stockRemaining == null ? "不限量" : `剩餘 ${row.assignment.stockRemaining} 份`}</p></div>
+            <label className="ordering-checkbox-target grid shrink-0 place-items-center">
+              <input className="ordering-checkbox" type="checkbox" aria-label={`選取 ${row.name}`} disabled={!row.isAssigned} checked={selected.has(row.id)} onChange={(e) => setSelected((current) => { const next=new Set(current); if(e.target.checked) next.add(row.id); else next.delete(row.id); return next; })} />
+            </label>
+            <div className="min-w-32 flex-1"><p className="text-xs text-stone-600">{categories.find((category) => category.id === row.categoryId)?.name} / {groups.find((group) => group.id === row.groupId)?.name ?? "未分組商品"}</p><h3 className="font-semibold">{row.name}</h3><p className="text-xs text-stone-500">{!row.isAssigned ? "未指派此攤位 · " : ""}{!row.isActive ? "主檔停用 · " : ""}{!row.assignment.isEnabled ? "未供應 · " : ""}{isProductSoldOut(row.assignment, now) ? "手動售完 · " : ""}{row.assignment.stockRemaining === 0 ? "庫存售完" : row.assignment.stockRemaining == null ? "不限量" : `剩餘 ${row.assignment.stockRemaining} 份`}</p></div>
             <span className="text-sm tabular-nums">{formatMoney(row.assignment.priceOverride ?? row.defaultPrice, currency, "zh-TW")}</span>
+            <ProductAvailabilityButton name={row.name} assignment={row.assignment} disabled={!row.isAssigned || busy} onClick={() => setAvailabilityProducts(stockRows([row]))} />
             <button type="button" disabled={!row.isAssigned} onClick={() => setStockProducts(stockRows([row]))} className={button}>庫存</button>
             <button type="button" onClick={() => onEdit(row.id)} className={button}>編輯</button>
             <button type="button" aria-label={`更多操作 ${row.name}`} onClick={() => onMore(row.id)} className={button}>更多</button>
@@ -136,5 +141,6 @@ export function SharedCatalogBoard({ currency, categories, groups, products, sta
       </div>
     </div>
     {stockProducts ? <ProductStockEditor stallId={stallId} stallName={stalls.find((row) => row.id===stallId)?.name ?? ""} products={stockProducts} onSaved={(rows) => onUpdated(stallId,rows)} onClose={() => setStockProducts(null)} /> : null}
+    {availabilityProducts ? <ProductAvailabilityEditor stallId={stallId} products={availabilityProducts} onSaved={(rows) => { onUpdated(stallId, rows); resetSelection(); }} onClose={() => setAvailabilityProducts(null)} /> : null}
   </section>;
 }

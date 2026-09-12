@@ -163,7 +163,7 @@ describe("QrOrderMenu presentation", () => {
     expect(unavailable).toContain("此時段暫無可預約商品，請選擇其他取餐時間。");
   });
 
-  it("shows multi-select switches while preserving selected, limited and single-choice states", () => {
+  it.each(["DEFAULT", "PREORDER", "DELIVERY"] as const)("shows compact checkmarks in %s while preserving selected, limited and single-choice states", (activeOrderingMode) => {
     const multipleProduct = {
       ...product,
       noteGroups: [{
@@ -178,12 +178,15 @@ describe("QrOrderMenu presentation", () => {
       }],
     };
     const html = renderMenu({
+      activeOrderingMode,
+      scheduledPickupAt: "2099-09-11T04:00:00.000Z",
       visibleProducts: [multipleProduct],
       configuringProductId: product.id,
       productDrafts: { [product.id]: { quantity: 1, noteOptionIds: ["mild", "medium"], bundleChoiceIds: [] } },
     });
-    expect(html.match(/class="selection-toggle" data-checked="true"/g)).toHaveLength(2);
-    expect(html.match(/class="selection-toggle" data-checked="false"/g)).toHaveLength(1);
+    expect(html).not.toContain("selection-toggle");
+    expect(html.match(/data-checked="true" class="[^"]*rounded-md[^"]*">✓/g)).toHaveLength(2);
+    expect(html.match(/data-checked="false" class="[^"]*rounded-md[^"]*">✓/g)).toHaveLength(1);
     expect(html).toContain('role="checkbox" aria-checked="false" disabled=""');
     expect(html).toContain('role="radio"');
     expect(html).not.toContain('type="checkbox"');

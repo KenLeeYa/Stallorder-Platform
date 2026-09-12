@@ -1,6 +1,6 @@
 import { CalendarOff, Flame, MapPin, Package, Store } from "lucide-react";
 import { ProductImage } from "@/components/product-image";
-import { SpecialClosureNoticeDialog } from "@/components/special-closure-notice-dialog";
+import { MenuNoticeDialogs } from "@/components/menu-notice-dialogs";
 import type { AppLocale } from "@/lib/app-locale";
 import { publicMessages } from "@/lib/messages/public";
 import { formatMoney } from "@/lib/money";
@@ -20,7 +20,7 @@ export function PublicMenuView({ menu, locale }: { menu: PublicMenu; locale: App
 
   return (
     <main data-testid="storefront-menu-view" className="min-h-screen bg-[#f5f1e8] text-stone-950 print:bg-white">
-      {menu.specialClosure ? <SpecialClosureNoticeDialog closure={menu.specialClosure} locale={locale} timeZone={menu.stall.timezone} /> : null}
+      <MenuNoticeDialogs key={JSON.stringify(menu.specialClosure ?? null)} closure={menu.specialClosure} announcement={menu.announcement} locale={locale} timeZone={menu.stall.timezone} />
       <header className="border-b border-stone-900/10 bg-[#0f766e] text-white print:border-stone-300 print:bg-white print:text-stone-950">
         <div className="relative isolate mx-auto max-w-6xl overflow-hidden px-4 py-8 sm:px-6 sm:py-11 lg:px-8">
           {menu.stall.coverImageUrl ? <div data-testid="public-menu-cover-image" className="absolute inset-0 -z-10 overflow-hidden bg-teal-950 print:hidden">

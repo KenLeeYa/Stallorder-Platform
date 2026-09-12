@@ -6,7 +6,7 @@ import { csrfHeaders } from "@/lib/csrf-client";
 import { useMerchantMessages } from "@/lib/messages/merchant-client";
 
 export type StockProduct = { productId: string; name: string; stockRemaining?: number | null; stockVersion?: number };
-export type StockAssignment = { productId: string; stockRemaining: number | null; stockVersion: number; isSoldOut: boolean; isEnabled: boolean };
+export type StockAssignment = { productId: string; stockRemaining: number | null; stockVersion: number; isSoldOut: boolean; isEnabled: boolean; soldOutUntil?: string | null };
 type StockDraft = { mode: "SET" | "ADD" | "UNLIMITED"; quantity: number };
 
 export function ProductStockEditor({ stallId, stallName, products, onSaved, onClose }: {

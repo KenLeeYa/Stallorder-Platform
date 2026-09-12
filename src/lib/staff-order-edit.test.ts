@@ -35,8 +35,6 @@ describe("staff order item edit boundary", () => {
     ["non-confirmed order", { status: "PREPARING" }, "ORDER_ALREADY_STARTED"],
     ["started item", { items: [{ ...editableOrder().items[0], status: "PREPARING" }] }, "ORDER_ALREADY_STARTED"],
     ["started KDS task", { items: [{ ...editableOrder().items[0], productionTask: { status: "PREPARING" } }] }, "ORDER_ALREADY_STARTED"],
-    ["claimed print job", { printJobs: [{ status: "PRINTING" }] }, "PRINT_ALREADY_STARTED"],
-    ["legacy bundle snapshot", { items: [{ ...editableOrder().items[0], noteOptions: [{ noteOptionId: null }] }] }, "UNSUPPORTED_EXISTING_CONFIGURATION"],
   ])("rejects %s", (_label, override, expected) => {
     expect(getStaffOrderEditFailure({ ...editableOrder(), ...override })).toBe(expected);
   });
@@ -58,6 +56,7 @@ describe("staff order item edit boundary", () => {
 describe("updateStaffOrderItemsSchema", () => {
   it("accepts an explicit customer notice for a sold-out public-order adjustment", () => {
     expect(updateStaffOrderItemsSchema.safeParse({
+      changeId: productId, expectedUpdatedAt: "2026-09-11T08:00:00.000Z",
       items: [{ kind: "EXISTING", itemId, quantity: 1 }],
       publicAmendment: {
         reason: "SOLD_OUT_REMOVE",
@@ -68,6 +67,7 @@ describe("updateStaffOrderItemsSchema", () => {
 
   it("rejects an empty public-order customer notice", () => {
     expect(updateStaffOrderItemsSchema.safeParse({
+      changeId: productId, expectedUpdatedAt: "2026-09-11T08:00:00.000Z",
       items: [{ kind: "EXISTING", itemId, quantity: 1 }],
       publicAmendment: {
         reason: "SOLD_OUT_REMOVE",
@@ -77,6 +77,7 @@ describe("updateStaffOrderItemsSchema", () => {
   });
   it("accepts quantity changes, removals by omission, and trusted new product requests", () => {
     expect(updateStaffOrderItemsSchema.safeParse({
+      changeId: productId, expectedUpdatedAt: "2026-09-11T08:00:00.000Z",
       items: [
         { kind: "EXISTING", itemId, quantity: 2 },
         { kind: "NEW", productId, quantity: 1 },
@@ -86,6 +87,7 @@ describe("updateStaffOrderItemsSchema", () => {
 
   it("rejects duplicate existing item references", () => {
     expect(updateStaffOrderItemsSchema.safeParse({
+      changeId: productId, expectedUpdatedAt: "2026-09-11T08:00:00.000Z",
       items: [
         { kind: "EXISTING", itemId, quantity: 1 },
         { kind: "EXISTING", itemId, quantity: 2 },

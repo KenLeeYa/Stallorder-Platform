@@ -3,7 +3,10 @@
 import { useMerchantMessages } from "@/lib/messages/merchant-client";
 import type { MessageValues } from "@/lib/message-catalog";
 import type { MerchantMessageKey } from "@/lib/messages/merchant";
-import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { ProductAvailabilityButton, ProductAvailabilityEditor } from "@/components/product-availability-editor";
+import type { StockAssignment } from "@/components/product-stock-editor";
+import { isProductSoldOut } from "@/lib/product-availability";
+import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   ArrowLeft,
   ArrowDown,
@@ -74,6 +77,7 @@ type Assignment = {
   priceOverride: number | null;
   isEnabled: boolean;
   isSoldOut: boolean;
+  soldOutUntil?: string | null;
   sortOrder: number;
   checkoutUpsellSelected: boolean;
 };
@@ -168,14 +172,14 @@ function productUnavailableReason(
   const assignment = product.stallProducts.find((item) => item.stallId === stallId);
   if (!assignment) return "未分派";
   if (!assignment.isEnabled) return "分派未啟用";
-  if (assignment.isSoldOut) return "已售完";
+  if (isProductSoldOut(assignment)) return "已售完";
   return null;
 }
 
 function productIsSoldOut(product: Pick<Product, "isActive" | "stallProducts">) {
   return !product.isActive
     || (product.stallProducts.length > 0
-      && product.stallProducts.every((assignment) => assignment.isSoldOut));
+      && product.stallProducts.every((assignment) => isProductSoldOut(assignment)));
 }
 
 function getBundleComponentIssues(
@@ -213,7 +217,7 @@ function getBundleStallVisibility(
     }
     if (!stall?.isActive) reasons.add(translateLabel("攤位已停用"));
     if (!assignment.isEnabled) reasons.add(translateLabel("套餐分派未啟用"));
-    if (assignment.isSoldOut) reasons.add(translateLabel("套餐已售完"));
+    if (isProductSoldOut(assignment)) reasons.add(translateLabel("套餐已售完"));
     if (bundleProduct.bundleChoiceGroups.length === 0) reasons.add(translateLabel("尚未設定套餐群組"));
 
     for (const group of bundleProduct.bundleChoiceGroups) {
@@ -254,6 +258,8 @@ function bundleComponentOptionLabel(
   return translateMessage("{value0}（{value1}/{value2} 個套餐攤位不可用）", { value0: product.name, value1: issues.length, value2: assignedStallCount });
 }
 
+const subscribeToHydration = () => () => {};
+
 export function SharedCatalogManager({
   organizationId,
   operatingMode,
@@ -286,6 +292,7 @@ export function SharedCatalogManager({
   const [catalogNavigatorOpen, setCatalogNavigatorOpen] = useState(false);
   const [catalogNavigatorLevel, setCatalogNavigatorLevel] = useState<CatalogNavigatorLevel>({ kind: "CATEGORIES" });
   const [catalogNavigatorAction, setCatalogNavigatorAction] = useState<CatalogNavigatorAction | null>(null);
+  const interactive = useSyncExternalStore(subscribeToHydration, () => true, () => false);
   const [catalogSearch, setCatalogSearch] = useState("");
   const [noteGroups, setNoteGroups] = useState(initialNoteGroups);
   const [reusableNotes, setReusableNotes] = useState(initialReusableNotes);
@@ -293,6 +300,19 @@ export function SharedCatalogManager({
   const [categoryDraft, setCategoryDraft] = useState<CategoryDraft | null>(null);
   const [groupDraft, setGroupDraft] = useState<GroupDraft | null>(null);
   const [productDraft, setProductDraft] = useState<ProductDraft | null>(null);
+  const [availabilityTarget, setAvailabilityTarget] = useState<{ stallId: string; productId: string; name: string } | null>(null);
+  function applyAvailabilityUpdates(stallId: string, rows: StockAssignment[]) {
+    const updateAssignments = (assignments: Assignment[], productId: string) => {
+      const changed = rows.find((row) => row.productId === productId);
+      return changed ? assignments.map((assignment) => assignment.stallId === stallId ? { ...assignment,
+        stockRemaining: changed.stockRemaining, stockVersion: changed.stockVersion,
+        isSoldOut: changed.isSoldOut, soldOutUntil: changed.soldOutUntil, isEnabled: changed.isEnabled,
+      } : assignment) : assignments;
+    };
+    setCatalog((current) => ({ ...current, products: current.products.map((product) => ({ ...product, stallProducts: updateAssignments(product.stallProducts, product.id) })) }));
+    setProductDraft((current) => current?.id ? { ...current, stallProducts: updateAssignments(current.stallProducts, current.id) } : current);
+    setCatalogNavigatorAction((current) => current?.kind === "PRODUCT" ? { ...current, item: { ...current.item, stallProducts: updateAssignments(current.item.stallProducts, current.item.id) } } : current);
+  }
   const [productImageFile, setProductImageFile] = useState<File | null>(null);
   const [imageFeedback, setImageFeedback] = useState<ImageFeedback | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -578,7 +598,6 @@ export function SharedCatalogManager({
           operation: "UPDATE_PRODUCT",
           productId: productDraft.id,
           ...data,
-          isSoldOut: productDraft.isSoldOut,
           checkoutUpsellStallIds: productDraft.kind === "SINGLE"
             ? productDraft.stallProducts
               .filter((assignment) => assignment.checkoutUpsellSelected)
@@ -736,29 +755,7 @@ export function SharedCatalogManager({
     }
   }
 
-  async function toggleActive(kind: "CATEGORY" | "GROUP" | "PRODUCT", item: Category | Group | Product) {
-    if (kind === "PRODUCT") {
-      const product = item as Product;
-      const nextSoldOut = !productIsSoldOut(product);
-      if (nextSoldOut && !window.confirm(`確定將「${product.name}」設為售完？商品仍會顯示於線上 Menu，但顧客無法點選。`)) return;
-      await runCommand({
-        operation: "UPDATE_PRODUCT",
-        productId: product.id,
-        categoryId: product.categoryId,
-        groupId: product.groupId,
-        name: product.name,
-        description: product.description,
-        defaultPrice: product.defaultPrice,
-        kind: product.kind,
-        imageUrl: product.imageUrl,
-        isOrderDiscountEligible: product.isOrderDiscountEligible,
-        isLotteryEligible: product.isLotteryEligible,
-        sortOrder: product.sortOrder,
-        isSoldOut: nextSoldOut,
-        translations: product.translations,
-      }, nextSoldOut ? label("商品已設為售完。") : label("商品已恢復販售。"));
-      return;
-    }
+  async function toggleActive(kind: "CATEGORY" | "GROUP", item: Category | Group) {
     const nextActive = !item.isActive;
     if (!nextActive && !window.confirm(m("確定停用「{value0}」？商品與歷史訂單資料仍會保留。", { value0: item.name }))) return;
     if (kind === "CATEGORY") {
@@ -1043,22 +1040,19 @@ export function SharedCatalogManager({
       </div>
 
       {message ? <SettingsFeedbackDialog message={message} kind={messageKind} onClose={() => setMessage("")} /> : null}
+      {availabilityTarget ? <ProductAvailabilityEditor stallId={availabilityTarget.stallId} products={[availabilityTarget]} onSaved={(rows) => applyAvailabilityUpdates(availabilityTarget.stallId, rows)} onClose={() => setAvailabilityTarget(null)} /> : null}
       <SharedCatalogBoard currency={currency} categories={catalog.categories} groups={catalog.groups} products={catalog.products} stalls={stalls}
         onEdit={(id) => { const product = catalog.products.find((row) => row.id === id); if (product) editProduct(product); }}
         onEditCategory={(id) => { const category = catalog.categories.find((row) => row.id === id); if (category) editCategory(category); }}
         onEditGroup={(id) => { const group = catalog.groups.find((row) => row.id === id); if (group) editGroup(group); }}
         onMore={(id) => { const product = catalog.products.find((row) => row.id === id); if (product) { openCatalogProductActions(product); setCatalogNavigatorOpen(true); } }}
-        onUpdated={(stallId, rows) => setCatalog((current) => ({ ...current, products: current.products.map((product) => {
-          const changed = rows.find((row) => row.productId === product.id);
-          return changed ? { ...product, stallProducts: product.stallProducts.map((assignment) => assignment.stallId === stallId
-            ? { ...assignment, stockRemaining: changed.stockRemaining, stockVersion: changed.stockVersion, isSoldOut: changed.isSoldOut, isEnabled: changed.isEnabled }
-            : assignment) } : product;
-        }) }))}
+        onUpdated={applyAvailabilityUpdates}
       />
       <div id="shared-product-catalog" data-shared-product-catalog className="mt-5">
         <button
           type="button"
           data-testid="open-catalog-navigator"
+          disabled={!interactive}
           onClick={() => {
             setCatalogNavigatorLevel({ kind: "CATEGORIES" });
             setCatalogNavigatorAction(null);
@@ -1160,17 +1154,13 @@ export function SharedCatalogManager({
                     });
                   }}
                 />
-                <CatalogActionButton
-                  icon={(catalogNavigatorAction.kind === "PRODUCT" ? productIsSoldOut(catalogNavigatorAction.item) : !catalogNavigatorAction.item.isActive) ? <Eye className="h-7 w-7" /> : <EyeOff className="h-7 w-7" />}
-                  label={catalogNavigatorAction.kind === "PRODUCT"
-                    ? productIsSoldOut(catalogNavigatorAction.item) ? label("恢復販售") : label("設為售完")
-                    : catalogNavigatorAction.item.isActive ? label("停用") : label("恢復")}
-                  onSelect={() => {
-                    const action = catalogNavigatorAction;
-                    setCatalogNavigatorAction(null);
-                    void toggleActive(action.kind, action.item);
-                  }}
-                />
+                {catalogNavigatorAction.kind === "PRODUCT" ? <div className="col-span-2 grid gap-2 rounded-lg border border-stone-300 p-3 lg:col-span-3">
+                  {catalogNavigatorAction.item.stallProducts.map((assignment) => <div key={assignment.stallId} className="flex flex-wrap items-center justify-between gap-2 text-sm"><span>{stalls.find((stall) => stall.id === assignment.stallId)?.name}</span><ProductAvailabilityButton name={catalogNavigatorAction.item.name} assignment={assignment} onClick={() => setAvailabilityTarget({ stallId: assignment.stallId, productId: catalogNavigatorAction.item.id, name: catalogNavigatorAction.item.name })} /></div>)}
+                </div> : <CatalogActionButton
+                  icon={!catalogNavigatorAction.item.isActive ? <Eye className="h-7 w-7" /> : <EyeOff className="h-7 w-7" />}
+                  label={catalogNavigatorAction.item.isActive ? label("停用") : label("恢復")}
+                  onSelect={() => { const action = catalogNavigatorAction; setCatalogNavigatorAction(null); void toggleActive(action.kind, action.item); }}
+                />}
                 {catalogNavigatorAction.kind === "PRODUCT" ? <CatalogActionButton danger icon={<Trash2 className="h-7 w-7" />} label={label("刪除商品")} onSelect={() => { const product = catalogNavigatorAction.item; setCatalogNavigatorAction(null); void deleteProduct(product); }} /> : null}
               </div>
             ) : normalizedCatalogSearch ? (
@@ -1279,9 +1269,9 @@ export function SharedCatalogManager({
                     const disabled = !assignment.checkoutUpsellSelected && (
                       !stall?.isActive
                       || !productDraft.isActive
-                      || productDraft.isSoldOut
+                      || productIsSoldOut(productDraft)
                       || !assignment.isEnabled
-                      || assignment.isSoldOut
+                      || isProductSoldOut(assignment)
                     );
                     return (
                       <button
@@ -1333,7 +1323,7 @@ export function SharedCatalogManager({
             </details> : null}
             {!productDraft.id
               ? (!singleStallMode ? <StallChecks stalls={stalls} selected={productDraft.stallIds} error={editorFieldErrors.stallIds} onChange={(stallIds) => { clearEditorField("stallIds"); setProductDraft({ ...productDraft, stallIds }); }} /> : null)
-              : <CheckField label={singleStallMode ? label("商品已售完") : label("所有攤位皆已售完")} checked={productDraft.isSoldOut} onChange={(isSoldOut) => setProductDraft({ ...productDraft, isSoldOut })} />}
+              : <div className="grid gap-2 sm:col-span-2"><span className="text-sm font-semibold">依攤位設定供應狀態</span>{productDraft.stallProducts.map((assignment) => <div key={assignment.stallId} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-stone-200 p-2"><span className="text-sm">{stalls.find((stall) => stall.id === assignment.stallId)?.name}</span><ProductAvailabilityButton name={productDraft.name} assignment={assignment} onClick={() => setAvailabilityTarget({ stallId: assignment.stallId, productId: productDraft.id!, name: productDraft.name })} /></div>)}</div>}
             <SubmitButton busy={busy} wide />
           </form>
         </Editor>
@@ -1583,7 +1573,7 @@ function CatalogProductCard({ product, currency, singleStallMode, onSelect }: { 
   const { locale, label } = useMerchantMessages();
   const productDisplayName = localizedCatalogName(product, locale);
   const isSoldOut = productIsSoldOut(product);
-  const hasPartiallySoldOutStalls = !isSoldOut && product.stallProducts.some((assignment) => assignment.isSoldOut);
+  const hasPartiallySoldOutStalls = !isSoldOut && product.stallProducts.some((assignment) => isProductSoldOut(assignment));
   return (
     <button type="button" data-testid="shared-product-actions" aria-label={`${label("操作")}：${productDisplayName}`} onClick={onSelect} className="flex min-h-28 w-full items-center gap-3 rounded-xl border border-stone-300 bg-white p-4 text-left shadow-sm hover:bg-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">
       {product.imageUrl ? <ProductImage src={product.imageUrl} alt="" width={96} height={96} sizes="64px" className="h-16 w-16 shrink-0 rounded-lg object-cover" /> : <span className="grid h-16 w-16 shrink-0 place-items-center rounded-lg bg-stone-100 text-stone-500"><PackagePlus className="h-7 w-7" /></span>}
@@ -1755,6 +1745,7 @@ function Editor({ title, onClose, dialogRef, errorMessage, wide = false, fullScr
     (focusableElements()[0] ?? activeDialog).focus();
 
     function handleKeyDown(event: KeyboardEvent) {
+      if (document.querySelector("dialog[open]")) return;
       if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
@@ -1861,18 +1852,14 @@ function TouchSwitch({ label, accessibleLabel, checked, onChange }: { label: Rea
   return (
     <button
       type="button"
-      role="switch"
+      role="checkbox"
       aria-label={accessibleLabel}
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className={`flex min-h-14 w-full items-center justify-between gap-4 rounded-xl border px-4 py-3 text-left text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 ${checked ? "border-teal-700 bg-teal-50 text-teal-950" : "border-stone-300 bg-white text-stone-700"}`}
+      className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 ${checked ? "border-teal-700 bg-teal-50 text-teal-950" : "border-stone-300 bg-white text-stone-700"}`}
     >
       <span className="min-w-0 flex-1">{label}</span>
-      <span aria-hidden="true" className={`relative h-8 w-14 shrink-0 rounded-full transition ${checked ? "bg-teal-700" : "bg-stone-300"}`}>
-        <span className={`absolute top-1 grid h-6 w-6 place-items-center rounded-full bg-white shadow transition-transform ${checked ? "translate-x-7 text-teal-700" : "translate-x-1 text-stone-400"}`}>
-          {checked ? <Check className="h-4 w-4" /> : null}
-        </span>
-      </span>
+      <span aria-hidden="true" className={`grid h-5 w-5 shrink-0 place-items-center rounded border ${checked ? "border-teal-700 bg-teal-700 text-white" : "border-stone-400"}`}>{checked ? <Check className="h-4 w-4" /> : null}</span>
     </button>
   );
 }

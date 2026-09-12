@@ -13,8 +13,8 @@ const providerLabels = {
 } as const;
 
 const localQaAccounts = [
-  { label: "店員", email: "staff@stallorder.test", password: "StallOrderDemo!2026" },
-  { label: "廚房", email: "kitchen@stallorder.test", password: "StallOrderDemo!2026" },
+  { label: "店員", email: "staff@stallorder.test", password: "StallOrderDemo!2026", nextPath: "/staff/aming-chicken" },
+  { label: "廚房", email: "kitchen@stallorder.test", password: "StallOrderDemo!2026", nextPath: "/kitchen?stall=aming-chicken" },
 ] as const;
 
 export default async function StaffLoginPage() {

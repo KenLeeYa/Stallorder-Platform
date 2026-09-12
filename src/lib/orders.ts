@@ -40,6 +40,7 @@ export const staffOrderSelect = {
   fulfillmentTimeResponseExpiresAt: true,
   fulfillmentTimeChangeReason: true,
   createdAt: true,
+  updatedAt: true,
   printJobs: primaryPrintJobsQuery,
   items: {
     select: {
@@ -94,6 +95,7 @@ export type StaffOrderDto = {
   fulfillmentTimeResponseExpiresAt: string | null;
   fulfillmentTimeChangeReason: string | null;
   createdAt: string;
+  updatedAt?: string;
   primaryPrintStatus: PrintJobStatus | null;
   items: Array<{
     id: string;
@@ -143,6 +145,7 @@ export function serializeStaffOrder(order: Prisma.OrderGetPayload<{ select: type
     fulfillmentTimeState: fulfillmentTime.fulfillmentTimeState,
     fulfillmentTimeResponseExpiresAt: order.fulfillmentTimeResponseExpiresAt?.toISOString() ?? null,
     createdAt: order.createdAt.toISOString(),
+    updatedAt: order.updatedAt?.toISOString(),
     items: order.items.map((item) => ({
       ...item,
       preparingAt: item.preparingAt?.toISOString() ?? null,

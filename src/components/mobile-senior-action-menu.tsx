@@ -68,6 +68,8 @@ export function MobileSeniorActionMenu({
       return;
     }
     if (target.closest("summary")) return;
+    // A dialog opener must keep its owning component mounted while React commits the child dialog.
+    if (target.closest('button[aria-haspopup="dialog"]')) return;
     if (!target.closest("button, [role='button']")) return;
     window.setTimeout(() => {
       const anotherDialog = Array.from(document.querySelectorAll<HTMLElement>("[role='dialog']"))

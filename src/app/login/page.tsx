@@ -14,10 +14,10 @@ const providerLabels = {
 } as const;
 
 const localQaAccounts = [
-  { label: "商家", email: "owner@stallorder.test", password: "StallOrderDemo!2026" },
-  { label: "店員", email: "staff@stallorder.test", password: "StallOrderDemo!2026" },
-  { label: "廚房", email: "kitchen@stallorder.test", password: "StallOrderDemo!2026" },
-  { label: "平台管理者", email: "platform.admin@stallorder.test", password: "StallOrderDemo!2026" },
+  { label: "商家", email: "owner@stallorder.test", password: "StallOrderDemo!2026", nextPath: "/merchant/dashboard?organizationId=11111111-1111-4111-8111-111111111111" },
+  { label: "店員", email: "staff@stallorder.test", password: "StallOrderDemo!2026", nextPath: "/staff/aming-chicken" },
+  { label: "廚房", email: "kitchen@stallorder.test", password: "StallOrderDemo!2026", nextPath: "/kitchen?stall=aming-chicken" },
+  { label: "平台管理者", email: "platform.admin@stallorder.test", password: "StallOrderDemo!2026", nextPath: "/admin/billing" },
 ] as const;
 
 export default async function LoginPage() {

@@ -33,7 +33,7 @@
 2. 必須鎖屏接收：另行實作伺服器 Web Push。iPadOS 16.4 起，加入主畫面的 Web App 可在使用者點擊後請求通知權限，通知可出現在鎖定畫面；仍受通知設定、專注模式與系統音量影響，不能保證每次響鈴或自訂警報音。[WebKit 官方說明](https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/)
 3. 上線前實機測試：實際 iPadOS、Safari／主畫面 App、前景／切換 App／自動與手動鎖屏、靜音／專注模式／斷網恢復。高峰時段可用另一台保持喚醒的接單裝置備援。
 
-Web Push 尚未新增，需要通知訂閱、伺服器新單事件、Service Worker、取消權限及重複投遞處理，應作完整功能驗收。
+2026-09-07 當時 Web Push 尚未新增。2026-09-11 已完成本機新單推播、訂閱／撤權、Service Worker 去重及 HTTPS 入口，實體 iPad／Android 顯示與音效仍待驗證；最新狀態見 [實機驗收指南](STAFF_PUSH_MENU_ANNOUNCEMENTS_20260911.md)。
 
 ## 驗證
 

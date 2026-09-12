@@ -191,13 +191,21 @@ Customer/Menu/QR
 - 廚房訂單模式在 tablet/desktop 固定為「訂單清單 → 生產品項 → 廚房操作」三欄並各自捲動；phone 依序堆疊。不得把店員端結帳／付款能力帶進 KDS，既有品項狀態、整單完成、預約／取餐資訊與取消權限 Gate 必須保留。
 - 攤位報表與營業損益把「套用篩選／匯出」緊接在「自訂」右側的同一可水平捲動列；320／390 只藏文字、不藏圖示或 accessible name，768／1440 顯示文字。稽核／營運警示維持參考圖的配對手機排列與三欄桌機排列，開始／結束日期常駐，今天／本週／本月維持原位置。
 
+## 店員推播與 Menu 公告相依
+
+- `STAFF-PUSH-001` 相依 orders INSERT／idempotency、auth session family/version、攤位權限、RLS、加密訂閱、cron／lease、根 Service Worker 與離線更新保護。改單／付款／完成只能 UPDATE，不可因通知需求重建訂單；登出／撤權後停止投遞。分開記錄 provider 接收、裝置顯示及實機音效。
+- 商家提示音設定作用於前景看板的新單音效；Web Push／30 秒測試採手機或瀏覽器通知鈴聲，不能宣稱會自動套用商家音檔。2026-09-12 OPPO 無聲由使用者確認為 Chrome 開啟無聲通知，關閉後回報預設 App 鈴聲；不可據此改變新單去重或替更新訂單增加音效。
+- 鎖屏通知以 `silent: false` 要求 OS 音效，不能宣稱已覆蓋 Android 通知類別、鈴聲、靜音、勿擾或通知冷卻。重複 delivery 不再提示，不同新單仍分別要求音效。重新連結及延遲測試必須驗證 active SW 的非靜音能力，舊版或無回應時不得排定測試；禁止強制跳過既有離線更新保護。音效指引及驗收見 `docs/STAFF_PRINTER_INDICATOR_PUSH_SOUND_20260912.md`。
+- `MENU-ANNOUNCEMENT-001` 相依 MANAGE_STALL／CSRF、攤位時區、Menu 讀取、特殊店休、modal 焦點與版本。店休優先，只顯示一個遮罩；公告不能解除營業／庫存／維護 Gate。案例見 `QA-PUSH-01`／`QA-MENU-ANN-01` 與 `docs/STAFF_PUSH_MENU_ANNOUNCEMENTS_20260911.md`。
+
 ## 本機工作樹與測試服務
 
 - 每次先記錄 repo、branch、HEAD、`git status`、worktrees 和實際占用測試 port 的 process/cwd。
 - 本機人工 QA 一律用 `npm run dev:qa -- --port <固定連接埠>` 啟動；APP、瀏覽器、公開點餐與 CSRF origin 必須同一個 port。占用時停止並查明原 process，禁止 Next 自動改到另一個 port 後繼續測。
 - 啟動器必須拒絕 Production 環境、遠端資料庫與 origin 不一致，並輸出實際 worktree、HEAD、origin（不得輸出密鑰）。`/api/health` 回 200 只代表服務活著，不代表載入正確工作樹或功能可用。
-- 每次換 port 或重啟後，先停用該 local origin 的 service worker 並預熱登入與 availability 路徑，再在同一 origin 驗證 Owner、Staff、Kitchen、Platform Admin 四種快速登入；公開 Menu、QR 與外帶必須實際建立成功的 order session，再驗證現金交班。瀏覽器仍停在舊 port 或舊 session 時先清除該舊 origin 的狀態。
+- 每次換 port 或重啟後，預設先停用該 local origin 的 service worker 並預熱登入與 availability 路徑，再在同一 origin 驗證 Owner、Staff、Kitchen、Platform Admin 四種快速登入；Web Push 實機 QA 可明確用 LOCAL_QA_ENABLE_WEB_PUSH 保留並驗證 active worker。公開 Menu、QR 與外帶必須實際建立成功的 order session，再驗證現金交班。瀏覽器仍停在舊 port 或舊 session 時先清除該舊 origin 的狀態。
 - 本機快速登入只允許四個固定測試帳號，且同時要求 development、明確旗標、loopback app、loopback database 與 same-origin；即使平台目前只開 OAuth，本機按鈕仍可測試，但帳密／session 驗證不可繞過。Production 必須有負向測試證明不可到達。
+- 本機角色按鈕沒有明確 next 時，直接開啟該固定測試帳號的示範商戶／攤位頁；明確 next 仍優先，不能改掉一般登入的多商戶選擇與服務端授權。四角色測試必須從純 /login 開始，另驗證 /staff/login 和 next 保留；不能只測預先附上 next 的網址而漏掉按鈕預設行為。
 - 多個工作任務共用 dirty worktree 時先劃分檔案 ownership；任何 build 前等待 `worktree stable`。
 - 歷史 Docker Desktop log 不代表目前錯誤。先查 daemon、container、port、health、process start time 與最近 log timestamp；不要直接刪 container/image/volume。
 - 2026-09-10 起，本機測試服務按需啟用，測試結束後預設停止本次啟用的 Docker 與開發程序；仍有任務依賴或使用者明確保留人工 QA 時記錄例外。停止需依精確 project label，保留容器、映像、資料與 volumes。重啟 Docker Desktop 後核對允許清單，避免舊環境自動復活；交接列出保留／停止服務與再啟用方式。詳見 `docs/LOCAL_TEST_SERVICE_LIFECYCLE.md`。

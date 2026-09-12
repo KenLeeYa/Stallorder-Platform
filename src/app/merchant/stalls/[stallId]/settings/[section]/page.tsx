@@ -7,6 +7,8 @@ import { StallEditor } from "@/components/stall-editor";
 import { StallModulesManager, type StallModuleView } from "@/components/stall-modules-manager";
 import { StallOrderLimitsForm, type StallOrderLimits } from "@/components/stall-order-limits-form";
 import { StallSpecialClosuresManager } from "@/components/stall-special-closures-manager";
+import { StallMenuAnnouncementManager } from "@/components/stall-menu-announcement-manager";
+import { serializeMenuAnnouncement } from "@/lib/menu-announcement";
 import { StallSettingsShell } from "@/components/stall-settings-shell";
 import { StallTeamManager } from "@/components/stall-team-manager";
 import { StallTemplateCopyManager } from "@/components/stall-template-copy-manager";
@@ -22,6 +24,7 @@ const sectionLabels = {
   operations: "營運狀態",
   "business-hours": "營業時間",
   "special-hours": "特殊營業日與公休公告",
+  announcements: "線上 Menu 公告",
   modules: "營運模組與內用桌位",
   "dine-in": "內用點餐",
   "dining-tables": "內用桌位與專屬 QR",
@@ -110,7 +113,10 @@ export default async function StallSettingsSectionPage({ params, searchParams }:
 
   let content: ReactNode;
 
-  if (rawSection === "basic" || rawSection === "operations") {
+  if (rawSection === "announcements") {
+    const announcement = await prisma.stallMenuAnnouncement.findUnique({ where: { stallId } });
+    content = <StallMenuAnnouncementManager stallId={stallId} timeZone={stall.timezone} initial={announcement ? serializeMenuAnnouncement(announcement) : null} />;
+  } else if (rawSection === "basic" || rawSection === "operations") {
     content = (
       <StallEditor
         organizationId={workspace.id}

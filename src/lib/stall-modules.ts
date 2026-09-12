@@ -1,4 +1,5 @@
 import "server-only";
+import { isProductSoldOut } from "@/lib/product-availability";
 
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -95,6 +96,7 @@ export async function getStallModuleState(stallId: string, organizationId: strin
         priceOverride: true,
         isEnabled: true,
         isSoldOut: true,
+        soldOutUntil: true,
         product: {
           select: {
             name: true,
@@ -153,9 +155,9 @@ export async function getStallModuleState(stallId: string, organizationId: strin
       id: assignment.productId,
       name: assignment.product.name,
       price: assignment.priceOverride ?? assignment.product.defaultPrice,
-      isAvailable: assignment.isEnabled && !assignment.isSoldOut,
+      isAvailable: assignment.isEnabled && !isProductSoldOut(assignment),
       isEnabled: assignment.isEnabled,
-      isSoldOut: assignment.isSoldOut,
+      isSoldOut: isProductSoldOut(assignment),
       kind: assignment.product.kind,
       categoryId: assignment.product.category.id,
       categoryName: assignment.product.category.name,

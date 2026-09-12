@@ -211,8 +211,16 @@ test("catalog desktop/tablet group board and mobile stock editor render without 
       await dialog.getByRole("button",{name:/^儲存庫存/}).click();expect((await saved).status()).toBe(200);
       expect(await remaining()).toBe(3);await expect(dialog).not.toBeVisible();
       await board.getByRole("checkbox",{name:"選取 庫存驗收餐",exact:true}).check();
+      await board.getByRole("button",{name:"批次供應設定",exact:true}).click();
+      const availability=page.getByRole("dialog",{name:"設定供應狀態",exact:true});
+      await expect(availability).toBeVisible();
+      await availability.getByRole("button",{name:/^今日售完/}).click();
       const marked=page.waitForResponse((response)=>response.url().endsWith("/products")&&response.request().method()==="PATCH");
-      await board.getByRole("button",{name:"批次售完",exact:true}).click();expect((await marked).status()).toBe(200);
+      await availability.getByRole("button",{name:"確認今日售完",exact:true}).click();expect((await marked).status()).toBe(200);
+      await expect(availability).not.toBeVisible();
+      const sold=await prisma.stallProduct.findFirstOrThrow({where:{stallId,productId}});
+      expect(sold.isSoldOut).toBe(true);expect(sold.soldOutUntil!.getTime()).toBeGreaterThan(Date.now());
+      expect(sold.stockRemaining).toBe(3);
       await board.getByRole("button",{name:/^已售完/}).click();
       await expect(board.getByTestId("catalog-management-row").filter({hasText:"庫存驗收餐"})).toBeVisible();
       await board.getByRole("button",{name:/^已售完/}).click();

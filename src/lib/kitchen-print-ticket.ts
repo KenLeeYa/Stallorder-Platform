@@ -15,6 +15,7 @@ export type PrintFeedLines = 1 | 2 | 3;
 
 export type KitchenTicketInput = {
   stallName: string;
+  documentTitle?: string;
   timeZone: string;
   order: {
     orderNo: string;
@@ -48,6 +49,7 @@ export const kitchenTicketPayloadSchema = z.object({
   mediaType: z.literal(KITCHEN_TICKET_MEDIA_TYPE),
   content: z.string().min(1),
   dataBase64: z.string().min(1),
+  sourceItemIds: z.array(z.string().min(1).max(80)).max(100).optional(),
 }).strict();
 
 export type KitchenTicketPayload = z.infer<typeof kitchenTicketPayloadSchema>;
@@ -58,6 +60,7 @@ export const customerReceiptPayloadSchema = z.object({
   mediaType: z.literal(KITCHEN_TICKET_MEDIA_TYPE),
   content: z.string().min(1),
   dataBase64: z.string().min(1),
+  sourceItemIds: z.array(z.string().min(1).max(80)).max(100).optional(),
 }).strict();
 
 export const printerTestPayloadSchema = z.object({
@@ -279,10 +282,10 @@ export function formatKitchenTicket(input: KitchenTicketInput) {
     ? ` 桌號${sanitizeText(order.tableLabel)}`
     : "";
 
-  lines.push(fitLine(`${sanitizeText(input.stallName)}｜廚房製作單`, columns));
+  appendWrapped(lines, `${sanitizeText(input.stallName)}｜${input.documentTitle ?? "廚房製作單"}`, "", columns);
   if (input.isReprint) lines.push(fitLine("*** 補印 ***", columns));
   lines.push(fitLine(`${type}${table} #${orderNo}${fulfillmentAt ? " ★預約" : ""}`, columns));
-  if (input.sectionLabel) lines.push(fitLine(`分單：${sanitizeText(input.sectionLabel)}`, columns));
+  if (input.sectionLabel) appendWrapped(lines, `分單：${sanitizeText(input.sectionLabel)}`, "", columns);
 
   const createdTime = formatTime(order.createdAt, input.timeZone);
   if (fulfillmentAt) {

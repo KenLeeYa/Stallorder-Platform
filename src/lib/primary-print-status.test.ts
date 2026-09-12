@@ -12,6 +12,24 @@ const original: Job = {
 const reprint: Job = { ...original, id: "reprint", reprintOfId: original.id, status: "SUCCEEDED" };
 
 describe("primary ticket print recovery", () => {
+  it("requires the amendment even when the original ticket was already printed", () => {
+    const amendment: Job = { ...original, id: "change-1", amendmentId: "event-1", status: "PENDING" };
+    expect(resolvePrimaryPrintStatus([{ ...original, status: "SUCCEEDED" }, amendment])).toBe("PENDING");
+    expect(resolvePrimaryPrintStatus([{ ...original, status: "SUCCEEDED" }, { ...amendment, status: "FAILED" }, reprint])).toBe("FAILED");
+  });
+  it("recovers a failed amendment through its own reprint, while retaining original recovery", () => {
+    const amendment: Job = { ...original, id: "change-1", amendmentId: "event-1", status: "FAILED" };
+    const amendmentReprint: Job = { ...amendment, id: "change-reprint", reprintOfId: amendment.id, status: "SUCCEEDED" };
+    expect(resolvePrimaryPrintStatus([original, amendment, amendmentReprint])).toBe("CANCELLED");
+    expect(resolvePrimaryPrintStatus([original, reprint, amendment, amendmentReprint])).toBe("SUCCEEDED");
+    expect(resolvePrimaryPrintStatus([original, reprint, amendment, amendmentReprint, { ...amendmentReprint, id: "spare-change", status: "FAILED" }])).toBe("SUCCEEDED");
+  });
+  it("requires every change document and does not confuse independent revisions", () => {
+    const amendment: Job = { ...original, id: "change-1", amendmentId: "event-1", status: "SUCCEEDED" };
+    const next: Job = { ...amendment, id: "change-2", amendmentId: "event-2", status: "FAILED" };
+    expect(resolvePrimaryPrintStatus([original, reprint, amendment, next])).toBe("FAILED");
+    expect(resolvePrimaryPrintStatus([original, reprint, amendment, next, { ...next, id: "change-2-copy", reprintOfId: next.id, status: "SUCCEEDED" }])).toBe("SUCCEEDED");
+  });
   it("has no print status before a primary job exists", () => {
     expect(resolvePrimaryPrintStatus([])).toBeNull();
     expect(resolvePrimaryPrintStatus([reprint])).toBeNull();

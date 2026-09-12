@@ -1,4 +1,5 @@
 import "server-only";
+import { isProductSoldOut } from "@/lib/product-availability";
 
 import { createHash } from "node:crypto";
 import type { Prisma } from "@prisma/client";
@@ -130,6 +131,7 @@ export async function createOrReuseOfflineMenuSnapshot(input: {
           priceOverride: true,
           isEnabled: true,
           isSoldOut: true,
+          soldOutUntil: true,
           availableFrom: true,
           availableUntil: true,
           sortOrder: true,
@@ -269,7 +271,7 @@ export async function createOrReuseOfflineMenuSnapshot(input: {
         price: assignment.priceOverride ?? product.defaultPrice,
         isActive: product.isActive,
         isEnabled: assignment.isEnabled,
-        isSoldOut: assignment.isSoldOut,
+        isSoldOut: isProductSoldOut(assignment),
         availableFrom: assignment.availableFrom?.toISOString() ?? null,
         availableUntil: assignment.availableUntil?.toISOString() ?? null,
         sortOrder: assignment.sortOrder || product.sortOrder,

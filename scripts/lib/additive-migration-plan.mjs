@@ -71,6 +71,14 @@ const FLEXIBLE_LOTTERY_FESTIVAL_CAMPAIGNS_MIGRATION_DIGEST =
 // revision must be reviewed again; see docs/FUNCTIONAL_RELEASE_20260908.md.
 const STOCK_PORTIONS_MIGRATION_DIGEST =
   "75bb97c2a1e6bd411c02a1cd4c819f165cef86e5be0be5d98c928efb2226c84d";
+// Exact reviewed schema-only transitions; Primary backfill is a separate,
+// writer-fenced step. See docs/LOCAL_FEATURES_RELEASE_20260912.md.
+const AVAILABILITY_DEADLINES_MIGRATION_DIGEST =
+  "352c81b7917836624ee395b100f782e07e9dee18ed1667fb696689b2bbfbb570";
+const ORDER_AMENDMENT_PRINT_MIGRATION_DIGEST =
+  "a3eddcabf9e3edf53273c9520b23db0d16c1ce82c46108977aad648498c51a48";
+const STAFF_PUSH_ANNOUNCEMENT_MIGRATION_DIGEST =
+  "a02e9b182ab62fd415e30f20467bf75ea3e40578d0c89747d394874fcd49a01d";
 const ORDER_OPERATIONS_MIGRATION_DIGESTS = new Set([
   "46e30e5c335d3a641824ee917579138db2f0e747ce17ed7ac5cf75d94f08c458", // calendar/cutoff
   STOCK_PORTIONS_MIGRATION_DIGEST,
@@ -208,8 +216,12 @@ export function assertAdditiveMigrationSql(sql) {
   const orderOperationsDigest = sha256(sql.replace(/\r\n/gu, "\n").trim());
   const orderOperationsMigration = ORDER_OPERATIONS_MIGRATION_DIGESTS.has(orderOperationsDigest);
   const stockPortionsMigration = orderOperationsDigest === STOCK_PORTIONS_MIGRATION_DIGEST;
+  const availabilityDeadlinesMigration = orderOperationsDigest === AVAILABILITY_DEADLINES_MIGRATION_DIGEST;
+  const orderAmendmentPrintMigration = orderOperationsDigest === ORDER_AMENDMENT_PRINT_MIGRATION_DIGEST;
+  const staffPushAnnouncementMigration = orderOperationsDigest === STAFF_PUSH_ANNOUNCEMENT_MIGRATION_DIGEST;
   const compatibleFunctionBodyMigration =
-    orderOperationsMigration || isApprovedCompatibleFunctionBodyMigration(sql);
+    orderOperationsMigration || availabilityDeadlinesMigration || orderAmendmentPrintMigration
+    || isApprovedCompatibleFunctionBodyMigration(sql);
   const existingTableTriggerMigration =
     isApprovedExistingTableTriggerMigration(sql);
   const integratedPrintCenterMigration =
@@ -353,6 +365,8 @@ export function assertAdditiveMigrationSql(sql) {
     organizationOperatingModeMigration,
     multitenantEinvoiceLocalMockMigration,
     stockPortionsMigration,
+    availabilityDeadlinesMigration,
+    staffPushAnnouncementMigration,
   );
   assertReplacementObjectProvenance(
     statements,
@@ -361,6 +375,7 @@ export function assertAdditiveMigrationSql(sql) {
     deliveryProviderContractsMigration,
     paygContractRuntimeGapsMigration,
     publicTakeoutAmendmentDeliveryNoticeMigration,
+    orderAmendmentPrintMigration,
   );
   return true;
 }
@@ -391,6 +406,8 @@ function assertSecurityObjectProvenance(
   organizationOperatingModeMigration,
   multitenantEinvoiceLocalMockMigration,
   stockPortionsMigration,
+  availabilityDeadlinesMigration,
+  staffPushAnnouncementMigration,
 ) {
   const createdTables = new Map();
   const createdFunctions = new Map();
@@ -542,6 +559,12 @@ function assertSecurityObjectProvenance(
       const tableIdentity = normalizeIdentifier(trigger[1]);
       if (
         !objectWasCreatedEarlier(createdTables, tableIdentity, index)
+        && !(availabilityDeadlinesMigration
+          && tableIdentity === "public.stall_products"
+          && /^create\s+trigger\s+stall_products_sold_out_deadline\b/iu.test(statement))
+        && !(staffPushAnnouncementMigration
+          && tableIdentity === "public.orders"
+          && /^create\s+trigger\s+staff_new_order_push\b/iu.test(statement))
         && !(stockPortionsMigration
           && /^public\.(?:stall_products|orders|order_items|order_production_tasks)$/u.test(tableIdentity))
         && !(
@@ -630,6 +653,7 @@ function assertReplacementObjectProvenance(
   deliveryProviderContractsMigration,
   paygContractRuntimeGapsMigration,
   publicTakeoutAmendmentDeliveryNoticeMigration,
+  orderAmendmentPrintMigration,
 ) {
   const createdTables = new Map();
   const indexCreations = new Map();
@@ -702,6 +726,10 @@ function assertReplacementObjectProvenance(
     }
     if (kind === "index") {
       const creations = indexCreations.get(target) ?? [];
+      if (orderAmendmentPrintMigration
+        && ["print_jobs_initial_order_unique", "print_jobs_order_rule_unique"].includes(target)
+        && creations.length === 1 && creations[0].table === "public.print_jobs"
+        && !creations[0].conditional) continue;
       const created = creations.find((candidate) => candidate.index < firstDrop);
       if (
         !created

@@ -13,6 +13,7 @@ import { prisma } from "@/lib/prisma";
 
 export const printJobTicketSelect = {
   id: true,
+  amendmentId: true,
   reprintOfId: true,
   isRoutingCopy: true,
   payload: true,
@@ -85,9 +86,10 @@ export const printJobTicketSelect = {
 type PrintJobTicket = Prisma.PrintJobGetPayload<{ select: typeof printJobTicketSelect }>;
 type TicketItem = NonNullable<PrintJobTicket["order"]>["items"][number];
 
-export async function resolvePrintJobTicketPayload(job: PrintJobTicket) {
+export async function resolvePrintJobTicketPayload(job: PrintJobTicket, client: Prisma.TransactionClient = prisma) {
   const stored = printTicketPayloadSchema.safeParse(job.payload);
   if (stored.success) return stored.data;
+  if (job.amendmentId) throw new Error("Amendment print job requires its immutable payload");
   if (!job.order) throw new Error("Order print job has no order or immutable payload");
 
   const paperWidthMm = normalizePaperWidth(job.printer?.paperWidthMm);
@@ -153,7 +155,7 @@ export async function resolvePrintJobTicketPayload(job: PrintJobTicket) {
         })),
       }, copies);
 
-  return persistPayload(job.id, job.payload, payload);
+  return persistPayload(job.id, job.payload, { ...payload, sourceItemIds: filteredItems.map((item) => item.id) }, client);
 }
 
 function filterTicketItems(
@@ -236,10 +238,11 @@ function normalizeFeedLines(value: number | undefined): 1 | 2 | 3 {
 async function persistPayload(
   jobId: string,
   currentPayload: Prisma.JsonValue | null,
-  payload: ReturnType<typeof createKitchenTicketBatchPayload> | ReturnType<typeof createCustomerReceiptPayload>,
+  payload: (ReturnType<typeof createKitchenTicketBatchPayload> | ReturnType<typeof createCustomerReceiptPayload>) & { sourceItemIds: string[] },
+  client: Prisma.TransactionClient,
 ) {
   if (currentPayload === null) {
-    const persisted = await prisma.printJob.updateMany({
+    const persisted = await client.printJob.updateMany({
       where: { id: jobId, payload: { equals: Prisma.DbNull } },
       data: {
         payload: payload as Prisma.InputJsonValue,
@@ -247,7 +250,7 @@ async function persistPayload(
       },
     });
     if (persisted.count === 1) return payload;
-    const concurrent = await prisma.printJob.findUnique({
+    const concurrent = await client.printJob.findUnique({
       where: { id: jobId },
       select: { payload: true },
     });
@@ -256,7 +259,7 @@ async function persistPayload(
     throw new Error("Print job payload persistence conflict");
   }
 
-  await prisma.printJob.update({
+  await client.printJob.update({
     where: { id: jobId },
     data: {
       payload: payload as Prisma.InputJsonValue,

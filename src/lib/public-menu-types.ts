@@ -61,6 +61,7 @@ export type PublicMenuProduct = {
 };
 
 export type PublicMenu = {
+  announcement?: import("./menu-announcement").MenuAnnouncementView | null;
   orderingMode: "DEFAULT" | "DELIVERY" | "PREORDER";
   orderingOpenNow?: boolean;
   onlineMenuPath?: string;

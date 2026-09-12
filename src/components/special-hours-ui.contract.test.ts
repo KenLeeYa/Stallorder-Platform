@@ -46,6 +46,10 @@ describe("special business hours UI contract", () => {
     expect(notice).toContain('role="dialog"');
     expect(notice).toContain('aria-modal="true"');
     expect(qrFlow).toContain("SpecialClosureNoticeDialog");
-    expect(publicMenu).toContain("SpecialClosureNoticeDialog");
+    expect(publicMenu).toContain("MenuNoticeDialogs");
+    const menuNotices = source("./menu-notice-dialogs.tsx");
+    expect(menuNotices).toContain("SpecialClosureNoticeDialog");
+    expect(menuNotices).toContain("onSettled={settled}");
+    expect(menuNotices).toContain("if (!closureSettled || !announcement) return;");
   });
 });

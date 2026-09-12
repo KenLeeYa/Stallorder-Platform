@@ -280,7 +280,7 @@ describe("共享商品套餐 API", () => {
     expect(mocks.invalidatePublicMenus).toHaveBeenCalledWith(["22222222-2222-4222-8222-222222222222"]);
   });
 
-  it("將舊停用商品轉為可顯示的售完商品，並同步所有攤位售完狀態", async () => {
+  it("設定主檔售完並同步攤位售完狀態，保留各攤位永久下架設定", async () => {
     const categoryId = "77777777-7777-4777-8777-777777777771";
     mocks.findProduct
       .mockResolvedValueOnce({
@@ -340,7 +340,7 @@ describe("共享商品套餐 API", () => {
     }));
     expect(mocks.updateStallProducts).toHaveBeenCalledWith({
       where: { organizationId, productId: componentProductId },
-      data: { isSoldOut: true, sortOrder: 1, isEnabled: true },
+      data: { isSoldOut: true, sortOrder: 1 },
     });
     expect(mocks.recordAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
       action: "PRODUCT_UPDATED",

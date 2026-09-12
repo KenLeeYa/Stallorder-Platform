@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { isProductSoldOut } from "@/lib/product-availability";
 import { requirePagePermission } from "@/lib/authorization";
 import { MerchantProducts } from "@/components/merchant-products";
 import { hasPermission } from "@/lib/rbac";
@@ -74,7 +75,8 @@ export default async function MerchantPage({ params }: PageProps) {
         priceOverride: product.priceOverride,
         effectivePrice: effectiveProductPrice(product.product.defaultPrice, product.priceOverride),
         isEnabled: product.isEnabled,
-        isSoldOut: product.isSoldOut,
+        isSoldOut: isProductSoldOut(product),
+        soldOutUntil: product.soldOutUntil?.toISOString() ?? null,
         stockRemaining: product.stockRemaining,
         stockVersion: product.stockVersion,
         sortOrder: product.sortOrder,
