@@ -187,7 +187,7 @@ test("Android 音效指引與測試：舊版通知程式會擋下測試，更新
   expect(commands).toEqual([{ operation: "TEST", subscriptionId: "qa-subscription" }]);
   await dialog.getByText("收到通知但沒有聲音", { exact: true }).click();
   await expect(dialog.getByText(/只調高媒體音量/)).toBeVisible();
-  await expect(dialog.getByRole("link", { name: "查看 Android 官方通知設定說明" })).toHaveAttribute("href", /support.google.com\/android/);
+  await expect(dialog.getByRole("link", { name: "查看 Android 官方通知設定說明" })).toHaveAttribute("href", "https://support.google.com/android/answer/9079661?hl=zh-Hant");
   await page.keyboard.press("Escape");
   for (const mode of ["standard", "senior"]) {
     await page.evaluate(value => {
