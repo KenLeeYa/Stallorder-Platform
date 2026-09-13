@@ -16,6 +16,7 @@ export const DR_OPERATOR_ENTRY = Object.freeze({
   vercelDeploymentProtection: "all_except_custom_domains",
   humanSelector: "cloudflare_account_member",
   qaServiceTokenDuration: "1h",
+  dnsOnlyTtlSeconds: 60,
 });
 
 export function stableJson(value) {
@@ -269,7 +270,7 @@ export function buildDrOperatorEntryPlan(input) {
   }
 
   const core = {
-    schemaVersion: 3,
+    schemaVersion: 4,
     operation: "CREATE_PROTECTED_DR_OPERATOR_ENTRY",
     changesRemoteState: false,
     source: input.source,
@@ -281,6 +282,7 @@ export function buildDrOperatorEntryPlan(input) {
       cloudflareZoneId: input.providers.cloudflare.zoneId,
       cnameTarget: input.providers.vercel.cnameTarget,
       dnsProxy: true,
+      dnsOnlyTtlSeconds: DR_OPERATOR_ENTRY.dnsOnlyTtlSeconds,
       protection: DR_OPERATOR_ENTRY.protection,
       vercelDeploymentProtection: DR_OPERATOR_ENTRY.vercelDeploymentProtection,
       cloudflareAccess: {
@@ -326,7 +328,7 @@ export function buildDrOperatorEntryPlan(input) {
       "create an unlinked stallorder-dr Vercel project with Standard deployment protection for generated deployment URLs",
       "prepare and read back the DR project's automation credential before building, then deploy the exact source with explicitly isolated Vercel credentials and read back its actual project identity",
       "verify the generated deployment rejects unauthenticated access and the authenticated operator probe reports READY",
-      "bind dr.qidaigo.com, promote the exact staged deployment, create its Cloudflare CNAME as DNS-only, prove direct Vercel HTTPS readiness, then enable the proxy",
+      "bind dr.qidaigo.com, promote the exact staged deployment, create its Cloudflare CNAME as DNS-only with a verified 60-second TTL, prove direct Vercel HTTPS readiness, then enable the proxy",
       "verify unauthenticated edge denial, service-token QA, origin JWT validation, DR services and app.qidaigo.com health",
       "delete the temporary QA service token and its policy after verification",
       "remove the stale staging.qidaigo.com Vercel binding and Cloudflare record",
@@ -368,8 +370,11 @@ export function validateApprovedDrOperatorEntryPlan(plan) {
   if (plan.changesRemoteState !== false) {
     throw new Error("DR_ENTRY_PLAN_MODE_INVALID");
   }
-  if (plan.schemaVersion !== 3 || !plan.before?.primary) {
+  if (plan.schemaVersion !== 4 || !plan.before?.primary) {
     throw new Error("DR_ENTRY_PLAN_SCHEMA_INVALID");
+  }
+  if (plan.target?.dnsOnlyTtlSeconds !== DR_OPERATOR_ENTRY.dnsOnlyTtlSeconds) {
+    throw new Error("DR_ENTRY_DNS_ONLY_TTL_INVALID");
   }
   return plan;
 }

@@ -21,6 +21,8 @@ let edgeAvailableAtLookup;
 let edgeStatus;
 let edgeHeaders;
 let requests;
+let elapsedMs;
+let dnsCacheExpiresAt;
 
 const origin = createServer((request, response) => {
   requests.push({ target: "origin", credential: request.headers["cf-access-client-secret"] });
@@ -52,10 +54,15 @@ beforeEach(() => {
   edgeStatus = 200;
   edgeHeaders = {};
   requests = [];
+  elapsedMs = 0;
+  dnsCacheExpiresAt = null;
   vi.spyOn(dns, "lookup").mockImplementation((hostname, options, callback) => {
     if (hostname !== "dr-proxy-fixture.invalid") return nativeLookup(hostname, options, callback);
     lookupCount += 1;
-    const address = lookupCount >= edgeAvailableAtLookup ? "127.0.0.2" : "127.0.0.1";
+    const reachedEdge = dnsCacheExpiresAt === null
+      ? lookupCount >= edgeAvailableAtLookup
+      : elapsedMs >= dnsCacheExpiresAt;
+    const address = reachedEdge ? "127.0.0.2" : "127.0.0.1";
     queueMicrotask(() => {
       if (options?.all) callback(null, [{ address, family: 4 }]);
       else callback(null, address, 4);
@@ -79,11 +86,41 @@ function probes() {
   };
   return new Function("fetch", "planProbePath", "classifyDirectVercelTlsResponse", "delay",
     `${functions}\nreturn {waitForDirectVercelTls, waitForProtectedDomain, cloudflareAccessProbe};`)(
-    fetch, () => "/api/health/dr/operator", entry.classifyDirectVercelTlsResponse, nextTurn,
+    fetch, () => "/api/health/dr/operator", entry.classifyDirectVercelTlsResponse,
+    async (milliseconds) => { elapsedMs += milliseconds; await nextTurn(); },
+  );
+}
+
+async function createDnsRecord(readback = {}) {
+  const create = section("    const drDnsRecord = await cloudflare(", "    await waitForDomainConfigured");
+  return new Function("cloudflare", "plan", "cloudflareZoneId", "configuredTarget",
+    `return (async () => { let drDnsRecordId; ${create}; return drDnsRecord; })();`)(
+    async (_path, options) => ({ id: "fixture-dns", ...JSON.parse(options.body), ...readback }),
+    { target: { hostname: "dr-proxy-fixture.invalid", dnsOnlyTtlSeconds: entry.DR_OPERATOR_ENTRY.dnsOnlyTtlSeconds } },
+    "fixture-zone", "cname.vercel-dns.com",
   );
 }
 
 describe("DR direct-origin to Cloudflare proxy transport", () => {
+  it("expires the created DNS-only cache within the unchanged proxy wait", async () => {
+    const record = await createDnsRecord();
+    // Cloudflare Auto (1) caches DNS-only answers for 300 seconds. Virtual time
+    // advances only through the actual production retry delays; TCP stays real.
+    dnsCacheExpiresAt = (record.ttl === 1 ? 300 : record.ttl) * 1000;
+    const probe = probes();
+    const hostname = `dr-proxy-fixture.invalid:${port}`;
+    await probe.waitForDirectVercelTls(hostname);
+    await expect(probe.waitForProtectedDomain(`https://${hostname}`)).resolves.toBe(302);
+    await expect(probe.cloudflareAccessProbe(`https://${hostname}`, credentials))
+      .resolves.toEqual({ status: "READY" });
+    expect(elapsedMs).toBe(60_000);
+    expect(requests.filter((request) => request.target === "origin" && request.credential)).toEqual([]);
+  });
+
+  it.each([1, 300, null])("rejects a DNS-only TTL readback of %s before TLS or proxying", async (ttl) => {
+    await expect(createDnsRecord({ ttl })).rejects.toThrow("DR_ENTRY_DNS_CREATE_INVALID");
+  });
+
   it.each([2, 4])("waits for fresh edge ingress before credentials (DNS lookup %s)", async (readyLookup) => {
     edgeAvailableAtLookup = readyLookup;
     const probe = probes();

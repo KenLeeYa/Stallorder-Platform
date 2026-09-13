@@ -53,7 +53,8 @@ and must never move `app.qidaigo.com`.
    forged Access header.
 7. Apply checks DR Auth and Storage health and lists every DR Edge Function as
    `ACTIVE`, binds the hostname, promotes the exact staged deployment to its
-   custom domains, and creates the exact Cloudflare CNAME as DNS-only. A
+   custom domains, and creates the exact Cloudflare CNAME as DNS-only with the
+   Plan-bound 60-second TTL; provider readback must confirm that TTL. A
    configured-domain flag is not treated as certificate readiness: Apply also
    performs a real HTTPS request while the record is DNS-only and requires the
    DR proxy's fail-closed `403`, `no-store`, and Vercel routing evidence. Only
@@ -449,3 +450,23 @@ HTTP 狀態、型別、長度、是否到達 Cloudflare 與 server 分類；不�
 官方參考：[Undici 連線池](https://github.com/nodejs/undici/blob/main/docs/docs/getting-started.md)、
 [Cloudflare Access authentication logs](https://developers.cloudflare.com/cloudflare-one/insights/logs/dashboard-logs/access-authentication-logs/)、
 [Access 非身分登入事件查詢](https://developers.cloudflare.com/analytics/graphql-api/tutorials/querying-access-login-events/)。
+
+### DNS 快取須早於代理交接等待到期
+
+`DOMAIN-DR-PROBE-010` / `QA-REL-06`：Apply `34733701078` 的新診斷證據
+顯示代理已啟用，但等待結束時仍回傳 `403`、空 body、`server=VERCEL`、
+`probeReachedCloudflare=false`。Apply 與獨立 provider 讀回確認完整回復，
+Primary 維持原部署。沒有取得 resolver 封包或首次 lookup 的精確時間。
+
+原 DNS-only CNAME 使用 `ttl=1`（Auto）。[Cloudflare TTL 文件](https://developers.cloudflare.com/dns/manage-dns-records/reference/ttl/)
+定義 Auto 為 300 秒，可能超過原本 30 輪、10 秒間隔的交接等待。
+Plan schema 4 明確綁定 `dnsOnlyTtlSeconds=60`；建立時送出 60，並核對同一
+DNS record 的身分、DNS-only 狀態和 TTL，才進行 TLS 驗證與 proxy 切換。
+Proxied 階段由 Cloudflare 使用 Auto TTL；不把 60 秒條件錯套到最終代理紀錄。
+既有匿名拒絕、Cloudflare ingress、JWT、重試上限與精確 rollback 保持不變。
+
+回歸 fixture 執行實際建立 payload、provider readback 和探測程式，使用真實
+TCP 與依 TTL 到期的受控 DNS；虛擬時間只依正式程式的 retry delay 推進。
+原 Auto 300 會重現交接 timeout，60 秒可在原時限內完成。另驗證 provider
+回傳 Auto／300／缺值、Plan 錯誤 TTL／缺值／舊 schema 都必須停止。
+此 fixture 不驗證真實 DNS 供應商或 TLS 憑證；仍需新 Plan/Apply 線上驗證。

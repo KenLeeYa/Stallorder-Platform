@@ -8,6 +8,7 @@ import {
   isPlanOwnedDrDeployment,
   missingActiveEdgeFunctions,
   primaryVercelStateMatches,
+  planDigest,
   sanitizeProviderErrorCode,
   validateApprovedDrOperatorEntryPlan,
   validateCloudflareAccessApplicationsPage,
@@ -105,6 +106,7 @@ describe("DR operator entry plan", () => {
         projectName: "stallorder-dr",
         cnameTarget: "cname.vercel-dns.com",
         dnsProxy: true,
+        dnsOnlyTtlSeconds: 60,
         protection: "CLOUDFLARE_ACCESS_PLUS_VERCEL_STANDARD",
         vercelDeploymentProtection: "all_except_custom_domains",
         cloudflareAccess: {
@@ -139,7 +141,7 @@ describe("DR operator entry plan", () => {
     });
     expect(plan.planDigest).toMatch(/^[0-9a-f]{64}$/u);
     expect(plan.applySteps).toContain(
-      "bind dr.qidaigo.com, promote the exact staged deployment, create its Cloudflare CNAME as DNS-only, prove direct Vercel HTTPS readiness, then enable the proxy",
+      "bind dr.qidaigo.com, promote the exact staged deployment, create its Cloudflare CNAME as DNS-only with a verified 60-second TTL, prove direct Vercel HTTPS readiness, then enable the proxy",
     );
     expect(validateApprovedDrOperatorEntryPlan(plan)).toBe(plan);
   });
@@ -154,6 +156,29 @@ describe("DR operator entry plan", () => {
 
     expect(() => buildDrOperatorEntryPlan(value)).toThrow(
       "DR_ENTRY_NOT_READ_ONLY_STANDBY",
+    );
+  });
+
+  it.each([1, 300, null, "60"])("rejects an approved plan with unsafe DNS-only TTL %s", (ttl) => {
+    const plan = buildDrOperatorEntryPlan(input());
+    plan.target.dnsOnlyTtlSeconds = ttl;
+    const core = { ...plan };
+    delete core.generatedAt;
+    delete core.planDigest;
+    plan.planDigest = planDigest(core);
+    expect(() => validateApprovedDrOperatorEntryPlan(plan)).toThrow("DR_ENTRY_DNS_ONLY_TTL_INVALID");
+  });
+
+  it.each([3, 4])("rejects a pre-TTL plan even with a valid schema %s digest", (schemaVersion) => {
+    const plan = buildDrOperatorEntryPlan(input());
+    plan.schemaVersion = schemaVersion;
+    delete plan.target.dnsOnlyTtlSeconds;
+    const core = { ...plan };
+    delete core.generatedAt;
+    delete core.planDigest;
+    plan.planDigest = planDigest(core);
+    expect(() => validateApprovedDrOperatorEntryPlan(plan)).toThrow(
+      schemaVersion === 3 ? "DR_ENTRY_PLAN_SCHEMA_INVALID" : "DR_ENTRY_DNS_ONLY_TTL_INVALID",
     );
   });
 
