@@ -201,6 +201,7 @@ For responsive shell, modal, toolbar, dashboard, catalog, or reporting changes, 
 | `QA-REL-01` | `REL-DR-VERCEL-01` | Create payload omits `ssoProtection` and leaves the exact project ID unlinked/domainless; PATCH and read-back require `all` before link/deploy/domain/DNS. PATCH/read-back failure deletes that exact ID, verifies rollback, stops, and never falls back to `all_except_custom_domains`. |
 | `QA-REL-02` | `REL-DR-STORAGE-01` | Replication snapshot and standalone Storage verification share the canonical mirror proof. A valid completed `DELETED` tombstone with `deleted_at` and null checksums passes without inflating active manifest counts; missing/extra objects, missing active manifests, pending states, checksum mismatches, and every malformed tombstone fail closed. |
 | `QA-REL-03` | `DOMAIN-DR-PROBE-007` | Generated DR probe: actual curl preserves empty 403 and 307 status, rejects 503 JSON and 200 HTML/malformed JSON, accepts only 200 JSON for subsequent readiness validation, and excludes body/cookies/redirect tokens from failure evidence. Missing transport metadata fails closed. |
+| `QA-REL-04` | `DOMAIN-DR-PROBE-008` | Prepare the DR automation credential before build; verify exact project and credential scope, reject missing/mismatched readback, drop unrelated ambient credentials, and pass only the verified secret to the probe child environment. HTTP 302 remains rejected with a fixed redirect category and no URL/query leakage. Live protected readiness and Primary invariance remain mandatory. |
 
 ## Data, API, and security matrix
 

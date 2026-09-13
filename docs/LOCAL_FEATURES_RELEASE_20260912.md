@@ -93,6 +93,12 @@ Web Push 鎖屏音效由作業系統／瀏覽器通知類別控制，不能以�
 - 品項與操作區改以已建立訂單 ID 對應的 `aria-labelledby` 定界，並確認清單卡片 `aria-current=true`；保留商品、註記、移除品項、取餐時間、DB、Staff、KDS 與 Tracker 斷言。應用、SQL、schema、timeout 與 retry 規則不變。
 - Chromium／WebKit 各用目標看板在前、在後兩種雙看板 fixture 驗證：舊全頁定位確定因歧義失敗，新定位均唯一命中指定訂單。這是定位器回歸證據，完整訂單流程仍需修正版本的 CI／隔離 Preview 與新 Plan／Apply；證據為 `staff-order-selector-regression.json`。
 
+## 尖峰流程的指定訂單定位
+
+- Promotion CI `34723800581` 在 `operations-surge-local.spec.ts` 全頁查找 `staff-order-list-pane` 時命中兩個 DOM 節點，觸發 strict mode；自動重試通過仍由 fail-on-flaky 阻止合併。提供者沒有上傳該次 trace artifact，不能把重複節點的來源直接歸因於今日／預約或框架快取。
+- 改以本次建立並已確認的第六筆 canonical order 對應單號定位可見卡片，核對顧客、選取狀態與該 order ID 的可見商品區。原本的尖峰加時、容量阻擋、人工暫停、關店、恢復、庫存、廚房、768／1440 無橫向溢出斷言全部保留；應用、schema、timeout、retry 與 fail-on-flaky 不變。
+- Chromium／WebKit、768／1440、目標在前／後、另一張可見訂單／隱藏同訂單看板，共 16 個定位 fixture：原版全部重現歧義，修正後全部通過。這只證明定位器修正；完整流程仍須通過修正版 CI 及隔離 Preview，不能代替 DR 的新 Plan／Apply。
+
 ## 測試服務收尾
 
 - `stallorder_release_primary_20260912`、`stallorder_release_dr_20260912`、`stallorder_release_dr_wrapped_20260912` 位於已使用中的本機 `supabase_db_stallorder-catalog-ops-20260907`／55722，只保留合成 QA 資料，未啟用排程。

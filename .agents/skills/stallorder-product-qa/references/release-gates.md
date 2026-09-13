@@ -32,6 +32,7 @@ Run repository-declared commands for:
 - production guardrails, production build, dependency audit;
 - affected Playwright/E2E roles and responsive matrix;
 - Staff current/future order boards can coexist. Scope item/action assertions to the selected canonical order ID; a global pane test ID or arbitrary first match can inspect another order. Preserve workflow assertions and fail-on-flaky behavior.
+- Staff list assertions must locate the current test's order card, verify selection, and scope visible item panes to that order ID. Hidden duplicate panes must not create locator ambiguity; a visible duplicate order remains an error, never pick an arbitrary first match.
 - performance measurement and security scan/remediation.
 
 Commit only reviewed paths. Re-run any invalidated evidence after merge/rebase/dependency or migration changes.
@@ -71,6 +72,7 @@ This gate runs before any Git link, deployment, custom-domain/alias binding, or 
 7. Wait until Vercel reports the domain with `misconfigured=false`; only then PATCH that same Cloudflare record ID to `proxied=true` and read back the unchanged identity plus the enabled proxy state before protected-domain checks.
 8. Run any authenticated generated-deployment probe through `vercel curl` with the workflow-scoped `VERCEL_TOKEN`; never pass an explicit `--token`, which Vercel CLI 56.3.1 forwards to the underlying curl process.
    Pass curl options after `--`, require HTTP 200 with JSON and retain only status, allowlisted content-type category and byte count on failure. Never follow redirects or count a JSON error body as readiness. A generic JSON parsing failure is insufficient to identify a provider/runtime cause; exercise real empty 403/307 and non-JSON responses in regression tests.
+   Prepare and read back the new DR project's automation credential before building; never inherit another project's bypass credential or generate it immediately before the first protected probe. Pass the verified credential through the probe child environment only. Redirect diagnostics may retain a fixed category, never the URL, cookie or query.
 9. On any later failure, roll back every resource mutated by that Apply using its exact recorded ID and independently read back the expected restored or deleted state. The tracked CNAME may be observed with either `proxied=false` or `proxied=true` while this sequence is in flight, but rollback may accept either state only when ID, name, type, and normalized content all match. Do not reuse the failed Apply's Plan; create a fresh immutable Plan for any corrected source or workflow revision.
 
 ## Gate 5 — Production Plan and Apply
