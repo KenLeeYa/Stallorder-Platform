@@ -364,6 +364,26 @@ jobs:
             echo "::notice::Vercel Preview cloud validation skipped. Configure Preview VERCEL_TOKEN plus VERCEL_ORG_ID and VERCEL_PROJECT_ID."
           fi
 
+      - name: Resolve optional isolated live LINE Preview
+        id: line-preview
+        if: github.event_name == 'pull_request'
+        env:
+          LINE_LIVE_PREVIEW_BRANCH: ${{ vars.LINE_LIVE_PREVIEW_BRANCH }}
+          LINE_PREVIEW_CHANNEL_ID: ${{ vars.LINE_PREVIEW_CHANNEL_ID }}
+          LINE_PREVIEW_CHANNEL_SECRET: ${{ secrets.LINE_PREVIEW_CHANNEL_SECRET }}
+        run: |
+          if [ -n "${LINE_LIVE_PREVIEW_BRANCH:-}" ] \
+            && [ "$PREVIEW_GIT_BRANCH" = "$LINE_LIVE_PREVIEW_BRANCH" ]; then
+            test -n "${LINE_PREVIEW_CHANNEL_ID:-}" \
+              && test -n "${LINE_PREVIEW_CHANNEL_SECRET:-}" || {
+                echo "::error::Selected LINE live Preview branch has incomplete credentials."
+                exit 1
+              }
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Deploy matching Vercel Preview
         id: vercel-preview
         if: steps.vercel-auth.outputs.enabled == 'true'
@@ -371,6 +391,8 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+          LINE_PREVIEW_CHANNEL_ID: ${{ vars.LINE_PREVIEW_CHANNEL_ID }}
+          LINE_PREVIEW_CHANNEL_SECRET: ${{ secrets.LINE_PREVIEW_CHANNEL_SECRET }}
         run: |
           set -euo pipefail
           mkdir -p .vercel
@@ -385,6 +407,18 @@ jobs:
             echo "::error::Matching Preview is not attached to the requested Git branch."
             exit 1
           }
+
+          line_env_args=()
+          if [ "${{ steps.line-preview.outputs.enabled }}" = "true" ]; then
+            line_env_args=(
+              --build-env "OAUTH_LINE_PREVIEW_LIVE=true"
+              --build-env "LINE_CHANNEL_ID=$LINE_PREVIEW_CHANNEL_ID"
+              --build-env "LINE_CHANNEL_SECRET=$LINE_PREVIEW_CHANNEL_SECRET"
+              --env "OAUTH_LINE_PREVIEW_LIVE=true"
+              --env "LINE_CHANNEL_ID=$LINE_PREVIEW_CHANNEL_ID"
+              --env "LINE_CHANNEL_SECRET=$LINE_PREVIEW_CHANNEL_SECRET"
+            )
+          fi
 
           deployment="$(
             npx --yes vercel@58.3.0 deploy . \
@@ -439,7 +473,8 @@ jobs:
               --env "BACKEND_ACTIVE_TARGET=$BACKEND_ACTIVE_TARGET" \
               --env "AUTH_PROJECT_CODE=$AUTH_PROJECT_CODE" \
               --env "PRODUCTION_ENVIRONMENT_APPROVED=false" \
-              --env "REPORT_DELIVERY_MODE=simulate"
+              --env "REPORT_DELIVERY_MODE=simulate" \
+              "${line_env_args[@]}"
           )"
           deployment_id="$(jq -r '.deployment.id // .id // empty' <<<"$deployment")"
           deployment_url="$(jq -r '.deployment.url // .url // empty' <<<"$deployment")"
@@ -459,6 +494,11 @@ jobs:
           )"
           [ "$actual_git_branch" = "$PREVIEW_GIT_BRANCH" ] || {
             echo "::error::Vercel did not attach the matching Preview to the requested Git branch."
+            exit 1
+          }
+          actual_git_sha="$(jq -r '.meta.githubCommitSha // empty' <<<"$deployment_details")"
+          [ "$actual_git_sha" = "$preview_head" ] || {
+            echo "::error::Vercel Preview deployment commit differs from the reviewed Pull Request merge tree."
             exit 1
           }
           actual_project_id="$(jq -r '.projectId // empty' <<<"$deployment_details")"
@@ -508,40 +548,30 @@ jobs:
               ;;
           esac
 
-          runtime_line_live="$(
-            jq -r '.env[]? | select(startswith("OAUTH_LINE_PREVIEW_LIVE=")) | sub("^OAUTH_LINE_PREVIEW_LIVE="; "")' \
-              <<<"$deployment_details"
-          )"
-          build_line_live="$(
-            jq -r '.build.env[]? | select(startswith("OAUTH_LINE_PREVIEW_LIVE=")) | sub("^OAUTH_LINE_PREVIEW_LIVE="; "")' \
-              <<<"$deployment_details"
-          )"
-          [ "$runtime_line_live" = "$build_line_live" ] || {
-            echo "::error::LINE live Preview opt-in differs between runtime and build."
-            exit 1
-          }
-          case "$runtime_line_live" in
-            true)
-              for name in LINE_CHANNEL_ID LINE_CHANNEL_SECRET; do
-                grep -Fxq "$name" <<<"$runtime_env_names" \
-                  && grep -Fxq "$name" <<<"$build_env_names" || {
-                    echo "::error::LINE live Preview is missing $name in runtime or build."
-                    exit 1
-                  }
-              done
-              if grep -Fxq LINE_REDIRECT_URI <<<"$runtime_env_names" \
-                || grep -Fxq LINE_REDIRECT_URI <<<"$build_env_names"; then
-                echo "::error::LINE live Preview must use its unique deployment callback, not a static redirect."
+          if [ "${{ steps.line-preview.outputs.enabled }}" = "true" ]; then
+            for name in OAUTH_LINE_PREVIEW_LIVE LINE_CHANNEL_ID LINE_CHANNEL_SECRET; do
+              grep -Fxq "$name" <<<"$runtime_env_names" \
+                && grep -Fxq "$name" <<<"$build_env_names" || {
+                  echo "::error::Matching LINE live Preview is missing $name in runtime or build."
+                  exit 1
+                }
+            done
+            if grep -Fxq LINE_REDIRECT_URI <<<"$runtime_env_names" \
+              || grep -Fxq LINE_REDIRECT_URI <<<"$build_env_names"; then
+              echo "::error::LINE live Preview must use its unique deployment callback, not a static redirect."
+              exit 1
+            fi
+            echo "line_live_enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            for name in OAUTH_LINE_PREVIEW_LIVE LINE_CHANNEL_ID LINE_CHANNEL_SECRET; do
+              if grep -Fxq "$name" <<<"$runtime_env_names" \
+                || grep -Fxq "$name" <<<"$build_env_names"; then
+                echo "::error::Unpaired LINE credentials appeared in an ordinary Preview."
                 exit 1
               fi
-              echo "line_live_enabled=true" >> "$GITHUB_OUTPUT"
-              ;;
-            false|"") echo "line_live_enabled=false" >> "$GITHUB_OUTPUT" ;;
-            *)
-              echo "::error::LINE live Preview opt-in is invalid."
-              exit 1
-              ;;
-          esac
+            done
+            echo "line_live_enabled=false" >> "$GITHUB_OUTPUT"
+          fi
 
           echo "deployment_id=$deployment_id" >> "$GITHUB_OUTPUT"
           echo "url=$deployment_url" >> "$GITHUB_OUTPUT"

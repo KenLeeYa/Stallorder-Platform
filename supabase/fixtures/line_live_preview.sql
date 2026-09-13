@@ -20,6 +20,6 @@ select
   flag.id,
   'GLOBAL',
   true,
-  'Ephemeral synthetic Preview validation only'
+  'Ephemeral live LINE Preview validation only'
 from public.resilience_feature_flags flag
 where flag.code in ('OAUTH_IDENTITY_FOUNDATION_ENABLED', 'OAUTH_LINE_ENABLED');
