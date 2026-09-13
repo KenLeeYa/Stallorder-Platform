@@ -264,7 +264,7 @@ async function applyEntry(plan) {
         type: "CNAME",
         name: plan.target.hostname,
         content: configuredTarget,
-        ttl: 1,
+        ttl: plan.target.dnsOnlyTtlSeconds,
         proxied: false,
         comment: "Protected StallOrder DR operator validation entry",
       }),
@@ -276,6 +276,7 @@ async function applyEntry(plan) {
       || drDnsRecord.type !== "CNAME"
       || String(drDnsRecord.content ?? "").replace(/\.$/u, "") !== configuredTarget
       || drDnsRecord.proxied !== false
+      || drDnsRecord.ttl !== plan.target.dnsOnlyTtlSeconds
     ) {
       throw new Error("DR_ENTRY_DNS_CREATE_INVALID");
     }
