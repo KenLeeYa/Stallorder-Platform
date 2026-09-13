@@ -1,0 +1,128 @@
+{
+  "schema_version": 1,
+  "task": "20260913 security privacy compliance Phase 00-15",
+  "status": "LOCAL_HANDOFF_WITH_OPEN_GATES",
+  "workspace": "C:/Users/KY/Documents/Codex projects/Stallorder-Platform-security-compliance-20260913",
+  "branch": "codex/security-privacy-compliance-20260913",
+  "base_commit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+  "base_tree": "8c66a5584eab8817e6bb4c4d9a27636f0cac8418",
+  "isolation": {
+    "independent_clone": true,
+    "shared_git_objects": false,
+    "codegraph": false,
+    "remote_writes": 0,
+    "production_writes": 0,
+    "dr_writes": 0,
+    "services_started": {
+      "observedAt": "2026-09-13T07:38:08.7074329Z",
+      "stopped": [
+        "supabase_storage_stallorder-compliance-20260913",
+        "supabase_rest_stallorder-compliance-20260913",
+        "supabase_inbucket_stallorder-compliance-20260913",
+        "supabase_auth_stallorder-compliance-20260913",
+        "supabase_kong_stallorder-compliance-20260913",
+        "supabase_db_stallorder-compliance-20260913",
+        "supabase_inbucket_stallorder-compliance-regression-2026091",
+        "supabase_db_stallorder-compliance-regression-2026091"
+      ],
+      "containersDeleted": 0,
+      "volumesDeleted": 0,
+      "otherPreviouslyRunningContainers": [
+        "kuanguard-db-1",
+        "kuanguard-queue-1",
+        "supabase_storage_stallorder-omo-scm-completion-20260909",
+        "supabase_rest_stallorder-omo-scm-completion-20260909",
+        "supabase_realtime_stallorder-omo-scm-completion-20260909",
+        "supabase_auth_stallorder-omo-scm-completion-20260909",
+        "supabase_kong_stallorder-omo-scm-completion-20260909",
+        "supabase_db_stallorder-omo-scm-completion-20260909",
+        "supabase_db_stallorder-catalog-ops-20260907",
+        "supabase_studio_stallorder-supply-runtime-20260903",
+        "supabase_pg_meta_stallorder-supply-runtime-20260903",
+        "supabase_storage_stallorder-supply-runtime-20260903",
+        "supabase_rest_stallorder-supply-runtime-20260903",
+        "supabase_realtime_stallorder-supply-runtime-20260903",
+        "supabase_inbucket_stallorder-supply-runtime-20260903",
+        "supabase_auth_stallorder-supply-runtime-20260903",
+        "supabase_kong_stallorder-supply-runtime-20260903",
+        "supabase_analytics_stallorder-supply-runtime-20260903",
+        "supabase_db_stallorder-supply-runtime-20260903"
+      ],
+      "otherUnexpectedStops": [],
+      "nextPort3093Listening": false,
+      "resume": "Review labels, ports and active consumers, then docker start only these retained containers; use scripts/start-compliance-qa.mjs for 3093 if needed.",
+      "retainedDuplicateArtifact": "e2e/docs/security-compliance/browser-tests.json; cleanup rejected by automatic policy; retained and ignored"
+    }
+  },
+  "production_baseline": {
+    "observedAt": "2026-09-13T07:33:43.3567289Z",
+    "project": "prj_uoG4FNJIgnF1LdKRiXnfRaieXnUP",
+    "deployment": "dpl_Dr4dFxgHafKBREP1t6NExuWTK51J",
+    "state": "READY",
+    "commit": "c67d0b356269b8385d766e33de8f9555a7b98109",
+    "alias": "app.qidaigo.com",
+    "health": "ok",
+    "paths": [
+      {
+        "path": "/",
+        "status": 200
+      },
+      {
+        "path": "/login",
+        "status": 200
+      },
+      {
+        "path": "/staff/login",
+        "status": 200
+      },
+      {
+        "path": "/api/health",
+        "status": 200
+      }
+    ],
+    "backendTarget": "NOT_EXPOSED_IN_DEPLOYMENT_METADATA",
+    "authenticatedAndValidQr": "NOT_RUN",
+    "remoteWrites": 0
+  },
+  "dr_baseline": {
+    "owner_workspace": "Stallorder-Platform-dr-probe-20260913",
+    "head": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+    "workflow": "34737455830",
+    "state_at_preflight": "PLAN_QUEUED_APPLY_SKIPPED",
+    "plan_reuse": false,
+    "state_at_final": "PLAN_SUCCESS_APPROVAL_APPLY_SKIPPED"
+  },
+  "requirements": [
+    "C:/Users/KY/Downloads/Stallorder_Security_Compliance_Assessment_20260913.md",
+    "C:/Users/KY/Downloads/Stallorder_Security_Privacy_Compliance_Codex_Prompt_20260913.md"
+  ],
+  "phases": {
+    "10": "DEVICE_OFFLINE_REGRESSIONS_REUSED_HARDWARE_GATES_OPEN",
+    "11": "INCIDENT_STATE_DEADLINES_AND_DRAFTS_DELIVERED_NOTIFICATION_WORKER_OPEN",
+    "12": "LOCAL_DB_RESTORE_AND_FENCE_PASS_FULL_RESTORE_DR_GATES_OPEN",
+    "13": "LOCAL_TESTS_PASS_T01_70_19_PASS_51_PARTIAL_OR_BLOCKED",
+    "14": "E01_E18_OWNER_CHANGE_VERIFY_RECOVERY_CHECKLIST_DELIVERED",
+    "15": "HONEST_REVIEW_HANDOFF_NO_REMOTE_RELEASE",
+    "00": "INPUTS_FULLY_READ_AND_ISOLATED_BASELINE_LOCKED",
+    "01": "ARCHITECTURE_DATA_AND_LEGAL_REGISTERS_DELIVERED",
+    "02": "QA_ISOLATION_CI_PINNING_SBOM_SCAN_REVIEW_DELIVERED",
+    "03": "LOCAL_SCOPE_FK_POOL_TESTS_PASS_HOSTED_ROLE_GATE_OPEN",
+    "04": "PRIVACY_SUPPORT_STEP_UP_IMPLEMENTED_GLOBAL_MFA_INCOMPLETE",
+    "05": "LOCAL_ATOMIC_AUDIT_IMMUTABILITY_PASS_ARCHIVE_WORKER_OPEN",
+    "06": "SIX_LOCALE_REQUEST_WORKBENCH_PARTIAL_SUBJECT_COVERAGE",
+    "07": "FOUR_TARGET_SELECTIVE_ERASURE_PASS_OTHER_TARGETS_BLOCKED",
+    "08": "CSV_IP_REDACTION_KEY_ROTATION_EXPORT_REVOCATION_PASS_HOSTED_GAPS",
+    "09": "CANONICAL_PAYMENT_PAYG_REGRESSIONS_REUSED_PROVIDER_GATES_OPEN"
+  },
+  "next": "Resolve documented E01-E18 prerequisites by domain, finish their bounded dependent implementations, then fresh Staging/DR Plan and verification. No implicit remote authorization.",
+  "release": "OFF; no push, merge, workflow dispatch, migration apply or provider configuration change",
+  "source_digest": "d87cc1ef3c6cdc65f33e6a9e3bc3eecfe7aa27ab5e4c02039cad74d9bd2f5c5a",
+  "updated_at": "2026-09-13T07:41:29.950Z",
+  "open_implementation": [
+    "independent archive dispatcher/checkpoint/alert integration",
+    "full-subject inventory, account-wide exports/deletion and remaining target adapters",
+    "due/incident notification dispatcher and actual delivery receipt integration",
+    "provider-linked application MFA recovery and extension to all existing high-risk management/payout paths",
+    "remaining legacy QA launcher isolation and actual outbound DNS/redirect pinning where dispatch is enabled"
+  ]
+}

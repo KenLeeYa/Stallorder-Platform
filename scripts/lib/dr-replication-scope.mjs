@@ -1,6 +1,7 @@
 export const environmentLocalTables = Object.freeze([
   "backend_runtime_state",
   "replication_health_snapshots",
+  "security_step_up_grants",
 ]);
 
 export const replicationColumnExclusions = Object.freeze({
@@ -11,6 +12,7 @@ export const replicatedPublicTables = Object.freeze([
   "add_on_catalog",
   "additional_stall_approvals",
   "audit_logs",
+  "audit_archive_outbox",
   "auth_identities",
   "auth_identity_link_invitations",
   "auth_sessions",
@@ -86,6 +88,16 @@ export const replicatedPublicTables = Object.freeze([
   "plan_versions",
   "plans",
   "print_jobs",
+  "privacy_policy_versions",
+  "privacy_requests",
+  "privacy_request_events",
+  "privacy_exports",
+  "privacy_legal_holds",
+  "privacy_deletion_tasks",
+  "privacy_deletion_tombstones",
+  "retention_policy_versions",
+  "security_support_grants",
+  "security_incidents",
   "printers",
   "product_capacity_rules",
   "product_bundle_choice_groups",

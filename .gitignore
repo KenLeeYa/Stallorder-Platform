@@ -64,3 +64,10 @@ next-env.d.ts
 # local infrastructure plans
 /artifacts/github-ruleset-plan.json
 /artifacts/catalog-translation-benchmark-*.json
+
+# Local execution logs; review receipts retain their hashes and results.
+/docs/security-compliance/*-tests.json
+/docs/security-compliance/regression-fixes.json
+/docs/security-compliance/lint-results.json
+/docs/security-compliance/*.log
+/e2e/docs/security-compliance/

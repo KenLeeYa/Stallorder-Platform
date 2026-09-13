@@ -1,0 +1,14 @@
+{
+  "observedAt": "2026-09-13T06:14:03.492Z",
+  "environment": "supabase_db_stallorder-compliance-20260913",
+  "port": 55992,
+  "productionWrites": 0,
+  "results": [
+    {
+      "file": "governance_dr_fence.test.sql",
+      "status": "PASS",
+      "assertions": 5,
+      "failureLines": []
+    }
+  ]
+}

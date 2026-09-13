@@ -1,5 +1,5 @@
 export function csvCell(value: string | number) {
-  const text = typeof value === "string" && /^[\x00-\x20\x7f]*[=+\-@]/.test(value)
+  const text = typeof value === "string" && /^[\s\u0000-\u0020\u007f]*[=+\-@]/u.test(value)
     ? `'${value}`
     : String(value);
   return `"${text.replaceAll('"', '""')}"`;

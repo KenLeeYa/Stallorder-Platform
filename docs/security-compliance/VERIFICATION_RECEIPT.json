@@ -1,0 +1,355 @@
+{
+  "version": 1,
+  "observedAt": "2026-09-13T07:41:28.914Z",
+  "sourceDigest": "d87cc1ef3c6cdc65f33e6a9e3bc3eecfe7aa27ab5e4c02039cad74d9bd2f5c5a",
+  "baselineCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+  "baselineTree": "8c66a5584eab8817e6bb4c4d9a27636f0cac8418",
+  "worktreeIdentity": "SOURCE_INVENTORY.json",
+  "runtimeSourceChangedAfterFinalChecks": false,
+  "environment": {
+    "os": "Windows",
+    "node": "v24.18.0",
+    "npm": "11.16.0",
+    "postgres": "17.6 local Supabase",
+    "versions": {
+      "next": "16.3.4",
+      "react": "19.2.4",
+      "typescript": "5.9.3",
+      "vitest": "4.1.11",
+      "@playwright/test": "1.61.1",
+      "@prisma/client": "6.19.3",
+      "@supabase/supabase-js": "2.110.2",
+      "jose": "6.2.4"
+    },
+    "databaseIntegration": "127.0.0.1:55992/postgres",
+    "freshDatabaseRegression": "127.0.0.1:55982/postgres",
+    "browser": "127.0.0.1:3093",
+    "data": "SYNTHETIC_ONLY",
+    "providers": "MOCK_OR_DISABLED",
+    "externalDispatches": 0
+  },
+  "results": {
+    "unit": {
+      "total": 3264,
+      "passed": 3249,
+      "failed": 0,
+      "skipped": 15
+    },
+    "databaseIntegration": {
+      "total": 6,
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0
+    },
+    "databaseRegression": {
+      "files": 75,
+      "passed": 75,
+      "failed": 0,
+      "assertions": 1644,
+      "freshMigrations": 151
+    },
+    "browser": {
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0
+    },
+    "lint": {
+      "files": 1728,
+      "errors": 0,
+      "warnings": 5,
+      "warningDisposition": "Five pre-existing warnings; no suppressed or weakened rules"
+    },
+    "build": {
+      "status": "PASS",
+      "exitCode": 0,
+      "featureFlag": "OFF"
+    },
+    "typecheck": {
+      "status": "PASS",
+      "exitCode": 0
+    },
+    "dependencyAudit": {
+      "auditReportVersion": 2,
+      "vulnerabilities": {},
+      "metadata": {
+        "vulnerabilities": {
+          "info": 0,
+          "low": 0,
+          "moderate": 0,
+          "high": 0,
+          "critical": 0,
+          "total": 0
+        },
+        "dependencies": {
+          "prod": 124,
+          "dev": 522,
+          "optional": 158,
+          "peer": 0,
+          "peerOptional": 0,
+          "total": 681
+        }
+      }
+    },
+    "credentialScan": {
+      "rawExitCode": 1,
+      "review": "11 jose PKCS8 header-string false positives; all original candidates retained; no confirmed credentials among these known patterns",
+      "unreviewed": 0
+    },
+    "skillValidation": {
+      "status": "PASS",
+      "command": "python -X utf8 C:/Users/KY/.codex/skills/.system/skill-creator/scripts/quick_validate.py .agents/skills/stallorder-product-qa"
+    },
+    "restore": {
+      "observedAt": "2026-09-13T07:16:29.278Z",
+      "container": "supabase_db_stallorder-compliance-20260913",
+      "port": 55992,
+      "scope": "SYNTHETIC_DATABASE_RESTORE_ONLY",
+      "status": "PASS",
+      "checks": {
+        "database": "privacy_restore",
+        "orders": 11,
+        "orderTotal": 1905,
+        "tombstones": 4,
+        "erasedOrders": 1,
+        "activeSessions": 0,
+        "activeSupportGrants": 0,
+        "unconsumedStepUpGrants": 0,
+        "activeOfflineDevices": 0,
+        "enabledPrinters": 0
+      },
+      "externalDispatches": 0,
+      "excluded": [
+        "pg_cron and cron schema",
+        "Storage object bytes",
+        "provider Auth configuration",
+        "newer independent deletion/revocation feed",
+        "external key revocation",
+        "Production RPO/RTO"
+      ]
+    }
+  },
+  "commands": [
+    {
+      "command": "node scripts/run-isolated-check.mjs test run --reporter=json --outputFile=docs/security-compliance/full-tests.json",
+      "exitCode": 0
+    },
+    {
+      "command": "node scripts/run-isolated-check.mjs database run src/server/compliance/governance.integration.test.ts --reporter=json --outputFile=docs/security-compliance/integration-tests.json",
+      "exitCode": 0
+    },
+    {
+      "command": "COMPLIANCE_REGRESSION_PROJECT=true node scripts/run-isolated-db-tests.mjs",
+      "exitCode": 0
+    },
+    {
+      "command": "node scripts/run-isolated-check.mjs browser test --config=e2e/security-privacy.config.ts",
+      "exitCode": 0
+    },
+    {
+      "command": "node scripts/run-isolated-check.mjs browser test --config=e2e/security-business.config.ts",
+      "exitCode": 0
+    },
+    {
+      "command": "node scripts/run-isolated-check.mjs lint . --format json --output-file docs/security-compliance/lint-results.json",
+      "exitCode": 0
+    },
+    {
+      "command": "node scripts/run-isolated-check.mjs build build",
+      "exitCode": 0
+    },
+    {
+      "command": "node scripts/run-isolated-check.mjs typecheck --noEmit",
+      "exitCode": 0
+    },
+    {
+      "command": "node scripts/security-dependency-evidence.mjs",
+      "exitCode": 0
+    },
+    {
+      "command": "node scripts/security-compliance-check.mjs --bundle",
+      "exitCode": 1,
+      "disposition": "REVIEWED_FALSE_POSITIVE; raw report preserved"
+    },
+    {
+      "command": "node scripts/production-readiness.mjs",
+      "exitCode": 0
+    },
+    {
+      "command": "node scripts/verify-isolated-restore.mjs",
+      "exitCode": 0
+    }
+  ],
+  "artifacts": [
+    {
+      "file": "full-tests.json",
+      "sha256": "890cd807417d899370bd857457c64b00228c3234df3511a286e3d305741de34e",
+      "bytes": 1167103,
+      "completedAt": "2026-09-13T07:34:42.061Z"
+    },
+    {
+      "file": "integration-tests.json",
+      "sha256": "eb78f59e77de3945e26a3e55a59c956227951cca89f0e564f0e95c4a14c7573a",
+      "bytes": 3263,
+      "completedAt": "2026-09-13T07:28:13.378Z"
+    },
+    {
+      "file": "database-tests.json",
+      "sha256": "8d569356f284aea0e6569b0d149d0af16ebfe2672859d015cda927fa21532b94",
+      "bytes": 10598,
+      "completedAt": "2026-09-13T07:00:42.125Z"
+    },
+    {
+      "file": "browser-tests.json",
+      "sha256": "5972243d5527c94d6abfb64ff0904f25227f6f1507887cdca82701fae8bb4497",
+      "bytes": 6598,
+      "completedAt": "2026-09-13T07:12:43.945Z"
+    },
+    {
+      "file": "business-browser-tests.json",
+      "sha256": "f6f62884df8b321a33a81bea22c1b20ebb525fc2998b6405bfde91e08ff7b969",
+      "bytes": 3818,
+      "completedAt": "2026-09-13T07:11:03.481Z"
+    },
+    {
+      "file": "lint-results.json",
+      "sha256": "f16d401c8feb5af4eb4dc465bea118b8755608684bf266abc1c8886f461b3af0",
+      "bytes": 613013,
+      "completedAt": "2026-09-13T07:33:40.861Z"
+    },
+    {
+      "file": "build.log",
+      "sha256": "8bd2a99559ef96fe826b5e0b8afcacc16e53b2b918fe325aa8f17fb8617b9ac4",
+      "bytes": 13524,
+      "completedAt": "2026-09-13T07:33:29.945Z"
+    },
+    {
+      "file": "typecheck.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "completedAt": "2026-09-13T07:36:03.087Z"
+    },
+    {
+      "file": "dependency-audit.json",
+      "sha256": "fce16b6d62ea2844daac37ae161b4dfd1c820724e940186aaafa147b3637f1e9",
+      "bytes": 366,
+      "completedAt": "2026-09-13T06:36:33.131Z"
+    },
+    {
+      "file": "dependency-license-inventory.json",
+      "sha256": "9c18e670e04730bdf8426191a867c636d62e652f6176923e158674384ded80c4",
+      "bytes": 174343,
+      "completedAt": "2026-09-13T07:36:07.816Z"
+    },
+    {
+      "file": "sbom.cdx.json",
+      "sha256": "0b2e55b5e7eb6fa8217cfc856fe0b0e092688ca408677c05e37b061e0bfc51c3",
+      "bytes": 661633,
+      "completedAt": "2026-09-13T06:36:34.237Z"
+    },
+    {
+      "file": "source-scan.json",
+      "sha256": "bb88e71634bc6c4212406be0b89dd1773d843cb34c82d8c29d797a505cef307e",
+      "bytes": 2195,
+      "completedAt": "2026-09-13T07:36:07.817Z"
+    },
+    {
+      "file": "source-scan-review.json",
+      "sha256": "4510ebea3142ac29e06064a1d4595ff3cd0ddde1fc0cfb7765736d02b4469b1c",
+      "bytes": 4143,
+      "completedAt": "2026-09-13T07:36:42.421Z"
+    },
+    {
+      "file": "restore-receipt.json",
+      "sha256": "71cccfbc771fdc4e5f2d7c6040c50cd9e3fc1bcc7f8ee23156513bf4e70ad815",
+      "bytes": 723,
+      "completedAt": "2026-09-13T07:16:29.282Z"
+    },
+    {
+      "file": "production-readiness.log",
+      "sha256": "50e2e0bf8ce234b7aec7a552881c939bda5263b2bad963d39be63c774ca010b0",
+      "bytes": 213,
+      "completedAt": "2026-09-13T07:23:08.172Z"
+    },
+    {
+      "file": "production-readback-latest.json",
+      "sha256": "4114c049c4e17dcc65ca227426916c15368006f106f569c2e3b15c781733eeb2",
+      "bytes": 675,
+      "completedAt": "2026-09-13T07:33:43.427Z"
+    },
+    {
+      "file": "dr-readback-latest.json",
+      "sha256": "5bbacfc8a01018b94fef65e7773bc2fb9a5df1b28c4797a1dadef19c85b1beb5",
+      "bytes": 240,
+      "completedAt": "2026-09-13T07:33:45.783Z"
+    },
+    {
+      "file": "SERVICE_RECEIPT.json",
+      "sha256": "ea61448212343532fc0ea4b693b18cca68488933e250c5b760d03ce1ef0a09ec",
+      "bytes": 2058,
+      "completedAt": "2026-09-13T07:38:10.107Z"
+    }
+  ],
+  "deployment": {
+    "remoteWrites": 0,
+    "rollout": "OFF",
+    "production": {
+      "observedAt": "2026-09-13T07:33:43.3567289Z",
+      "project": "prj_uoG4FNJIgnF1LdKRiXnfRaieXnUP",
+      "deployment": "dpl_Dr4dFxgHafKBREP1t6NExuWTK51J",
+      "state": "READY",
+      "commit": "c67d0b356269b8385d766e33de8f9555a7b98109",
+      "alias": "app.qidaigo.com",
+      "health": "ok",
+      "paths": [
+        {
+          "path": "/",
+          "status": 200
+        },
+        {
+          "path": "/login",
+          "status": 200
+        },
+        {
+          "path": "/staff/login",
+          "status": 200
+        },
+        {
+          "path": "/api/health",
+          "status": 200
+        }
+      ],
+      "backendTarget": "NOT_EXPOSED_IN_DEPLOYMENT_METADATA",
+      "authenticatedAndValidQr": "NOT_RUN",
+      "remoteWrites": 0
+    },
+    "dr": {
+      "conclusion": "success",
+      "jobs": [
+        {
+          "conclusion": "success",
+          "name": "plan",
+          "status": "completed"
+        },
+        {
+          "conclusion": "skipped",
+          "name": "approval",
+          "status": "completed"
+        },
+        {
+          "conclusion": "skipped",
+          "name": "apply",
+          "status": "completed"
+        }
+      ],
+      "status": "completed"
+    },
+    "decision": "NO_GO_PENDING_EXTERNAL_AND_REMAINING_IMPLEMENTATION"
+  },
+  "limitations": [
+    "Unit-run skipped database cases were separately executed on the guarded lab; other pre-existing skips remain skips.",
+    "Browser final spacing-only MFA input margin was not re-rendered against a real provider; six locale/off-capability UI passed before that adjustment.",
+    "Real provider, hardware, full DB+Storage+Auth restoration, hosted tenant tests and legal/accounting approval are not represented by local PASS.",
+    "Full cross-system positive loop is covered in separate segments, not one actual PSP/hardware transaction.",
+    "Raw execution files are retained locally and excluded from Git; their hashes are recorded."
+  ]
+}

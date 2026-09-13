@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import { hasBlockingDestructiveSql } from "./lib/destructive-sql.mjs";
 
 const root = process.cwd();
 const failures = [];
@@ -153,8 +154,7 @@ for (const file of migrationFiles) {
   }
 
   const content = read(file);
-  const hasBlockingDestructiveSql = /\bdrop\s+table\b|\btruncate(?:\s+table)?\b|\balter\s+table[\s\S]{0,160}\balter\s+column[\s\S]{0,80}\btype\b/i.test(content);
-  requireCondition(!hasBlockingDestructiveSql, `Unreviewed destructive SQL detected in ${file}`);
+  requireCondition(!hasBlockingDestructiveSql(content), `Unreviewed destructive SQL detected in ${file}`);
   if (/alter\s+table\s+public\.products\s+drop\s+column\s+category\s*;/i.test(content)) {
     const copiesDataFirst = /insert\s+into\s+public\.product_categories/i.test(content)
       && /update\s+public\.products/i.test(content);

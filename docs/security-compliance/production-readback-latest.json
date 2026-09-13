@@ -1,0 +1,30 @@
+{
+  "observedAt": "2026-09-13T07:33:43.3567289Z",
+  "project": "prj_uoG4FNJIgnF1LdKRiXnfRaieXnUP",
+  "deployment": "dpl_Dr4dFxgHafKBREP1t6NExuWTK51J",
+  "state": "READY",
+  "commit": "c67d0b356269b8385d766e33de8f9555a7b98109",
+  "alias": "app.qidaigo.com",
+  "health": "ok",
+  "paths": [
+    {
+      "path": "/",
+      "status": 200
+    },
+    {
+      "path": "/login",
+      "status": 200
+    },
+    {
+      "path": "/staff/login",
+      "status": 200
+    },
+    {
+      "path": "/api/health",
+      "status": 200
+    }
+  ],
+  "backendTarget": "NOT_EXPOSED_IN_DEPLOYMENT_METADATA",
+  "authenticatedAndValidQr": "NOT_RUN",
+  "remoteWrites": 0
+}

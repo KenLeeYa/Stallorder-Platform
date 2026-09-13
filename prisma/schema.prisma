@@ -2812,6 +2812,8 @@ model Order {
   riderPickupAt            DateTime?           @map("rider_pickup_at")
   customerName             String              @map("customer_name")
   customerPhone            String?             @map("customer_phone")
+  privacyErasureRequestId   String?             @map("privacy_erasure_request_id") @db.Uuid
+  privacyContactErasedAt    DateTime?           @map("privacy_contact_erased_at") @db.Timestamptz
   deliveryAddress          String?             @map("delivery_address")
   tableLabel               String?             @map("table_label")
   diningTableId            String?             @map("dining_table_id") @db.Uuid

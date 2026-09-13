@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { createCsv, csvCell } from "./csv";
 
 describe("CSV 安全輸出", () => {
+  it.each(["\n=1+1", "\u000b+1", "\ufeff@SUM(A1)"])("neutralizes control/Unicode whitespace before formulas", (value) => {
+    expect(csvCell(value)).toBe(`"'${value}"`);
+  });
   it("正確跳脫逗號、引號與換行", () => {
     expect(csvCell('一號攤,"主店"\n')).toBe('"一號攤,""主店""\n"');
   });

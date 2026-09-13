@@ -7,6 +7,9 @@ import { getPlatformMember } from "@/server/line-platform/member-service";
 import { getLinePlatformRuntime } from "@/server/line-platform/runtime";
 import { guestClaimCookieName, readGuestClaimProof } from "@/server/line-platform/guest-claim";
 import { PublicOrderTracker } from "@/components/public-order-tracker";
+import { PrivacyRequestPanel } from "@/components/privacy-request-panel";
+import { complianceEnabled } from "@/server/compliance/contracts";
+import { getRequestAppLocale } from "@/lib/app-locale-server";
 
 type PageProps = {
   params: Promise<{ trackingToken: string }>;
@@ -54,5 +57,8 @@ export default async function PublicOrderPage({ params, searchParams }: PageProp
     // Optional membership presentation must not interrupt the original tracker.
   }
   if (ownedPlatformOrderId) redirect(`/mini/orders/${ownedPlatformOrderId}`);
-  return <PublicOrderTracker trackingToken={trackingToken} qrToken={qrToken} platformClaim={platformClaim} />;
+  const tracker = <PublicOrderTracker trackingToken={trackingToken} qrToken={qrToken} platformClaim={platformClaim} />;
+  if (!complianceEnabled()) return tracker;
+  const locale = (await getRequestAppLocale()).locale;
+  return <>{tracker}<PrivacyRequestPanel trackingToken={trackingToken} locale={locale} /></>;
 }
