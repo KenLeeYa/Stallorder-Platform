@@ -7,9 +7,6 @@ begin
   ) <> 2 then
     raise exception 'LINE Preview OAuth feature flags are missing';
   end if;
-end
-$line_preview$;
-
 insert into public.resilience_feature_flag_overrides (
   flag_id,
   scope_type,
@@ -23,3 +20,6 @@ select
   'Ephemeral live LINE Preview validation only'
 from public.resilience_feature_flags flag
 where flag.code in ('OAUTH_IDENTITY_FOUNDATION_ENABLED', 'OAUTH_LINE_ENABLED');
+
+end
+$line_preview$;

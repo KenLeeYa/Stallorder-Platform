@@ -11,6 +11,9 @@ This file is the durable owner acceptance baseline. It does not assert that a re
 
 ## Login presentation
 
+- `AUTH-LINE-001` LINE Web Login verifies ID tokens using a server-selected HS256 algorithm and the Channel Secret, retaining issuer, audience, time, nonce, state and PKCE checks. Other providers retain their own strict algorithms. Native SDK/LIFF is outside this Web contract; mock or configured status is not live-login proof.
+- `AUTH-LINE-002` Owner-authorized live LINE QA uses an exact-branch-selected, data-less paired PR Preview with deployment-only TEST credentials and a unique callback. Keep ordinary Preview synthetic, Primary/DR unchanged and live LINE mock authorization unreachable. Enable only the two reviewed auth flags after all synthetic gates; execute checks and writes as one prepared SQL statement. Record actual callback/session evidence and remove the temporary callback, credentials, deployments and branch after QA, or explicitly record a pending human-authentication retention exception.
+
 - `LOGIN-001` Merchant and Staff login use a full-viewport brand scene with real interactive controls inside its central tablet display. Adapt the scene to portrait/landscape viewports; keep the display reachable at 320/390/768/1440px and permit internal scrolling for additional providers or enlarged text. Preserve server-selected authentication policy, callback/next handling, password-dialog focus and Production exclusion of local QA controls. Details: `docs/LOGIN_BRAND_SCENE_20260909.md`.
 
 ## QR ordering and public menus

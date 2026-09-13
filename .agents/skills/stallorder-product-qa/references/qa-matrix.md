@@ -6,6 +6,11 @@ Use this matrix to select tests before changing code. Add or update automated te
 
 | ID | Requirements | Pass condition |
 | --- | --- | --- |
+| `QA-AUTH-LINE-01` | `AUTH-LINE-001` | Valid Web HS256 token succeeds; wrong secret, nonce, issuer, audience, expired, unsigned and RS256 tokens fail; non-LINE HS256 fails. Retain state/PKCE/session tests. Real LINE authorization and callback establish a browser session with a matching isolated identity/completed transaction; no identity value or token enters evidence. |
+| `QA-AUTH-LINE-02` | `AUTH-LINE-002` | Exact branch opt-in, incomplete credentials, non-Preview/Production, stale callback and ordinary Preview negatives pass. Read back paired deployment project/Git/run/resource/build-runtime environment names and non-parent DB; preserve synthetic Google and LINE mock 404. Fixture guard plus write is one DO statement and runs through the actual hosted prepared-statement executor. Verify exact-resource cleanup and Primary invariance; absent human-authentication evidence is not a pass. |
+
+| ID | Requirements | Pass condition |
+| --- | --- | --- |
 | `QA-LOGIN-01` | `LOGIN-001`, `ADM-005`, `ADM-007` | Both login routes load the full-viewport scene at 320/390/768/1440px, the tablet remains inside the viewport, password entry is reachable through internal scrolling with 44px targets and no horizontal overflow. At 360×740px with Google configured, scrolling must leave the entire password button inside the screen without fractional-pixel clipping. Existing keyboard/dialog and authenticated session tests remain enabled. Verify configured providers, six locales, dark theme and 200% text separately on the final candidate. `e2e/login-smoke.spec.ts`. |
 
 ## 2026-09-07 local order-experience acceptance

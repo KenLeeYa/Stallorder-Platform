@@ -741,6 +741,18 @@ describe("Production workflow approval contract", () => {
     );
   });
 
+  it("keeps live LINE Preview checks and writes in one prepared SQL statement", () => {
+    const fixture = read("supabase/fixtures/line_live_preview.sql");
+    const blocks = fixture.split("$line_preview$");
+
+    expect(blocks).toHaveLength(3);
+    expect(blocks[0].trim()).toBe("do");
+    expect(blocks[2].trim()).toBe(";");
+    expect(blocks[1]).toContain("raise exception 'LINE Preview OAuth feature flags are missing'");
+    expect(blocks[1]).toContain("insert into public.resilience_feature_flag_overrides");
+    expect(fixture).toContain("'OAUTH_IDENTITY_FOUNDATION_ENABLED', 'OAUTH_LINE_ENABLED'");
+  });
+
   it("deletes every metadata-matched Preview URL and verifies cleanup", () => {
     const cleanupStart = ephemeralPreview.indexOf(
       "name: Remove closed Pull Request Vercel Previews",

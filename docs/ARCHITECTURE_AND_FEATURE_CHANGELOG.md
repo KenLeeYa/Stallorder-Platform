@@ -77,6 +77,12 @@ Every entry must identify the affected user roles, routes/services/data/environm
 
 | 2026-09-08 | `LOCAL-NOTE-NAVIGATION-001` | Implemented, local only | Keep the reusable-note navigator, query and scroll mounted beneath item actions/editors; isolate foreground keyboard handling and restore list focus after feedback. Replace tests that silently reopened the list with direct return assertions. | Merchant shared catalog / notes; no API or schema change | `CAT-019`, `QA-CAT-12`; [local correction report](REUSABLE_NOTE_NAVIGATION_FIX_20260908.md), responsive navigation and note CRUD/error regressions |
 
+## LINE Preview follow-up
+
+| Date | ID | Status | Change | Affected surfaces | Detail and verification |
+| --- | --- | --- | --- | --- | --- |
+| 2026-09-13 | `AUTH-LINE-LIVE-PREVIEW-001` | Implemented; not released | Correct Web LINE ID-token verification to strict HS256; isolate real LINE QA to an exact-branch-selected paired PR Preview. Keep the auth-flag guard/write in one prepared SQL statement after synthetic gates. | Merchant/Staff OAuth start/callback and session, provider config, PR workflow and disposable Preview flags; no Production/DR activation or schema change | [OAuth contract](OAUTH_IDENTITY_ARCHITECTURE.md#line-web-登入驗證), [Preview runbook](GITHUB_PREVIEW_ENVIRONMENT.md#隔離的真實-line-login-驗收); `AUTH-LINE-001/002`, `QA-AUTH-LINE-01/02`; Draft PR #359; prior head e53760e full CI 34752843423 passed; Preview 34752843405 fixture failure reproduced red and locally corrected; fresh hosted and real-login evidence still required |
+
 ## Maintenance rule
 
 Do not rewrite an old row to make a later rollout look complete. Append a new row when status changes, include the exact commit/tree and protected evidence, and mark the prior row superseded only when the new decision is accepted.
