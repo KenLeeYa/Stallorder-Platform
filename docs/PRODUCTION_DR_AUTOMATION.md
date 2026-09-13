@@ -417,3 +417,35 @@ the latter before it can create its live Plan or Apply. These files contain
 only immutable run, commit, tree, operation and completion evidence.
 Drill uploads sanitized JSON and Markdown evidence, including measured RTO,
 RPO, failback time, deployment URLs, smoke results and replication state.
+
+## DNS-only 到 Cloudflare Proxy 的連線交接
+
+`DOMAIN-DR-PROBE-009` / `QA-REL-05`：2026-09-13 Apply `34728920286`
+已通過獨立 DR generated deployment、唯讀 operator probe 與 Vercel 憑證驗證，
+之後在 custom-domain Access probe 回傳 `403`，並完成精確資源回復。
+Primary 部署、67 項設定、登入及 health 維持不變，舊 staging 未退役。
+
+確定可重現的流程缺陷：Node fetch 的同來源連線池可在 DNS-only 改為 proxied
+後繼續使用先前直連 Vercel 的 TCP 連線；原匿名保護檢查只看拒絕狀態，會把
+來源站因缺少 Access JWT 而回傳的 `403` 誤當成 Cloudflare 已生效，再將 service
+token 送往仍直連的來源站。實際 Node fetch、兩個 loopback 位址及受控 DNS 的
+fixture 可重現完整流程的同一 `DR_ENTRY_CLOUDFLARE_ACCESS_PROBE_403`。
+原線上失敗收據未保留 server/Ray 資訊，且該時段 Access 登入查詢沒有事件；
+因此不把本機重現或空白查詢單獨當作原次 HTTP 路徑的直接證明。
+
+修正於 direct TLS 與 proxy 探測使用 `Connection: close`，在送出 QA 憑證前
+確認回應有 Cloudflare server 與 Ray header，避免把來源站拒絕當作 proxy
+就緒。維持原有 30 次、10 秒間隔的等待上限；實際 Access 拒絕仍立即失敗，
+不重試憑證、不自動跟隨轉址、不放寬 issuer/audience/signature 驗證。
+Hop header 只辨識路由，origin 的 JWT 驗證仍是必要安全控制。
+
+Cloudflare probe 只接受 `200 application/json`，失敗證據包含固定 stage、
+HTTP 狀態、型別、長度、是否到達 Cloudflare 與 server 分類；不保存回應
+內容、Ray 值、Cookie、轉址 URL、service token 或其他秘密。
+7 個 regression cases 覆蓋即時／延遲 DNS、永久直連來源、真實 Access 403、
+缺少 edge 資訊及非 JSON；修正前 7 fail，修正後全數通過。
+仍須由新 Staging/CI/Preview、fresh Plan/Apply 與獨立線上讀回完成發布驗證。
+
+官方參考：[Undici 連線池](https://github.com/nodejs/undici/blob/main/docs/docs/getting-started.md)、
+[Cloudflare Access authentication logs](https://developers.cloudflare.com/cloudflare-one/insights/logs/dashboard-logs/access-authentication-logs/)、
+[Access 非身分登入事件查詢](https://developers.cloudflare.com/analytics/graphql-api/tutorials/querying-access-login-events/)。
