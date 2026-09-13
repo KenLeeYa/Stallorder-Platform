@@ -366,6 +366,8 @@ async function applyEntry(plan) {
       probeContentType: error?.probeContentType ?? null,
       probeBodyBytes: error?.probeBodyBytes ?? null,
       probeRedirectKind: error?.probeRedirectKind ?? null,
+      probeReachedCloudflare: error?.probeReachedCloudflare ?? null,
+      probeServer: error?.probeServer ?? null,
       rollbackCompleted: rollbackResult.completed === true,
       failedAt: new Date().toISOString(),
     }).catch(() => {});
@@ -707,19 +709,46 @@ async function assertPrimaryStateUnchanged(plan) {
 async function cloudflareAccessProbe(baseUrl, accessResources) {
   const response = await fetch(`${baseUrl}${planProbePath()}`, {
     headers: {
+      connection: "close",
       "CF-Access-Client-Id": accessResources.serviceTokenClientId,
       "CF-Access-Client-Secret": accessResources.serviceTokenClientSecret,
     },
     redirect: "manual",
     signal: AbortSignal.timeout(30_000),
   });
-  if (response.status !== 200) {
-    await response.arrayBuffer();
-    throw new Error(`DR_ENTRY_CLOUDFLARE_ACCESS_PROBE_${response.status}`);
+  const body = await response.arrayBuffer();
+  if (!reachedCloudflare(response)) {
+    throw cloudflareProbeError("DR_ENTRY_CLOUDFLARE_INGRESS_NOT_CONFIRMED", response, body);
   }
-  const payload = await response.json().catch(() => null);
-  if (!payload) throw new Error("DR_ENTRY_CLOUDFLARE_ACCESS_PROBE_INVALID");
+  if (response.status !== 200) {
+    throw cloudflareProbeError(`DR_ENTRY_CLOUDFLARE_ACCESS_PROBE_${response.status}`, response, body);
+  }
+  let payload = null;
+  if (response.headers.get("content-type")?.split(";")[0].trim().toLowerCase() === "application/json") {
+    try { payload = JSON.parse(Buffer.from(body).toString("utf8")); } catch { /* Reject invalid JSON below. */ }
+  }
+  if (!payload) throw cloudflareProbeError("DR_ENTRY_CLOUDFLARE_ACCESS_PROBE_INVALID", response, body);
   return payload;
+}
+
+function reachedCloudflare(response) {
+  return response.headers.get("server")?.trim().toLowerCase() === "cloudflare"
+    && Boolean(response.headers.get("cf-ray")?.trim());
+}
+
+function cloudflareProbeError(message, response, body) {
+  const contentType = response.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
+  const server = response.headers.get("server")?.trim().toLowerCase();
+  return Object.assign(new Error(message), {
+    failureStage: "PROBE_CLOUDFLARE_ACCESS",
+    probeHttpStatus: response.status,
+    probeContentType: contentType === "application/json" ? "JSON"
+      : contentType === "text/html" ? "HTML" : contentType ? "OTHER" : "MISSING",
+    probeBodyBytes: body.byteLength,
+    probeReachedCloudflare: reachedCloudflare(response),
+    probeServer: server === "cloudflare" ? "CLOUDFLARE"
+      : server === "vercel" ? "VERCEL" : server ? "OTHER" : "MISSING",
+  });
 }
 
 function assertProbeReady(probe, expectedRuntime) {
@@ -824,11 +853,16 @@ async function listDeployedFunctions(projectRef) {
   }
 }
 
-async function assertProtected(baseUrl) {
+async function assertProtected(baseUrl, requireCloudflare = false) {
   const response = await fetch(`${baseUrl}${planProbePath()}`, {
+    ...(requireCloudflare ? { headers: { connection: "close" } } : {}),
     redirect: "manual",
     signal: AbortSignal.timeout(15_000),
   });
+  const body = await response.arrayBuffer();
+  if (requireCloudflare && !reachedCloudflare(response)) {
+    throw cloudflareProbeError("DR_ENTRY_CLOUDFLARE_INGRESS_NOT_CONFIRMED", response, body);
+  }
   if (![301, 302, 303, 307, 308, 401, 403].includes(response.status)) {
     throw new Error("DR_ENTRY_UNAUTHENTICATED_ACCESS_NOT_BLOCKED");
   }
@@ -836,15 +870,24 @@ async function assertProtected(baseUrl) {
 }
 
 async function waitForProtectedDomain(baseUrl) {
+  let lastError;
   for (let attempt = 1; attempt <= 30; attempt += 1) {
     try {
-      return await assertProtected(baseUrl);
-    } catch {
+      return await assertProtected(baseUrl, true);
+    } catch (error) {
+      lastError = error;
       if (attempt === 30) break;
       await delay(10_000);
     }
   }
-  throw new Error("DR_ENTRY_CUSTOM_DOMAIN_PROTECTION_TIMEOUT");
+  throw Object.assign(new Error("DR_ENTRY_CUSTOM_DOMAIN_PROTECTION_TIMEOUT"), {
+    failureStage: "PROBE_CLOUDFLARE_INGRESS",
+    probeHttpStatus: lastError?.probeHttpStatus ?? null,
+    probeContentType: lastError?.probeContentType ?? null,
+    probeBodyBytes: lastError?.probeBodyBytes ?? null,
+    probeReachedCloudflare: lastError?.probeReachedCloudflare ?? null,
+    probeServer: lastError?.probeServer ?? null,
+  });
 }
 
 async function waitForRecommendedCname(hostname, expected) {
@@ -867,7 +910,8 @@ async function waitForDirectVercelTls(hostname) {
   for (let attempt = 1; attempt <= 90; attempt += 1) {
     try {
       const response = await fetch(`https://${hostname}${planProbePath()}`, {
-        headers: { accept: "application/json", "cache-control": "no-cache" },
+        // This connection must not survive the subsequent DNS-only to proxy transition.
+        headers: { accept: "application/json", "cache-control": "no-cache", connection: "close" },
         redirect: "manual",
         signal: AbortSignal.timeout(15_000),
       });
