@@ -461,6 +461,12 @@ jobs:
             echo "::error::Vercel did not attach the matching Preview to the requested Git branch."
             exit 1
           }
+          actual_project_id="$(jq -r '.projectId // empty' <<<"$deployment_details")"
+          preview_target="$(jq -r 'if .target == null or .target == "preview" then "true" else "false" end' <<<"$deployment_details")"
+          [ "$actual_project_id" = "$VERCEL_PROJECT_ID" ] && [ "$preview_target" = "true" ] || {
+            echo "::error::Vercel deployment project or target does not match the isolated Preview."
+            exit 1
+          }
 
           runtime_env_names="$(
             jq -r '.env[] | split("=")[0]' <<<"$deployment_details"
@@ -502,6 +508,41 @@ jobs:
               ;;
           esac
 
+          runtime_line_live="$(
+            jq -r '.env[]? | select(startswith("OAUTH_LINE_PREVIEW_LIVE=")) | sub("^OAUTH_LINE_PREVIEW_LIVE="; "")' \
+              <<<"$deployment_details"
+          )"
+          build_line_live="$(
+            jq -r '.build.env[]? | select(startswith("OAUTH_LINE_PREVIEW_LIVE=")) | sub("^OAUTH_LINE_PREVIEW_LIVE="; "")' \
+              <<<"$deployment_details"
+          )"
+          [ "$runtime_line_live" = "$build_line_live" ] || {
+            echo "::error::LINE live Preview opt-in differs between runtime and build."
+            exit 1
+          }
+          case "$runtime_line_live" in
+            true)
+              for name in LINE_CHANNEL_ID LINE_CHANNEL_SECRET; do
+                grep -Fxq "$name" <<<"$runtime_env_names" \
+                  && grep -Fxq "$name" <<<"$build_env_names" || {
+                    echo "::error::LINE live Preview is missing $name in runtime or build."
+                    exit 1
+                  }
+              done
+              if grep -Fxq LINE_REDIRECT_URI <<<"$runtime_env_names" \
+                || grep -Fxq LINE_REDIRECT_URI <<<"$build_env_names"; then
+                echo "::error::LINE live Preview must use its unique deployment callback, not a static redirect."
+                exit 1
+              fi
+              echo "line_live_enabled=true" >> "$GITHUB_OUTPUT"
+              ;;
+            false|"") echo "line_live_enabled=false" >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "::error::LINE live Preview opt-in is invalid."
+              exit 1
+              ;;
+          esac
+
           echo "deployment_id=$deployment_id" >> "$GITHUB_OUTPUT"
           echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
 
@@ -536,6 +577,18 @@ jobs:
           supabase db query \
             --db-url "$EPHEMERAL_DATABASE_URL" \
             --file supabase/fixtures/delivery_mock_preview_cleanup.sql \
+            --log-level error
+
+      - name: Enable isolated live LINE login for short-lived Pull Request Preview
+        if: github.event_name == 'pull_request' && steps.vercel-preview.outputs.line_live_enabled == 'true' && success()
+        run: |
+          test "${{ steps.preview.outputs.branch_ref }}" != "$SUPABASE_PARENT_PROJECT_REF" || {
+            echo "::error::Refusing to enable LINE login on the parent Supabase project."
+            exit 1
+          }
+          supabase db query \
+            --db-url "$EPHEMERAL_DATABASE_URL" \
+            --file supabase/fixtures/line_live_preview.sql \
             --log-level error
 
       - name: Remove manual Vercel Preview
