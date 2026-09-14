@@ -23,6 +23,14 @@
 
 Provider Token 不作為 StallOrder Authorization Token。RBAC、Organization、Stall 與 Platform Role 只來自既有伺服器資料。
 
+## LINE Web 登入驗證
+
+- Web Login 的 ID Token 固定以 `HS256` 和伺服器端 Channel Secret 驗簽；不得沿用 Google／Apple 的 `RS256` JWKS，也不得依未驗證的 JWT header 選擇演算法。
+- `iss`、`aud`、`exp`、`iat`、nonce 與一次性 state／PKCE 檢查保持有效；錯誤 Secret、nonce、issuer、audience、過期、未簽名及錯誤演算法均拒絕。其他 Provider 不接受 LINE 的 HS256 路徑。
+- 此契約只涵蓋 Web Login，不宣稱完成原生 LINE SDK／LIFF 的 ES256 整合。官方契約：[Verify ID tokens](https://developers.line.biz/en/docs/line-login/verify-id-token/#signature)。
+- 真實驗收需實際經 LINE 授權與 Callback 建立 StallOrder session，並核對隔離資料庫的 LINE identity／completed transaction／active session；Mock、健康檢查與 configured 狀態不能代替。首次登入可停在 onboarding，不需建立商家。
+- 短期 PR 測試設定、部署綁定與清理見 [GitHub Preview Environment](GITHUB_PREVIEW_ENVIRONMENT.md#隔離的真實-line-login-驗收)。回歸：`src/server/auth/oauth/oidc-adapter.test.ts`、`config.test.ts`、`provider-registry.test.ts`。
+
 ## 身分鍵
 
 `auth_identities` 唯一鍵為 `(provider, provider_subject)`；Email 是 nullable Profile/Contact Data，保存來源與驗證狀態，但永不作為自動 Link 依據。
@@ -49,3 +57,5 @@ Apple Server-to-Server Event 使用獨立 Ledger 與 Event Hash 去重；未取�
 ## Migration Gate
 
 `npm run auth:migration-report` 只輸出統計，不輸出 Email 或身分值。Platform Admin、Primary Owner、Staff/Kitchen 必須全部有已驗證 Provider Subject，且正式 Callback/Canary 通過後，才可進入 Local Credential Contract Removal。
+
+一般「關閉電子郵件與密碼登入」獨立使用 `AUTH_PASSWORD_LOGIN_ENABLED`，不等同完整 OAuth-only 遷移，也不修改或停用既有帳號。有效入口、目前管理者防鎖定、原子稽核與 LINE OA 的不同授權範圍見 [登入方式控制契約](AUTH_LOGIN_METHOD_POLICY_20260914.md)。

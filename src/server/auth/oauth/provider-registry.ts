@@ -3,7 +3,7 @@ import "server-only";
 import {
   getLiveOAuthProviderConfig,
   getOAuthAppBaseUrl,
-  getOAuthProviderMode,
+  getOAuthProviderModeForProvider,
   isProductionOAuthRuntime,
   isLiveOAuthProviderConfigured,
 } from "./config";
@@ -14,8 +14,8 @@ import {
 } from "./feature-flags";
 import { MockOidcProviderAdapter } from "./mock-adapter";
 import { OidcProviderAdapter } from "./oidc-adapter";
+import { getLoginMethodAvailability } from "./login-method-availability";
 import {
-  oauthProviders,
   type OAuthProvider,
   type OAuthProviderAdapter,
 } from "./types";
@@ -24,7 +24,7 @@ export function createOAuthProviderAdapter(
   provider: OAuthProvider,
   environment: NodeJS.ProcessEnv = process.env,
 ): OAuthProviderAdapter {
-  if (getOAuthProviderMode(environment) === "MOCK") {
+  if (getOAuthProviderModeForProvider(provider, environment) === "MOCK") {
     return new MockOidcProviderAdapter(
       provider,
       getOAuthAppBaseUrl(environment),
@@ -41,7 +41,7 @@ export async function getOAuthProviderAvailability(
   const state = await resolveOAuthFeatureState(provider);
   let mode: "LIVE" | "MOCK";
   try {
-    mode = getOAuthProviderMode(environment);
+    mode = getOAuthProviderModeForProvider(provider, environment);
   } catch {
     return { enabled: false, configured: false, mode: "MOCK" as const };
   }
@@ -60,31 +60,7 @@ export async function getOAuthLoginUiConfig(
   environment: NodeJS.ProcessEnv = process.env,
 ) {
   const state = await resolveOAuthLoginFeatureState();
-  let mode: "LIVE" | "MOCK";
-  try {
-    mode = getOAuthProviderMode(environment);
-  } catch {
-    mode = "MOCK";
-  }
-  const providers = oauthProviders.map((provider) => {
-    const configured = mode === "MOCK"
-      ? !isProductionOAuthRuntime(environment)
-        && Boolean(environment.OAUTH_STATE_SECRET?.trim())
-      : isLiveOAuthProviderConfigured(provider, environment);
-    return {
-      provider,
-      requested: state.foundation && state.providers[provider],
-      enabled: state.foundation
-        && state.providers[provider]
-        && configured
-        && (mode === "LIVE" || state.mock),
-      configured,
-    };
-  });
-  return {
-    oauthOnly: state.oauthOnly,
-    providers,
-  };
+  return getLoginMethodAvailability(state, environment);
 }
 
 export async function getEnabledOAuthProviderAdapter(
@@ -100,7 +76,7 @@ export function getOAuthRedirectUri(
   provider: OAuthProvider,
   environment: NodeJS.ProcessEnv = process.env,
 ) {
-  return getOAuthProviderMode(environment) === "MOCK"
+  return getOAuthProviderModeForProvider(provider, environment) === "MOCK"
     ? `${getOAuthAppBaseUrl(environment)}/api/auth/${provider.toLowerCase()}/callback`
     : getLiveOAuthProviderConfig(provider, environment).redirectUri;
 }

@@ -124,11 +124,14 @@ export class OidcProviderAdapter implements OAuthProviderAdapter {
     keyResolver?: JWTVerifyGetKey,
   ) {
     this.provider = config.provider;
-    this.keyResolver = keyResolver ?? createRemoteJWKSet(new URL(config.jwksUri), {
-      timeoutDuration: 5_000,
-      cooldownDuration: 30_000,
-      cacheMaxAge: 10 * 60_000,
-    });
+    // LINE web login signs ID tokens with the Channel Secret (HS256), not JWKS.
+    this.keyResolver = config.provider === "LINE"
+      ? async () => new TextEncoder().encode(config.clientSecret)
+      : keyResolver ?? createRemoteJWKSet(new URL(config.jwksUri), {
+        timeoutDuration: 5_000,
+        cooldownDuration: 30_000,
+        cacheMaxAge: 10 * 60_000,
+      });
   }
 
   async buildAuthorizationUrl(input: OAuthAuthorizationInput) {
@@ -186,7 +189,7 @@ export class OidcProviderAdapter implements OAuthProviderAdapter {
     const { payload } = await jwtVerify(tokenResponse.data.id_token, this.keyResolver, {
       issuer: this.config.issuer,
       audience: this.config.clientId,
-      algorithms: ["RS256"],
+      algorithms: this.provider === "LINE" ? ["HS256"] : ["RS256"],
       clockTolerance: 5,
       maxTokenAge: "10 minutes",
     });

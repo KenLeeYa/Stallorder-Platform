@@ -6,6 +6,11 @@ Use this matrix to select tests before changing code. Add or update automated te
 
 | ID | Requirements | Pass condition |
 | --- | --- | --- |
+| `QA-AUTH-LINE-01` | `AUTH-LINE-001` | Valid Web HS256 token succeeds; wrong secret, nonce, issuer, audience, expired, unsigned and RS256 tokens fail; non-LINE HS256 fails. Retain state/PKCE/session tests. Real LINE authorization and callback establish a browser session with a matching isolated identity/completed transaction; no identity value or token enters evidence. |
+| `QA-AUTH-LINE-02` | `AUTH-LINE-002` | Exact branch opt-in, incomplete credentials, non-Preview/Production, stale callback and ordinary Preview negatives pass. Read back paired deployment project/Git/run/resource/build-runtime environment names and non-parent DB; preserve synthetic Google and LINE mock 404. Fixture guard plus write is one DO statement and runs through the actual hosted prepared-statement executor. Verify exact-resource cleanup and Primary invariance; absent human-authentication evidence is not a pass. |
+
+| ID | Requirements | Pass condition |
+| --- | --- | --- |
 | `QA-LOGIN-01` | `LOGIN-001`, `ADM-005`, `ADM-007` | Both login routes load the full-viewport scene at 320/390/768/1440px, the tablet remains inside the viewport, password entry is reachable through internal scrolling with 44px targets and no horizontal overflow. At 360×740px with Google configured, scrolling must leave the entire password button inside the screen without fractional-pixel clipping. Existing keyboard/dialog and authenticated session tests remain enabled. Verify configured providers, six locales, dark theme and 200% text separately on the final candidate. `e2e/login-smoke.spec.ts`. |
 
 ## 2026-09-07 local order-experience acceptance
@@ -183,6 +188,7 @@ For responsive shell, modal, toolbar, dashboard, catalog, or reporting changes, 
 | `QA-ADM-01` | `ADM-001`–`ADM-004` | Responsive admin billing/plan UI, open-beta, and merchant billing visibility follow server flags. |
 | `QA-ADM-02` | `ADM-005`,`ADM-006`,`ADM-011` | The fixed-port launcher proves the expected worktree/HEAD/origin, refuses collision/remote DB, disables stale development service workers, and the four local roles plus public Menu, successful QR/takeout session creation, and cash smoke work on that same origin. The guarded OAuth-policy bypass remains absent/inert in Production and all origins fail closed outside local config. |
 | `QA-ADM-03` | `ADM-007`–`ADM-010` | Login methods reflect policy plus configured credentials; incomplete modules stay hidden/direct APIs closed; phone header/theme, simple copy, and privacy-safe device labels pass. |
+| `QA-ADM-04` | `ADM-012`, `ADM-005` | Disable passwords with a legacy Google administrator without identity migration or account changes. Public Merchant/Staff forms disappear; direct password login returns 403; guarded local roles still verify credentials. Reject unlinked actors, last-method removal, unconfigured LINE and temporary/scoped policies. Exercise current and expiring fallback states, concurrent removal and audit rollback in PostgreSQL. Verify cancel/confirm/success/failure/reload, six locales, 44px controls and 320/390/768/1440 widths. Configured LINE is not real Production login or OA authorization evidence. |
 
 ### Integrations and mobile
 

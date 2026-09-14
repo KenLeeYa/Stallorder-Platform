@@ -22,6 +22,11 @@ const errorMessages: Record<string, string> = {
   RESILIENCE_EMERGENCY_EXPIRY_REQUIRED: "緊急旗標必須設定自動到期時間。",
   RESILIENCE_EMERGENCY_EXPIRY_TOO_LONG: "緊急旗標最長只能啟用 24 小時。",
   OAUTH_MIGRATION_GATE_BLOCKED: "仍有高權限或密碼帳號尚未完成 OAuth 綁定，不得啟用 OAuth-only 登入。",
+  AUTH_METHOD_LAST_AVAILABLE_REQUIRED: "至少必須保留一種已設定完成且可用的登入方式。",
+  AUTH_METHOD_PROVIDER_NOT_CONFIGURED: "此登入方式的正式設定尚未完成，目前不能啟用。",
+  AUTH_METHOD_ADMIN_ACCESS_REQUIRED: "此變更會移除你目前可用的登入方式；請先連結另一種已啟用的登入身分。",
+  AUTH_METHOD_GLOBAL_PERMANENT_REQUIRED: "登入方式必須使用不自動到期的全域設定。",
+  AUTH_PASSWORD_LOGIN_CONTRACTED: "目前已啟用全面 OAuth-only 政策；須先依遷移流程調整該政策，才能恢復帳密登入。",
 };
 
 export async function PUT(
@@ -78,7 +83,7 @@ export async function PUT(
     const errorCode = error instanceof Error ? error.message : "";
     const message = errorMessages[errorCode];
     return NextResponse.json(
-      { error: message ?? "目前無法更新韌性功能旗標。" },
+      { error: message ?? "目前無法更新韌性功能旗標。", code: message ? errorCode : "INTERNAL_ERROR" },
       {
         status: message ? 400 : 500,
         headers: { "x-request-id": authorization.requestId },
