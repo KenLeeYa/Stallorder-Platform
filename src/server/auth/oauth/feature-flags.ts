@@ -23,12 +23,15 @@ export async function resolveOAuthLoginFeatureState() {
       "OAUTH_APPLE_ENABLED",
       "OAUTH_MICROSOFT_ENABLED",
       "OAUTH_ONLY_LOGIN_UI_ENABLED",
+      "AUTH_PASSWORD_LOGIN_ENABLED",
       "OAUTH_MOCK_PROVIDER_ENABLED",
     ]);
     return {
       foundation: flags.OAUTH_IDENTITY_FOUNDATION_ENABLED.enabled,
       mock: flags.OAUTH_MOCK_PROVIDER_ENABLED.enabled,
       oauthOnly: flags.OAUTH_ONLY_LOGIN_UI_ENABLED.enabled,
+      passwordEnabled: flags.AUTH_PASSWORD_LOGIN_ENABLED.enabled
+        && !flags.OAUTH_ONLY_LOGIN_UI_ENABLED.enabled,
       providers: {
         GOOGLE: flags.OAUTH_GOOGLE_ENABLED.enabled,
         LINE: flags.OAUTH_LINE_ENABLED.enabled,
@@ -44,6 +47,7 @@ export async function resolveOAuthLoginFeatureState() {
       foundation: false,
       mock: false,
       oauthOnly: false,
+      passwordEnabled: false,
       providers: {
         GOOGLE: false,
         LINE: false,

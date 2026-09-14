@@ -9,6 +9,8 @@ vi.mock("@/lib/supabase-auth", () => ({
 vi.mock("@/server/auth/oauth/provider-registry", () => ({
   getOAuthLoginUiConfig: async () => ({
     oauthOnly: false,
+    passwordEnabled: true,
+    legacyGoogleEnabled: false,
     providers: [
       { provider: "GOOGLE", requested: true, configured: true, enabled: true },
       { provider: "LINE", requested: true, configured: true, enabled: true },

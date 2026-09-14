@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   getOAuthAppBaseUrl,
-  getOAuthProviderMode,
+  getOAuthProviderModeForProvider,
   isProductionOAuthRuntime,
 } from "@/server/auth/oauth/config";
 import { requireOAuthStateSecret } from "@/server/auth/oauth/crypto";
@@ -18,7 +18,7 @@ export async function GET(request: Request) {
   if (isProductionOAuthRuntime()) return new NextResponse(null, { status: 404 });
   const url = new URL(request.url);
   const provider = parseOAuthProvider(url.searchParams.get("provider") ?? "");
-  if (!provider || getOAuthProviderMode() !== "MOCK") {
+  if (!provider || getOAuthProviderModeForProvider(provider) !== "MOCK") {
     return new NextResponse(null, { status: 404 });
   }
   const flags = await resolveOAuthFeatureState(provider);

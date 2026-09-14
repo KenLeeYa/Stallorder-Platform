@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Apple, KeyRound, Laptop, MessageCircle, Search } from "lucide-react";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { getAdminApiError } from "@/lib/messages/admin";
 import { useAdminLocale } from "@/lib/messages/admin-client";
+import { SettingsFeedbackDialog } from "@/components/settings-feedback-dialog";
 
 type OAuthProvider = "GOOGLE" | "LINE" | "APPLE" | "MICROSOFT";
 type ProviderFlagCode = "OAUTH_GOOGLE_ENABLED" | "OAUTH_LINE_ENABLED" | "OAUTH_APPLE_ENABLED" | "OAUTH_MICROSOFT_ENABLED";
@@ -27,13 +28,13 @@ export function AdminLoginMethodControls({
   initialFoundationEnabled,
   initialProviders,
   configuredProviders,
-  readyForOAuthOnly,
+  passwordPolicyLocked,
 }: {
   initialPasswordEnabled: boolean;
   initialFoundationEnabled: boolean;
   initialProviders: Record<OAuthProvider, boolean>;
   configuredProviders: Record<OAuthProvider, boolean>;
-  readyForOAuthOnly: boolean;
+  passwordPolicyLocked: boolean;
 }) {
   const { locale, m } = useAdminLocale();
   const router = useRouter();
@@ -42,6 +43,16 @@ export function AdminLoginMethodControls({
   const [providers, setProviders] = useState(initialProviders);
   const [updating, setUpdating] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
+  const [hasError, setHasError] = useState(false);
+  const [confirmation, setConfirmation] = useState<{ run: () => Promise<void> } | null>(null);
+  const confirmationRef = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const dialog = confirmationRef.current;
+    if (!confirmation || !dialog) return;
+    dialog.showModal();
+    return () => dialog.close();
+  }, [confirmation]);
 
   const providerVisible = (provider: OAuthProvider) => (
     foundationEnabled && providers[provider] && configuredProviders[provider]
@@ -67,39 +78,51 @@ export function AdminLoginMethodControls({
     if (!response.ok) throw new Error(getAdminApiError(locale, payload));
   }
 
-  async function togglePassword() {
+  async function togglePassword(confirmed = false) {
     const nextEnabled = !passwordEnabled;
-    if (!nextEnabled && (!readyForOAuthOnly || visibleProviderCount === 0)) {
-      setNotice(m("Password sign-in cannot be disabled until privileged accounts are linked and at least one configured OAuth method is enabled."));
+    if (!nextEnabled && visibleProviderCount === 0) {
+      setHasError(true);
+      setNotice(m("At least one sign-in method must remain available."));
       return;
     }
-    if (!window.confirm(m("This change takes effect immediately and will be written to the audit log. Continue?"))) return;
+    if (!confirmed) {
+      setConfirmation({ run: () => togglePassword(true) });
+      return;
+    }
     setUpdating("PASSWORD");
+    setHasError(false);
     setNotice("");
     try {
-      await setGlobalFlag("OAUTH_ONLY_LOGIN_UI_ENABLED", !nextEnabled);
+      await setGlobalFlag("AUTH_PASSWORD_LOGIN_ENABLED", nextEnabled);
       setPasswordEnabled(nextEnabled);
       setNotice(m("Login method updated."));
       router.refresh();
     } catch (error) {
+      setHasError(true);
       setNotice(error instanceof Error ? error.message : m("Operation failed. Try again later."));
     } finally {
       setUpdating(null);
     }
   }
 
-  async function toggleProvider(provider: OAuthProvider, code: ProviderFlagCode) {
+  async function toggleProvider(provider: OAuthProvider, code: ProviderFlagCode, confirmed = false) {
     const nextEnabled = !providerVisible(provider);
     if (nextEnabled && !configuredProviders[provider]) {
+      setHasError(true);
       setNotice(m("Provider credentials are not configured."));
       return;
     }
     if (!nextEnabled && !passwordEnabled && visibleProviderCount <= 1) {
+      setHasError(true);
       setNotice(m("At least one sign-in method must remain available."));
       return;
     }
-    if (!window.confirm(m("This change takes effect immediately and will be written to the audit log. Continue?"))) return;
+    if (!confirmed) {
+      setConfirmation({ run: () => toggleProvider(provider, code, true) });
+      return;
+    }
     setUpdating(provider);
+    setHasError(false);
     setNotice("");
     try {
       if (nextEnabled && !foundationEnabled) {
@@ -111,6 +134,7 @@ export function AdminLoginMethodControls({
       setNotice(m("Login method updated."));
       router.refresh();
     } catch (error) {
+      setHasError(true);
       setNotice(error instanceof Error ? error.message : m("Operation failed. Try again later."));
     } finally {
       setUpdating(null);
@@ -123,10 +147,12 @@ export function AdminLoginMethodControls({
         <MethodCard
           icon={KeyRound}
           label={m("Email and password")}
-          description={m("Password sign-in remains available to existing merchant, staff, kitchen, and platform administrator accounts.")}
+          description={passwordPolicyLocked
+            ? m("The full OAuth-only migration policy is active. Password sign-in cannot be restored here.")
+            : m("Turning this off blocks email/password sign-in only. Accounts and existing Google or LINE identities are preserved.")}
           enabled={passwordEnabled}
           busy={updating === "PASSWORD"}
-          disabled={Boolean(updating)}
+          disabled={Boolean(updating) || passwordPolicyLocked}
           onToggle={() => void togglePassword()}
           enabledLabel={m("Enabled")}
           disabledLabel={m("Disabled")}
@@ -148,7 +174,20 @@ export function AdminLoginMethodControls({
           />
         ))}
       </div>
-      {notice ? <p role="status" className="mt-4 border-t border-stone-200 pt-3 text-sm font-medium text-stone-700">{notice}</p> : null}
+      <dialog ref={confirmationRef} aria-labelledby="login-method-confirm-title" aria-describedby="login-method-confirm-description" onCancel={() => setConfirmation(null)} className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-2xl bg-white p-6 text-stone-950 shadow-2xl backdrop:bg-black/60">
+        <h2 id="login-method-confirm-title" className="text-xl font-bold">{m("Login method controls")}</h2>
+        <p id="login-method-confirm-description" className="mt-3 text-sm leading-6">{m("This change takes effect immediately and will be written to the audit log. Continue?")}</p>
+        <div className="mt-6 grid grid-cols-2 gap-3">
+          <button type="button" onClick={() => setConfirmation(null)} className="min-h-11 rounded-xl border border-stone-300 px-4 py-2 font-semibold">{m("Cancel change")}</button>
+          <button type="button" onClick={() => {
+            const action = confirmation;
+            confirmationRef.current?.close();
+            setConfirmation(null);
+            void action?.run();
+          }} className="min-h-11 rounded-xl bg-teal-800 px-4 py-2 font-semibold text-white">{m("Confirm change")}</button>
+        </div>
+      </dialog>
+      {notice ? <SettingsFeedbackDialog message={notice} kind={hasError ? "error" : "success"} onClose={() => setNotice("")} /> : null}
     </section>
   );
 }
@@ -171,8 +210,8 @@ function MethodCard({ icon: Icon, label, description, enabled, busy, disabled, o
           <h2 className="flex items-center gap-2 font-semibold"><Icon aria-hidden="true" className="h-4 w-4 shrink-0 text-teal-700" />{label}</h2>
           <p className="mt-2 text-sm leading-6 text-stone-600">{description}</p>
         </div>
-        <button type="button" role="switch" aria-checked={enabled} aria-label={label} disabled={disabled} onClick={onToggle} className={`relative mt-0.5 h-8 w-14 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${enabled ? "bg-teal-700" : "bg-stone-300"}`}>
-          <span className={`absolute left-1 top-1 h-6 w-6 rounded-full bg-white shadow-sm transition-transform ${enabled ? "translate-x-6" : "translate-x-0"}`} />
+        <button type="button" role="switch" aria-checked={enabled} aria-label={label} disabled={disabled} onClick={onToggle} className={`relative mt-0.5 h-11 w-16 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${enabled ? "bg-teal-700" : "bg-stone-300"}`}>
+          <span className={`absolute left-1 top-2 h-7 w-7 rounded-full bg-white shadow-sm transition-transform ${enabled ? "translate-x-7" : "translate-x-0"}`} />
         </button>
       </div>
       <p className={`mt-3 text-sm font-semibold ${enabled ? "text-teal-800" : "text-stone-500"}`}>{busy ? "…" : enabled ? enabledLabel : disabledLabel}</p>

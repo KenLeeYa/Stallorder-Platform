@@ -17,17 +17,33 @@ describe("platform login method controls", () => {
           initialFoundationEnabled
           initialProviders={{ GOOGLE: true, LINE: false, APPLE: true, MICROSOFT: false }}
           configuredProviders={{ GOOGLE: true, LINE: false, APPLE: false, MICROSOFT: false }}
-          readyForOAuthOnly={false}
+          passwordPolicyLocked={false}
         />
       </LocaleProvider>,
     );
 
     expect(html).toContain("登入方式控制");
     expect(html).toContain("電子郵件與密碼");
+    expect(html).toContain("帳號及既有 Google、LINE 登入身分都會保留");
     expect(html).toContain("Google 登入");
     expect(html).toContain("Microsoft 登入");
     expect(html).toContain("Provider 憑證尚未設定");
     expect(html.match(/aria-checked="true"/g)).toHaveLength(2);
     expect(html.match(/disabled=""/g)).toHaveLength(3);
+  });
+
+  it.each(["zh-TW", "en", "ja", "ko", "vi", "th"] as const)("preserves the full OAuth policy lock and confirmation controls in %s", (locale) => {
+    const html = renderToStaticMarkup(
+      <LocaleProvider initialLocale={locale} hasLocaleCookie>
+        <AdminLoginMethodControls initialPasswordEnabled={false} initialFoundationEnabled
+          initialProviders={{ GOOGLE: true, LINE: true, APPLE: false, MICROSOFT: false }}
+          configuredProviders={{ GOOGLE: true, LINE: true, APPLE: false, MICROSOFT: false }} passwordPolicyLocked />
+      </LocaleProvider>,
+    );
+    expect(html.match(/aria-checked="true"/g)).toHaveLength(2);
+    expect(html.match(/disabled=""/g)).toHaveLength(3);
+    expect(html).toContain('aria-labelledby="login-method-confirm-title"');
+    expect(html).toContain('aria-describedby="login-method-confirm-description"');
+    expect(html).toContain("OAuth");
   });
 });

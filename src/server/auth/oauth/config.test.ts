@@ -3,6 +3,7 @@ import {
   getLiveOAuthProviderConfig,
   getOAuthAppBaseUrl,
   getOAuthProviderMode,
+  getOAuthProviderModeForProvider,
 } from "./config";
 
 function environment(values: Record<string, string>) {
@@ -106,5 +107,45 @@ describe("OAuth provider configuration", () => {
       VERCEL_URL: "stallorder-preview.example.vercel.app",
       APP_BASE_URL: "https://app.qidaigo.com",
     } as NodeJS.ProcessEnv)).toBe("https://stallorder-preview.example.vercel.app");
+  });
+
+  it("opts only LINE into live OAuth on an explicitly isolated Preview", () => {
+    const preview = environment({
+      VERCEL_ENV: "preview",
+      VERCEL_URL: "stallorder-pr-123.example.vercel.app",
+      OAUTH_PROVIDER_MODE: "mock",
+      OAUTH_LINE_PREVIEW_LIVE: "true",
+      LINE_CHANNEL_ID: "preview-line-channel",
+      LINE_CHANNEL_SECRET: "preview-line-secret",
+    });
+    expect(getOAuthProviderModeForProvider("LINE", preview)).toBe("LIVE");
+    expect(getOAuthProviderModeForProvider("GOOGLE", preview)).toBe("MOCK");
+    expect(getLiveOAuthProviderConfig("LINE", preview).redirectUri)
+      .toBe("https://stallorder-pr-123.example.vercel.app/api/auth/line/callback");
+  });
+
+  it("does not accept a stale Preview LINE callback or an implicit Production callback", () => {
+    const preview = environment({
+      VERCEL_ENV: "preview",
+      VERCEL_URL: "stallorder-pr-123.example.vercel.app",
+      OAUTH_PROVIDER_MODE: "mock",
+      OAUTH_LINE_PREVIEW_LIVE: "true",
+      LINE_CHANNEL_ID: "preview-line-channel",
+      LINE_CHANNEL_SECRET: "preview-line-secret",
+      LINE_REDIRECT_URI: "https://old-preview.example.vercel.app/api/auth/line/callback",
+    });
+    expect(() => getLiveOAuthProviderConfig("LINE", preview))
+      .toThrow("OAUTH_LINE_REDIRECT_URI_MISMATCH");
+    expect(() => getLiveOAuthProviderConfig("LINE", {
+      ...preview,
+      VERCEL_ENV: "production",
+      OAUTH_PROVIDER_MODE: "live",
+      LINE_REDIRECT_URI: undefined,
+    } as NodeJS.ProcessEnv)).toThrow("OAUTH_LINE_REDIRECT_URI_MISSING");
+    expect(() => getLiveOAuthProviderConfig("LINE", {
+      ...preview,
+      VERCEL_URL: undefined,
+      LINE_REDIRECT_URI: undefined,
+    } as NodeJS.ProcessEnv)).toThrow("OAUTH_LINE_REDIRECT_URI_MISSING");
   });
 });

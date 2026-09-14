@@ -70,6 +70,10 @@ Report:
 
 Use Taiwan Traditional Chinese for StallOrder user-facing text and status, while preserving technical identifiers.
 
+## LINE Web authentication
+
+For LINE Web authentication or live PR testing, read `docs/OAUTH_IDENTITY_ARCHITECTURE.md` and `docs/GITHUB_PREVIEW_ENVIRONMENT.md`; run `QA-AUTH-LINE-01` and `QA-AUTH-LINE-02`. Keep strict Web HS256 verification, exact-branch deployment-only TEST credentials, a data-less paired backend, atomic prepared SQL fixtures, real callback/session evidence and verified temporary-resource cleanup. DR is not a test runtime and this workflow does not activate Production.
+
 ## Staff Web Push and Menu announcements
 
 For the responsive Staff queue, device notifications or Menu announcements, read `docs/STAFF_PUSH_MENU_ANNOUNCEMENTS_20260911.md` and run `QA-ORD-10`, `QA-PUSH-01`, `QA-MENU-ANN-01`. Keep new-order INSERT-only enqueueing, live session/role authorization, encrypted device subscriptions, bounded delivery and signed display receipts. Do not replace offline/PWA update protections or call provider acceptance hardware success. Menu announcements follow special-closure notices and never override ordering eligibility. Development PWA may be explicitly retained only for device QA; document the LAN HTTPS/worker service lifecycle.

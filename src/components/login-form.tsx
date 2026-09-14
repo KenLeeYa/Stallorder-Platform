@@ -32,6 +32,7 @@ export function LoginForm({
   nextPath,
   legacyGoogleEnabled,
   oauthOnly,
+  passwordEnabled,
   oauthProviders,
   oauthError,
   localQaAccounts,
@@ -40,6 +41,7 @@ export function LoginForm({
   nextPath?: string;
   legacyGoogleEnabled: boolean;
   oauthOnly: boolean;
+  passwordEnabled: boolean;
   oauthProviders: LoginProvider[];
   oauthError?: string;
   localQaAccounts?: LocalQaAccount[];
@@ -60,6 +62,7 @@ export function LoginForm({
   const isClientReady = useSyncExternalStore(subscribeToClientReady, readClientReady, readServerNotReady);
   const passwordDialogRef = useRef<HTMLDialogElement>(null);
   const hasOAuthProvider = oauthProviders.length > 0 || legacyGoogleEnabled;
+  const passwordAvailable = passwordEnabled && !oauthOnly;
   const titleKey = audience === "STAFF" ? "login.staff.title" : "login.title";
   const descriptionKey = audience === "STAFF" ? "login.staff.description" : "login.description";
 
@@ -159,7 +162,7 @@ export function LoginForm({
           </p>
         </>
       ) : null}
-      {!oauthOnly ? (
+      {passwordAvailable ? (
         <>
           {hasOAuthProvider ? (
             <div className="my-3 flex items-center gap-3 text-xs text-stone-500">
@@ -179,12 +182,12 @@ export function LoginForm({
           </button>
         </>
       ) : null}
-      {oauthOnly && oauthProviders.length === 0 ? (
+      {!passwordAvailable && !hasOAuthProvider ? (
         <p role="alert" className="mt-5 border-l-4 border-amber-500 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           {t("login.noProviders")}
         </p>
       ) : null}
-      {!oauthOnly ? (
+      {passwordAvailable ? (
         <dialog
           ref={passwordDialogRef}
           aria-labelledby="password-login-title"

@@ -48,6 +48,18 @@ export function getOAuthProviderMode(
   return "MOCK";
 }
 
+export function getOAuthProviderModeForProvider(
+  provider: OAuthProvider,
+  environment: NodeJS.ProcessEnv = process.env,
+): OAuthProviderMode {
+  const mode = getOAuthProviderMode(environment);
+  return provider === "LINE"
+    && environment.VERCEL_ENV === "preview"
+    && environment.OAUTH_LINE_PREVIEW_LIVE === "true"
+    ? "LIVE"
+    : mode;
+}
+
 export function isProductionOAuthRuntime(
   environment: NodeJS.ProcessEnv = process.env,
 ) {
@@ -82,8 +94,14 @@ function redirectUri(
   environment: NodeJS.ProcessEnv,
 ) {
   const expected = `${getOAuthAppBaseUrl(environment)}/api/auth/${oauthProviderPath(provider)}/callback`;
+  const previewLineCallback = provider === "LINE"
+    && environment.VERCEL_ENV === "preview"
+    && environment.OAUTH_LINE_PREVIEW_LIVE === "true"
+    && environment.VERCEL_URL
+    ? expected
+    : undefined;
   const actual = validAbsoluteUrl(
-    required(configured, `OAUTH_${provider}_REDIRECT_URI_MISSING`),
+    required(configured ?? previewLineCallback, `OAUTH_${provider}_REDIRECT_URI_MISSING`),
     `OAUTH_${provider}_REDIRECT_URI_INVALID`,
   ).replace(/\/$/, "");
   if (actual !== expected) throw new Error(`OAUTH_${provider}_REDIRECT_URI_MISMATCH`);

@@ -11,6 +11,21 @@
 
 工作流程不會更新 Production，也不會對正式攤位送出測試訂單。
 
+## 隔離的真實 LINE Login 驗收
+
+使用者明確要求真實 LINE 登入時，允許在同一套 data-less PR 配對資源完成有限驗收；一般 smoke 仍使用合成資料。`staging` 僅為來源／檢查分支，沒有常駐 Staging 測試網站；DR 是受保護的待命環境，不作測試資料庫。
+
+1. GitHub `Preview` Environment 暫存 `LINE_PREVIEW_CHANNEL_SECRET`，以及 `LINE_LIVE_PREVIEW_BRANCH`、`LINE_PREVIEW_CHANNEL_ID` Variables。只在 PR branch 完全吻合時選用 TEST Channel；不可寫入 Vercel 共用／Production 環境變數。
+2. Workflow 只把 `OAUTH_LINE_PREVIEW_LIVE=true`、`LINE_CHANNEL_ID`、`LINE_CHANNEL_SECRET` 注入此次配對 Vercel deployment 的 build/runtime。核對實際 project、非 Production target、Git ref/SHA、run/resource metadata 與環境變數名稱；普通 Git 自動 Preview 不是驗收網址。
+3. 在 `VERCEL_ENV=preview` 且明確啟用時，只有 LINE 使用 LIVE adapter；Google synthetic smoke 保持 Mock。Callback 使用該 deployment 的唯一 HTTPS hostname；拒絕殘留靜態 `LINE_REDIRECT_URI`，Production 不接受這項隱式 callback 特例。LIVE LINE 的 mock authorize 入口必須回 404。
+4. reviewed migrations、DB tests/lint、build、配對 readback、synthetic smoke 與清理成功後，才執行 `supabase/fixtures/line_live_preview.sql`。只在非 parent 的 Preview Branch 啟用 OAuth foundation 與 LINE；旗標存在檢查和覆寫必須放在同一個 `DO` SQL statement，符合 `supabase db query --file` prepared-statement 執行器且保持原子性。
+5. LINE TEST Channel 暫時新增唯一 deployment Callback，保留原本設定。瀏覽器完成授權／Callback／session，資料庫只讀取 aggregate 作證，不記錄姓名、email、provider subject、token、cookie 或 Secret。需要手機驗證時交由帳號本人完成。
+6. 驗收結束移除本次 Callback、GitHub LINE Secret／兩個 Variables，以及所有帶該 PR metadata 的測試 deployment 和專屬 Supabase Branch；逐一 read-back。只刪 Secret 不會清掉已部署的 runtime Secret。若等待本人手機驗證，列明暫留資源與原因，不宣稱已清理。
+
+Production／DR 的 Channel、Callback、部署、aliases、backend 與 flags 不隨這項驗收更動；前後核對正式 `/login`、`/staff/login`、health 與實際 deployment。驗收不授權合併或 Production 啟用。
+
+回歸案例：`QA-AUTH-LINE-01`／`QA-AUTH-LINE-02`、`scripts/lib/production-workflow-contract.test.mjs`。PR #359 的第一輪 `34752843405` 在最後旗標 fixture 因多指令 prepared statement 失敗；此修正不略過任何前置 Gate，後續需以新 commit 重跑，不能把先前的 synthetic 成功稱為真實登入成功。
+
 ## 一次性人工授權
 
 Vercel CLI 的本機 App 授權可部署，但 Vercel 禁止它建立另一枚長效 Token。

@@ -5,18 +5,16 @@ import { getRequestAppLocale } from "@/lib/app-locale-server";
 import { createAdminTranslator } from "@/lib/messages/admin";
 import { isSupabaseAuthConfigured } from "@/lib/supabase-auth";
 import { resolveOAuthLoginFeatureState } from "@/server/auth/oauth/feature-flags";
-import { getOAuthMigrationReadiness } from "@/server/auth/oauth/migration-readiness";
 import { getOAuthLoginUiConfig } from "@/server/auth/oauth/provider-registry";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminLoginMethodsPage() {
   await requirePlatformAdminPage("/admin/login-methods");
-  const [{ locale }, state, uiConfig, readiness] = await Promise.all([
+  const [{ locale }, state, uiConfig] = await Promise.all([
     getRequestAppLocale(),
     resolveOAuthLoginFeatureState(),
     getOAuthLoginUiConfig(),
-    getOAuthMigrationReadiness(),
   ]);
   const m = createAdminTranslator(locale);
   const configured = Object.fromEntries(uiConfig.providers.map((provider) => [
@@ -32,11 +30,11 @@ export default async function AdminLoginMethodsPage() {
         <p className="mt-2 text-sm leading-6 text-stone-600">{m("Choose which sign-in methods appear on the public login page. Disabled methods are also rejected by their server endpoints.")}</p>
       </header>
       <AdminLoginMethodControls
-        initialPasswordEnabled={!state.oauthOnly}
+        initialPasswordEnabled={uiConfig.passwordEnabled}
         initialFoundationEnabled={state.foundation}
         initialProviders={state.providers}
         configuredProviders={configured}
-        readyForOAuthOnly={readiness.readyForOAuthOnly}
+        passwordPolicyLocked={state.oauthOnly}
       />
     </main>
   );
