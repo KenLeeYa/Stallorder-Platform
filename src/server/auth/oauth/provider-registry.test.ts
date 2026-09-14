@@ -6,6 +6,7 @@ vi.mock("./feature-flags", () => ({
     foundation: true,
     mock: true,
     oauthOnly: false,
+    passwordEnabled: true,
     providers: { GOOGLE: true, LINE: true, APPLE: false, MICROSOFT: false },
   }),
 }));

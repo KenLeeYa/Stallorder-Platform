@@ -63,7 +63,7 @@ describe("password login anti-lockout", () => {
     vi.clearAllMocks();
     mocks.checkRateLimit.mockResolvedValue({ allowed: true, remaining: 10, retryAfterSeconds: 60 });
     mocks.resetRateLimitBucket.mockResolvedValue(undefined);
-    mocks.resolveOAuthState.mockResolvedValue({ oauthOnly: false });
+    mocks.resolveOAuthState.mockResolvedValue({ oauthOnly: false, passwordEnabled: true });
     mocks.localQuickLoginAllowed.mockReturnValue(false);
     mocks.verifyPassword.mockResolvedValue(true);
     mocks.createSession.mockResolvedValue({ token: "session" });
@@ -126,6 +126,27 @@ describe("password login anti-lockout", () => {
 
     expect(response.status).toBe(403);
     expect(mocks.findProfile).not.toHaveBeenCalled();
+  });
+
+  it("rejects password sign-in independently of OAuth identity migration", async () => {
+    mocks.resolveOAuthState.mockResolvedValue({ oauthOnly: false, passwordEnabled: false });
+    const { POST } = await import("./route");
+    const response = await POST(loginRequest());
+    expect(response.status).toBe(403);
+    expect(mocks.findProfile).not.toHaveBeenCalled();
+    expect(mocks.verifyPassword).not.toHaveBeenCalled();
+    expect(mocks.createSession).not.toHaveBeenCalled();
+  });
+
+  it("retains only guarded local QA password verification when the method is disabled", async () => {
+    mocks.resolveOAuthState.mockResolvedValue({ oauthOnly: false, passwordEnabled: false });
+    mocks.localQuickLoginAllowed.mockReturnValue(true);
+    mocks.verifyPassword.mockResolvedValue(false);
+    const { POST } = await import("./route");
+    const response = await POST(loginRequest());
+    expect(response.status).toBe(401);
+    expect(mocks.verifyPassword).toHaveBeenCalledOnce();
+    expect(mocks.createSession).not.toHaveBeenCalled();
   });
 });
 

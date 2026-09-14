@@ -77,7 +77,16 @@ Every entry must identify the affected user roles, routes/services/data/environm
 
 | 2026-09-08 | `LOCAL-NOTE-NAVIGATION-001` | Implemented, local only | Keep the reusable-note navigator, query and scroll mounted beneath item actions/editors; isolate foreground keyboard handling and restore list focus after feedback. Replace tests that silently reopened the list with direct return assertions. | Merchant shared catalog / notes; no API or schema change | `CAT-019`, `QA-CAT-12`; [local correction report](REUSABLE_NOTE_NAVIGATION_FIX_20260908.md), responsive navigation and note CRUD/error regressions |
 
-## LINE Preview follow-up
+## 登入方式與 OA 授權邊界（2026-09-14）
+
+| Date | ID | Status | Decision | Scope | Evidence |
+| --- | --- | --- | --- | --- | --- |
+| 2026-09-14 | `AUTH-METHOD-POLICY-001` | Implemented locally; not released | Separate password-method disabling from full OAuth migration; preserve existing accounts/legacy Google, enforce actor recovery with serialized permanent policy writes and atomic audit; visible confirmation and feedback. | Admin control/API, Merchant/Staff login; no schema, account, Edge or DR change | [Contract and verification](AUTH_LOGIN_METHOD_POLICY_20260914.md); `ADM-012`, `QA-ADM-04`; exact-head release gates pending |
+| 2026-09-14 | `LINE-OA-AUTHORIZATION-001` | Assessed; Module not implemented | Personal LINE Login does not confer OA management. Retain one-time credential setup; separately assess approved corporate Module authorization rather than promising automatic linking. | Documentation only; no provider write or commercial application | [Official sources and limits](AUTH_LOGIN_METHOD_POLICY_20260914.md#商家-line-登入不能代替-oa-管理授權) |
+
+2026-09-13 follow-up evidence for the prior Preview entry: head `feec6611f399e6320de2053e77fccde60194b142` passed CI `34754202670`, paired Preview `34754202684` and security `34754202707`; actual LINE authorization/callback created a matching isolated identity and active session. Temporary resources were cleaned up. This historical pass does not certify the new password-policy revision or activate Production.
+
+## LINE Preview follow-up (historical)
 
 | Date | ID | Status | Change | Affected surfaces | Detail and verification |
 | --- | --- | --- | --- | --- | --- |

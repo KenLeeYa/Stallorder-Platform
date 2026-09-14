@@ -188,6 +188,7 @@ For responsive shell, modal, toolbar, dashboard, catalog, or reporting changes, 
 | `QA-ADM-01` | `ADM-001`–`ADM-004` | Responsive admin billing/plan UI, open-beta, and merchant billing visibility follow server flags. |
 | `QA-ADM-02` | `ADM-005`,`ADM-006`,`ADM-011` | The fixed-port launcher proves the expected worktree/HEAD/origin, refuses collision/remote DB, disables stale development service workers, and the four local roles plus public Menu, successful QR/takeout session creation, and cash smoke work on that same origin. The guarded OAuth-policy bypass remains absent/inert in Production and all origins fail closed outside local config. |
 | `QA-ADM-03` | `ADM-007`–`ADM-010` | Login methods reflect policy plus configured credentials; incomplete modules stay hidden/direct APIs closed; phone header/theme, simple copy, and privacy-safe device labels pass. |
+| `QA-ADM-04` | `ADM-012`, `ADM-005` | Disable passwords with a legacy Google administrator without identity migration or account changes. Public Merchant/Staff forms disappear; direct password login returns 403; guarded local roles still verify credentials. Reject unlinked actors, last-method removal, unconfigured LINE and temporary/scoped policies. Exercise current and expiring fallback states, concurrent removal and audit rollback in PostgreSQL. Verify cancel/confirm/success/failure/reload, six locales, 44px controls and 320/390/768/1440 widths. Configured LINE is not real Production login or OA authorization evidence. |
 
 ### Integrations and mobile
 

@@ -26,12 +26,14 @@
 
 每個啟用的攤位需要已連結官方帳號的 Messaging API channel 與 LINE Login channel。
 
-1. LINE Login callback URL：`https://staging.qidaigo.com/api/public/line/callback`。
+1. 使用目前核准環境的 LINE Login callback URL；正式站為 `https://app.qidaigo.com/api/public/line/callback`。
 2. 到攤位管理的「LINE 通知」輸入 LINE Login Channel ID、Messaging API Channel Access Token、Messaging API Channel Secret、LINE Login Channel Secret。
 3. 儲存後複製畫面產生的 Webhook URL，貼入 Messaging API channel 並啟用 Webhook。
 4. 憑證透過受 RBAC、CSRF、Origin validation 與 rate limit 保護的 API 寫入 Supabase Vault；表單編輯期間只暫存在目前頁面的記憶體，儲存後清空，不寫入瀏覽器持久儲存、一般資料表、log 或 Git。
 
-正式環境需改用 `https://app.qidaigo.com/api/public/line/callback`，且必須使用 Production 專用 LINE channel 與 Vault secret，不得沿用 Staging 憑證。
+正式環境必須使用 Production 專用 LINE channel 與 Vault secret，不得沿用測試憑證。目前沒有常設 Staging 測試網站；Staging 是分支發布關卡，測試使用隔離 paired Preview，DR 不是 QA 網站。不要將 callback 指向已停用的 Staging 網址。
+
+商家個人 LINE 登入不會自動取得其 OA 管理權限，也不能自動選取商家擁有的官方帳號。現行首次設定與可申請的 Module 授權方案之區別，見 [LINE OA 授權評估](AUTH_LOGIN_METHOD_POLICY_20260914.md#商家-line-登入不能代替-oa-管理授權)；Module 尚未實作或啟用。
 
 ## 商家首次設定引導（2026-09-08）
 
@@ -72,17 +74,17 @@
 
 實作依循 LINE 官方文件：[Webhook signature](https://developers.line.biz/en/docs/messaging-api/verify-webhook-signature/)、[Messaging API push](https://developers.line.biz/en/docs/messaging-api/sending-messages/)、[LINE Login PKCE](https://developers.line.biz/en/docs/line-login/integrate-pkce/) 與 [LINE Login API](https://developers.line.biz/en/reference/line-login/)。
 
-## Staging 驗收
+## 隔離 Preview 驗收（取代常設 Staging 網站）
 
 1. 以 owner／manager 登入，確認攤位管理可進入「LINE 通知」，KITCHEN 不可進入。
-2. 使用 Staging 專用測試 channel 儲存設定，確認表格中只有 Vault reference，沒有明文 secret。
+2. 使用本次核准的 TEST channel 與唯一 Preview callback 儲存設定，確認表格中只有 Vault reference，沒有明文 secret；不得沿用正式商家憑證。
 3. 建立測試訂單後啟用 LINE 通知，完成 OAuth，回到訂單頁應顯示「已連結」。
 4. 依序確認訂單、標記可取餐、取消另一張測試訂單，確認工作佇列與通知內容。
 5. 重新送出相同 webhook event，確認只處理一次；送出錯誤 signature 應回 `401`。
 6. 點「再次點餐」，確認售罄商品被排除、價格變動顯示、註記變更要求重新確認。
 7. 停止 LINE 通知後再次改變狀態，不得新增通知工作。
 
-沒有 Staging LINE 測試 channel 憑證時，可完成所有自動化、權限與介面 QA，但無法驗收 LINE 平台實際送達。
+沒有測試 channel 憑證時，可完成自動化、權限與介面 QA，但無法驗收 LINE 平台實際送達。商家 Login 的 paired Preview 成功亦不代替顧客 OA 通知實測。
 
 ## 回復
 

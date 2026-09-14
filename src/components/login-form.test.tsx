@@ -5,12 +5,32 @@ import { LoginApplicationPrompt } from "@/components/login-application-prompt";
 import { getLoginResponseMessageKey, LoginForm } from "@/components/login-form";
 
 describe("localized login form", () => {
+  it.each(["MERCHANT", "STAFF"] as const)("keeps legacy Google and LINE but removes password controls for %s", (audience) => {
+    const html = renderToStaticMarkup(
+      <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
+        <LoginForm
+          audience={audience}
+          legacyGoogleEnabled
+          oauthOnly={false}
+          passwordEnabled={false}
+          oauthProviders={[{ provider: "LINE", label: "LINE" }]}
+        />
+      </LocaleProvider>,
+    );
+    expect(html).toContain('href="/auth/google"');
+    expect(html).toContain('href="/api/auth/line/start"');
+    expect(html).not.toContain('name="password"');
+    expect(html).not.toContain('name="email"');
+    expect(html).not.toContain("使用電子郵件與密碼登入");
+  });
+
   it("renders all login controls from the shared English dictionary", () => {
     const html = renderToStaticMarkup(
       <LocaleProvider initialLocale="en" hasLocaleCookie>
         <LoginForm
           legacyGoogleEnabled={false}
           oauthOnly={false}
+          passwordEnabled
           oauthProviders={[{ provider: "GOOGLE", label: "Google" }]}
           oauthError="callback-failed"
         />
@@ -35,6 +55,7 @@ describe("localized login form", () => {
           audience="STAFF"
           legacyGoogleEnabled={false}
           oauthOnly={false}
+          passwordEnabled
           oauthProviders={[{ provider: "LINE", label: "LINE" }]}
         />
       </LocaleProvider>,
@@ -78,6 +99,7 @@ describe("localized login form", () => {
         <LoginForm
           legacyGoogleEnabled={false}
           oauthOnly={false}
+          passwordEnabled
           oauthProviders={[]}
           localQaAccounts={accounts}
         />
@@ -85,7 +107,7 @@ describe("localized login form", () => {
     );
     const withoutQuickLogin = renderToStaticMarkup(
       <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
-        <LoginForm legacyGoogleEnabled={false} oauthOnly={false} oauthProviders={[]} />
+        <LoginForm legacyGoogleEnabled={false} oauthOnly={false} passwordEnabled oauthProviders={[]} />
       </LocaleProvider>,
     );
 

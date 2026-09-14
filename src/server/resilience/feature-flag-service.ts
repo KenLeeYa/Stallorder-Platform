@@ -6,6 +6,7 @@ import { z } from "zod";
 import { logEvent } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { getOAuthMigrationReadiness } from "@/server/auth/oauth/migration-readiness";
+import { getLoginMethodAvailability } from "@/server/auth/oauth/login-method-availability";
 
 type ResilienceFeatureFlagRecord = Prisma.ResilienceFeatureFlagGetPayload<{
   include: { overrides: true };
@@ -39,6 +40,7 @@ export const resilienceFeatureFlagCodes = [
   "OAUTH_MICROSOFT_ENABLED",
   "AUTH_PASSKEYS_ENABLED",
   "OAUTH_ONLY_LOGIN_UI_ENABLED",
+  "AUTH_PASSWORD_LOGIN_ENABLED",
   "OAUTH_IDENTITY_LINKING_ENABLED",
   "OAUTH_MOCK_PROVIDER_ENABLED",
   "DELIVERY_PLATFORM_FOUNDATION_ENABLED",
@@ -146,6 +148,7 @@ export const resilienceFeatureFlagDefaults: Record<ResilienceFeatureFlagCode, bo
   OAUTH_MICROSOFT_ENABLED: false,
   AUTH_PASSKEYS_ENABLED: false,
   OAUTH_ONLY_LOGIN_UI_ENABLED: false,
+  AUTH_PASSWORD_LOGIN_ENABLED: true,
   OAUTH_IDENTITY_LINKING_ENABLED: false,
   OAUTH_MOCK_PROVIDER_ENABLED: false,
   DELIVERY_PLATFORM_FOUNDATION_ENABLED: false,
@@ -521,6 +524,78 @@ async function assertScopeExists(command: ResilienceFlagOverrideCommand) {
   }
 }
 
+const loginMethodFlagCodes = [
+  "AUTH_PASSWORD_LOGIN_ENABLED", "OAUTH_ONLY_LOGIN_UI_ENABLED",
+  "OAUTH_IDENTITY_FOUNDATION_ENABLED", "OAUTH_MOCK_PROVIDER_ENABLED",
+  "OAUTH_GOOGLE_ENABLED", "OAUTH_LINE_ENABLED", "OAUTH_APPLE_ENABLED", "OAUTH_MICROSOFT_ENABLED",
+] as const satisfies readonly ResilienceFeatureFlagCode[];
+
+async function assertLoginMethodChange(
+  transaction: Prisma.TransactionClient,
+  code: ResilienceFeatureFlagCode,
+  command: ResilienceFlagOverrideCommand,
+  actor: FeatureFlagActor,
+) {
+  if (!loginMethodFlagCodes.some((candidate) => candidate === code)) return;
+  if (command.scopeType !== "GLOBAL" || command.expiresAt) {
+    throw new Error("AUTH_METHOD_GLOBAL_PERMANENT_REQUIRED");
+  }
+  // Serialize all login-method writes, including concurrent removal of two alternatives.
+  await transaction.$executeRaw`select pg_advisory_xact_lock(hashtext('stallorder:login-method-policy'))`;
+  const flags = await transaction.resilienceFeatureFlag.findMany({
+    where: { code: { in: [...loginMethodFlagCodes] } },
+    include: { overrides: true },
+  });
+  const states = Object.fromEntries(loginMethodFlagCodes.map((flagCode) => {
+    const flag = flags.find((entry) => entry.code === flagCode);
+    // A fallback must work now and after temporary overrides expire.
+    const currentEnabled = flag ? evaluateResilienceFeatureFlag(flag).enabled : resilienceFeatureFlagDefaults[flagCode];
+    const durableEnabled = flag ? evaluateResilienceFeatureFlag({
+      ...flag, overrides: flag.overrides.filter((override) => !override.expiresAt),
+    }).enabled : resilienceFeatureFlagDefaults[flagCode];
+    const enabled = flagCode === "OAUTH_ONLY_LOGIN_UI_ENABLED"
+      ? currentEnabled || durableEnabled
+      : currentEnabled && durableEnabled;
+    return [flagCode, flagCode === code ? command.enabled : enabled];
+  })) as Record<(typeof loginMethodFlagCodes)[number], boolean>;
+  if (code === "AUTH_PASSWORD_LOGIN_ENABLED" && command.enabled && states.OAUTH_ONLY_LOGIN_UI_ENABLED) {
+    throw new Error("AUTH_PASSWORD_LOGIN_CONTRACTED");
+  }
+  const availability = getLoginMethodAvailability({
+    foundation: states.OAUTH_IDENTITY_FOUNDATION_ENABLED,
+    mock: states.OAUTH_MOCK_PROVIDER_ENABLED,
+    oauthOnly: states.OAUTH_ONLY_LOGIN_UI_ENABLED,
+    passwordEnabled: states.AUTH_PASSWORD_LOGIN_ENABLED,
+    providers: {
+      GOOGLE: states.OAUTH_GOOGLE_ENABLED, LINE: states.OAUTH_LINE_ENABLED,
+      APPLE: states.OAUTH_APPLE_ENABLED, MICROSOFT: states.OAUTH_MICROSOFT_ENABLED,
+    },
+  });
+  const changedProvider = availability.providers.find(({ provider }) => code === `OAUTH_${provider}_ENABLED`);
+  if (command.enabled && changedProvider && !changedProvider.configured
+    && !(changedProvider.provider === "GOOGLE" && availability.legacyGoogleEnabled)) {
+    throw new Error("AUTH_METHOD_PROVIDER_NOT_CONFIGURED");
+  }
+  const enabledProviders = availability.providers.filter(({ enabled }) => enabled).map(({ provider }) => provider);
+  if (!availability.passwordEnabled && !availability.legacyGoogleEnabled && !enabledProviders.length) {
+    throw new Error("AUTH_METHOD_LAST_AVAILABLE_REQUIRED");
+  }
+  const alternatives: Prisma.ProfileWhereInput[] = [];
+  if (availability.passwordEnabled) alternatives.push({ passwordHash: { not: null } });
+  if (enabledProviders.length) alternatives.push({ authIdentities: { some: {
+    provider: { in: enabledProviders }, revokedAt: null,
+  } } });
+  if (availability.legacyGoogleEnabled) {
+    const projectCode = process.env.AUTH_PROJECT_CODE?.trim().toUpperCase() || "PRIMARY";
+    if (!/^[A-Z][A-Z0-9_]{1,31}$/.test(projectCode)) throw new Error("AUTH_PROJECT_CODE_INVALID");
+    alternatives.push({ authProjectIdentities: { some: { authProjectCode: projectCode, provider: "GOOGLE" } } });
+  }
+  const recoverable = await transaction.profile.count({
+    where: { id: actor.profileId, isActive: true, OR: alternatives },
+  });
+  if (!recoverable) throw new Error("AUTH_METHOD_ADMIN_ACCESS_REQUIRED");
+}
+
 export async function setResilienceFeatureFlagOverride(
   code: ResilienceFeatureFlagCode,
   command: ResilienceFlagOverrideCommand,
@@ -528,7 +603,7 @@ export async function setResilienceFeatureFlagOverride(
 ) {
   assertResilienceFeatureFlagActivationAllowed(code, command.enabled);
   const flag = await prisma.resilienceFeatureFlag.findUnique({ where: { code } });
-  if (!flag) throw new Error("RESILIENCE_FLAG_NOT_FOUND");
+  if (!flag && code !== "AUTH_PASSWORD_LOGIN_ENABLED") throw new Error("RESILIENCE_FLAG_NOT_FOUND");
   if (code === "LOCAL_EDGE_GATEWAY_ENABLED" && command.enabled) {
     throw new Error("RESILIENCE_FUTURE_FLAG_LOCKED");
   }
@@ -542,7 +617,7 @@ export async function setResilienceFeatureFlagOverride(
   if (expiresAt && expiresAt.getTime() <= now.getTime()) {
     throw new Error("RESILIENCE_FLAG_EXPIRY_NOT_FUTURE");
   }
-  if (flag.isEmergency) {
+  if (flag?.isEmergency) {
     if (!expiresAt) throw new Error("RESILIENCE_EMERGENCY_EXPIRY_REQUIRED");
     if (expiresAt.getTime() - now.getTime() > 24 * 60 * 60 * 1000) {
       throw new Error("RESILIENCE_EMERGENCY_EXPIRY_TOO_LONG");
@@ -552,8 +627,21 @@ export async function setResilienceFeatureFlagOverride(
   await assertScopeExists(command);
 
   const result = await prisma.$transaction(async (transaction) => {
+    await assertLoginMethodChange(transaction, code, command, actor);
+    // This additive catalog entry is runtime configuration, not DR-first schema DML.
+    // Its creation, the reviewed override and the audit commit or roll back together.
+    const storedFlag = flag ?? await transaction.resilienceFeatureFlag.upsert({
+      where: { code: "AUTH_PASSWORD_LOGIN_ENABLED" },
+      create: {
+        code: "AUTH_PASSWORD_LOGIN_ENABLED",
+        description: "Allows email/password sign-in independently of OAuth identity migration.",
+        defaultEnabled: true,
+        isEmergency: false,
+      },
+      update: {},
+    });
     const where = {
-      flagId: flag.id,
+      flagId: storedFlag.id,
       scopeType: command.scopeType,
       organizationId: command.organizationId,
       stallId: command.stallId,
@@ -585,7 +673,7 @@ export async function setResilienceFeatureFlagOverride(
         organizationId: command.organizationId,
         stallId: command.stallId,
         actorProfileId: actor.profileId,
-        action: flag.isEmergency
+        action: storedFlag.isEmergency
           ? "RESILIENCE_EMERGENCY_FLAG_CHANGED"
           : "RESILIENCE_FEATURE_FLAG_CHANGED",
         entityType: "RESILIENCE_FEATURE_FLAG_OVERRIDE",
@@ -594,7 +682,7 @@ export async function setResilienceFeatureFlagOverride(
         requestId: actor.requestId,
         ipHash: actor.ipHash,
         metadata: JSON.stringify({
-          severity: flag.isEmergency ? "HIGH" : "INFO",
+          severity: storedFlag.isEmergency ? "HIGH" : "INFO",
           code,
           scopeType: command.scopeType,
         }),
@@ -607,12 +695,12 @@ export async function setResilienceFeatureFlagOverride(
   });
   flagSnapshotCache.clear();
 
-  logEvent(flag.isEmergency ? "warn" : "info", "RESILIENCE_FEATURE_FLAG_CHANGED", {
+  logEvent(flag?.isEmergency ? "warn" : "info", "RESILIENCE_FEATURE_FLAG_CHANGED", {
     requestId: actor.requestId,
     code,
     scopeType: command.scopeType,
     enabled: command.enabled,
-    emergency: flag.isEmergency,
+    emergency: flag?.isEmergency ?? false,
   });
 
   return {

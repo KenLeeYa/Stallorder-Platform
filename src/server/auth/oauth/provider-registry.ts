@@ -14,8 +14,8 @@ import {
 } from "./feature-flags";
 import { MockOidcProviderAdapter } from "./mock-adapter";
 import { OidcProviderAdapter } from "./oidc-adapter";
+import { getLoginMethodAvailability } from "./login-method-availability";
 import {
-  oauthProviders,
   type OAuthProvider,
   type OAuthProviderAdapter,
 } from "./types";
@@ -60,31 +60,7 @@ export async function getOAuthLoginUiConfig(
   environment: NodeJS.ProcessEnv = process.env,
 ) {
   const state = await resolveOAuthLoginFeatureState();
-  const providers = oauthProviders.map((provider) => {
-    let mode: "LIVE" | "MOCK";
-    try {
-      mode = getOAuthProviderModeForProvider(provider, environment);
-    } catch {
-      mode = "MOCK";
-    }
-    const configured = mode === "MOCK"
-      ? !isProductionOAuthRuntime(environment)
-        && Boolean(environment.OAUTH_STATE_SECRET?.trim())
-      : isLiveOAuthProviderConfigured(provider, environment);
-    return {
-      provider,
-      requested: state.foundation && state.providers[provider],
-      enabled: state.foundation
-        && state.providers[provider]
-        && configured
-        && (mode === "LIVE" || state.mock),
-      configured,
-    };
-  });
-  return {
-    oauthOnly: state.oauthOnly,
-    providers,
-  };
+  return getLoginMethodAvailability(state, environment);
 }
 
 export async function getEnabledOAuthProviderAdapter(

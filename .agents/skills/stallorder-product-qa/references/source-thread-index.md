@@ -28,6 +28,7 @@ Related ChatGPT project discussions include system-conversion analysis, external
 
 ## Latest-instruction conflict resolutions
 
+- **2026-09-14 login-method correction**: the owner in `019ff9be-71c6-7740-9d83-3186853b0f90` explicitly corrects the request to disable email/password sign-in, not the five existing management/operational accounts. Preserve accounts and legacy Google access; no forced OAuth migration. Confirm formal LINE readiness separately from prior Preview success. Assess merchant OA linking without treating personal LINE Login as OA management consent or inferring approval for a new commercial Module integration.
 - **Single stall entry**: latest requirement routes directly to the stall’s QR management page, not generic stall settings.
 - **Cross-stall report entry**: an authorized single-stall Merchant still sees the report entry and ordinary overview; only truly multi-stall comparison/batch content is conditional.
 - **Work mode and stall selection**: pure Staff/Kitchen accounts do not switch or choose stalls; Merchant-authorized role views may.

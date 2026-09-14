@@ -113,3 +113,10 @@ docker ps -a --filter "label=com.supabase.cli.project=$testProject" --format '{{
 沿用上一節 `staff-push-announcements-20260911` 的啟動程式與更新後的 `app-process.json`／`device-process.json`／`https-process.json`。本輪應用程式與裝置程序日誌存於同層 `printer-indicator-push-sound-20260912` 的 `app-runtime.log`／`device-runtime.log`；停止前仍需核對目前 port owner 與父子程序，不能只照文件 PID 執行。
 
 使用者已確認 Android 16／OPPO Reno11 5G 的網站通知設為快訊且有鈴聲，仍待新版鎖屏實測，因此保留上述五項依賴供手動 QA。未旋轉測試 CA、VAPID 或加密憑證，未清除既有訂閱與測試資料。測試結束後依既有程序停止，需測試時再啟用。驗證範圍與實機限制見 [本輪記錄](STAFF_PRINTER_INDICATOR_PUSH_SOUND_20260912.md)。
+
+## 2026-09-14 登入方式修正驗證（已停止）
+
+- 本次 app 在 `Stallorder-Platform-line-live-preview-20260913` 的 3020 執行；測試完成已停止，沒有保留人工 QA 例外。
+- 行為測試使用 55722 既有 catalog DB 容器中的獨立 `stallorder_auth_methods_20260914`，沒有修改原本測試 DB，也沒有停止該既有容器。
+- 全新 migration/pgTAP 使用獨立 project `stallorder-auth-policy-20260914`，DB 56222、API 56221；本次建立的精確 db/kong/storage 三個容器已停止並讀回 exited，資料／容器／volumes 保留。其他 18 個原有運行容器未動。
+- 此測試 project 的 config、重建來源與驗收收據位於 `C:/Users/KY/.codex/visualizations/2026/08/13/019ff9be-71c6-7740-9d83-3186853b0f90/auth-methods-20260914`。恢復前先確認 ports、labels 與使用者，再由 `db-test` config 啟動；app 可於 LINE 工作樹使用 `npm run dev:qa -- --port 3020`。忽略的本機環境檔僅含本機測試值，沒有 Production Provider 憑證。

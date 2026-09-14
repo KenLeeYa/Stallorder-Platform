@@ -4,6 +4,8 @@ import { interpolateMessage, type MessageValues } from "@/lib/message-catalog";
 type AdminMessageRow = readonly [zhTW: string, ja: string, ko: string, vi: string, th: string];
 
 const rows = {
+  "Cancel change": ["取消", "キャンセル", "취소", "Hủy", "ยกเลิก"],
+  "Confirm change": ["確認變更", "変更を確定", "변경 확인", "Xác nhận thay đổi", "ยืนยันการเปลี่ยนแปลง"],
   "Platform administration": ["平台管理後台", "プラットフォーム管理", "플랫폼 관리", "Quản trị nền tảng", "การดูแลแพลตฟอร์ม"],
   "Platform administration navigation": ["平台管理導覽", "プラットフォーム管理ナビゲーション", "플랫폼 관리 탐색", "Điều hướng quản trị nền tảng", "เมนูผู้ดูแลแพลตฟอร์ม"],
   "Platform catalog administration": ["平台目錄管理", "プラットフォームカタログ管理", "플랫폼 카탈로그 관리", "Quản lý danh mục nền tảng", "การจัดการแค็ตตาล็อกแพลตฟอร์ม"],
@@ -25,10 +27,12 @@ const rows = {
   "LINE sign-in": ["LINE 登入", "LINE ログイン", "LINE 로그인", "Đăng nhập LINE", "เข้าสู่ระบบด้วย LINE"],
   "Apple sign-in": ["Apple 登入", "Apple ログイン", "Apple 로그인", "Đăng nhập Apple", "เข้าสู่ระบบด้วย Apple"],
   "Microsoft sign-in": ["Microsoft 登入", "Microsoft ログイン", "Microsoft 로그인", "Đăng nhập Microsoft", "เข้าสู่ระบบด้วย Microsoft"],
-  "Password sign-in remains available to existing merchant, staff, kitchen, and platform administrator accounts.": ["既有商家、店員、廚房與平台管理者帳號可使用帳密登入。", "既存の事業者、スタッフ、キッチン、プラットフォーム管理者がパスワードでログインできます。", "기존 상점, 직원, 주방 및 플랫폼 관리자 계정이 비밀번호로 로그인할 수 있습니다.", "Tài khoản thương gia, nhân viên, bếp và quản trị viên nền tảng hiện có có thể đăng nhập bằng mật khẩu.", "บัญชีร้านค้า พนักงาน ครัว และผู้ดูแลแพลตฟอร์มเดิมสามารถเข้าสู่ระบบด้วยรหัสผ่านได้"],
+  "Turning this off blocks email/password sign-in only. Accounts and existing Google or LINE identities are preserved.": ["關閉後只停用電子郵件與密碼登入；帳號及既有 Google、LINE 登入身分都會保留。", "無効化するのはメールとパスワードのログインのみです。アカウントと既存の Google・LINE 連携は保持されます。", "이메일/비밀번호 로그인만 차단합니다. 계정과 기존 Google·LINE 연결은 유지됩니다.", "Chỉ tắt đăng nhập email/mật khẩu. Tài khoản và liên kết Google, LINE hiện có được giữ nguyên.", "ปิดเฉพาะการเข้าสู่ระบบด้วยอีเมลและรหัสผ่าน บัญชีและการเชื่อมโยง Google หรือ LINE เดิมยังคงอยู่"],
   "OAuth methods appear only when their provider credentials are configured.": ["第三方登入只有在 Provider 憑證設定完整時才會顯示。", "OAuth はプロバイダー認証情報が設定済みの場合のみ表示されます。", "OAuth 방식은 공급자 자격 증명이 설정된 경우에만 표시됩니다.", "Phương thức OAuth chỉ hiển thị khi thông tin xác thực của nhà cung cấp đã được cấu hình.", "OAuth จะแสดงเมื่อกำหนดข้อมูลรับรองของผู้ให้บริการแล้วเท่านั้น"],
   "Provider credentials are not configured.": ["Provider 憑證尚未設定。", "プロバイダー認証情報が未設定です。", "공급자 자격 증명이 설정되지 않았습니다.", "Chưa cấu hình thông tin xác thực của nhà cung cấp.", "ยังไม่ได้กำหนดข้อมูลรับรองของผู้ให้บริการ"],
-  "Password sign-in cannot be disabled until privileged accounts are linked and at least one configured OAuth method is enabled.": ["高權限帳號完成綁定且至少開啟一個已設定的 OAuth 方式前，不可關閉帳密登入。", "権限アカウントの連携が完了し、設定済み OAuth が1つ以上有効になるまでパスワードログインは無効化できません。", "권한 계정 연결이 완료되고 구성된 OAuth 방식이 하나 이상 활성화되기 전에는 비밀번호 로그인을 끌 수 없습니다.", "Không thể tắt đăng nhập mật khẩu cho đến khi tài khoản đặc quyền được liên kết và có ít nhất một phương thức OAuth đã cấu hình được bật.", "ปิดการเข้าสู่ระบบด้วยรหัสผ่านไม่ได้จนกว่าจะผูกบัญชีสิทธิ์สูงและเปิด OAuth ที่กำหนดค่าแล้วอย่างน้อยหนึ่งวิธี"],
+  "The full OAuth-only migration policy is active. Password sign-in cannot be restored here.": ["全面 OAuth-only 遷移政策已啟用；此處不能恢復帳密登入，須先依遷移流程調整政策。", "OAuth 専用の移行ポリシーが有効です。ここではパスワードログインを復元できません。", "전체 OAuth 전용 이전 정책이 활성화되어 여기서 비밀번호 로그인을 복원할 수 없습니다.", "Chính sách chuyển đổi hoàn toàn sang OAuth đang bật. Không thể khôi phục đăng nhập mật khẩu tại đây.", "นโยบายย้ายไปใช้ OAuth เท่านั้นทำงานอยู่ ไม่สามารถเปิดการเข้าสู่ระบบด้วยรหัสผ่านที่นี่ได้"],
+  "Keep a verified sign-in identity available for your administrator account before making this change.": ["此變更會移除你目前可用的登入方式；請先連結另一種已啟用的登入身分。", "変更前に、管理者アカウントで使える確認済みのログイン方法を連携してください。", "변경하기 전에 관리자 계정에서 사용할 수 있는 인증된 로그인 수단을 연결하세요.", "Hãy liên kết một danh tính đăng nhập đã xác minh, còn hoạt động cho quản trị viên trước khi thay đổi.", "โปรดเชื่อมโยงวิธีเข้าสู่ระบบที่ยืนยันแล้วและยังใช้ได้กับบัญชีผู้ดูแลก่อนเปลี่ยนการตั้งค่า"],
+  "Login methods require a permanent global setting.": ["登入方式必須使用不自動到期的全域設定。", "ログイン方法には有効期限のない全体設定が必要です。", "로그인 방식은 만료되지 않는 전역 설정이어야 합니다.", "Phương thức đăng nhập cần cài đặt toàn cục không hết hạn.", "วิธีเข้าสู่ระบบต้องใช้การตั้งค่าส่วนกลางที่ไม่หมดอายุ"],
   "At least one sign-in method must remain available.": ["至少必須保留一種可用的登入方式。", "少なくとも1つのログイン方法を利用可能にしてください。", "최소 하나의 로그인 방식을 사용할 수 있어야 합니다.", "Phải giữ lại ít nhất một phương thức đăng nhập khả dụng.", "ต้องคงวิธีเข้าสู่ระบบที่ใช้ได้อย่างน้อยหนึ่งวิธี"],
   "Login method updated.": ["登入方式已更新。", "ログイン方法を更新しました。", "로그인 방식을 업데이트했습니다.", "Đã cập nhật phương thức đăng nhập.", "อัปเดตวิธีเข้าสู่ระบบแล้ว"],
   "Module visibility": ["模組顯示管理", "モジュール表示管理", "모듈 표시 관리", "Quản lý hiển thị mô-đun", "การจัดการการแสดงโมดูล"],
@@ -658,6 +662,11 @@ export function getAdminCodeLabel(locale: AppLocale, code: string) {
 }
 
 const errorCodeMessageKeys: Record<string, AdminMessageKey> = {
+  AUTH_METHOD_LAST_AVAILABLE_REQUIRED: "At least one sign-in method must remain available.",
+  AUTH_METHOD_PROVIDER_NOT_CONFIGURED: "Provider credentials are not configured.",
+  AUTH_METHOD_ADMIN_ACCESS_REQUIRED: "Keep a verified sign-in identity available for your administrator account before making this change.",
+  AUTH_METHOD_GLOBAL_PERMANENT_REQUIRED: "Login methods require a permanent global setting.",
+  AUTH_PASSWORD_LOGIN_CONTRACTED: "The full OAuth-only migration policy is active. Password sign-in cannot be restored here.",
   FORBIDDEN: "You do not have permission to perform this action.",
   UNAUTHORIZED: "You do not have permission to perform this action.",
   NOT_FOUND: "The requested record was not found.",

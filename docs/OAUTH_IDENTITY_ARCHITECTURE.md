@@ -57,3 +57,5 @@ Apple Server-to-Server Event 使用獨立 Ledger 與 Event Hash 去重；未取�
 ## Migration Gate
 
 `npm run auth:migration-report` 只輸出統計，不輸出 Email 或身分值。Platform Admin、Primary Owner、Staff/Kitchen 必須全部有已驗證 Provider Subject，且正式 Callback/Canary 通過後，才可進入 Local Credential Contract Removal。
+
+一般「關閉電子郵件與密碼登入」獨立使用 `AUTH_PASSWORD_LOGIN_ENABLED`，不等同完整 OAuth-only 遷移，也不修改或停用既有帳號。有效入口、目前管理者防鎖定、原子稽核與 LINE OA 的不同授權範圍見 [登入方式控制契約](AUTH_LOGIN_METHOD_POLICY_20260914.md)。

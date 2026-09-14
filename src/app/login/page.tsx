@@ -1,7 +1,6 @@
 import { LoginApplicationPrompt } from "@/components/login-application-prompt";
 import { LoginForm } from "@/components/login-form";
 import { LoginShell } from "@/components/login-shell";
-import { isSupabaseAuthConfigured } from "@/lib/supabase-auth";
 import { getOAuthLoginUiConfig } from "@/server/auth/oauth/provider-registry";
 
 export const dynamic = "force-dynamic";
@@ -28,11 +27,7 @@ export default async function LoginPage() {
       provider: provider.provider,
       label: providerLabels[provider.provider],
     }));
-  const googleProvider = oauth.providers.find((provider) => provider.provider === "GOOGLE");
-  const legacyGoogleEnabled = !oauth.oauthOnly
-    && Boolean(googleProvider?.requested)
-    && isSupabaseAuthConfigured()
-    && !providers.some((provider) => provider.provider === "GOOGLE");
+  const legacyGoogleEnabled = oauth.legacyGoogleEnabled;
   const applicationProvider = providers.find((provider) => provider.provider === "GOOGLE")
     ?? providers.find((provider) => provider.provider === "APPLE");
   const applicationUrl = applicationProvider
@@ -48,6 +43,7 @@ export default async function LoginPage() {
       <LoginForm
         legacyGoogleEnabled={legacyGoogleEnabled}
         oauthOnly={oauth.oauthOnly}
+        passwordEnabled={oauth.passwordEnabled}
         oauthProviders={providers}
         localQaAccounts={localQaQuickLoginEnabled ? [...localQaAccounts] : undefined}
       />

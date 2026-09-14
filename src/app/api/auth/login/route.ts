@@ -90,7 +90,8 @@ export async function POST(request: Request) {
   }
 
   const oauthState = await timing.measureDb(() => resolveOAuthLoginFeatureState());
-  if (oauthState.oauthOnly && !isLocalQaQuickLoginAllowed(request, parsed.data.email)) {
+  if ((!oauthState.passwordEnabled || oauthState.oauthOnly)
+    && !isLocalQaQuickLoginAllowed(request, parsed.data.email)) {
     await timing.measureDb(() => recordAuditEvent({
       action: "PASSWORD_LOGIN_DISABLED",
       entityType: "AUTH",
