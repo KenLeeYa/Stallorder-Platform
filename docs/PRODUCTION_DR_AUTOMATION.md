@@ -24,6 +24,21 @@ verified `main` tree after it matches `staging`.
 
 ## Protected DR operator entry
 
+For an already running `stallorder-dr` project, use the same workflow's separate
+`plan-update` / `update` operations with `PLAN_DR_OPERATOR_UPDATE` /
+`UPDATE_PROTECTED_DR_OPERATOR_ENTRY`. The Plan binds the existing project,
+healthy recovery deployment, Primary snapshot, read-only runtime, DNS and Access
+policy. It adds a designated-operator email requirement while retaining the
+Cloudflare-account-member requirement. Candidate validation precedes policy
+and alias changes; rollback restores only changes attributable to that update.
+It never recreates or deletes the project, Access application or DNS.
+See [health authorization and rollout order](HEALTH_ADMIN_DASHBOARD_20260916.md).
+Primary availability probes now use the body-free `/api/connectivity`;
+diagnostic health APIs require platform administrator authentication.
+
+The following sequence describes first-time bootstrap only; its old
+account-member policy is narrowed by the separate existing-project update.
+
 `.github/workflows/production-dr-operator-entry.yml` is the independent
 domain/runtime workflow for `dr.qidaigo.com`. It is not a database promotion
 and must never move `app.qidaigo.com`.

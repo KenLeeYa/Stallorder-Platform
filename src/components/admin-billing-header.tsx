@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Activity,
   BadgeDollarSign,
   ChartNoAxesCombined,
   ClipboardList,
@@ -29,6 +30,7 @@ type AdminNavigationItem = {
 };
 
 const items: ReadonlyArray<AdminNavigationItem> = [
+  { href: "/admin/health", label: "System health", icon: Activity },
   { href: "/admin/merchant-applications", label: "Merchant applications", icon: ClipboardList },
   { href: "/admin/billing", label: "Billing overview", icon: BadgeDollarSign },
   { href: "/admin/subscriptions", label: "Subscriptions", icon: CreditCard },

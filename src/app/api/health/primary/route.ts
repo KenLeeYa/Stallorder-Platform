@@ -2,8 +2,11 @@ import { NextResponse } from "next/server";
 import { logEvent } from "@/lib/audit";
 import { createRequestId } from "@/lib/security";
 import { checkPrimaryDatabaseHealth } from "@/server/resilience/health-service";
+import { authorizeHealthApiRequest } from "@/server/resilience/health-authorization";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const authorization = await authorizeHealthApiRequest(request);
+  if (!authorization.ok) return authorization.response;
   const requestId = createRequestId();
   const health = await checkPrimaryDatabaseHealth();
   const available = health.status === "HEALTHY" || health.status === "DEGRADED";

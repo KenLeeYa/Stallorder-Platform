@@ -11,7 +11,7 @@
     }
   ],
   "vars": {
-    "PRIMARY_HEALTH_URL": "https://app.qidaigo.com/api/health",
+    "PRIMARY_HEALTH_URL": "https://app.qidaigo.com/api/connectivity",
     "INCIDENT_STATUS": "OPERATIONAL",
     "INCIDENT_SUMMARY": "目前無已知重大事故。",
     "INCIDENT_WORKAROUND": "若頁面暫時無法操作，請稍後重試或直接聯繫現場商家。",

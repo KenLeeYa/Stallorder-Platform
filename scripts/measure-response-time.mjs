@@ -47,7 +47,7 @@ const routes = [
   { label: "/", path: "/", budget: { ttfbP75Ms: 300 } },
   { label: "/login", path: "/login", budget: { ttfbP75Ms: 500 } },
   { label: "/onboarding", path: "/onboarding" },
-  { label: "/api/health", path: "/api/health", budget: { totalP75Ms: 300 } },
+  { label: "/api/connectivity", path: "/api/connectivity", budget: { totalP75Ms: 300 } },
   {
     label: "/q/:qrToken",
     path: qrToken ? `/q/${encodeURIComponent(qrToken)}` : null,

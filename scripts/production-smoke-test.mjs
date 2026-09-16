@@ -106,17 +106,16 @@ async function run() {
     assert("HSTS enabled", Boolean(mainResponse.headers.get("strict-transport-security")), mainResponse.headers.get("strict-transport-security") ?? "missing");
   }
 
-  const healthResponse = await request("Health endpoint", new URL("/api/health", baseUrl));
+  const healthResponse = await request("Public connectivity endpoint", new URL("/api/connectivity", baseUrl));
   const healthBody = await healthResponse.text();
-  let healthPayload;
-  try {
-    healthPayload = JSON.parse(healthBody);
-  } catch {
-    healthPayload = null;
-  }
-  assert("Health endpoint is healthy", healthResponse.status === 200 && healthPayload?.status === "ok", `status=${healthResponse.status}`);
+  assert("Connectivity endpoint is reachable and body-free", healthResponse.status === 200 && healthBody === "", `status=${healthResponse.status}`);
+  assert("Connectivity marker is valid", ["ready", "degraded"].includes(healthResponse.headers.get("x-service-state")), "minimal service state");
   assert("Health endpoint hides database details", !/database|postgres|connection|host|version|password/i.test(healthBody), healthBody.slice(0, 200));
   assert("Health endpoint hides stack traces", !containsDebugDetails(healthBody), "response body inspected");
+  const privateHealth = await request("Unauthenticated health API", new URL("/api/health", baseUrl), {
+    headers: { accept: "application/json" },
+  });
+  assert("Health API requires administrator authentication", privateHealth.status === 401, `status=${privateHealth.status}`);
 
   const invalidQrResponse = await request(
     "Invalid QR",

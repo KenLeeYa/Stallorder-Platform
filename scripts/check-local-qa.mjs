@@ -8,7 +8,7 @@ const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {
 }).trim();
 const port = parseLocalQaPort(process.argv.slice(2));
 const origin = `http://127.0.0.1:${port}`;
-const healthResponse = await fetch(`${origin}/api/health`, {
+const healthResponse = await fetch(`${origin}/api/connectivity`, {
   cache: "no-store",
   redirect: "error",
 }).catch(() => null);

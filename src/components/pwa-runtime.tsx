@@ -102,7 +102,7 @@ export function PwaRuntime({ children }: { children: ReactNode }) {
     if (!navigator.onLine) return;
     const startedAt = performance.now();
     try {
-      const response = await fetch(`/api/health?pwa=${Date.now()}`, {
+      const response = await fetch(`/api/connectivity?pwa=${Date.now()}`, {
         method: "HEAD",
         cache: "no-store",
       });
