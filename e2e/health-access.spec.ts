@@ -33,7 +33,12 @@ test("平台管理者從登入進入中文健康看板並重新檢查", async ({
   ]);
   expect(reload.status()).toBe(200);
   await expect(page.getByText(/最後檢查：/)).toBeVisible();
-  const health = await page.request.get("/api/health", { headers: { accept: "application/json" } });
-  expect(health.status()).toBe(200);
-  expect(health.headers()["cache-control"]).toContain("no-store");
+  // Browser fetch preserves the real Secure session on the CI loopback origin.
+  const health = await page.evaluate(async () => {
+    const response = await fetch("/api/health", { headers: { accept: "application/json" } });
+    return { status: response.status, cache: response.headers.get("cache-control"), body: await response.json() };
+  });
+  expect(health.status).toBe(200);
+  expect(health.cache).toContain("no-store");
+  expect(health.body.status).toBe("ok");
 });

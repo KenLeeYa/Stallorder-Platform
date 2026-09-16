@@ -61,4 +61,6 @@ Cloudflare 原有「目前帳戶成員」Allow policy 會再加上指定 email �
 
 本機正式建置的啟動命令遭自動核准審查以「blocked by policy」拒絕，未繞過或重試等效啟動；正式模式完整端到端驗證須由既有隔離 CI 執行。這項缺口在 CI 實際通過前不能標為已驗證。
 
+第一輪隔離 CI `35121018753` 的帳務 E2E 在已登入平台管理者後，以 `page.request` 讀取 health 失敗。正式模式 Cookie 具有 Secure 屬性；已安裝 Playwright 的 Cookie.matches 對 HTTP 僅特許 localhost，而 CI origin 為 127.0.0.1，所以 APIRequestContext 會省略 Cookie。驗證改成由真正已登入的瀏覽器 fetch，保留 HTTP 200 與健康狀態斷言；沒有修改登入安全設定、放寬權限或跳過測試。新的健康看板 E2E 同步採此方式。該輪只有第一 shard 執行，不能視為完整通過；同輪 Ephemeral Preview `35121018665` 已通過。
+
 本次證據存於任務 artifact `health-admin-dashboard-20260916`。尚未取得部署 receipt 與正式網址實測前，狀態僅為本機實作，不標示已上線。
