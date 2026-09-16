@@ -34,7 +34,7 @@ try {
   const routes = [
     { label: "homepage", path: "/" },
     { label: "login", path: "/login" },
-    { label: "health", path: "/api/health" },
+    { label: "health", path: "/api/connectivity" },
     { label: "availability", path: "/api/availability/config" },
     { label: "qr_menu", path: `/q/${encodeURIComponent(qrRows[0].token)}` },
   ];

@@ -36,6 +36,23 @@ describe("DR Access routing", () => {
 });
 
 describe("Cloudflare Access JWT validation", () => {
+  it.each(["expired", "missing-exp", "wrong-issuer", "wrong-signature"])("rejects %s tokens", async (scenario) => {
+    const { privateKey, publicKey } = await generateKeyPair("RS256");
+    const other = await generateKeyPair("RS256");
+    const publicJwk = await exportJWK(publicKey);
+    publicJwk.kid = "test-key";
+    let jwt = new SignJWT({ type: "app", email: "operator@example.test", sub: "operator-id" })
+      .setProtectedHeader({ alg: "RS256", kid: "test-key" })
+      .setIssuer(scenario === "wrong-issuer" ? "https://other.cloudflareaccess.com" : environment.CLOUDFLARE_ACCESS_TEAM_DOMAIN)
+      .setAudience(environment.CLOUDFLARE_ACCESS_AUD).setIssuedAt();
+    if (scenario !== "missing-exp") jwt = jwt.setExpirationTime(scenario === "expired" ? "1s ago" : "5m");
+    const token = await jwt.sign(scenario === "wrong-signature" ? other.privateKey : privateKey);
+    await expect(verifyCloudflareAccessJwt(token, {
+      teamDomain: environment.CLOUDFLARE_ACCESS_TEAM_DOMAIN,
+      audience: environment.CLOUDFLARE_ACCESS_AUD,
+      keySet: createLocalJWKSet({ keys: [publicJwk] }),
+    })).rejects.toThrow();
+  });
   it("verifies signature, issuer and application audience", async () => {
     const { privateKey, publicKey } = await generateKeyPair("RS256");
     const publicJwk = await exportJWK(publicKey);

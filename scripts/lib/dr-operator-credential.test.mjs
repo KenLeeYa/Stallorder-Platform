@@ -21,7 +21,7 @@ async function prepare(project = { id: "prj_dr", name: "stallorder-dr", protecti
 describe("DR probe credential provisioning", () => {
   it("prepares the credential before building and passes it to the protected probe", () => {
     const prepareAt = source.indexOf("await prepareDeploymentProtectionCredential(targetProjectId)");
-    const buildAt = source.indexOf("await deployDrRuntime(plan, accessResources, targetProjectId)");
+    const buildAt = source.indexOf("await deployDrRuntime(plan, accessResources, targetProjectId, probeCredential)");
     expect(prepareAt).toBeGreaterThan(-1);
     expect(prepareAt).toBeLessThan(buildAt);
     expect(source).toContain("await vercelCurl(deploymentUrl, targetProjectId, probeCredential)");
