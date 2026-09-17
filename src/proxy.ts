@@ -14,6 +14,15 @@ export async function proxy(request: NextRequest) {
     });
   }
 
+  if (request.nextUrl.pathname === "/admin" || request.nextUrl.pathname.startsWith("/admin/")) {
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set(
+      "x-stallorder-admin-return-path",
+      request.nextUrl.pathname === "/admin/health" ? "/admin/health" : "/admin/billing",
+    );
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+
   if (!request.nextUrl.pathname.startsWith("/merchant")) {
     return NextResponse.next();
   }

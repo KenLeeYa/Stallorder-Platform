@@ -64,3 +64,11 @@ Cloudflare 原有「目前帳戶成員」Allow policy 會再加上指定 email �
 第一輪隔離 CI `35121018753` 的帳務 E2E 在已登入平台管理者後，以 `page.request` 讀取 health 失敗。正式模式 Cookie 具有 Secure 屬性；已安裝 Playwright 的 Cookie.matches 對 HTTP 僅特許 localhost，而 CI origin 為 127.0.0.1，所以 APIRequestContext 會省略 Cookie。驗證改成由真正已登入的瀏覽器 fetch，保留 HTTP 200 與健康狀態斷言；沒有修改登入安全設定、放寬權限或跳過測試。新的健康看板 E2E 同步採此方式。該輪只有第一 shard 執行，不能視為完整通過；同輪 Ephemeral Preview `35121018665` 已通過。
 
 本次證據存於任務 artifact `health-admin-dashboard-20260916`。尚未取得部署 receipt 與正式網址實測前，狀態僅為本機實作，不標示已上線。
+
+## 2026-09-17 Hosted 入口回歸
+
+使用者完成 Vercel 登入後，實際開啟 Staging `/admin/health` 被導向 `/login?next=%2Fadmin%2Fbilling`。原因是父層 AdminLayout 先執行預設帳務返回路徑的管理者檢查；子頁正確的 health 返回路徑尚未生效就被重新導向。原 E2E 直接從指定 next 的登入頁起跑，未涵蓋父層入口。
+
+修正讓 proxy 依真正請求路徑覆寫內部 admin 返回標頭，layout 僅接受 `/admin/health` 或原 `/admin/billing`，不接受外部 URL。原管理者檢查、DR 檢查及商家範圍標頭維持。新增 proxy/layout 回歸先取得失敗，再驗證通過；health E2E 改從使用者提供的 `/api/health/` 起跑，必須經登入回到健康看板。
+
+自動 Git Staging Preview 雖然 READY，但實際登入頁沒有可用登入方式，不能算功能驗收通過。Hosted 驗收使用既有 Ephemeral Preview 的隔離測試資料與帳號，不改共用 Preview/Production 環境變數，也不把測試資料放入正式資料庫。正式發布前仍須取得本次修正版 CI、Preview 與瀏覽器證據。

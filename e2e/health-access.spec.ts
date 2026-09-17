@@ -12,8 +12,9 @@ test("健康資訊實際角色、撤銷與直接路徑邊界", async ({ baseURL 
   expect(report.results.every((item) => item.passed)).toBe(true);
 });
 
-test("平台管理者從登入進入中文健康看板並重新檢查", async ({ page }) => {
-  await page.goto("/login?next=%2Fadmin%2Fhealth");
+test("平台管理者從健康網址登入後回到中文看板並重新檢查", async ({ page }) => {
+  await page.goto("/api/health/");
+  await expect(page).toHaveURL(/\/login\?next=%2Fadmin%2Fhealth$/);
   await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
   await page.getByLabel("電子郵件").fill("platform.admin@stallorder.test");
   await page.getByLabel("密碼", { exact: true }).fill("StallOrderDemo!2026");
