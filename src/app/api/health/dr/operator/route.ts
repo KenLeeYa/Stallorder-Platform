@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "僅限指定維運管理者存取。" }, { status: 403, headers: responseHeaders });
   }
   if (request.headers.get("accept")?.includes("text/html")) {
-    return NextResponse.redirect(new URL("/operator/health", request.url), { headers: responseHeaders });
+    return new NextResponse(null, { status: 307, headers: { ...responseHeaders, location: "/operator/health" } });
   }
   try {
     const readiness = await getDrOperatorReadiness();

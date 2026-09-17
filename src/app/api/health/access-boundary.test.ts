@@ -18,6 +18,20 @@ describe("health administrator boundary", () => {
     mocks.probe.mockResolvedValue({ status: "HEALTHY", checkedAt: "2026-09-16T00:00:00Z" });
   });
 
+  it.each(["http://localhost:3000", "https://internal.example"])(
+    "keeps browser redirects on the visible origin when runtime URL is %s",
+    async (runtimeOrigin) => {
+      const route = await import("./route");
+      const response = await route.GET(new Request(`${runtimeOrigin}/api/health`, {
+        headers: { accept: "text/html", host: "app.example", "x-forwarded-host": "untrusted.example" },
+      }));
+      expect(response.status).toBe(307);
+      expect(response.headers.get("location")).toBe("/admin/health");
+      expect(response.headers.get("cache-control")).toContain("no-store");
+      expect(mocks.probe).not.toHaveBeenCalled();
+    },
+  );
+
   for (const path of ["", "/primary", "/dr", "/dependencies"]) {
     for (const status of [401, 404]) {
       it(`${path || "/"} refuses ${status === 401 ? "anonymous" : "non-admin"} before probing`, async () => {
