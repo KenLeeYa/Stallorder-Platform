@@ -12,14 +12,14 @@ test("健康資訊實際角色、撤銷與直接路徑邊界", async ({ baseURL 
   expect(report.results.every((item) => item.passed)).toBe(true);
 });
 
-test("平台管理者從健康網址登入後回到中文看板並重新檢查", async ({ page }) => {
+test("平台管理者從健康網址登入後回到中文看板並重新檢查", async ({ page, baseURL }) => {
   await page.goto("/api/health/");
-  await expect(page).toHaveURL(/\/login\?next=%2Fadmin%2Fhealth$/);
+  await expect(page).toHaveURL(new URL("/login?next=%2Fadmin%2Fhealth", baseURL).href);
   await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
   await page.getByLabel("電子郵件").fill("platform.admin@stallorder.test");
   await page.getByLabel("密碼", { exact: true }).fill("StallOrderDemo!2026");
   await page.getByRole("button", { name: "登入", exact: true }).click();
-  await expect(page).toHaveURL(/\/admin\/health$/);
+  await expect(page).toHaveURL(new URL("/admin/health", baseURL).href);
   await expect(page.getByRole("heading", { name: "正式站健康看板", exact: true })).toBeVisible();
   const checks = page.getByRole("region", { name: "各項服務檢查", exact: true });
   await expect(checks.locator("article")).toHaveCount(13);

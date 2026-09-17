@@ -39,7 +39,7 @@ const connectivity = await check("public reachability", "/api/connectivity", [20
 assert.equal(connectivity.body, "");
 assert.ok(["ready", "degraded"].includes(connectivity.response.headers.get("x-service-state")));
 const redirect = await check("browser opens protected dashboard", "/api/health", [307], { accept: "text/html" });
-assert.equal(new URL(redirect.response.headers.get("location")).pathname, "/admin/health");
+assert.equal(new URL(redirect.response.headers.get("location"), origin).href, new URL("/admin/health", origin).href);
 
 for (const role of ["owner", "staff", "kitchen", "platform.admin"]) {
   const response = await fetch(new URL("/api/auth/login", origin), {

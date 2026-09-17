@@ -72,3 +72,5 @@ Cloudflare 原有「目前帳戶成員」Allow policy 會再加上指定 email �
 修正讓 proxy 依真正請求路徑覆寫內部 admin 返回標頭，layout 僅接受 `/admin/health` 或原 `/admin/billing`，不接受外部 URL。原管理者檢查、DR 檢查及商家範圍標頭維持。新增 proxy/layout 回歸先取得失敗，再驗證通過；health E2E 改從使用者提供的 `/api/health/` 起跑，必須經登入回到健康看板。
 
 自動 Git Staging Preview 雖然 READY，但實際登入頁沒有可用登入方式，不能算功能驗收通過。Hosted 驗收使用既有 Ephemeral Preview 的隔離測試資料與帳號，不改共用 Preview/Production 環境變數，也不把測試資料放入正式資料庫。正式發布前仍須取得本次修正版 CI、Preview 與瀏覽器證據。
+
+後續 CI `35166807072` 確認真實入口還有同源轉址問題：health 使用 `request.url` 組絕對位置，而 Next runtime 的內部網址是 localhost；瀏覽器原從 127.0.0.1 進入，跳轉後觸發 `LOGIN_REJECTED_ORIGIN`。Primary 與 DR health 改回固定相對 Location，保留瀏覽器當前來源且不信任來路 host 標頭；登入來源檢查不放寬。新增先失敗再修正的 route 回歸，E2E 同時比對完整來源及返回路徑；隔離 HTTP QA 也驗證解析後來源不變。

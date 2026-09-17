@@ -10,7 +10,7 @@ let connectionProfileLogged = false;
 
 export async function GET(request: Request) {
   if (request.headers.get("accept")?.includes("text/html")) {
-    return NextResponse.redirect(new URL("/admin/health", request.url), { headers: healthResponseHeaders });
+    return new NextResponse(null, { status: 307, headers: { ...healthResponseHeaders, location: "/admin/health" } });
   }
   const authorization = await authorizeHealthApiRequest(request);
   if (!authorization.ok) return authorization.response;
