@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import { logEvent } from "@/lib/audit";
 import { createRequestId } from "@/lib/security";
 import { getDrOperatorReadiness } from "@/server/resilience/dr-operator-readiness";
+import { authorizeDrOperatorRequest } from "@/server/resilience/dr-operator-authorization";
 
 const responseHeaders = {
   "cache-control": "no-store",
   "x-robots-tag": "noindex, nofollow, noarchive",
 };
 
-export async function GET() {
+export async function GET(request: Request) {
   if (process.env.DR_OPERATOR_PROBE_ENABLED !== "true") {
     return NextResponse.json(
       { error: "找不到指定資源。" },
@@ -17,6 +18,12 @@ export async function GET() {
   }
 
   const requestId = createRequestId();
+  if (!await authorizeDrOperatorRequest(request, true)) {
+    return NextResponse.json({ error: "僅限指定維運管理者存取。" }, { status: 403, headers: responseHeaders });
+  }
+  if (request.headers.get("accept")?.includes("text/html")) {
+    return new NextResponse(null, { status: 307, headers: { ...responseHeaders, location: "/operator/health" } });
+  }
   try {
     const readiness = await getDrOperatorReadiness();
     if (readiness.status !== "READY") {

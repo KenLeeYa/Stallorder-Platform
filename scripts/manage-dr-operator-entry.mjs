@@ -3,6 +3,7 @@ import { access, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { PrismaClient } from "@prisma/client";
+import { applyDrOperatorUpdate, buildDrOperatorUpdatePlan, validateDrOperatorUpdatePlan } from "./lib/dr-operator-update.mjs";
 import {
   DR_OPERATOR_ENTRY,
   assertVercelDeploymentProjectIsolation,
@@ -14,6 +15,7 @@ import {
   missingActiveEdgeFunctions,
   parseDrOperatorProbeOutput,
   primaryVercelStateMatches,
+  stableJson,
   sanitizeProviderErrorCode,
   validateApprovedDrOperatorEntryPlan,
   validateCloudflareAccessApplicationsPage,
@@ -24,8 +26,9 @@ const execFileAsync = promisify(execFile);
 const args = process.argv.slice(2);
 const apply = args.includes("--apply");
 const rollback = args.includes("--rollback");
+const updateExisting = args.includes("--update-existing");
 const approvedPlanPath = valueAfter("--approved-plan");
-if (apply && rollback) fail("DR_ENTRY_MODE_INVALID");
+if ((apply && rollback) || (updateExisting && rollback)) fail("DR_ENTRY_MODE_INVALID");
 if ((apply || rollback) && !approvedPlanPath) fail("DR_ENTRY_APPROVED_PLAN_REQUIRED");
 
 const vercelToken = required("VERCEL_TOKEN");
@@ -48,13 +51,13 @@ try {
     });
     console.log(JSON.stringify(result, null, 2));
   } else if (apply) {
-    requireConfirmation("CREATE_PROTECTED_DR_OPERATOR_ENTRY");
+    requireConfirmation(updateExisting ? "UPDATE_PROTECTED_DR_OPERATOR_ENTRY" : "CREATE_PROTECTED_DR_OPERATOR_ENTRY");
     const approvedPlan = await readApprovedPlan();
     const currentPlan = await createPlan();
     if (currentPlan.planDigest !== approvedPlan.planDigest) {
       fail("DR_ENTRY_PROVIDER_STATE_CHANGED_AFTER_PLAN");
     }
-    const evidence = await applyEntry(approvedPlan);
+    const evidence = await (updateExisting ? updateEntry(approvedPlan) : applyEntry(approvedPlan));
     console.log(JSON.stringify(evidence, null, 2));
   } else {
     console.log(JSON.stringify(await createPlan(), null, 2));
@@ -64,6 +67,12 @@ try {
 }
 
 async function createPlan() {
+  if (updateExisting) {
+    const [source, runtime, state] = await Promise.all([readSourceRevision(), readDrRuntime(), readUpdateState()]);
+    const plan = buildDrOperatorUpdatePlan({ source, runtime, state });
+    await probeUpdateDeployment(`https://${state.deployment.url}`, state.project.id, runtime);
+    return plan;
+  }
   const [source, drRuntime, providers] = await Promise.all([
     readSourceRevision(),
     readDrRuntime(),
@@ -74,7 +83,118 @@ async function createPlan() {
 
 async function readApprovedPlan() {
   const plan = JSON.parse(await readFile(approvedPlanPath, "utf8"));
-  return validateApprovedDrOperatorEntryPlan(plan);
+  return updateExisting ? validateDrOperatorUpdatePlan(plan) : validateApprovedDrOperatorEntryPlan(plan);
+}
+
+function updatePolicyShape(policy) {
+  return { name: policy.name, decision: policy.decision, precedence: policy.precedence,
+    include: policy.include ?? [], require: policy.require ?? [], exclude: policy.exclude ?? [] };
+}
+
+async function readUpdateState() {
+  const [primary, alias, deployment, access, members] = await Promise.all([
+    readPrimaryVercelState(), vercel("/v4/aliases/dr.qidaigo.com"), vercel("/v13/deployments/dr.qidaigo.com"),
+    readCloudflareAccessState(), cloudflare(`/accounts/${cloudflareAccountId}/members?per_page=100`),
+  ]);
+  if (primary.alias.projectId !== sourceProjectId) throw new Error("DR_UPDATE_PRIMARY_PROJECT_MISMATCH");
+  const apps = access.applications.filter((app) => app.domain === "dr.qidaigo.com");
+  const operators = members.filter((member) => member.status === "accepted"
+    && member.roles?.some((role) => role.name === "Super Administrator - All Privileges"));
+  if (apps.length !== 1 || operators.length !== 1 || !access.identityProvider) throw new Error("DR_UPDATE_OPERATOR_SELECTION_REQUIRED");
+  const app = apps[0];
+  const [project, domains, policies, dns] = await Promise.all([
+    vercel(`/v9/projects/${alias.projectId}`), vercel(`/v9/projects/${alias.projectId}/domains?limit=100`),
+    cloudflare(`/accounts/${cloudflareAccountId}/access/apps/${app.id}/policies`),
+    cloudflare(`/zones/${cloudflareZoneId}/dns_records?name=dr.qidaigo.com`),
+  ]);
+  if (policies.length !== 1 || dns.length !== 1 || dns[0].proxied !== true) throw new Error("DR_UPDATE_BOUNDARY_REVIEW_REQUIRED");
+  return {
+    primary, project: { id: project.id, name: project.name, protection: project.ssoProtection?.deploymentType },
+    alias: safePrimaryAlias(alias), deployment: safeVercelDeployment(deployment),
+    customDomains: domains.domains.filter((domain) => !domain.name.endsWith(".vercel.app")).map((domain) => domain.name).sort(),
+    dns: safeDnsRecord(dns[0]), operatorEmail: operators[0].user.email.toLowerCase(),
+    access: { id: app.id, domain: app.domain, type: app.type, audience: app.aud, accountId: cloudflareAccountId,
+      teamDomain: access.teamDomain, policyId: policies[0].id, policy: updatePolicyShape(policies[0]) },
+  };
+}
+
+async function existingUpdateCredential(projectId) {
+  if (projectId === sourceProjectId) throw new Error("DR_UPDATE_TARGET_INVALID");
+  const project = await vercel(`/v9/projects/${projectId}`);
+  const credentials = Object.entries(project.protectionBypass ?? {}).filter(([, value]) => value?.scope === "automation-bypass");
+  if (project.name !== "stallorder-dr" || credentials.length !== 1
+    || !/^[A-Za-z0-9_-]{16,256}$/u.test(credentials[0][0])) throw new Error("DR_UPDATE_PROBE_CREDENTIAL_INVALID");
+  return credentials[0][0];
+}
+
+async function probeUpdateDeployment(url, projectId, runtime) {
+  await assertDeploymentProjectIdentity(url, projectId);
+  const credential = await existingUpdateCredential(projectId);
+  const response = await fetch(`${url}/api/health/dr/operator`, {
+    headers: { "x-vercel-protection-bypass": credential, "x-stallorder-dr-probe": credential },
+    redirect: "manual", signal: AbortSignal.timeout(20_000),
+  });
+  if (response.status !== 200) throw new Error(`DR_UPDATE_PROBE_HTTP_${response.status}`);
+  const body = await response.json();
+  assertProbeReady(body, runtime);
+  return body;
+}
+
+async function updateEntry(plan) {
+  const projectId = plan.target.projectId;
+  const assertPrimary = () => assertPrimaryStateUnchanged(plan);
+  const policyPath = `/accounts/${cloudflareAccountId}/access/apps/${plan.before.access.id}/policies/${plan.before.access.policyId}`;
+  const verifyPolicy = async (expected) => {
+    const policy = await cloudflare(policyPath);
+    if (stableJson(updatePolicyShape(policy)) !== stableJson(expected)) throw new Error("DR_UPDATE_POLICY_READBACK_FAILED");
+  };
+  const promote = async (url) => promoteDrDeployment(url, projectId, plan);
+  try {
+    const result = await applyDrOperatorUpdate(plan, {
+      deploy: async () => {
+        await assertPrimary();
+        await linkProject(projectId);
+        const credential = await existingUpdateCredential(projectId);
+        return deployDrRuntime(plan, { audience: plan.before.access.audience }, projectId, credential);
+      },
+      assertUnchanged: async () => {
+        if (stableJson(await readUpdateState()) !== stableJson(plan.before)) throw new Error("DR_UPDATE_STATE_CHANGED");
+      },
+      verifyCandidate: async (url) => {
+        const deployment = await assertDeploymentProjectIdentity(url, projectId);
+        if (deployment.sourceCommit !== plan.source.commitSha || deployment.drPlanDigest !== plan.planDigest) throw new Error("DR_UPDATE_REVISION_MISMATCH");
+        await assertProtected(url);
+        await probeUpdateDeployment(url, projectId, plan.target.runtime);
+      },
+      writePolicy: (policy) => cloudflare(policyPath, { method: "PUT", body: JSON.stringify(policy) }),
+      verifyPolicy, assertPrimary, promote,
+      verifyLive: async (url) => {
+        const state = await readUpdateState();
+        if (state.alias.deploymentUrl !== new URL(url).hostname
+          || state.alias.projectId !== projectId || state.project.protection !== plan.before.project.protection
+          || stableJson(state.dns) !== stableJson(plan.before.dns)
+          || state.access.id !== plan.before.access.id || state.access.audience !== plan.before.access.audience) throw new Error("DR_UPDATE_LIVE_IDENTITY_MISMATCH");
+        await verifyPolicy(plan.target.policy);
+        await probeUpdateDeployment(url, projectId, plan.target.runtime);
+        await assertProtected("https://dr.qidaigo.com", true);
+      },
+      readState: readUpdateState,
+      restoreDeployment: (deployment) => promote(`https://${deployment.url}`),
+      verifyRestored: async () => {
+        if (stableJson(await readUpdateState()) !== stableJson(plan.before)) throw new Error("DR_UPDATE_RECOVERY_INCOMPLETE");
+        await probeUpdateDeployment(`https://${plan.before.deployment.url}`, projectId, plan.target.runtime);
+        await assertPrimary();
+      },
+    });
+    const evidence = { ...result, operation: plan.operation, planDigest: plan.planDigest, source: plan.source,
+      targetProjectId: projectId, humanDashboardVerification: "PENDING_BROWSER_CHECK", completedAt: new Date().toISOString() };
+    await writeEvidence(evidence);
+    return evidence;
+  } catch (error) {
+    await writeEvidence({ completed: false, operation: plan.operation, planDigest: plan.planDigest,
+      reasonCode: error instanceof Error ? error.message : "DR_UPDATE_FAILED", failedAt: new Date().toISOString() });
+    throw error;
+  }
 }
 
 async function readSourceRevision() {
@@ -189,7 +309,7 @@ async function readPrimaryVercelState() {
 async function readPrimaryHealthStatus() {
   try {
     const response = await fetch(
-      `https://${DR_OPERATOR_ENTRY.primaryHostname}/api/health`,
+      `https://${DR_OPERATOR_ENTRY.primaryHostname}/api/connectivity`,
       { redirect: "manual", signal: AbortSignal.timeout(15_000) },
     );
     const status = response.status;
@@ -238,7 +358,7 @@ async function applyEntry(plan) {
     await assertPrimaryStateUnchanged(plan);
 
     const probeCredential = await prepareDeploymentProtectionCredential(targetProjectId);
-    const deploymentUrl = await deployDrRuntime(plan, accessResources, targetProjectId);
+    const deploymentUrl = await deployDrRuntime(plan, accessResources, targetProjectId, probeCredential);
     const targetDeployment = await assertDeploymentProjectIdentity(
       deploymentUrl,
       targetProjectId,
@@ -574,7 +694,7 @@ async function prepareDeploymentProtectionCredential(targetProjectId) {
   return credential;
 }
 
-async function deployDrRuntime(plan, accessResources, targetProjectId) {
+async function deployDrRuntime(plan, accessResources, targetProjectId, probeCredential) {
   assertDrEnvironmentBindings(plan.target.runtime.supabaseProjectRef);
   const deploymentArgs = [
     "deploy", ".", "--prod", "--skip-domain", "--force", "--yes",
@@ -606,6 +726,7 @@ async function deployDrRuntime(plan, accessResources, targetProjectId) {
     LOCAL_QA_DISABLE_LOGIN_RATE_LIMIT: "false",
   };
   const runtimeOnly = {
+    DR_OPERATOR_PROBE_SECRET: probeCredential,
     SUPABASE_SECRET_KEY: required("DR_SUPABASE_SECRET_KEY"),
     PUBLIC_ORDER_FUNCTION_ORIGIN: required("DR_SUPABASE_FUNCTIONS_URL"),
     DR_DATABASE_URL: required("DR_RUNTIME_DATABASE_URL"),
@@ -666,6 +787,7 @@ async function vercelCurl(baseUrl, targetProjectId, probeCredential) {
     "--yes",
     "--",
     "--silent", "--show-error",
+    "--header", `x-stallorder-dr-probe: ${probeCredential}`,
     "--connect-timeout", "15", "--max-time", "60",
     "--write-out", "\n__STALLORDER_DR_PROBE__:%{http_code}:%{content_type}\n__STALLORDER_DR_REDIRECT__:%{redirect_url}\n",
   ], "DR_ENTRY_PROTECTED_PROBE_FAILED", targetProjectId, probeCredential);

@@ -79,6 +79,8 @@ export async function verifyCloudflareAccessJwt(
   const result = await jwtVerify(token, verificationKeySet, {
     issuer,
     audience,
+    algorithms: ["RS256"],
+    requiredClaims: ["exp", "iat"],
   });
   return result.payload;
 }

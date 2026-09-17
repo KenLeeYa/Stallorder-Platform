@@ -1,24 +1,62 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getReadiness: vi.fn(),
   logEvent: vi.fn(),
+  authorize: vi.fn(),
 }));
 
 vi.mock("@/lib/audit", () => ({ logEvent: mocks.logEvent }));
+vi.mock("@/server/resilience/dr-operator-authorization", () => ({ authorizeDrOperatorRequest: mocks.authorize }));
 vi.mock("@/server/resilience/dr-operator-readiness", () => ({
   getDrOperatorReadiness: mocks.getReadiness,
 }));
 
 describe("/api/health/dr/operator", () => {
+  beforeEach(() => {
+    mocks.authorize.mockResolvedValue(true);
+  });
+  it("does not probe when the operator identity is absent", async () => {
+    process.env.DR_OPERATOR_PROBE_ENABLED = "true";
+    mocks.authorize.mockResolvedValue(false);
+    const route = await import("./route");
+    const response = await route.GET(new Request("https://dr.example/api/health/dr/operator"));
+    expect(response.status).toBe(403);
+    expect(mocks.getReadiness).not.toHaveBeenCalled();
+  });
   afterEach(() => {
     delete process.env.DR_OPERATOR_PROBE_ENABLED;
     vi.clearAllMocks();
   });
 
+  it("keeps authorized browser navigation on the current DR origin", async () => {
+    process.env.DR_OPERATOR_PROBE_ENABLED = "true";
+    const route = await import("./route");
+    const response = await route.GET(new Request("http://localhost:3000/api/health/dr/operator", {
+      headers: { accept: "text/html", host: "dr.example", "x-forwarded-host": "untrusted.example" },
+    }));
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe("/operator/health");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(mocks.authorize).toHaveBeenCalledOnce();
+    expect(mocks.getReadiness).not.toHaveBeenCalled();
+  });
+
+  it("does not redirect an unauthorized browser to the DR dashboard", async () => {
+    process.env.DR_OPERATOR_PROBE_ENABLED = "true";
+    mocks.authorize.mockResolvedValue(false);
+    const route = await import("./route");
+    const response = await route.GET(new Request("https://dr.example/api/health/dr/operator", {
+      headers: { accept: "text/html" },
+    }));
+    expect(response.status).toBe(403);
+    expect(response.headers.has("location")).toBe(false);
+    expect(mocks.getReadiness).not.toHaveBeenCalled();
+  });
+
   it("is absent outside the dedicated DR runtime", async () => {
     const route = await import("./route");
-    const response = await route.GET();
+    const response = await route.GET(new Request("https://dr.example/api/health/dr/operator"));
 
     expect(response.status).toBe(404);
     expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow, noarchive");
@@ -52,7 +90,7 @@ describe("/api/health/dr/operator", () => {
       },
     });
     const route = await import("./route");
-    const response = await route.GET();
+    const response = await route.GET(new Request("https://dr.example/api/health/dr/operator"));
     const body = await response.json();
 
     expect(response.status).toBe(200);
@@ -68,7 +106,7 @@ describe("/api/health/dr/operator", () => {
       checks: { writerFence: false },
     });
     const route = await import("./route");
-    const response = await route.GET();
+    const response = await route.GET(new Request("https://dr.example/api/health/dr/operator"));
 
     expect(response.status).toBe(503);
     expect(mocks.logEvent).toHaveBeenCalledWith(

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { logEvent } from "@/lib/audit";
+import { authorizeHealthApiRequest, healthResponseHeaders } from "@/server/resilience/health-authorization";
 import { inspectDirectDatabaseConnection, inspectRuntimeDatabaseConnection } from "@/lib/database-connection-profile";
 import { createPerformanceTiming, finalizePerformanceResponse } from "@/lib/performance-timing";
 import { createRequestId } from "@/lib/security";
@@ -7,7 +8,12 @@ import { checkPrimaryDatabaseHealth } from "@/server/resilience/health-service";
 
 let connectionProfileLogged = false;
 
-export async function GET() {
+export async function GET(request: Request) {
+  if (request.headers.get("accept")?.includes("text/html")) {
+    return new NextResponse(null, { status: 307, headers: { ...healthResponseHeaders, location: "/admin/health" } });
+  }
+  const authorization = await authorizeHealthApiRequest(request);
+  if (!authorization.ok) return authorization.response;
   const requestId = createRequestId();
   const timing = createPerformanceTiming({ route: "/api/health", requestId });
   const runtimeConnection = inspectRuntimeDatabaseConnection();

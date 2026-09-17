@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { authorizePlatformAdminApiRequest } from "@/lib/authorization";
+import { authorizeHealthApiRequest } from "@/server/resilience/health-authorization";
 import { logEvent } from "@/lib/audit";
 import { getDependencyHealthSnapshot } from "@/server/resilience/health-service";
 
 export async function GET(request: Request) {
-  const authorization = await authorizePlatformAdminApiRequest(request);
+  const authorization = await authorizeHealthApiRequest(request);
   if (!authorization.ok) return authorization.response;
 
   const snapshot = await getDependencyHealthSnapshot();

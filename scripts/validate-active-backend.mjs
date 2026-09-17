@@ -73,8 +73,13 @@ try {
     }
     const [availability, health] = await Promise.all([
       fetchJson(baseUrl, "/api/availability/config"),
-      fetchJson(baseUrl, "/api/health"),
+      fetch(new URL("/api/connectivity", baseUrl), {
+        method: "HEAD", redirect: "error", signal: AbortSignal.timeout(10_000),
+      }),
     ]);
+    if (!health.ok || !["ready", "degraded"].includes(health.headers.get("x-service-state"))) {
+      throw new FailoverOperationError("ACTIVE_BACKEND_HTTP_CHECK_FAILED");
+    }
     if (
       availability.activeBackend !== target
       || availability.promotionEpoch !== expectedEpoch
@@ -83,7 +88,7 @@ try {
     }
     application = {
       availabilityStatus: availability.mode,
-      healthStatus: health.status,
+      healthStatus: "ok",
     };
   }
 

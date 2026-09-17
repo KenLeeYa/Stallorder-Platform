@@ -23,7 +23,7 @@ type StatusSnapshot = {
   }>;
 };
 
-const DEFAULT_HEALTH_URL = "https://app.qidaigo.com/api/health";
+const DEFAULT_HEALTH_URL = "https://app.qidaigo.com/api/connectivity";
 const DEFAULT_SUMMARY = "目前無已知重大事故。";
 const DEFAULT_WORKAROUND = "若頁面暫時無法操作，請稍後重試或直接聯繫現場商家。";
 const VALID_STATUSES = new Set<ServiceStatus>([
@@ -52,15 +52,23 @@ async function probePrimary(
 
   try {
     const response = await fetcher(parsed.href, {
-      headers: { accept: "application/json" },
+      method: "HEAD",
       redirect: "manual",
       signal: AbortSignal.timeout(3_000),
     });
+    // During rollout the new, body-free probe may not exist yet. Only a 404
+    // from that exact path may use the old public contract; failures never pass.
+    if (response.status === 404 && parsed.pathname === "/api/connectivity") {
+      const legacy = await fetcher(new URL("/api/health", parsed).href, {
+        headers: { accept: "application/json" }, redirect: "manual",
+        signal: AbortSignal.timeout(3_000),
+      });
+      if (!legacy.ok) return "DEGRADED";
+      const payload = await legacy.json() as { status?: unknown; health?: unknown };
+      return payload.status === "ok" && payload.health === "HEALTHY" ? "OPERATIONAL" : "DEGRADED";
+    }
     if (!response.ok) return "DEGRADED";
-    const payload = await response.json() as { status?: unknown; health?: unknown };
-    return payload.status === "ok" && payload.health === "HEALTHY"
-      ? "OPERATIONAL"
-      : "DEGRADED";
+    return response.headers.get("x-service-state") === "ready" ? "OPERATIONAL" : "DEGRADED";
   } catch {
     return "DEGRADED";
   }

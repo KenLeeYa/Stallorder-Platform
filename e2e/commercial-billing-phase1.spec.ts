@@ -285,8 +285,13 @@ test.describe("Phase 1 商業帳務完整流程", () => {
     await page.goto(`/admin/subscriptions/${subscriptionId}`);
     await page.getByRole("button", { name: "指派並加入帳單" }).click();
     await expect.poll(() => prisma.subscriptionItem.count({ where: { subscriptionId, itemType: "ORDER_PACKAGE", status: "ACTIVE" } })).toBe(1);
-    const usage = await page.request.get(`/api/health`);
-    expect(usage.ok()).toBe(true);
+    // Use the authenticated browser: APIRequestContext omits Secure cookies on HTTP 127.0.0.1.
+    const health = await page.evaluate(async () => {
+      const response = await fetch("/api/health", { headers: { accept: "application/json" } });
+      return { status: response.status, body: await response.json() };
+    });
+    expect(health.status).toBe(200);
+    expect(health.body.status).toBe("ok");
   });
 
   test("商家帳務介面在手機寬度沒有頁面級水平溢出", async ({ page }) => {

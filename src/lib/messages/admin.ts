@@ -4,6 +4,7 @@ import { interpolateMessage, type MessageValues } from "@/lib/message-catalog";
 type AdminMessageRow = readonly [zhTW: string, ja: string, ko: string, vi: string, th: string];
 
 const rows = {
+  "System health": ["系統健康", "システムの状態", "시스템 상태", "Tình trạng hệ thống", "สถานะระบบ"],
   "Cancel change": ["取消", "キャンセル", "취소", "Hủy", "ยกเลิก"],
   "Confirm change": ["確認變更", "変更を確定", "변경 확인", "Xác nhận thay đổi", "ยืนยันการเปลี่ยนแปลง"],
   "Platform administration": ["平台管理後台", "プラットフォーム管理", "플랫폼 관리", "Quản trị nền tảng", "การดูแลแพลตฟอร์ม"],

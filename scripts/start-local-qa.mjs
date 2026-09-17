@@ -50,7 +50,7 @@ const childExit = new Promise((resolveExit) => {
 });
 
 const startup = await Promise.race([
-  waitForHealth(`${origin}/api/health`),
+  waitForHealth(`${origin}/api/connectivity`),
   childExit.then((result) => ({ exited: result })),
 ]);
 if ("exited" in startup) {
