@@ -92,6 +92,8 @@ test("店員訂單在手機採單欄，平板與桌機採清單、品項、操�
   await expect(mobileList).toBeVisible();
   await expect(mobileList.locator("article").first()).toBeVisible();
   await expect(masterDetail).toBeHidden();
+  // Search remains global; locate the fixture independently of its queue page.
+  await workspace.getByRole("searchbox").fill(responsiveOrderNo);
 
   for (const viewport of [
     { width: 768, height: 1024 },

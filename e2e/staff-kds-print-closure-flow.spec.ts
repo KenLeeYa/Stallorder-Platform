@@ -6,6 +6,7 @@ import { PrismaClient } from "@prisma/client";
 import { derivePublicOrderTokens } from "../supabase/functions/_shared/crypto";
 import {
   dismissStaffStartReminder,
+  gotoLocalPath,
   loginLocalTestAccount,
   qrProductSelectionControl,
 } from "./local-navigation";
@@ -27,6 +28,7 @@ let cashPaymentOptionId = "";
 let activeCashShiftId = "";
 let createdCashShiftId = "";
 let createdPrinterId = "";
+let createdPrintRuleId = "";
 let originalSettings: {
   kdsModuleEnabled: boolean;
   printModuleEnabled: boolean;
@@ -110,6 +112,12 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       select: { id: true },
     });
     createdPrinterId = printer.id;
+    // Retained (even disabled) rules select rule routing instead of the legacy
+    // default-printer path. Give this fixture an explicit, unfiltered route.
+    createdPrintRuleId = (await prisma.printRule.create({ data: {
+      organizationId, stallId, printerId: createdPrinterId,
+      name: `${runMarker} 專用路由`, trigger: "ORDER_CONFIRMED", autoPrint: false,
+    }, select: { id: true } })).id;
   });
 
   test.afterAll(async () => {
@@ -123,6 +131,9 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
         await prisma.order.deleteMany({
           where: { id: { in: createdOrderIds } },
         });
+      }
+      if (createdPrintRuleId) {
+        await prisma.printRule.deleteMany({ where: { id: createdPrintRuleId } });
       }
       if (createdPrinterId) {
         await prisma.printer.deleteMany({ where: { id: createdPrinterId } });
@@ -237,7 +248,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       await expect(
         workModeDialog
           .getByTestId("compact-switcher-option")
-          .filter({ hasText: /^廚房/u }),
+          .filter({ hasText: /^廚房 · 阿明鹽酥雞(?: ·|$)/u }),
       ).toHaveCount(0);
       await workModeDialog
         .getByRole("button", { name: "關閉", exact: true })
@@ -342,6 +353,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       );
       await staffPage.goto(`/staff/${stallSlug}`);
       await dismissStaffStartReminder(staffPage);
+      await staffPage.getByRole("searchbox").fill(order.orderNo);
       const ticket = staffPage
         .getByRole("article")
         .filter({ hasText: order.customerName });
@@ -442,6 +454,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       );
       await staffPage.goto(`/staff/${stallSlug}`);
       await dismissStaffStartReminder(staffPage);
+      await staffPage.getByRole("searchbox").fill(order.orderNo);
       const ticket = staffPage
         .getByRole("article")
         .filter({ hasText: order.customerName });
@@ -557,6 +570,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       );
       await staffPage.goto(`/staff/${stallSlug}`);
       await dismissStaffStartReminder(staffPage);
+      await staffPage.getByRole("searchbox").fill(order.orderNo);
       const ticket = staffPage
         .getByRole("article")
         .filter({ hasText: order.customerName });
@@ -726,6 +740,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       await loginLocalTestAccount(page, "staff@stallorder.test", password);
       await page.goto(`/staff/${stallSlug}`);
       await dismissStaffStartReminder(page);
+      await page.getByRole("searchbox").fill(order.orderNo);
       const main = page.locator("#main-content");
       const ticket = main.getByRole("article").filter({ hasText: order.customerName });
       await expect(ticket).toContainText("列印需要處理");
@@ -765,6 +780,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       await page.setViewportSize({ width: 1024, height: 768 });
       await page.reload();
       await dismissStaffStartReminder(page);
+      await page.getByRole("searchbox").fill(order.orderNo);
       await main.getByTestId("staff-order-list-pane").getByRole("button")
         .filter({ hasText: order.customerName }).click();
       const actions = main.getByTestId("staff-order-actions-pane");
@@ -1015,7 +1031,7 @@ async function createConfirmedPublicOrder(customerName: string) {
         },
       },
     },
-    select: { id: true, customerName: true },
+    select: { id: true, orderNo: true, customerName: true },
   });
   createdOrderIds.push(order.id);
   return { ...order, trackingToken, pickupCode, deviceId };
@@ -1040,7 +1056,7 @@ async function setModule(
   field: "kdsModuleEnabled" | "printModuleEnabled",
   enabled: boolean,
 ) {
-  await page.goto(`/merchant/stalls/${stallId}/settings/${section}`);
+  await gotoLocalPath(page, `/merchant/stalls/${stallId}/settings/${section}`);
   const control = page.getByRole("switch", { name: new RegExp(label, "u") });
   await expect(control).toBeVisible();
   const expected = String(enabled);
@@ -1075,7 +1091,8 @@ async function setModule(
 }
 
 async function login(page: Page, email: string, destination: RegExp) {
-  await page.goto("/login");
+  const next = email === "owner@stallorder.test" ? `/merchant/dashboard?organizationId=${organizationId}` : `/staff/${stallSlug}`;
+  await page.goto("/login?next=" + encodeURIComponent(next));
   await page
     .getByRole("button", { name: "使用電子郵件與密碼登入", exact: true })
     .click();

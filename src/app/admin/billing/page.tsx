@@ -30,8 +30,10 @@ export default async function AdminBillingPage() {
         <Metric icon={TrendingUp} label={m("Trial conversions")} value={formatAppNumber(locale, overview.metrics.trialConversions)} />
         {moduleVisibility.payments ? <Metric icon={WalletCards} label={m("Payments pending review")} value={formatAppNumber(locale, overview.pendingPayments.length)} /> : null}
       </dl>
-      <AdminBillingFeatureFlagControls flags={catalog.featureFlags} />
-      <AdminModuleVisibilityControls initialVisibility={moduleVisibility} />
+      <details className="mt-6 rounded-lg border border-stone-300" data-testid="admin-system-settings">
+        <summary className="min-h-11 cursor-pointer px-4 py-3 font-semibold">{m("System settings")}</summary>
+        <div className="border-t border-stone-200 px-4 pb-4"><AdminBillingFeatureFlagControls flags={catalog.featureFlags} /><AdminModuleVisibilityControls initialVisibility={moduleVisibility} /></div>
+      </details>
       <section className="border-t border-stone-200 py-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div><h2 className="text-xl font-semibold">{m("PAYG automatic close status")}</h2><p className="mt-1 text-sm text-stone-600">{m("This dashboard is read-only. Charging and automatic close remain controlled by separate audited feature flags.")}</p></div>

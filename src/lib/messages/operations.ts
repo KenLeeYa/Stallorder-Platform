@@ -9,6 +9,17 @@ function localized(zhTW: string, en: string, ja: string, ko: string, vi: string,
 }
 
 const definitions = {
+  "staff.queue.recent": localized("最近 1 小時", "Last hour", "直近1時間", "최근 1시간", "Một giờ qua", "ชั่วโมงล่าสุด"),
+  "staff.queue.ALL": localized("全部", "All", "すべて", "전체", "Tất cả", "ทั้งหมด"),
+  "staff.queue.WAITING": localized("待接單", "To accept", "受付待ち", "접수 대기", "Chờ nhận", "รอรับออเดอร์"),
+  "staff.queue.WORKING": localized("製作流程", "In production", "調理工程", "조리 단계", "Đang chế biến", "กำลังเตรียม"),
+  "staff.queue.READY": localized("待交付／結帳", "Handoff / checkout", "受渡し・会計待ち", "전달 / 결제 대기", "Chờ giao / thanh toán", "รอส่งมอบ / ชำระเงิน"),
+  "staff.queue.PRINT_ATTENTION": localized("列印待處理", "Print issues", "印刷要確認", "인쇄 확인 필요", "Cần xử lý in", "ต้องตรวจสอบการพิมพ์"),
+  "staff.queue.filters": localized("訂單工作篩選", "Order work filters", "注文作業の絞り込み", "주문 작업 필터", "Bộ lọc công việc", "ตัวกรองงานออเดอร์"),
+  "staff.queue.page": localized("第 {page} / {pages} 頁，共 {count} 筆", "Page {page} / {pages}, {count} orders", "{page} / {pages} ページ、{count} 件", "{page} / {pages} 페이지, {count}건", "Trang {page} / {pages}, {count} đơn", "หน้า {page} / {pages}, {count} ออเดอร์"),
+  "staff.queue.previous": localized("上一頁訂單", "Previous orders", "前の注文ページ", "이전 주문", "Đơn trang trước", "ออเดอร์ก่อนหน้า"),
+  "staff.queue.next": localized("下一頁訂單", "Next orders", "次の注文ページ", "다음 주문", "Đơn trang sau", "ออเดอร์ถัดไป"),
+  "staff.queue.empty": localized("此篩選下沒有訂單。可切換其他狀態或清除搜尋。", "No orders match. Choose another status or clear the search.", "該当する注文はありません。状態を変更するか検索を解除してください。", "해당 주문이 없습니다. 상태를 바꾸거나 검색을 지우세요.", "Không có đơn phù hợp. Chọn trạng thái khác hoặc xóa tìm kiếm.", "ไม่พบออเดอร์ เลือกสถานะอื่นหรือล้างการค้นหา"),
   "common.add": { "zh-TW": "新增", en: "Add", ja: "追加", ko: "추가", vi: "Thêm", th: "เพิ่ม" },
   "common.apply": { "zh-TW": "套用", en: "Apply", ja: "適用", ko: "적용", vi: "Áp dụng", th: "ใช้" },
   "common.back": { "zh-TW": "返回", en: "Back", ja: "戻る", ko: "뒤로", vi: "Quay lại", th: "กลับ" },

@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ComponentProps } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   BarChart3,
   BriefcaseBusiness,
@@ -29,6 +30,13 @@ import { buildWorkModeDestinations } from "@/lib/work-mode";
 import { useMerchantMessages } from "@/lib/messages/merchant-client";
 import type { WorkspaceOrganization } from "@/lib/workspace";
 import type { WorkspaceRouteContext } from "@/lib/workspace-route-context";
+
+function MerchantModuleLink(props: ComponentProps<typeof Link>) {
+  const pathname = usePathname();
+  const target = typeof props.href === "string" ? props.href.split("?")[0] : props.href.pathname;
+  const current = Boolean(target && (pathname === target || pathname.startsWith(`${target}/`)));
+  return <Link {...props} aria-current={current ? "page" : undefined} className={`${props.className ?? ""} merchant-module-link`} />;
+}
 
 export function MerchantWorkspaceHeader({
   workspaces,
@@ -114,65 +122,65 @@ export function MerchantWorkspaceHeader({
   function renderFunctionNavigation(className: string, testId: string) {
     return (
       <nav data-testid={testId} data-persist-horizontal-scroll={testId} className={`min-w-0 items-center gap-1 overflow-x-auto ${className}`} aria-label={m("商戶功能")}>
-        <Link title={m("儀表板")} href={`/merchant/dashboard?organizationId=${workspace?.id ?? ""}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
+        <MerchantModuleLink title={m("儀表板")} href={`/merchant/dashboard?organizationId=${workspace?.id ?? ""}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
           <BarChart3 className="h-5 w-5" /><span className="sr-only">{m("儀表板")}</span>
-        </Link>
+        </MerchantModuleLink>
         {workspace?.roles.some((role) => role === "PLATFORM_ADMIN" || role === "ORGANIZATION_OWNER" || role === "ORGANIZATION_ADMIN" || role === "FINANCE_VIEWER") ? (
-          <Link title={m("攤位報表")} href={`/merchant/reports/overview?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
+          <MerchantModuleLink title={m("攤位報表")} href={`/merchant/reports/overview?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
             <FileChartColumn className="h-5 w-5" /><span className="sr-only">{m("攤位報表")}</span>
-          </Link>
+          </MerchantModuleLink>
         ) : null}
         {workspace?.roles.some((role) => hasPermission(role, "VIEW_REPORTS")) ? (
-          <Link title={m("營業損益與成本")} href={`/merchant/operating-profit?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
+          <MerchantModuleLink title={m("營業損益與成本")} href={`/merchant/operating-profit?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
             <ChartNoAxesCombined className="h-5 w-5" /><span className="sr-only">{m("營業損益與成本")}</span>
-          </Link>
+          </MerchantModuleLink>
         ) : null}
-        <Link title={m("管理攤位")} href={`/merchant/stalls?organizationId=${workspace?.id ?? ""}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
+        <MerchantModuleLink title={m("管理攤位")} href={`/merchant/stalls?organizationId=${workspace?.id ?? ""}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
           <Building2 className="h-5 w-5" /><span className="sr-only">{m("管理攤位")}</span>
-        </Link>
+        </MerchantModuleLink>
         {workspace?.roles.some((role) => role === "PLATFORM_ADMIN" || role === "ORGANIZATION_OWNER" || role === "ORGANIZATION_ADMIN") ? (
-          <Link title={m("共用商品")} href={`/merchant/catalog?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
+          <MerchantModuleLink title={m("共用商品")} href={`/merchant/catalog?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
             <Package className="h-5 w-5" /><span className="sr-only">{m("共用商品")}</span>
-          </Link>
+          </MerchantModuleLink>
         ) : null}
         {showSupply && workspace?.roles.some((role) => hasPermission(role, "MANAGE_SHARED_PRODUCTS")) ? (
-          <Link title={m("庫存與配方")} href={`/merchant/supply?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
+          <MerchantModuleLink title={m("庫存與配方")} href={`/merchant/supply?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
             <Boxes className="h-5 w-5" /><span className="sr-only">{m("庫存與配方")}</span>
-          </Link>
+          </MerchantModuleLink>
         ) : null}
         {workspace && (
           workspace.roles.some((role) => hasPermission(role, "MANAGE_ATTENDANCE"))
           || workspace.stalls.some((stall) => stall.roles.some((role) => hasPermission(role, "MANAGE_ATTENDANCE")))
         ) ? (
-          <Link title={m("員工排班與薪資")} href={`/merchant/workforce?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
+          <MerchantModuleLink title={m("員工排班與薪資")} href={`/merchant/workforce?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
             <BriefcaseBusiness className="h-5 w-5" /><span className="sr-only">{m("員工排班與薪資")}</span>
-          </Link>
+          </MerchantModuleLink>
         ) : null}
         {showGrowth && workspace?.roles.some((role) => hasPermission(role, "MANAGE_ORGANIZATION")) ? (
-          <Link title={m("會員與成長")} href={`/merchant/growth?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
+          <MerchantModuleLink title={m("會員與成長")} href={`/merchant/growth?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
             <UsersRound className="h-5 w-5" /><span className="sr-only">{m("會員與成長")}</span>
-          </Link>
+          </MerchantModuleLink>
         ) : null}
         {workspace && (
           workspace.roles.some((role) => hasPermission(role, "VIEW_AUDIT_LOGS"))
           || workspace.stalls.some((stall) => stall.roles.some((role) => hasPermission(role, "MANAGE_OPERATIONAL_ALERTS")))
         ) ? (
-          <Link title={m("稽核與營運警示")} href={`/merchant/operations?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
+          <MerchantModuleLink title={m("稽核與營運警示")} href={`/merchant/operations?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
             <ScrollText className="h-5 w-5" /><span className="sr-only">{m("稽核與營運警示")}</span>
-          </Link>
+          </MerchantModuleLink>
         ) : null}
         {showBilling && workspace?.roles.some((role) => hasPermission(role, "VIEW_BILLING")) ? (
-          <Link title={m("訂閱與帳務")} href={`/merchant/billing?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
+          <MerchantModuleLink title={m("訂閱與帳務")} href={`/merchant/billing?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
             <CreditCard className="h-5 w-5" /><span className="sr-only">{m("訂閱與帳務")}</span>
-          </Link>
+          </MerchantModuleLink>
         ) : null}
-        <Link title={m("帳號與安全性")} href="/merchant/account/security" className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
+        <MerchantModuleLink title={m("帳號與安全性")} href="/merchant/account/security" className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
           <ShieldCheck className="h-5 w-5" /><span className="sr-only">{m("帳號與安全性")}</span>
-        </Link>
+        </MerchantModuleLink>
         {showPayments && workspace?.roles.some((role) => hasPermission(role, "MANAGE_PAYMENT_INTEGRATIONS")) ? (
-          <Link title={m("付款與金流")} href={`/merchant/payments?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
+          <MerchantModuleLink title={m("付款與金流")} href={`/merchant/payments?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
             <WalletCards className="h-5 w-5" /><span className="sr-only">{m("付款與金流")}</span>
-          </Link>
+          </MerchantModuleLink>
         ) : null}
         {workspace?.roles.some((role) => (
           hasPermission(role, "MANAGE_ORGANIZATION")
@@ -180,9 +188,9 @@ export function MerchantWorkspaceHeader({
           || hasPermission(role, "MANAGE_PAYMENT_INTEGRATIONS")
           || hasPermission(role, "MANAGE_LINE_INTEGRATION")
         )) ? (
-          <Link title={m("整合設定中心")} href={`/merchant/integrations?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
+          <MerchantModuleLink title={m("整合設定中心")} href={`/merchant/integrations?organizationId=${workspace.id}`} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md hover:bg-stone-100">
             <Cable className="h-5 w-5" /><span className="sr-only">{m("整合設定中心")}</span>
-          </Link>
+          </MerchantModuleLink>
         ) : null}
       </nav>
     );

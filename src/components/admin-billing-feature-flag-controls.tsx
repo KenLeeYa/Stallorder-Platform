@@ -99,7 +99,7 @@ export function AdminBillingFeatureFlagControls({ flags }: { flags: Flag[] }) {
   }
 
   return (
-    <section className="mt-6 rounded-md border border-teal-200 bg-teal-50/50 p-4 sm:p-5">
+    <section className="mt-6 rounded-md border border-teal-200 bg-teal-50 p-4 sm:p-5">
       <h2 className="text-xl font-semibold">{m("Merchant billing release controls")}</h2>
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
         {controls.map((control) => {

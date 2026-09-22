@@ -2,6 +2,10 @@
 
 2026-09-10 起依使用者要求執行。這是本機開發服務管理規則，不涉及正式環境。
 
+## 2026-09-23 UI/UX 本輪停止紀錄
+
+只使用 catalog-ops DB 55722 及隔離候選／基準 Next 3023／3024。驗收後三者已停止；容器及 volume 保留，232 筆訂單重啟讀回一致，PostgreSQL shutdown 日誌及容器 exit 0 已確認。其他工作區運行容器清單未變更。重啟、測試入口與收據見 [UI/UX 驗收入口](ui-ux/README.md)。本次 `docker stop` 首次超時，不將單一 stop 成功當成正常資料庫關閉；後續以 pg_ctl fast stop 及容器／日誌雙重讀回確認。
+
 ## 固定作業規則
 
 1. 測試前先核對 Docker/Supabase project label、API/DB 連接埠、實際啟動的 worktree 與執行中的任務，僅啟用本次所需的環境。容器健康或低 CPU 不等於有使用者正在測試。

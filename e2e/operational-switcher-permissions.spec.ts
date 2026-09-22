@@ -1,5 +1,19 @@
 import { expect, test, type Page } from "@playwright/test";
 import { dismissStaffStartReminder } from "./local-navigation";
+import { PrismaClient } from "@prisma/client";
+
+const db = new PrismaClient();
+const stallId = "22222222-2222-4222-8222-222222222222";
+let originalKds: boolean | undefined;
+test.beforeAll(async () => {
+  if (!["127.0.0.1", "localhost", "[::1]"].includes(new URL(process.env.DATABASE_URL!).hostname)) throw new Error("LOCAL_SWITCHER_QA_REQUIRED");
+  originalKds = (await db.stallOrderingSettings.findUniqueOrThrow({ where: { stallId }, select: { kdsModuleEnabled: true } })).kdsModuleEnabled;
+  await db.stallOrderingSettings.update({ where: { stallId }, data: { kdsModuleEnabled: true } });
+});
+test.afterAll(async () => {
+  try { if (originalKds !== undefined) await db.stallOrderingSettings.update({ where: { stallId }, data: { kdsModuleEnabled: originalKds } }); }
+  finally { await db.$disconnect(); }
+});
 
 async function quickLogin(page: Page, label: "商家" | "店員" | "廚房", expectedPath: RegExp) {
   const emailByLabel = {
@@ -7,7 +21,8 @@ async function quickLogin(page: Page, label: "商家" | "店員" | "廚房", exp
     店員: "staff@stallorder.test",
     廚房: "kitchen@stallorder.test",
   } as const;
-  await page.goto("/login");
+  const next = label === "商家" ? "/merchant/dashboard?organizationId=11111111-1111-4111-8111-111111111111" : label === "店員" ? "/staff/aming-chicken" : "/kitchen?stall=aming-chicken";
+  await page.goto("/login?next=" + encodeURIComponent(next));
   await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
   await page.getByLabel("電子郵件").fill(emailByLabel[label]);
   await page.getByLabel("密碼").fill("StallOrderDemo!2026");

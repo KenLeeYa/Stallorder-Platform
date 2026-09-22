@@ -7,6 +7,9 @@
   --field-border: #d6d3d1;
   --field-border-invalid: #b91c1c;
   --field-background: #ffffff;
+  --control-target: 2.75rem;
+  --radius-panel: 0.75rem;
+  --font-cjk: "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
   --cds-surface-overlay: rgba(250, 250, 249, 0.94);
 }
 
@@ -34,17 +37,64 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-geist-sans), var(--font-cjk);
   --font-mono: var(--font-geist-mono);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), var(--font-cjk);
   overflow-wrap: anywhere;
   text-rendering: optimizeLegibility;
   -webkit-text-size-adjust: 100%;
+}
+
+.merchant-module-link[aria-current="page"] {
+  width: auto;
+  gap: 0.5rem;
+  padding-inline: 0.75rem;
+  background: var(--color-teal-50);
+  color: var(--color-teal-900);
+  box-shadow: inset 0 -3px var(--focus-ring);
+}
+
+.merchant-module-link[aria-current="page"] > span {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  clip-path: none;
+  white-space: normal;
+  font-weight: 600;
+}
+
+/* Large text includes the working data, not just toolbar icons. */
+:root[data-interface-mode="senior"] {
+  font-size: 112.5%;
+}
+
+:root[data-interface-mode="senior"] :where(
+  [data-testid="staff-order-list-pane"],
+  [data-testid="staff-order-items-pane"],
+  [data-testid="staff-order-actions-pane"],
+  [data-testid="staff-order-mobile-list"],
+  [data-testid="catalog-management-row"],
+  [data-testid="qr-checkout-panel"]
+) :where(p, span, label, button, input, textarea, select) {
+  font-size: max(1rem, 1em);
+  line-height: 1.65;
+}
+
+:root[data-interface-mode="senior"] :where(
+  [data-testid="staff-order-master-detail"],
+  [data-testid="staff-order-mobile-list"],
+  [data-testid="catalog-management-row"],
+  [data-testid="qr-checkout-panel"]
+) :where(button, input:not([type="checkbox"]):not([type="radio"]), select) {
+  min-height: 3rem;
 }
 
 @media (max-width: 1023px) {
@@ -361,6 +411,18 @@ body {
 
 :root[data-theme="dark"] :where(.bg-rose-50, .bg-rose-100) {
   background-color: #4c0519 !important;
+}
+
+/* Pressed queue filters need paired foreground/background in both themes. */
+:root[data-theme="dark"] [data-testid="staff-queue-filters"] button[aria-pressed="true"] {
+  background-color: #134e4a !important;
+  color: #ccfbf1;
+  border-color: #5eead4;
+}
+
+:root[data-theme="dark"] .merchant-module-link[aria-current="page"] {
+  background-color: #042f2e !important;
+  color: #5eead4;
 }
 
 :root[data-theme="dark"] .theme-switch-to-dark {

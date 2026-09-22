@@ -14,6 +14,7 @@ import { getStaffCapacityData } from "@/lib/capacity";
 import { getServerNowMs } from "@/lib/server-clock";
 import { buildWorkModeDestinations } from "@/lib/work-mode";
 import { getWorkspaceAccess } from "@/lib/workspace";
+import { getStaffWorkspaceRedesignEnabled } from "@/server/resilience/staff-workspace-rollout";
 
 type PageProps = {
   params: Promise<{ stallSlug: string }>;
@@ -47,8 +48,8 @@ async function StaffOrderContent({ stall, principal, role, roles, timing }: Staf
   const dataQueryCount = 3
     + (canCreateOrders ? 3 : 1)
     + (canOperateCapacity ? 3 : 0)
-    + 3;
-  const [orders, paymentOptions, discountOptions, configuration, capacity, workspaces] = await timing.measureDb(() => Promise.all([
+    + 4;
+  const [orders, paymentOptions, discountOptions, configuration, capacity, workspaces, queueRedesignEnabled] = await timing.measureDb(() => Promise.all([
     prisma.order.findMany({
       where: {
         stallId: stall.id,
@@ -76,6 +77,7 @@ async function StaffOrderContent({ stall, principal, role, roles, timing }: Staf
       ? getStaffCapacityData(stall.organizationId, stall.id)
       : Promise.resolve(null),
     getWorkspaceAccess(principal.user.id, principal.user.platformRole),
+    getStaffWorkspaceRedesignEnabled(stall.organizationId, stall.id),
   ]), dataQueryCount);
   const serverNow = getServerNowMs();
   timing.finish({ status: 200 });
@@ -85,6 +87,7 @@ async function StaffOrderContent({ stall, principal, role, roles, timing }: Staf
   return (
     <>
       <LazyStaffOrderBoard
+        queueRedesignEnabled={queueRedesignEnabled}
         stall={{
           id: stall.id,
           organizationId: stall.organizationId,

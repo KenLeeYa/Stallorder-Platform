@@ -2,7 +2,9 @@
 
 import { StaffOrderEditProductPicker, type ConfiguredEditProduct } from "@/components/staff-order-edit-product-picker";
 import type { OrderItemStatus, OrderStatus, UserRole } from "@prisma/client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { flushSync } from "react-dom";
+import { getStaffQueue, filterStaffQueue, STAFF_QUEUE_FILTERS, STAFF_QUEUE_SOURCES, type StaffQueueFilter, type StaffQueueSource } from "./staff-order-queue";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
@@ -173,6 +175,7 @@ type Actions = {
 };
 
 export type StaffOrderBoardPresentationProps = {
+  queueRedesignEnabled?: boolean;
   stall: Stall;
   account: { displayName: string; role: UserRole };
   modules: StaffOrderPosSnapshot["modules"];
@@ -305,6 +308,7 @@ export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationPr
         />
       ) : (
         <StaffTicketList
+          queueRedesignEnabled={props.queueRedesignEnabled}
           fullViewport={fullViewportBoard}
           orders={filteredOrders}
           currency={stall.currency}
@@ -603,6 +607,7 @@ type StaffTicketListProps = Pick<
   | "expandedOrderIds"
 > & {
   fullViewport?: boolean;
+  queueRedesignEnabled?: boolean;
   orders: StaffOrderDto[];
   currency: string;
   role: UserRole;
@@ -629,18 +634,48 @@ type StaffTicketListProps = Pick<
 };
 
 function StaffTicketList(props: StaffTicketListProps) {
+  const [filter, setFilter] = useState<StaffQueueFilter>("ALL");
+  const [page, setPage] = useState(1);
+  const [source, setSource] = useState<StaffQueueSource>("ALL");
+  const [recentOnly, setRecentOnly] = useState(false);
+  const [printingPage, setPrintingPage] = useState(false);
+  useEffect(() => {
+    const before = () => flushSync(() => setPrintingPage(true));
+    const after = () => setPrintingPage(false);
+    window.addEventListener("beforeprint", before);
+    window.addEventListener("afterprint", after);
+    return () => { window.removeEventListener("beforeprint", before); window.removeEventListener("afterprint", after); };
+  }, []);
+  const sourceLabels = { ALL: "print.rule.allSources", QR_MENU: "print.rule.source.qr", STAFF_POS: "print.rule.source.staff", LINE: "print.rule.source.line", OFFLINE_POS: "print.rule.source.offline" } as const;
+  const queue = getStaffQueue(filterStaffQueue(props.orders, source, recentOnly, new Date(props.now)), filter, page);
+  if (page !== queue.page) setPage(queue.page);
+  const visibleOrders = props.queueRedesignEnabled ? queue.orders : props.orders;
   const [selectedOrderId, setSelectedOrderId] = useState(props.orders[0]?.id ?? null);
-  const selectedOrder = props.orders.find((order) => order.id === selectedOrderId) ?? props.orders[0] ?? null;
+  const selectedOrder = visibleOrders.find((order) => order.id === selectedOrderId) ?? visibleOrders[0] ?? null;
 
   return <section className={`mt-6 print:block ${props.fullViewport ? "md:mt-3 md:flex md:min-h-0 md:flex-1 md:flex-col" : ""}`}>
     <div className="print:hidden"><h2 className="text-lg font-semibold">{props.t("staff.today.title")}</h2><p className="mt-1 text-sm text-stone-600">{props.t("staff.today.description")}</p></div>
+    {props.queueRedesignEnabled ? <><div className="mt-3 flex shrink-0 flex-wrap items-center gap-2 print:hidden" role="group" aria-label={props.t("staff.queue.filters")} data-testid="staff-queue-filters">
+      {STAFF_QUEUE_FILTERS.filter((key) => key !== "PRINT_ATTENTION" || props.printEnabled).map((key) => <button type="button" key={key} aria-pressed={filter === key} onClick={() => { setFilter(key); setPage(1); }} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-stone-300 bg-white px-3 text-sm font-semibold aria-pressed:border-teal-800 aria-pressed:bg-teal-50 aria-pressed:text-teal-900">
+        {props.t(`staff.queue.${key}`)}<span className="rounded-full bg-stone-100 px-2 text-xs tabular-nums">{queue.counts[key]}</span>
+      </button>)}
+    </div>
+    <div className="mt-2 flex shrink-0 flex-wrap gap-2 print:hidden">
+      <label className="flex items-center gap-2 text-sm">{props.t("print.rule.sources")}<select className="min-h-11 min-w-0 rounded-lg border border-stone-300 bg-white px-2" value={source} onChange={(event) => { setSource(event.target.value as StaffQueueSource); setPage(1); }}>{STAFF_QUEUE_SOURCES.map((value) => <option key={value} value={value}>{props.t(sourceLabels[value])}</option>)}</select></label>
+      <button type="button" aria-pressed={recentOnly} className="min-h-11 rounded-lg border border-stone-300 px-3 text-sm aria-pressed:underline" onClick={() => { setRecentOnly(!recentOnly); setPage(1); }}>{props.t("staff.queue.recent")}</button>
+    </div>
+    <div className="mt-2 flex shrink-0 flex-wrap items-center justify-between gap-2 print:hidden" data-testid="staff-queue-pagination">
+      <p role="status" aria-live="polite" className="text-sm text-stone-600">{props.t("staff.queue.page", { page: queue.page, pages: queue.totalPages, count: queue.total })}</p>
+      <div className="flex gap-2"><button type="button" disabled={queue.page === 1} onClick={() => setPage(queue.page - 1)} className="min-h-11 rounded-lg border border-stone-300 px-3 text-sm disabled:opacity-40">{props.t("staff.queue.previous")}</button><button type="button" disabled={queue.page === queue.totalPages} onClick={() => setPage(queue.page + 1)} className="min-h-11 rounded-lg border border-stone-300 px-3 text-sm disabled:opacity-40">{props.t("staff.queue.next")}</button></div>
+    </div>
+    {queue.total === 0 && props.orders.length > 0 ? <p role="status" className="mt-4 rounded-lg border border-dashed border-stone-300 p-6 text-sm text-stone-600">{props.t("staff.queue.empty")}</p> : null}</> : null}
     <div className="mt-4 grid gap-4 md:hidden print:block" data-testid="staff-order-mobile-list">
-      {props.orders.map((order) => <StaffOrderTicket key={order.id} {...props} order={order} />)}
+      {(printingPage ? props.orders : visibleOrders).map((order) => <StaffOrderTicket key={order.id} {...props} order={order} />)}
     </div>
     {selectedOrder ? <div data-testid="staff-order-master-detail" className={`mt-4 hidden min-w-0 gap-3 md:grid md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.25fr)_minmax(0,0.85fr)] xl:gap-4 print:hidden ${props.fullViewport ? "md:min-h-0 md:flex-1" : "min-h-[32rem] md:h-[calc(100dvh-14rem)]"}`}>
       <nav aria-label={props.t("staff.today.title")} className="min-h-0 min-w-0 overflow-y-auto overscroll-contain rounded-xl border border-stone-200 bg-stone-50 p-2" data-testid="staff-order-list-pane">
         <div className="grid min-w-0 grid-cols-1 gap-2">
-          {props.orders.map((order) => {
+          {visibleOrders.map((order) => {
             const selected = order.id === selectedOrder.id;
             const timing = props.orderProductionTimings.get(order.id);
             return <button key={order.id} type="button" aria-current={selected ? "true" : undefined} onClick={() => setSelectedOrderId(order.id)} className={`min-h-24 w-full min-w-0 whitespace-normal rounded-lg border p-3 text-left [overflow-wrap:anywhere] ${selected ? "border-teal-700 bg-teal-50 ring-2 ring-teal-200" : "border-stone-200 bg-white hover:border-stone-400"}`}>
@@ -648,6 +683,7 @@ function StaffTicketList(props: StaffTicketListProps) {
               <span className="mt-2 block text-sm font-semibold">{order.customerName}</span>
               <span className="mt-1 block text-xs text-stone-600">{orderTimingSummary(order, timing, props.now, props.stall.timezone, props.locale, props.t)}</span>
               <span className="mt-2 block text-xs font-semibold text-stone-800">{props.t("common.portions", { count: order.items.reduce((sum, item) => sum + item.quantity, 0) })} · {formatMoney(order.total, props.currency, props.locale)}</span>
+              {props.queueRedesignEnabled ? <span className="mt-2 flex flex-wrap gap-1 text-xs"><span className={`rounded px-2 py-1 ${order.paymentStatus === "UNPAID" ? "bg-amber-50 text-amber-900" : "bg-stone-100 text-stone-700"}`}>{paymentStatusLabel(order.paymentStatus, props.t)}</span>{props.printEnabled && (order.primaryPrintStatus === "FAILED" || order.primaryPrintStatus === "CANCELLED") ? <span className="rounded bg-red-50 px-2 py-1 text-red-800">{props.t("staff.queue.PRINT_ATTENTION")}</span> : null}</span> : null}
             </button>;
           })}
         </div>
@@ -818,9 +854,9 @@ function StaffOrderTicket(props: StaffOrderTicketProps) {
       {reminderOrderIds.has(order.id) ? <p className="mb-3 rounded-md bg-amber-100 px-3 py-2 text-xs font-bold text-amber-950">{t("staff.preorder.reminderBadge")}</p> : null}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-stone-500"><span>{t("staff.order.number", { number: order.orderNo })}</span>{order.isTest ? <span className="rounded bg-amber-100 px-2 py-0.5 text-amber-900">{t("staff.order.test")}</span> : null}{order.source === "OFFLINE_POS" ? <span className="rounded bg-blue-100 px-2 py-0.5 text-blue-900">{t("staff.order.localPending")}</span> : null}</div>
+          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-stone-600"><span>{t("staff.order.number", { number: order.orderNo })}</span>{order.isTest ? <span className="rounded bg-amber-100 px-2 py-0.5 text-amber-900">{t("staff.order.test")}</span> : null}{order.source === "OFFLINE_POS" ? <span className="rounded bg-blue-100 px-2 py-0.5 text-blue-900">{t("staff.order.localPending")}</span> : null}</div>
           <h2 className="mt-1 font-semibold">{order.customerName}</h2>
-          <p className="mt-1 text-sm text-stone-500">{orderTimingSummary(order, timing, now, stall.timezone, locale, t)}</p>
+          <p className="mt-1 text-sm text-stone-600">{orderTimingSummary(order, timing, now, stall.timezone, locale, t)}</p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
           <span className="rounded-md bg-teal-50 px-2 py-1 text-xs font-semibold text-teal-800">{contextualOrderStatusLabel(order, t)}</span>
