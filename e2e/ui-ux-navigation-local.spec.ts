@@ -44,14 +44,13 @@ test("staff filters survive reload, remain scoped and preserve source summaries"
   await page.setViewportSize({ width: 1280, height: 900 });
   await login(page, "店員", "/staff/aming-chicken");
   const actionText = page.getByTestId("staff-function-order-group").getByRole("button").first().locator("span");
-  expect(await actionText.evaluate(element => getComputedStyle(element).clipPath)).toBe("none");
-  await expect(page.getByTestId("staff-attendance")).toBeHidden();
-  await expect(page.getByTestId("staff-function-grid").locator("[data-secondary-tool=true]:visible")).toHaveCount(0);
+  expect(await actionText.evaluate(element => element.getBoundingClientRect().width)).toBeLessThanOrEqual(1);
+  await expect(page.getByTestId("staff-attendance")).toBeVisible();
+  await expect(page.getByTestId("staff-function-grid").locator("[data-extra-tool]")).toBeHidden();
+  await page.getByTestId("staff-tools-toggle").click();
+  await expect(page.getByTestId("staff-function-grid").locator("[data-extra-tool]")).toBeVisible();
   await page.getByTestId("staff-tools-toggle").click();
   await expect(page.getByTestId("staff-attendance")).toBeVisible();
-  await page.getByTestId("staff-tools-toggle").click();
-  await expect(page.getByTestId("staff-attendance")).toBeHidden();
-  await expect(page.getByTestId("staff-function-grid").locator("[data-secondary-tool=true]:visible")).toHaveCount(0);
   const filters = page.getByTestId("staff-queue-filters");
   await filters.getByRole("button", { name: /待接單/ }).click();
   await page.getByRole("combobox", { name: "訂單來源", exact: true }).selectOption("STAFF_POS");
@@ -103,7 +102,7 @@ test("staff filtering still works when browser storage is unavailable", async ({
   await expect(waiting).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("combobox", { name: "訂單來源", exact: true }).selectOption("LINE_DELIVERY");
   await expect(page.getByRole("combobox", { name: "訂單來源", exact: true })).toHaveValue("LINE_DELIVERY");
-  const sound = page.getByTestId("staff-function-device-group").getByRole("switch");
+  const sound = page.getByTestId("staff-common-controls").getByRole("switch");
   await sound.click();
   await expect(sound).toHaveAttribute("aria-checked", "true");
   await sound.click();

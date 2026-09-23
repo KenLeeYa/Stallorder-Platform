@@ -1,3 +1,4 @@
+import { searchStaffOrders } from "./helpers/staff-search";
 import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -614,10 +615,7 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
       await login(staffPage, "staff@stallorder.test");
       await staffPage.goto("/staff/aming-chicken");
       await dismissStaffStartReminder(staffPage);
-      await staffPage
-        .getByRole("main")
-        .getByPlaceholder("搜尋桌號、訂單編號或顧客")
-        .fill(orderNo);
+      await searchStaffOrders(staffPage, orderNo);
       const staffOrderCard = staffPage
         .getByTestId("staff-order-list-pane")
         .getByRole("button")

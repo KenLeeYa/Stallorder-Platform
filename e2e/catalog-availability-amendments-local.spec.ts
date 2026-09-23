@@ -311,7 +311,9 @@ test("店員畫面可增刪已出單餐點並驗證必選註記", async () => {
   await printCommand({ operation: "SUCCESS", jobId: original.id });
   await page.setViewportSize({ width: 1024, height: 900 });
   await page.goto("/staff/aming-chicken");
+  await page.getByTestId("staff-search-open").click();
   await page.getByRole("searchbox").fill(created.orderNo);
+  await page.getByRole("dialog").getByRole("button", { name: "確認", exact: true }).click();
   const ticket = page.getByTestId("staff-order-list-pane").getByRole("button").filter({ hasText: created.orderNo });
   await waitForHydratedControl(ticket);
   await ticket.click();

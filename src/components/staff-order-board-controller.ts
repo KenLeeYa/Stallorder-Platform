@@ -1,4 +1,5 @@
 "use client";
+import { isPublicStaffAmendment, isStaffEditableOrderState } from "@/lib/staff-order-edit-eligibility";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { UserRole } from "@prisma/client";
@@ -443,16 +444,13 @@ export function useStaffOrderBoardController({
   }
 
   function canEditOrderContent(order: OrderWithItems) {
-    const editableSource = order.source === "STAFF_POS"
-      ? order.status === "CONFIRMED"
-      : order.source === "QR_MENU"
-        && order.fulfillmentType === "TAKEOUT"
-        && (order.status === "WAITING_CONFIRMATION" || order.status === "CONFIRMED");
+    const editableSource = isStaffEditableOrderState(order);
     return Boolean(
       orderCatalog
       && hasPermission(account.role, "UPDATE_ORDERS")
       && editableSource
       && order.paymentStatus === "UNPAID"
+      && order.discountAmount === 0
       && order.items.every((item) => item.status === "PENDING"),
     );
   }
@@ -465,7 +463,7 @@ export function useStaffOrderBoardController({
     setOrderEditMessage("");
     setOrderEditProductId("");
     setOrderEditAmendmentReason("SOLD_OUT_REMOVE");
-    setOrderEditCustomerMessage(order.source === "QR_MENU"
+    setOrderEditCustomerMessage(isPublicStaffAmendment(order)
       ? t("staff.edit.defaultSoldOutNotice")
       : "");
     setOrderEditLines(order.items.map((item) => ({
@@ -523,7 +521,7 @@ export function useStaffOrderBoardController({
                 noteOptionIds: line.noteOptionIds,
                 bundleChoiceIds: line.bundleChoiceIds,
               }),
-          ...(orders.find((order) => order.id === editingOrderId)?.source === "QR_MENU"
+          ...(orders.some((order) => order.id === editingOrderId && isPublicStaffAmendment(order))
             ? {
                 publicAmendment: {
                   reason: orderEditAmendmentReason,
@@ -952,7 +950,7 @@ export function useStaffOrderBoardController({
       customerMessage: orderEditCustomerMessage,
       busy: orderEditBusy,
       message: orderEditMessage,
-      editableOrderIds: new Set(operationalOrders.filter(canEditOrderContent).map((order) => order.id)),
+      editableOrderIds: new Set(filteredOrders.filter(canEditOrderContent).map((order) => order.id)),
     },
     actions: {
       onClearSelectedItems: clearSelectedItems,

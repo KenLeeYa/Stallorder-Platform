@@ -1,3 +1,4 @@
+import { searchStaffOrders } from "./helpers/staff-search";
 import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -360,9 +361,7 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
       await expect(
         staffPage.getByTestId("staff-sticky-header").getByRole("heading"),
       ).toContainText(stallName);
-      await staffPage
-        .getByRole("searchbox", { name: "搜尋桌號或訂單編號" })
-        .fill(orderNo);
+      await searchStaffOrders(staffPage, orderNo);
       const staffOrder = staffPage
         .getByRole("article")
         .filter({ hasText: `訂單 ${orderNo}` });

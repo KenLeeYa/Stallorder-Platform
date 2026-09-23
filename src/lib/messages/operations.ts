@@ -877,6 +877,7 @@ const definitions = {
   "staff.action.notificationsDisable": { "zh-TW": "關閉新訂單聲音與震動", en: "Disable sound and vibration for new orders", ja: "新規注文の音と振動を無効化", ko: "신규 주문 소리 및 진동 끄기", vi: "Tắt âm thanh và rung cho đơn mới", th: "ปิดเสียงและการสั่นสำหรับออเดอร์ใหม่" },
   "staff.action.offlineDevice": { "zh-TW": "離線裝置", en: "Offline device", ja: "オフライン端末", ko: "오프라인 기기", vi: "Thiết bị ngoại tuyến", th: "อุปกรณ์ออฟไลน์" },
   "staff.action.logout": { "zh-TW": "登出", en: "Sign out", ja: "ログアウト", ko: "로그아웃", vi: "Đăng xuất", th: "ออกจากระบบ" },
+  "staff.search.clear": { "zh-TW": "清除搜尋", en: "Clear search", ja: "検索をクリア", ko: "검색 지우기", vi: "Xóa tìm kiếm", th: "ล้างการค้นหา" },
   "staff.search.label": { "zh-TW": "搜尋桌號或訂單編號", en: "Search table or order number", ja: "テーブルまたは注文番号を検索", ko: "테이블 또는 주문 번호 검색", vi: "Tìm bàn hoặc mã đơn", th: "ค้นหาโต๊ะหรือเลขออเดอร์" },
   "staff.search.shortPlaceholder": { "zh-TW": "搜尋桌號、訂單編號或顧客", en: "Search table, order number, or customer", ja: "テーブル・注文番号・顧客を検索", ko: "테이블, 주문 번호 또는 고객 검색", vi: "Tìm bàn, mã đơn hoặc khách", th: "ค้นหาโต๊ะ เลขออเดอร์ หรือลูกค้า" },
   "staff.view.kitchenMode": { "zh-TW": "廚房檢視模式", en: "Kitchen view mode", ja: "厨房表示モード", ko: "주방 보기 모드", vi: "Chế độ xem bếp", th: "โหมดมุมมองครัว" },

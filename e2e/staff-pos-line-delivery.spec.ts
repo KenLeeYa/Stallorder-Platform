@@ -1,3 +1,4 @@
+import { searchStaffOrders } from "./helpers/staff-search";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { createEnglishOrderCatalogFixture } from "./english-order-catalog-fixture";
@@ -1301,10 +1302,7 @@ test("LINE 固定外送網址可指定送達時間，店家提議後由顧客確
     await login(staffPage);
     await staffPage.goto("/staff/aming-chicken");
     await dismissStaffStartReminder(staffPage);
-    await staffPage
-      .getByRole("main")
-      .getByPlaceholder("搜尋桌號、訂單編號或顧客")
-      .fill(customerName);
+    await searchStaffOrders(staffPage, customerName);
     const staffOrderCard = staffPage
       .getByTestId("staff-order-list-pane")
       .getByRole("button")

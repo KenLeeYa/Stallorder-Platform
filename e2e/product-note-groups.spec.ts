@@ -1,3 +1,4 @@
+import { searchStaffOrders } from "./helpers/staff-search";
 import { randomUUID } from "node:crypto";
 import {
   expect,
@@ -1611,7 +1612,7 @@ test("QR 註記選擇會由後端驗價並顯示於店員訂單", async ({ brows
   await login(staffPage, "staff@stallorder.test");
   await staffPage.goto("/staff/aming-chicken");
   await dismissStaffStartReminder(staffPage);
-  await staffPage.getByRole("searchbox").fill(orderNo);
+  await searchStaffOrders(staffPage, orderNo);
   const staffOrder = staffPage
     .getByTestId("staff-order-list-pane")
     .getByRole("button")

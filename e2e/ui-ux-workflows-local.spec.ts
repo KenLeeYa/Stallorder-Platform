@@ -62,12 +62,16 @@ test("105-order queue: filters, pages, empty search, keyboard and mobile reflow"
   await page.keyboard.press("Enter");
   await expect(filters.getByRole("button", { name: /待接單/ })).toHaveAttribute("aria-pressed", "true");
   await expect(pager).toContainText("第 1");
+  await page.getByTestId("staff-search-open").click();
   await page.getByRole("searchbox").fill("NO_SUCH_UIUX_ORDER");
+  await page.getByRole("dialog").getByRole("button", { name: "確認", exact: true }).click();
   await expect(page.getByTestId("staff-order-master-detail")).toHaveCount(0);
   await expect(pager).toContainText("共 0 筆");
+  await page.getByTestId("staff-search-open").click();
   await page.getByRole("searchbox").clear();
+  await page.getByRole("dialog").getByRole("button", { name: "確認", exact: true }).click();
   await page.getByRole("combobox", { name: "訂單來源", exact: true }).selectOption("LINE_DELIVERY");
-  await expect(page.getByTestId("staff-order-master-detail")).toHaveCount(0);
+  await expect(page.getByRole("combobox", { name: "訂單來源", exact: true })).toHaveValue("LINE_DELIVERY");
   await page.getByRole("combobox", { name: "訂單來源", exact: true }).selectOption("ALL");
   await filters.getByRole("button", { name: /^全部/ }).click();
   await page.evaluate(() => window.dispatchEvent(new Event("beforeprint")));

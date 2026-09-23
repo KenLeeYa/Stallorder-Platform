@@ -1,3 +1,4 @@
+import { searchStaffOrders } from "./helpers/staff-search";
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -359,7 +360,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       );
       await staffPage.goto(`/staff/${stallSlug}`);
       await dismissStaffStartReminder(staffPage);
-      await staffPage.getByRole("searchbox").fill(order.orderNo);
+      await searchStaffOrders(staffPage, order.orderNo);
       const ticket = staffPage
         .getByRole("article")
         .filter({ hasText: order.customerName });
@@ -460,7 +461,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       );
       await staffPage.goto(`/staff/${stallSlug}`);
       await dismissStaffStartReminder(staffPage);
-      await staffPage.getByRole("searchbox").fill(order.orderNo);
+      await searchStaffOrders(staffPage, order.orderNo);
       const ticket = staffPage
         .getByRole("article")
         .filter({ hasText: order.customerName });
@@ -576,7 +577,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       );
       await staffPage.goto(`/staff/${stallSlug}`);
       await dismissStaffStartReminder(staffPage);
-      await staffPage.getByRole("searchbox").fill(order.orderNo);
+      await searchStaffOrders(staffPage, order.orderNo);
       const ticket = staffPage
         .getByRole("article")
         .filter({ hasText: order.customerName });
@@ -746,7 +747,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       await loginLocalTestAccount(page, "staff@stallorder.test", password);
       await page.goto(`/staff/${stallSlug}`);
       await dismissStaffStartReminder(page);
-      await page.getByRole("searchbox").fill(order.orderNo);
+      await searchStaffOrders(page, order.orderNo);
       const main = page.locator("#main-content");
       const ticket = main.getByRole("article").filter({ hasText: order.customerName });
       await expect(ticket).toContainText("列印需要處理");
@@ -786,7 +787,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       await page.setViewportSize({ width: 1024, height: 768 });
       await page.reload();
       await dismissStaffStartReminder(page);
-      await page.getByRole("searchbox").fill(order.orderNo);
+      await searchStaffOrders(page, order.orderNo);
       await main.getByTestId("staff-order-list-pane").getByRole("button")
         .filter({ hasText: order.customerName }).click();
       const actions = main.getByTestId("staff-order-actions-pane");

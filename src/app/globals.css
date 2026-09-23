@@ -116,7 +116,6 @@ body {
 
   :root[data-interface-mode="senior"] :where(
     [data-testid="merchant-function-navigation-mobile"],
-    [data-testid="staff-function-grid"],
     [data-testid="kitchen-primary-navigation"]
   ) :where(a, button, [role="button"], span[title])[title] {
     display: inline-flex !important;
@@ -134,7 +133,6 @@ body {
 
   :root[data-interface-mode="senior"] :where(
     [data-testid="merchant-function-navigation-mobile"],
-    [data-testid="staff-function-grid"],
     [data-testid="kitchen-primary-navigation"]
   ) :where(a, button, [role="button"], span[title])[title]::after {
     content: attr(title);
@@ -150,14 +148,12 @@ body {
 
   :root[data-interface-mode="senior"] :where(
     [data-testid="merchant-function-navigation-mobile"],
-    [data-testid="staff-function-grid"],
     [data-testid="kitchen-primary-navigation"]
   ) svg {
     width: 1.75rem !important;
     height: 1.75rem !important;
   }
 
-  :root[data-interface-mode="senior"] [data-testid="staff-function-grid"],
   :root[data-interface-mode="senior"] [data-testid="kitchen-primary-navigation"] {
     min-height: 6rem;
     padding-block: 0.5rem;
@@ -723,32 +719,18 @@ textarea.form-input {
   .workspace-function-link { transition: none; }
 }
 
-/* Keep printer and sound visible; mounted secondary controls retain device state. */
-[data-compact-tools="true"] [data-testid="staff-function-identity-group"],
-[data-compact-tools="true"] [data-testid="staff-function-status-group"],
-[data-compact-tools="true"] [data-testid="staff-function-offline"],
-[data-compact-tools="true"] [data-testid="staff-function-logout"],
-[data-compact-tools="true"] [data-secondary-tool="true"] {
-  display: none;
+/* Desktop/tablet retain the full icon row; phones expand secondary tools on demand. */
+[data-compact-tools="true"] [data-extra-tool="true"] { display: none; }
+@media (max-width: 767px) {
+  [data-compact-tools="true"] [data-testid="staff-function-identity-group"],
+  [data-compact-tools="true"] [data-testid="staff-function-status-group"],
+  [data-compact-tools="true"] [data-testid="staff-function-offline"],
+  [data-compact-tools="true"] [data-testid="staff-function-logout"],
+  [data-compact-tools="true"] [data-secondary-tool="true"] { display: none; }
 }
-[data-compact-tools="true"] [data-testid="staff-function-order-group"] > :is(a, button):not([data-secondary-tool="true"]),
-[data-compact-tools="true"] [data-testid="staff-function-device-group"] > button:not([data-secondary-tool="true"]) {
-  display: inline-flex;
-  width: auto;
-  min-width: 44px;
-  gap: 0.5rem;
-  padding-inline: 0.75rem;
-}
-[data-compact-tools="true"] [data-testid="staff-function-order-group"] > :is(a, button):not([data-secondary-tool="true"]) > .sr-only,
-[data-compact-tools="true"] [data-testid="staff-function-device-group"] > button:not([data-secondary-tool="true"]) > .sr-only {
-  position: static;
-  width: auto;
-  height: auto;
-  padding: 0;
-  margin: 0;
-  overflow: visible;
-  clip: auto;
-  clip-path: none;
-  white-space: nowrap;
-  font-size: 0.875rem;
+
+:root[data-interface-mode="senior"] :is([data-testid="staff-function-grid"], [data-testid="staff-common-controls"])
+:where(a, button, label, span[title]) {
+  min-height: 3.5rem;
+  min-width: 3.5rem;
 }
