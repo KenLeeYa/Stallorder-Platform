@@ -3,6 +3,9 @@
 import { useEffect } from "react";
 import {
   navigationHorizontalScrollKey,
+  readNavigationState,
+  writeNavigationState,
+  removeNavigationState,
   navigationRestoreKey,
   navigationReturnKey,
   navigationScrollKey,
@@ -23,7 +26,7 @@ export function NavigationStateManager() {
       if (!(element instanceof HTMLElement)) return;
       const toolbarId = element.dataset.persistHorizontalScroll;
       if (!toolbarId) return;
-      window.sessionStorage.setItem(
+      writeNavigationState(
         navigationHorizontalScrollKey(toolbarId),
         String(element.scrollLeft),
       );
@@ -39,7 +42,7 @@ export function NavigationStateManager() {
           if (!(element instanceof HTMLElement)) return;
           const toolbarId = element.dataset.persistHorizontalScroll;
           if (!toolbarId) return;
-          const scrollLeft = Number(window.sessionStorage.getItem(
+          const scrollLeft = Number(readNavigationState(
             navigationHorizontalScrollKey(toolbarId),
           ) ?? "0");
           if (Number.isFinite(scrollLeft)) element.scrollLeft = scrollLeft;
@@ -59,16 +62,16 @@ export function NavigationStateManager() {
       const targetPath = normalizeInternalNavigationPath(`${url.pathname}${url.search}${url.hash}`);
       if (!sourcePath || !targetPath || sourcePath === targetPath) return;
       rememberHorizontalToolbars();
-      window.sessionStorage.setItem(navigationReturnKey(targetPath), sourcePath);
-      window.sessionStorage.setItem(navigationScrollKey(sourcePath), String(window.scrollY));
+      writeNavigationState(navigationReturnKey(targetPath), sourcePath);
+      writeNavigationState(navigationScrollKey(sourcePath), String(window.scrollY));
     }
 
     function restoreRequestedScroll() {
       restoreHorizontalToolbars();
       const path = currentInternalPath();
-      if (!path || window.sessionStorage.getItem(navigationRestoreKey(path)) !== "1") return;
-      window.sessionStorage.removeItem(navigationRestoreKey(path));
-      const scrollY = Number(window.sessionStorage.getItem(navigationScrollKey(path)) ?? "0");
+      if (!path || readNavigationState(navigationRestoreKey(path)) !== "1") return;
+      removeNavigationState(navigationRestoreKey(path));
+      const scrollY = Number(readNavigationState(navigationScrollKey(path)) ?? "0");
       if (!Number.isFinite(scrollY)) return;
       window.requestAnimationFrame(() => window.requestAnimationFrame(() => window.scrollTo({ top: scrollY })));
     }

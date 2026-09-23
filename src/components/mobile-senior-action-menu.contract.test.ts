@@ -32,7 +32,8 @@ describe("mobile senior action menu contract", () => {
   });
 
   it("covers merchant, staff, and kitchen navigation without duplicating their permissions", () => {
-    expect(merchantSource).toContain('<MobileSeniorActionMenu label={m("商戶功能")}');
+    expect(merchantSource).toContain('<WorkspaceFunctionNavigation items={navigation}');
+    expect(merchantSource).toContain('testId="merchant-function-navigation-mobile"');
     expect(staffSource).toContain('<MobileSeniorActionMenu label={t("staff.functions")}');
     expect(kitchenSource).toContain('<MobileSeniorActionMenu label={t("kitchen.navigation")}');
   });

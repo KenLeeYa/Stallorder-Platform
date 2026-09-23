@@ -18,7 +18,7 @@
 - SharedCatalogBoard：分類→群組→品項；主檔／單攤位影響範圍原有文字保留；checkbox 為批次選取、不是滑動開關。
 - ProductAvailabilityEditor：五種明確模式、只展開相關時間欄位；保存忙碌鎖、同步重入鎖、錯誤不關閉 dialog、不清空日期；Escape／關閉返回觸發按鈕。
 - QrOrderCartPanel：label 與輸入 id 明確關聯，保留 placeholder 範例；結帳群組關聯標題與阻擋原因，aria-busy 表示送出中；不新增收件資料要求。
-- MerchantModuleLink：保留 Next Link 行為與 server 決定的顯示條件，現在位置同時有文字與 aria-current。
+- WorkspaceFunctionNavigation：取代 MerchantModuleLink，保留 Next Link 與角色／模組顯示條件；具型別的 WorkspaceFunction 定義 group、primary、href、label、icon。現在位置有文字與 aria-current，完整目錄可搜尋及使用 Escape 返回焦點。
 
 ## 不採用的視覺變更
 
@@ -47,3 +47,13 @@
 - 手機 <768 卡片；平板 >=768 三區以 minmax(0,fr) 分配並各自捲動；1280 以上增加間距。320/360 最窄仍保持主操作可達。
 - 動畫沿用現有 reduced-motion 規則，不增加過場。高對比依文字／邊框／focus 可辨識，尚未宣稱 Windows forced-colors 完整驗證。
 - 預設、hover、focus-visible、pressed、disabled、busy、錯誤按實際 native/ARIA 狀態呈現，避免做外觀正常卻可以重送的按鈕。
+
+## 共用系統的補完
+
+`globals.css` 新增 `--ui-*` 語意 alias：brand/surface/text/muted/border/info/success/warning/danger、4px spacing、control/panel radius、panel shadow、navigation/dialog layers 及快速 motion。實際原生控制沿用 focus/invalid/disabled 與既有 Tailwind tokens；訂單不新增裝飾動畫。
+
+新增 `workspace-function-navigation.tsx` 作商家與平台共用的有型別功能目錄；`admin-subscription-directory.tsx` 使用相同 Input/Select、44px Button、DataTable/Card 與原生 labels，client props 僅含必要欄位。沒有建立未被使用的 Button wrapper 或第二套交易 dialog。
+
+元件文件以本表、型別與真實頁面證據組成等效元件目錄：供應五模式、目錄空結果、搜尋篩選、disabled 分頁、pressed 狀態、required 客製跳轉、欄位 error、busy 重入、金額與狀態進度。測試分別在 ui-ux-navigation-local、ui-ux-accessibility-local、ui-ux-recovery-local、qr-order-menu.test 及既有 workflow suites。
+
+店員工具列在啟用工作台旗標時顯示主要操作文字；「所有功能」可展開身份、設備及低頻設定，列印／聲音／連線仍在主要區域。控制項維持 mounted，避免收合中止裝置狀態。平台桌面側欄同時顯示分組與目前頁面。

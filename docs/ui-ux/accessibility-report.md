@@ -1,6 +1,12 @@
 # 無障礙與裝置驗證
 
-範圍：本輪修改的店員工作台、共用商品、商家儀表板、平台帳務、公開 Menu，以及供應設定視窗。目標 WCAG 2.2 AA；本報告不是全站認證。使用真實本機資料及授權登入，沒有排除 axe 規則或隱藏問題節點。
+範圍：本輪修改的店員工作台、共用商品、商家儀表板、平台帳務、公開 Menu、供應設定視窗，以及續作的搜尋導覽、訂閱管理與報表。目標 WCAG 2.2 AA；本報告不是全站認證。使用真實本機資料及授權登入，沒有排除 axe 規則或隱藏問題節點。
+
+## 全面續作的最新驗證
+
+2026-09-23，`full-redesign/core-ready.json` 的五頁明暗十狀態與六語供應視窗均通過；`full-redesign/navigation-ready.json` 再覆蓋三個新增管理介面（商家功能目錄、平台訂閱、營運報表）在 390px 明色與 1440px 暗色，包含展開功能目錄／報表定義後的 axe 檢查。上述掃描均無符合所選 tags 的違規。失敗截圖與初始 round 保留，最新逐案索引見 verification-report。
+
+新增導覽與訂閱清單另測 320／390／768／1024／1440px 無整頁水平溢出；功能搜尋無結果、清除、Escape 關閉與焦點返回；可見文字沒有被 clip-path 隱藏；已收合的低頻工具確實隱藏。儲存偏好失效仍能登入、切換模式、篩選與啟閉聲音，不將 optional Storage 變成使用障礙。
 
 ## 自動掃描
 
@@ -10,7 +16,7 @@
 npx playwright test e2e/ui-ux-accessibility-local.spec.ts --workers=1
 ```
 
-axe-core 4.13.0，tags `wcag2a/wcag2aa/wcag21aa/wcag22aa`。五頁各掃描 390px 明色、1280px 暗色，共十種頁面狀態；另掃六語供應視窗。帳務的低頻設定先展開，避免收合隱藏問題。最新十種狀態與六語 dialog 均為零個自動規則違規；結果檔位於本輪 `final-browser-evidence` 的 `axe-results.json`。
+axe-core 4.13.0，tags `wcag2a/wcag2aa/wcag21aa/wcag22aa`。五頁各掃描 390px 明色、1280px 暗色，共十種頁面狀態；另掃六語供應視窗。帳務的低頻設定先展開，避免收合隱藏問題。首輪證據位於 `final-browser-evidence`，續作證據位於 `full-redesign/core-ready-evidence` 與 `full-redesign/navigation-ready-evidence`。
 
 | 本輪掃描發現 | 原因 | 修正／結果 |
 |---|---|---|

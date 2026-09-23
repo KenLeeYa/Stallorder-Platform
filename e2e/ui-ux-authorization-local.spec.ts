@@ -31,9 +31,9 @@ test("administrator revokes and restores a local staff role; an already-open pag
     await staffPage.waitForURL((url) => url.pathname === "/staff/aming-chicken");
     const orders = "/api/stalls/aming-chicken/orders";
     expect((await staffPage.request.get(orders)).status()).toBe(200);
+    changed = true;
     const response = await admin.request.patch(path, { headers, data: { role: member.role, isActive: false } });
     expect(response.status()).toBe(200);
-    changed = true;
     await expect.poll(async () => (await staffPage.request.get(orders)).status()).toBe(404);
     await staffPage.reload();
     await expect(staffPage.getByTestId("staff-order-master-detail")).toHaveCount(0);
@@ -45,8 +45,11 @@ test("administrator revokes and restores a local staff role; an already-open pag
     expect(await db.auditLog.count({ where: { entityId: member.id, action: "STALL_ROLE_REVOKED", outcome: "SUCCESS" } })).toBeGreaterThan(0);
   } finally {
     if (changed && !restored) {
-      const response = await admin.request.patch(path, { headers, data: { role: member.role, isActive: member.isActive } });
-      if (response.status() !== 200) await db.stallMembership.update({ where: { id: member.id }, data: { role: member.role, isActive: member.isActive } });
+      try {
+        const response = await admin.request.patch(path, { headers, data: { role: member.role, isActive: member.isActive } });
+        restored = response.status() === 200;
+      } catch { /* A timed-out request may have committed; restore only this local fixture below. */ }
+      if (!restored) await db.stallMembership.update({ where: { id: member.id }, data: { role: member.role, isActive: member.isActive } });
     }
     await admin.close();
     await staff.close();

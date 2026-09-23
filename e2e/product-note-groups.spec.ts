@@ -1533,10 +1533,16 @@ test("QR 註記選擇會由後端驗價並顯示於店員訂單", async ({ brows
   await page.setViewportSize({ width: 360, height: 844 });
 
   await page.goto(`/q/${takeoutQrToken}`);
+  const menuSearch = page.getByRole("searchbox", { name: "搜尋餐點或分類", exact: true });
+  await menuSearch.fill("no-product-xyz");
+  await expect(page.getByTestId("qr-category-navigation").getByRole("link")).toHaveCount(0);
+  await menuSearch.fill("台式鹽酥雞");
   const qrProduct = page.getByRole("article").filter({ hasText: "台式鹽酥雞" });
   await qrProductSelectionControl(qrProduct, "台式鹽酥雞").click();
   await expect(page.getByRole("radiogroup", { name: /辣度/ })).toBeVisible();
   await expect(qrProduct.getByRole("button", { name: "加入購物車", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "前往未完成的選項", exact: true }).click();
+  await expect(page.getByRole("radiogroup", { name: /辣度/ }).getByRole("radio").first()).toBeFocused();
   await page.getByRole("radio", { name: "中辣", exact: true }).click();
   await page.getByRole("checkbox", { name: /加蛋/ }).click();
   await qrProduct.getByRole("button", { name: "加入購物車" }).click();

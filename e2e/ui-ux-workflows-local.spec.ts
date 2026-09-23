@@ -66,7 +66,7 @@ test("105-order queue: filters, pages, empty search, keyboard and mobile reflow"
   await expect(page.getByTestId("staff-order-master-detail")).toHaveCount(0);
   await expect(pager).toContainText("共 0 筆");
   await page.getByRole("searchbox").clear();
-  await page.getByRole("combobox", { name: "訂單來源", exact: true }).selectOption("LINE");
+  await page.getByRole("combobox", { name: "訂單來源", exact: true }).selectOption("LINE_DELIVERY");
   await expect(page.getByTestId("staff-order-master-detail")).toHaveCount(0);
   await page.getByRole("combobox", { name: "訂單來源", exact: true }).selectOption("ALL");
   await filters.getByRole("button", { name: /^全部/ }).click();

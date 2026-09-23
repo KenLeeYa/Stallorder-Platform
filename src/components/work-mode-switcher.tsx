@@ -45,7 +45,7 @@ export function WorkModeSwitcher({
         return;
       }
     }
-    window.localStorage.setItem(ORGANIZATION_STORAGE_KEY, destination.organizationId);
+    try { window.localStorage.setItem(ORGANIZATION_STORAGE_KEY, destination.organizationId); } catch { /* The authorized destination remains usable without a remembered workspace. */ }
     window.location.assign(destination.href);
   }
 

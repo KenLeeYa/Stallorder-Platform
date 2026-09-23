@@ -239,6 +239,12 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       const workMode = visibleHeader
         .getByTestId("work-mode-icon-staff")
         .locator("..");
+      const allFunctions = visibleHeader.getByTestId("staff-tools-toggle");
+      if (await allFunctions.isVisible()) {
+        await expect(workMode).toBeHidden();
+        await allFunctions.click();
+        await expect(allFunctions).toHaveAttribute("aria-expanded", "true");
+      }
       await expect(workMode).toBeVisible();
       await workMode.click();
       const workModeDialog = ownerPage.getByRole("dialog", {
@@ -839,9 +845,20 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
     try {
       const ownerPage = await ownerContext.newPage();
       await login(ownerPage, "owner@stallorder.test", /\/merchant\/dashboard/);
-      await ownerPage.goto(
-        `/merchant/stalls/${stallId}/settings/special-hours`,
-      );
+      // Exercise the real SSR interval: an opener must not accept clicks before hydration.
+      let resumeHydration!: () => void;
+      const hydrationGate = new Promise<void>((resolve) => { resumeHydration = resolve; });
+      await ownerPage.route("**/_next/static/**/*.js", async (route) => {
+        await hydrationGate;
+        await route.continue();
+      });
+      try {
+        await ownerPage.goto(`/merchant/stalls/${stallId}/settings/special-hours`, { waitUntil: "commit" });
+        await expect(ownerPage.getByRole("button", { name: "新增特殊營業日", exact: true })).toBeDisabled();
+      } finally {
+        resumeHydration();
+        await ownerPage.unrouteAll({ behavior: "wait" });
+      }
       await ownerPage
         .getByRole("button", { name: "新增特殊營業日", exact: true })
         .click();

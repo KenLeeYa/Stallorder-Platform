@@ -1,7 +1,8 @@
 # StallOrder UI/UX 改造驗收入口
 
-本輪以正式來源基準 `5cc15c6` 建立獨立分支 `codex/ui-ux-redesign-20260923`。完成優先介面的本機實作與 QA，**尚未正式上線**。原本工作樹及測試資料保留。
+本輪以正式來源基準 `5cc15c6` 建立獨立分支 `codex/ui-ux-redesign-20260923`。整體改版以本機候選交付，實作／QA 狀態見最新驗證表，**尚未正式上線**。原本工作樹及測試資料保留。
 
+- [全面續作及主要決策](full-redesign-continuation.md)
 - [Phase 00–15 交付對照及明確缺口](phase-delivery-map.md)
 - [實際命令、通過／略過／未驗證及效能](verification-report.md)
 - [無障礙與實機驗收邊界](accessibility-report.md)
@@ -15,7 +16,7 @@
 
 完整五頁 × 七寬度的可切換對照：
 
-[本機前後對照頁](<C:/Users/KY/.codex/visualizations/2026/09/06/01a0761b-0cdb-73e1-82cc-59a3e93d5d66/ui-ux-redesign-20260923/comparison.html>)
+[本機前後對照頁](<C:/Users/KY/.codex/visualizations/2026/09/06/01a0761b-0cdb-73e1-82cc-59a3e93d5d66/ui-ux-redesign-20260923/full-redesign/comparison.html>)
 
 | 畫面 | 基準 | 改造後 |
 |---|---|---|
@@ -27,7 +28,7 @@
 
 ## 本機測試服務
 
-測試已結束，3023／3024 與本次 DB 55722 已停止。其他工作區的 StudyMesh、KuanGuard 容器未動。容器、volume、232 筆訂單保留；DB 經重啟讀回後正常關閉。詳見本輪 `service-stop-receipt.json`。
+測試已結束，3023／3024 與本次 DB 55722 已停止。其他工作區的 StudyMesh、KuanGuard 容器未動。容器、volume、239 筆訂單保留；DB 最終讀回後正常關閉。詳見 `full-redesign/service-stop-receipt.json`。
 
 需要手動測試時，在確認沒有其他工作共用 55722 後，只開這一組：
 

@@ -9,8 +9,8 @@ UI/UX 工作留在 `codex/ui-ux-redesign-20260923`。未 push、未發布、未�
 ## 分批
 
 1. 合併至 Staging 前，重跑型別、lint、相關測試、build、權限、售完／原單修改／列印復原與視覺流程；保留精確 commit/tree。
-2. 先測單一受權示範商家，手機／平板／桌機各完成一筆含客製訂單及故障復原。本次沿用 `src/server/resilience/feature-flag-service.ts`，新增 `STAFF_WORKSPACE_REDESIGN_ENABLED`，預設 false，只控制店員清單分頁／篩選／付款列印摘要，不控制任何 server transaction guard。
-3. 再對三間試用商家逐步啟用。未啟用攤位維持原清單及操作；旗標查詢失敗也回到原清單。其他本輪商品、欄位與無障礙修正隨候選版本生效，不在此旗標範圍。已通過本機真實管理者 API 開啟→回退→再次開啟、401／404 與訂單不變檢查；尚未修改正式旗標。
+2. 先測單一受權示範商家，手機／平板／桌機各完成一筆含客製訂單及故障復原。本次沿用 `src/server/resilience/feature-flag-service.ts`，新增 `STAFF_WORKSPACE_REDESIGN_ENABLED`，預設 false，控制店員清單分頁／篩選／摘要，以及常用工具收合，不控制任何 server transaction guard。
+3. 再對三間試用商家逐步啟用。未啟用攤位維持原清單及操作；旗標查詢失敗也回到原清單。商家／平台導覽、顧客搜尋、商品、報表、欄位與無障礙修正隨候選版本生效，不在此旗標範圍。已通過本機真實管理者 API 開啟→回退→再次開啟、401／404 與訂單不變檢查；尚未修改正式旗標。
 4. 只有本次功能驗收與受保護發布流程均通過，才發布 Primary；DR 另讀取明確 project/deployment，禁止繼承未指定的 `VERCEL_PROJECT_ID`。
 
 ## 停止擴大／回復條件
@@ -40,3 +40,7 @@ UI/UX 工作留在 `codex/ui-ux-redesign-20260923`。未 push、未發布、未�
 | 螢幕閱讀器與原生 200% zoom | Windows NVDA／Android TalkBack／iPad VoiceOver | 標題、狀態、錯誤定位、dialog 焦點、表格精確數值 | 保留原路由與 presentation 回退；問題列 P1 |
 
 這些項目未完成不會阻止本機 UI 實作；它們會阻止「全系統／正式環境已完整驗收」的宣告。
+
+## 全面續作的相容範圍
+
+`896ab68` 為首輪候選，續作 commit 另見 verification-report。工作台旗標可直接回復店員舊清單／工具列；無法回退其他角色的導航或報表。全站導航回復需回到已驗證的相容 application artifact，不改 DB／訂單。偏好只存在 `sessionStorage` 的 `stallorder:queue:v1:<stallId>:<role>`，可清除該鍵回到全部清單；不含訂單或顧客資料。低頻工具以顯示收合處理，不卸載裝置控制，避免遺失已啟用的 wake lock 或通知設定。

@@ -18,3 +18,11 @@
 UI 篩選是 read model：WAITING_CONFIRMATION → 待接單；CONFIRMED/PREPARING/PACKING → 製作流程；READY → 待交付／結帳。列印待處理與製作狀態可重疊，只根據 primary FAILED/CANCELLED 判定，不把 PENDING/PRINTING 當失敗。
 
 此設計不新增 OrderStatus、PaymentStatus、PrintJobStatus 或資料表，不改變既有時間協商、預約、折扣、退款、列印重試、會員／LINE 通知規則。
+
+## 全面續作的旅程補強
+
+- 商家：常用入口 → 所有功能 → 搜尋並點選授權模組；連結保留商家 scope。
+- 店員：看到來源／品項／備註與獨立付款／列印狀態 → 處理訂單；重新整理保留目前角色／攤位的三種清單條件，工具收合不卸載裝置功能。
+- 顧客：名稱／分類搜尋 → 客製 → 前往未完成群組 → 同一購物車 → 既有安全建單／追蹤；搜尋不重設選取。
+- 平台：先看待辦 → 點擊對應審核區 → 側欄找訂閱 → 搜尋商家與狀態 → 既有管理頁。
+- 報表：選擇期間與門市 → 查看時區／定義與精確值 → 確認所選日期 → 真實下載；server 再驗 scope／權限。

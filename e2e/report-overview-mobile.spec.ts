@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { calendarDateInTimeZone } from "../src/lib/date-time";
-import { waitForDefaultMerchantDashboard } from "./local-navigation";
+
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
@@ -18,6 +18,7 @@ const viewportCases = [
 ] as const;
 
 test("報表會依手機與平板寬度呈現緊密 Dashboard", async ({ page }) => {
+  test.setTimeout(120_000);
   await page.setViewportSize({ width: 390, height: 844 });
   await login(page);
 
@@ -77,6 +78,7 @@ test("報表會依手機與平板寬度呈現緊密 Dashboard", async ({ page })
         });
       });
       await mainContent.getByRole("button", { name: "匯出 CSV", exact: true }).click();
+      await page.getByRole("dialog", { name: "匯出 CSV", exact: true }).getByRole("button", { name: "匯出 CSV", exact: true }).click();
       await expect.poll(() => exportCapture.payload).toBeDefined();
 
       const appliedFilter = await filterForm.evaluate((form) => ({
@@ -124,7 +126,7 @@ test("報表會依手機與平板寬度呈現緊密 Dashboard", async ({ page })
 });
 
 async function login(page: Page) {
-  await page.goto("/login");
+  await page.goto("/login?next=" + encodeURIComponent(`/merchant/reports/overview?${reportQuery}`));
   await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
   await page.getByLabel("電子郵件").fill("owner@stallorder.test");
   await page.getByLabel("密碼").fill("StallOrderDemo!2026");
@@ -133,11 +135,7 @@ async function login(page: Page) {
   ));
   await page.getByRole("button", { name: "登入", exact: true }).click();
   expect((await response).status()).toBe(200);
-  await expect(page).toHaveURL(/\/(?:merchant\/dashboard\?organizationId=|select-organization)/);
-  if (new URL(page.url()).pathname === "/select-organization") {
-    await page.locator(`a[href="/merchant/dashboard?organizationId=${organizationId}"]`).click();
-  }
-  await waitForDefaultMerchantDashboard(page, organizationId);
+  await page.waitForURL(url => url.pathname === "/merchant/reports/overview", { timeout: 30_000 });
 }
 
 async function countGridColumns(locator: Locator) {

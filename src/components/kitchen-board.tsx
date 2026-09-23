@@ -125,9 +125,10 @@ export function KitchenBoard({ stall, canManage, workModeDestinations, initialDa
   }, [notifyNewOrders, stall.slug, t]);
 
   useEffect(() => {
-    const enabled = window.localStorage.getItem("stallorder_kitchen_order_alerts") === "enabled";
+    let enabled = false;
+    try { enabled = window.localStorage.getItem("stallorder_kitchen_order_alerts") === "enabled"; } catch { /* Use the in-memory preference when storage is blocked. */ }
     alertsEnabledRef.current = enabled;
-    const preferenceTimer = window.setTimeout(() => setAlertsEnabled(enabled), 0);
+    const preferenceTimer = window.setTimeout(() => setAlertsEnabled(alertsEnabledRef.current), 0);
     return () => window.clearTimeout(preferenceTimer);
   }, []);
 
@@ -185,7 +186,7 @@ export function KitchenBoard({ stall, canManage, workModeDestinations, initialDa
     const next = !alertsEnabledRef.current;
     alertsEnabledRef.current = next;
     setAlertsEnabled(next);
-    window.localStorage.setItem("stallorder_kitchen_order_alerts", next ? "enabled" : "disabled");
+    try { window.localStorage.setItem("stallorder_kitchen_order_alerts", next ? "enabled" : "disabled"); } catch { /* Keep sound controls usable without persistence. */ }
     if (next) playNotificationTone();
   }
 

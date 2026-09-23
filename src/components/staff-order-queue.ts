@@ -27,8 +27,13 @@ export function getStaffQueue<T extends QueueOrder>(orders: readonly T[], filter
   };
 }
 
-export const STAFF_QUEUE_SOURCES = ["ALL", "QR_MENU", "STAFF_POS", "LINE", "OFFLINE_POS"] as const;
+export const STAFF_QUEUE_SOURCES = ["ALL", "QR_MENU", "STAFF_POS", "LINE_DELIVERY", "OFFLINE_POS"] as const;
 export type StaffQueueSource = (typeof STAFF_QUEUE_SOURCES)[number];
-export function filterStaffQueue<T extends Pick<StaffOrderDto, "source" | "createdAt">>(orders: readonly T[], source: StaffQueueSource, recentOnly: boolean, now: Date) {
-  return orders.filter((order) => (source === "ALL" || order.source === source) && (!recentOnly || new Date(order.createdAt).getTime() >= now.getTime() - 60 * 60_000));
+export function staffQueueSource(order: Pick<StaffOrderDto, "source" | "origin">): Exclude<StaffQueueSource, "ALL"> | null {
+  if (order.origin === "OFFLINE_POS" || order.source === "OFFLINE_POS") return "OFFLINE_POS";
+  if (order.source === "QR_MENU" || order.source === "STAFF_POS" || order.source === "LINE_DELIVERY") return order.source;
+  return null;
+}
+export function filterStaffQueue<T extends Pick<StaffOrderDto, "source" | "origin" | "createdAt">>(orders: readonly T[], source: StaffQueueSource, recentOnly: boolean, now: Date) {
+  return orders.filter((order) => (source === "ALL" || staffQueueSource(order) === source) && (!recentOnly || new Date(order.createdAt).getTime() >= now.getTime() - 60 * 60_000));
 }

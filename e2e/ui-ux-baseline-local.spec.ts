@@ -41,6 +41,9 @@ test("capture real local roles and responsive screens", async ({ browser }) => {
     for (const width of [320, 360, 390, 768, 1024, 1280, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       if (screen.ready) await expect(page.getByTestId(screen.ready)).toBeAttached();
+      if (screen.name === "dashboard") {
+        await expect(page.getByRole("button", { name: "重新整理", exact: true })).toBeEnabled();
+      }
       await page.evaluate(() => document.fonts.ready);
       const measurement = await page.evaluate(() => ({
         width: innerWidth,

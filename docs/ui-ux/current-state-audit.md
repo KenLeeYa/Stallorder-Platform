@@ -65,3 +65,12 @@
 4. Phase 12–15：分角色真實流程、錯誤邊界、視覺／鍵盤、全套必要檢查、回復文件。外部硬體／provider／人工螢幕閱讀器未測即保留缺口。
 
 採用 skills：product-release-qa、stallorder-product-qa（規則與驗收），anysearch（官方資料），computer-use／專案 Playwright（介面）。本輪未引入 UI 套件或第三方設計系統。完整 skills 清單由本次 Codex catalog 提供，並非全部適用。
+
+
+## 全面續作的來源核對
+
+以 `896ab68` 的已驗證候選為起點，重新對照原始 prompt 及 navigation、report、staff queue、customer menu 的實際 consumer。新增導覽復用現有角色權限集合，平台訂閱搜尋只傳必要識別及狀態欄位；報表時區直接查受權攤位設定。
+
+來源欄位核對發現 `LINE_DELIVERY` 才是 LINE 訂單值；離線機制保留 source=STAFF_POS，另用 origin=OFFLINE_POS。因此來源分類讀兩個欄位。StaffOrderDto 增加既有 origin 供前端唯讀使用，不新增 DB 欄位，也不改同步、冪等或出單策略。舊／未知來源不推定為店員單。
+
+Storage 被拒以及 hydration 前操作問題是在本輪真實瀏覽器流程重現；根因、修正與回歸見 full-redesign-continuation。CUA Chrome attach 本輪仍回報 Debugger unattached，因此 UI 證據來自專案 Playwright，沒有把 CUA 嘗試列為完成。

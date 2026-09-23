@@ -19,3 +19,16 @@ export function navigationRestoreKey(path: string) {
 export function navigationHorizontalScrollKey(toolbarId: string) {
   return `stallorder:navigation:horizontal:${encodeURIComponent(toolbarId)}`;
 }
+
+// Scroll/return memory is optional; blocked storage must never prevent navigation.
+export function readNavigationState(key: string) {
+  try { return window.sessionStorage.getItem(key); } catch { return null; }
+}
+
+export function writeNavigationState(key: string, value: string) {
+  try { window.sessionStorage.setItem(key, value); } catch { /* Navigate without remembering position. */ }
+}
+
+export function removeNavigationState(key: string) {
+  try { window.sessionStorage.removeItem(key); } catch { /* Storage may be unavailable in private mode. */ }
+}

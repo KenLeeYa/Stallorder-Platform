@@ -1,20 +1,20 @@
 # Phase 00–15 交付範圍
 
-本輪依下載的 Master Prompt 全文執行。基準 `5cc15c6`，實作分支 `codex/ui-ux-redesign-20260923`。這是漸進改造，不是將 111 個頁面一次重寫。正式發布、第三方交易及硬體驗收尚未進行。以下「沿用」均指有來源可追溯的現有能力，不能當成本次重新實測通過。
+本輪依下載的 Master Prompt 全文執行。基準 `5cc15c6`，實作分支 `codex/ui-ux-redesign-20260923`。此交付包含首輪與全面續作，透過共用角色導覽、控制項及核心流程漸進覆蓋既有頁面。111 個路由的業務 controller 保留。正式發布、第三方交易及硬體驗收尚未進行。以下「沿用」均指有來源可追溯的現有能力，不能當成本次重新實測通過。
 
 | Phase | 本輪產出／來源 | 驗收或限制 |
 |---|---|---|
 | 00 盤點 | current-state-audit、route-inventory；實讀 Git、provider、111 page 路由、真實五頁截圖 | 正式只讀入口基準；本機專用 DB/API 邊界 |
 | 01 研究 | benchmark-matrix、personas-and-jobs、journey-and-service-blueprint、issues-backlog | 官方來源與設計推論分開；persona 未經商家訪談 |
-| 02 IA | information-architecture、design-decisions；商家目前模組文字及 aria-current | 既有路由及角色判斷保留；全面搜尋式側欄為後續方案 |
-| 03 設計系統 | design-system；中文 fallback、觸控、長者資料字級、暗色選取態 | 沿用原生控制與交易專用 dialog；沒有重造未使用的元件庫 |
-| 04 工作台 | staff-order-queue；五筆分頁、狀態計數、來源／最近一小時、付款／列印摘要 | 在原有 active orders 範圍內；已完成與預約區維持原功能；不新增批次接單權限 |
+| 02 IA | 商家最多五個主要入口＋搜尋分組目錄；平台桌面分組側欄／位置；店員常用操作與工具展開 | 同一份授權項目，保留 organization context；手機／平板個別布局 |
+| 03 Design system | 語意 token、WorkspaceFunctionNavigation、既有 ExperienceDialog／StatusBadge／表單與表格共用契約 | 原生語意、44px、focus／高對比／reduced motion；無新 runtime 依賴 |
+| 04 工作台 | 五筆分頁、篩選、session 偏好、來源／品項／備註／付款／列印摘要與低頻工具收合 | STALL 旗標控制；controller 與交易判斷保留 |
 | 05 異常 | 供應儲存重入鎖／忙碌焦點；原有付款未知與原票／重印工作家族回歸 | 權威模型沿用 primary-print-status、checkout controller、offline operations；硬體票尚未驗證 |
-| 06 消費者 | 結帳可見 label、必填語意、可定位的錯誤欄位、觸控尺寸 | 訪客／QR／外帶／外送沿用相同 controller，不變更姓名電話要求或價金 |
-| 07 商品 | 五筆管理清單、跨頁選取、五模式供應與六語；巢狀視窗焦點 | 真實儲存／讀回及衝突保留；時區、跨日與庫存演算沿用 server |
-| 08 平台 | 帳務低頻系統設定收合、深色對比修正；權限路由盤點 | 既有管理者 server guard、審核／理由／audit 保留；不新增 impersonation |
+| 06 顧客 | 多語菜單搜尋、分類同步、必選群組定位、可見欄位標籤與錯誤聚焦 | 真正客製→購物車→下單→顧客追蹤→店員核對，見最新驗證表 |
+| 07 商品 | 五筆清單、跨頁選取、五種供應模式、批次商品預覽與攤位／恢復說明 | 真實儲存／讀回及衝突保留；庫存及跨日仍由 server 決定 |
+| 08 平台 | 分組側欄、搜尋、位置、真實待辦捷徑、訂閱商家名稱／編號搜尋與狀態分頁 | 只傳必要欄位，既有 server guard／審核／audit 保留 |
 | 09 a11y | axe WCAG tags、六語 dialog、鍵盤、長者、200% CSS zoom、各斷點 | 自動檢查不是 WCAG 認證；實機螢幕閱讀器、原生瀏覽器 zoom 仍須補驗 |
-| 10 儀表板 | 單攤更新時間及時區、保留精確摘要；查詢結果取消及最新回應核對 | 現有資料沒有製作 p95／售完頻率分母，僅提供定義方案，不畫假圖 |
+| 10 儀表板 | 營運摘要 freshness、報表時區／資料時間／計算定義、時段長條搭配精確數值、匯出範圍確認 | 使用既有真實資料；缺少完整分母的製作／售完／列印失敗率暫不造數值 |
 | 11 效能 | 有限 DOM、保留 server rendering、查詢 abort、既有 bundle budgets | 成對資料與同機量測記於 verification；不將 dev 編譯時間當 CWV |
 | 12 QA | 單元／實際 DB、RBAC、瀏覽器、多語及錯誤注入 | 每次 run 的 passed/failed/not_run 分開；見 verification-report |
 | 13 遷移 | 獨立分支、無 schema 變更、保留 routes/controller；預設關閉的攤位工作台旗標 | 真實管理者啟用／回退、權限拒絕、訂單不變通過；Staging／正式設定仍待發布流程 |
@@ -44,8 +44,8 @@
 | 6 裝置寬度 | 五個核心頁面 320～1440px 共 35 張、關鍵互動與長者模式通過；其餘頁面仍需驗 |
 | 7 a11y | 五頁明暗十狀態及六語 dialog axe、鍵盤／焦點回歸通過；NVDA／VoiceOver／TalkBack 未實測 |
 | 8 安全邊界 | 本次 API 401／403／404、撤權與旗標 scope 通過；未做全系統滲透驗證，不能宣稱全面無漏洞 |
-| 9 QA／build | 本輪必要核心套件、型別、lint、單元及 build 通過；九項既有 A/B runtime 與直接 Edge 案例未跑，明列環境原因 |
-| 10 效能 | 相同資料 DOM 大幅減少、八項 bundle 預算通過，總 JS 增加 0.16%；未量測真實 field CWV，不宣稱整體體感速度提升 |
+| 9 QA／build | 首輪必要核心套件、型別、lint、單元及 build 通過；續作以 verification-report 新證據為準；九項既有 A/B runtime 與直接 Edge 案例未跑，明列環境原因 |
+| 10 效能 | 同資料 DOM、production bundle 與八路由預算對照；不宣稱 dev 時間或正式 CWV 改善 |
 
 因此可交付本機候選版及本輪範圍的 QA 證據；不能將本表等同全部十條在所有環境完全達標。未完成項目按 backlog 與發布表繼續驗收。
 

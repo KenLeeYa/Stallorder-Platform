@@ -682,3 +682,73 @@ textarea.form-input {
     box-shadow: none !important;
   }
 }
+
+/* Shared workspace navigation: keep daily actions visible and settings searchable. */
+.workspace-function-link {
+  display: inline-flex; align-items: center; gap: .5rem;
+  min-height: var(--control-target); padding: .5rem .75rem;
+  border-radius: .5rem; font-size: .875rem; font-weight: 600;
+  color: var(--foreground); flex-shrink: 0;
+}
+.workspace-function-link[aria-current="page"] {
+  background: var(--color-teal-50); color: var(--color-teal-900);
+  box-shadow: inset 3px 0 var(--focus-ring);
+}
+@media (hover: hover) {
+  .workspace-function-link:hover { background: var(--color-stone-100); }
+}
+.workspace-sidebar .workspace-function-link { white-space: normal; }
+@media (forced-colors: active) {
+  .workspace-function-link[aria-current="page"] { outline: 2px solid Highlight; }
+}
+
+/* Semantic tokens shared by native controls and workflow components. */
+:root {
+  --ui-brand: var(--color-teal-800);
+  --ui-surface: var(--field-background);
+  --ui-text: var(--foreground);
+  --ui-muted: var(--color-stone-600);
+  --ui-border: var(--field-border);
+  --ui-info: var(--color-sky-800);
+  --ui-success: var(--color-teal-800);
+  --ui-warning: var(--color-amber-900);
+  --ui-danger: var(--field-border-invalid);
+  --ui-space-1: .25rem; --ui-space-2: .5rem; --ui-space-3: .75rem; --ui-space-4: 1rem;
+  --ui-radius-control: .5rem; --ui-radius-panel: .75rem;
+  --ui-shadow-panel: 0 1px 3px rgb(0 0 0 / .08);
+  --ui-layer-nav: 30; --ui-layer-dialog: 76;
+  --ui-motion-fast: 120ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace-function-link { transition: none; }
+}
+
+/* Keep printer and sound visible; mounted secondary controls retain device state. */
+[data-compact-tools="true"] [data-testid="staff-function-identity-group"],
+[data-compact-tools="true"] [data-testid="staff-function-status-group"],
+[data-compact-tools="true"] [data-testid="staff-function-offline"],
+[data-compact-tools="true"] [data-testid="staff-function-logout"],
+[data-compact-tools="true"] [data-secondary-tool="true"] {
+  display: none;
+}
+[data-compact-tools="true"] [data-testid="staff-function-order-group"] > :is(a, button):not([data-secondary-tool="true"]),
+[data-compact-tools="true"] [data-testid="staff-function-device-group"] > button:not([data-secondary-tool="true"]) {
+  display: inline-flex;
+  width: auto;
+  min-width: 44px;
+  gap: 0.5rem;
+  padding-inline: 0.75rem;
+}
+[data-compact-tools="true"] [data-testid="staff-function-order-group"] > :is(a, button):not([data-secondary-tool="true"]) > .sr-only,
+[data-compact-tools="true"] [data-testid="staff-function-device-group"] > button:not([data-secondary-tool="true"]) > .sr-only {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: 0;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  clip-path: none;
+  white-space: nowrap;
+  font-size: 0.875rem;
+}

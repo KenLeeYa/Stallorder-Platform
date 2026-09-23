@@ -6,11 +6,74 @@
 
 本輪優先實作的訂單清單、商品供應、顧客欄位、導覽、長者模式與儀表板恢復流程已通過本機驗證。沒有發布或修改正式環境；這不是 111 頁、所有外部服務與實機的完整認證。Phase 00–15 的實作、沿用、設計提案及缺口分列於 [交付對照](phase-delivery-map.md)。
 
-來源保留在獨立 worktree；原工作樹的既有修改未被覆寫。沒有資料庫 migration、API 契約、付款／列印權限或 DR writer 變更。只新增開發用 axe 依賴，沒有 runtime UI framework。
+來源保留在獨立 worktree；原工作樹的既有修改未被覆寫。沒有資料庫 migration、交易 API、付款／列印權限或 DR writer 變更；全面續作只為 StaffOrderDto 加入既有 origin 的唯讀相容欄位。只新增開發用 axe 依賴，沒有 runtime UI framework。
 
 本輪完整證據目錄：`C:/Users/KY/.codex/visualizations/2026/09/06/01a0761b-0cdb-73e1-82cc-59a3e93d5d66/ui-ux-redesign-20260923`。以下檔名均相對於該目錄；截圖精選另隨 Git 保存在 `docs/ui-ux/screenshots`。
 
-## 環境
+## 全面續作：本次最終驗證
+
+續作以首輪候選 `896ab68` 為起點；範圍與原因見 [完整續作](full-redesign-continuation.md)。本節為本次交付結果，較下方首輪紀錄保留為歷史。證據位於前述目錄的 `full-redesign/`。
+
+### 靜態、單元與建置
+
+| 命令 | 最新結果／artifact |
+|---|---|
+| `npx tsc --noEmit --incremental false` | exit 0，typecheck-complete.log；最後搜尋長度屬性亦由 build TypeScript 再驗 |
+| `npm run lint` | exit 0；0 errors、5 個既有 warnings，lint-final.log；均在未修改的 public-order-tracker／reorder-review／session-keep-alive |
+| `npm test -- --maxWorkers=2 --reporter=json --outputFile= "<evidence>/unit-final.json"` | **3,340 passed、0 failed、9 skipped**；unit-final.json/log。九個 A/B runtime 案例仍未列為通過 |
+| `npm run ui:audit` | 337 TSX 檔案通過；初跑發現三個新搜尋框缺少 maxLength，補 160 字上限後通過；ui-audit-before-input-limit.log、ui-audit-final.log |
+| `npm run build` | exit 0，含 TypeScript 與靜態頁建置；build-final.log |
+| `npm run performance:bundles` | 八個 route entry 預算全部通過；bundles-final.log |
+| `git diff --check` | 無 whitespace error |
+
+### 最新瀏覽器流程
+
+共同環境為 `UI_UX_QA=true`、`PLAYWRIGHT_APP_URL=http://127.0.0.1:3023`、`PLAYWRIGHT_REUSE_EXISTING_SERVER=true`；命令為 `npx playwright test <spec> --workers=1 --reporter=list,json`。供應套件另設 `LOCAL_CATALOG_AMENDMENTS_QA=true`；截圖另設 `UI_UX_CAPTURE=true` 與 `UI_UX_ARTIFACT_DIR`。每份 JSON config 保留實際檔案及 grep。
+
+最新按檔名／案例去重後 **33 passed、0 unresolved failed、0 skipped、0 flaky**，見 `browser-case-index.json`。這是本次受影響案例，不是全站所有功能認證；不把同一案例重跑相加。
+
+| 套件及證據 | 覆蓋 |
+|---|---|
+| ui-ux-navigation-local、operational-switcher-permissions、report-overview-mobile；navigation-ready.json＋flows-final.json 的目錄重測 | 九例：分組搜尋／無結果／Escape／tenant context；平台側欄、訂閱卡片／表格分頁；篩選重整；禁止 Storage 仍能登入操作；聲音首次開關；實際 CSV 下載及範圍／取消確認；三介面明暗 axe |
+| ui-ux-accessibility-local、ui-ux-authorization-local、ui-ux-baseline-local、ui-ux-recovery-local、ui-ux-workflows-local；core-ready.json＋flows-final.json＋kds-capture-final.json | 九例：五頁明暗、六語 dialog、撤權及 401/403/404、35 張截圖、重入／429／500／離線、查詢亂序、105+ 訂單分頁／來源／長者／列印範圍、商品儲存及 409 |
+| catalog-availability-amendments-local；flows-final.json | 六例：跨日／期限／永久下架與庫存、原單增刪／價格／冪等、列印中及失敗可改單、製作／庫存不足整筆 rollback、三裝置供應設定、QR 舊購物車、含必選客製改單 |
+| product-note-groups 的「QR 註記選擇會」、qr-edit-local-flow；flows-final.json | 三例：搜尋／必選群組定位、真實客製下單價格 90、追蹤與店員核對；QR 原單修改／取消；外帶錯誤聚焦、保留姓名電話餐具與取消結果 |
+| staff-kds-print-closure-flow；kds-capture-final.json＋closure-hydration-final.json | 五例：無 KDS／列印可結帳、外帶完成可取餐、成功列印自動結單、失敗／重印復原且不重複收款、公休公告及阻擋 QR |
+| ui-ux-rollout-local；flows-final.json | 一例：管理者 STALL 啟用／回退、匿名／店員拒絕、訂單及付款狀態不變、audit；最後保留示範攤位啟用，全域 false |
+
+初次失敗保留：core-ready 為 7 passed／2 failed；navigation-ready 為 8 passed／1 failed。來源常數改用真實 LINE_DELIVERY 後通過；撤權／目錄冷編譯逾時重測並核對實際回應。flows-final 為 13 passed／1 failed／4 not run：舊 KDS 測試需先展開「所有功能」才能切模式，調整入口後保留全部交易斷言再驗。
+
+kds-capture-final 為 5 passed／1 failed，公休 SSR 首次點擊被丟棄。延後 Next JS 的確定性重現 `closure-hydration-repro.json` 先因按鈕仍 enabled 失敗；產品改為 clientReady 前 disabled 後，`closure-hydration-final.json` 完整通過新增、公休公告、禁止下單及刪除。測試自身路由清理的 Route already handled 另存 closure-hydration-before，不算產品修復證據。
+
+沒有以 sleep／重複點擊掩蓋問題，亦未移除交易／列印／權限斷言。最後原生搜尋 maxLength 由控制項稽核及建置核對，不改搜尋條件或 API。CUA 附加既有分頁遇 Debugger unattached；UI 證據來自專案 Playwright，未冒稱人工 CUA 驗證。
+
+### 最新成對效能與無障礙
+
+功能 QA 增加保留資料後，以基準 3024 再拍一次（baseline-capture-final.json 通過）。基準／候選皆為 **130 筆在案訂單、95 個商品**，同一訂單 id/status SHA-256 `94ec10c22345cd298fe3b993e8f60f3b1fb18d12eae3180e99b84e545423ed30`。五頁 × 七寬度（320／360／390／768／1024／1280／1440）各 35 張；候選無 pageerror、無整頁水平溢出；dashboard 等資料完成才截圖。
+
+| 1280px | DOM 前 → 後 | 變化 | 按鈕前 → 後 |
+|---|---|---|---|
+| 店員工作台 | 5,072 → 554 | −89.08% | 592 → 47 |
+| 共用商品 | 3,550 → 2,103 | −40.76% | 602 → 246 |
+| 商家儀表板 | 392 → 292 | −25.51% | 12 → 14 |
+| 平台帳務 | 370 → 448 | +21.08% | 11 → 12 |
+| 公開 Menu | 1,702 → 1,704 | +0.12% | 4 → 4 |
+
+平台節點增加來自分組側欄與可操作待辦，不以節點數單獨判斷體驗。五頁明暗十狀態、六語供應 dialog，另加三個管理介面明暗掃描均通過 axe WCAG tags；鍵盤／焦點另外驗證，詳見 accessibility-report。這不是 AA 認證。
+
+Production JS 總量 **5,414,225 → 5,282,284 bytes（−2.44%）**，140 → 139 chunks；八路由 entry 預算通過。dashboard entry 113,361 bytes，預算 150,000。這是未壓縮靜態產物，非單次傳輸量；沒有正式 field CWV 或真人任務時間改善宣告。詳見 build-size-comparison.json、visual-comparison.json 與 README 的可切換前後畫面。
+
+### 環境結束及發布界線
+
+DB 最終 239 筆訂單，測試 STAFF 角色 isActive=true；KDS／print 模組恢復原始 false；示範攤位新工作台 true、全域 false。3023／3024／55722 已停止，PostgreSQL 正常 shutdown、exit 0；13 個其他工作區容器集合未改變。容器／volume／資料保留，見 db-final-readback.json、service-stop-receipt.json 及 README 恢復指令。
+
+正式只讀 provider：Primary `prj_uoG4FNJIgnF1LdKRiXnfRaieXnUP`、`dpl_Cx8GfP12KuFHcCgtnZ7SXxzt4AYZ`、main `5cc15c6` READY。登入／店員登入／connectivity 200；health 尾斜線 308 正規化後 401。protected backend 未讀回，未做正式訂單操作；無遠端寫入，未發布 Staging／Production。入口讀取不等於完整正式流程 QA。
+
+## 首輪歷史紀錄（896ab68）
+
+以下保留首輪的環境、結果及限制；續作交付以上方新證據為準。
+
+## 首輪環境
 
 - 改造版 Next：3023；基準 Next：3024，分開啟動。
 - PostgreSQL：既有 `stallorder-catalog-ops-20260907`，55722，local disposable demo DB；Node Circuit B 真實建單／改單，付款 mock、報表寄送 simulate。
@@ -18,7 +81,7 @@
 - 實際登入使用既有本機示範角色按鈕或示範帳號。payment-workflow 的既有 test-session helper 是局部證據，不是第三方登入驗收。
 - 多次執行保留具 QA 標示的商品／訂單；final DB 共 232 筆訂單。成對量測時有 125 筆在案訂單、91 個商品；沒有複製正式顧客資料。
 
-## 靜態、單元、建置
+## 首輪候選 896ab68：靜態、單元、建置
 
 | 命令 | 結果／證據 |
 |---|---|
@@ -113,7 +176,7 @@ Production build 共 140 個 JS chunks：5,414,225 → 5,423,113 bytes，增加 
 
 - Edge A/B runtime 九項預設略過、直接 Edge 輕量 session 無服務；本輪真實下單是 Node Circuit B。沒有改後端 A/B 實作，因此不為本次 UI 自動啟動完整 DR／多寫入端。
 - 實體列印／錢櫃、iPad／Android 實機、鎖屏通知、真實支付／外送／LINE provider、螢幕閱讀器與原生縮放需另外實測。
-- 尚未實作全站搜尋側欄、新指標資料契約；工作台攤位旗標已通過本機測試；未做 Staging／正式發布及 live QA。
+- 商家搜尋目錄、平台側欄與工作台攤位旗標已實作；缺少完整分母的新指標維持設計評估。未做 Staging／正式發布及 live QA。
 - 沒有全面滲透測試、所有頁面的 axe 或所有付款 provider 真實交易證據，不宣稱不存在所有權限／交易問題。
 
 這些缺口會阻止全系統／正式發布完成宣告。下一步的值來源、位置、驗證與回復集中於 [release-and-rollback-plan.md](release-and-rollback-plan.md)。

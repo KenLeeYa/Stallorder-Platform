@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, X } from "lucide-react";
+import { orderingExperienceMessage as experience } from "@/lib/messages/ordering-experience";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { readApiJson } from "@/lib/api-response";
 import { productAvailabilityLabel } from "@/lib/product-availability";
@@ -38,7 +39,7 @@ export function ProductAvailabilityEditor({ stallId, products, onSaved, onClose 
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const saving = useRef(false);
-  const { m } = useMerchantMessages();
+  const { m, locale } = useMerchantMessages();
   const [mode, setMode] = useState<Mode>("TODAY");
   const [minutes, setMinutes] = useState(15);
   const [resumeDate, setResumeDate] = useState("");
@@ -85,6 +86,8 @@ export function ProductAvailabilityEditor({ stallId, products, onSaved, onClose 
     className="m-auto max-h-[90dvh] w-[calc(100%-1.5rem)] max-w-lg overflow-y-auto rounded-xl border border-stone-200 bg-white p-4 text-stone-900 shadow-xl backdrop:bg-stone-950/60 sm:p-5">
     <div className="flex items-center justify-between gap-3"><h2 id="availability-editor-title" className="text-xl font-bold">{m("availability.title")}</h2><button type="button" aria-label={m("availability.close")} disabled={busy} onClick={onClose} className="grid h-11 w-11 place-items-center rounded-lg border border-stone-300"><X className="h-5 w-5" /></button></div>
     <p className="my-3 break-words text-sm text-stone-600">{products.length === 1 ? products[0].name : m("availability.selected", { count: products.length })}</p>
+    <p className="mb-3 text-xs text-stone-600">{experience(locale, "scope")}</p>
+    {products.length > 1 ? <details className="mb-3 rounded-lg border border-stone-200 px-3"><summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold">{experience(locale, "preview")}（{products.length}）</summary><ul className="mb-3 max-h-40 list-inside list-disc overflow-y-auto text-sm">{products.map(product => <li key={product.productId}>{product.name}</li>)}</ul></details> : null}
     <div className="grid gap-2">{modes.map((option) => <div key={option}>
       <button type="button" aria-pressed={mode === option} onClick={() => setMode(option)} disabled={busy}
         className={`flex min-h-12 w-full items-center gap-3 rounded-lg border p-3 text-left ${mode === option ? "border-teal-700 bg-teal-50" : "border-stone-200"}`}>
@@ -95,6 +98,7 @@ export function ProductAvailabilityEditor({ stallId, products, onSaved, onClose 
       {mode === option && mode === "UNTIL_DATE" ? <label className="mt-2 block pl-8 text-sm">{m("availability.date")}<input type="date" required disabled={busy} value={resumeDate} onChange={(event) => setResumeDate(event.target.value)} className="mt-1 block min-h-11 w-full min-w-0 rounded-lg border border-stone-300 px-3" /></label> : null}
     </div>)}</div>
     <p className="mt-4 text-xs leading-relaxed text-stone-600">{m("availability.constraints")}</p>
+    <p className="mt-2 text-xs leading-relaxed text-stone-600">{experience(locale, "recovery")}</p>
     {error ? <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p> : null}
     <div className="mt-4 flex gap-2"><button type="button" disabled={busy} onClick={onClose} className="min-h-11 flex-1 rounded-lg border border-stone-300 font-semibold">{m("取消")}</button><button type="button" disabled={busy || (mode === "UNTIL_DATE" && !resumeDate)} onClick={() => void save()} className="min-h-11 flex-[2] rounded-lg bg-teal-700 px-3 font-semibold text-white disabled:opacity-40">{busy ? m("儲存中...") : m("availability.confirm", { status: m(`availability.${mode}`) })}</button></div>
   </dialog>;

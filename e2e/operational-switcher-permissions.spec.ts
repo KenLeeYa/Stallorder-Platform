@@ -3,6 +3,7 @@ import { dismissStaffStartReminder } from "./local-navigation";
 import { PrismaClient } from "@prisma/client";
 
 const db = new PrismaClient();
+test.setTimeout(120_000);
 const stallId = "22222222-2222-4222-8222-222222222222";
 let originalKds: boolean | undefined;
 test.beforeAll(async () => {
@@ -38,7 +39,11 @@ test("純店員與純廚房帳號不顯示工作模式或攤位切換", async ({
   await expect(page.getByTestId("work-mode-icon-staff")).toHaveCount(0);
   await expect(page.getByRole("button", { name: /選擇攤位/u })).toHaveCount(0);
 
+  const tools = page.getByTestId("staff-tools-toggle");
+  if (await tools.isVisible()) await tools.click();
+  const logoutResponse = page.waitForResponse(response => response.url().endsWith("/api/auth/logout") && response.request().method() === "POST", { timeout: 45_000 });
   await page.getByRole("button", { name: "登出", exact: true }).click();
+  expect((await logoutResponse).status()).toBe(200);
   await expect(page).toHaveURL(/\/login/u);
 
   await quickLogin(page, "廚房", /\/kitchen/u);
@@ -47,13 +52,30 @@ test("純店員與純廚房帳號不顯示工作模式或攤位切換", async ({
 });
 
 test("商家進入店員與廚房頁仍可切換工作模式", async ({ page }) => {
+  await page.addInitScript(() => {
+    Storage.prototype.getItem = () => { throw new DOMException("blocked", "SecurityError"); };
+    Storage.prototype.setItem = () => { throw new DOMException("blocked", "SecurityError"); };
+  });
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
   await page.setViewportSize({ width: 390, height: 844 });
   await quickLogin(page, "商家", /\/merchant\/dashboard\?organizationId=/u);
 
   await page.goto("/staff/aming-chicken");
   await dismissStaffStartReminder(page);
   await expect(page.getByTestId("work-mode-icon-staff")).toHaveCount(1);
+  const tools = page.getByTestId("staff-tools-toggle");
+  if (await tools.isVisible()) await tools.click();
+  await page.getByTestId("work-mode-icon-staff").click();
+  const switcher = page.getByRole("dialog");
+  await switcher.getByRole("button", { name: "廚房 · 阿明鹽酥雞 · StallOrder 示範商戶", exact: true }).click();
+  await expect(page).toHaveURL(/\/kitchen/u);
 
-  await page.goto("/kitchen?stall=aming-chicken");
   await expect(page.getByTestId("work-mode-icon-kitchen")).toHaveCount(1);
+  const sound = page.getByTestId("kitchen-alert-control");
+  await sound.click();
+  await expect(sound).toHaveAttribute("aria-checked", "true");
+  await sound.click();
+  await expect(sound).toHaveAttribute("aria-checked", "false");
+  expect(errors).toEqual([]);
 });

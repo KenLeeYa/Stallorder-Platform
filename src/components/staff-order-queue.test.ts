@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getStaffQueue, filterStaffQueue, STAFF_QUEUE_PAGE_SIZE, type QueueOrder } from "./staff-order-queue";
+import { getStaffQueue, filterStaffQueue, staffQueueSource, STAFF_QUEUE_PAGE_SIZE, type QueueOrder } from "./staff-order-queue";
 
 const order = (id: string, overrides: Partial<QueueOrder> = {}): QueueOrder => ({
   id, status: "CONFIRMED", primaryPrintStatus: null, ...overrides,
@@ -45,4 +45,17 @@ it("combines source and a rolling hour without changing the input", () => {
   ];
   expect(filterStaffQueue(rows, "QR_MENU", true, new Date("2026-09-23T02:00:00Z")).map((row) => row.id)).toEqual(["boundary"]);
   expect(filterStaffQueue(rows, "ALL", false, new Date()).length).toBe(3);
+});
+
+
+it("uses LINE_DELIVERY and distinguishes offline origin from staff source", () => {
+  const rows = [
+    { id: "line", source: "LINE_DELIVERY", origin: "ONLINE_QR", createdAt: "2026-09-23T01:30:00Z" },
+    { id: "staff", source: "STAFF_POS", origin: "ONLINE_STAFF", createdAt: "2026-09-23T01:30:00Z" },
+    { id: "offline", source: "STAFF_POS", origin: "OFFLINE_POS", createdAt: "2026-09-23T01:30:00Z" },
+  ];
+  for (const [filter, expected] of [["LINE_DELIVERY", "line"], ["STAFF_POS", "staff"], ["OFFLINE_POS", "offline"]] as const) {
+    expect(filterStaffQueue(rows, filter, false, new Date()).map(order => order.id)).toEqual([expected]);
+  }
+  expect(staffQueueSource({ source: "LEGACY_IMPORT" })).toBeNull();
 });

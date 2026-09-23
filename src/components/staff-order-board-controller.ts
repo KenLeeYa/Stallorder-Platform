@@ -343,7 +343,7 @@ export function useStaffOrderBoardController({
     const next = !alertsEnabledRef.current;
     alertsEnabledRef.current = next;
     setAlertsEnabled(next);
-    window.localStorage.setItem("stallorder_staff_order_alerts", next ? "enabled" : "disabled");
+    try { window.localStorage.setItem("stallorder_staff_order_alerts", next ? "enabled" : "disabled"); } catch { /* Keep sound controls usable without persistence. */ }
     if (next) playConfiguredAlert();
   }
 
@@ -784,9 +784,10 @@ export function useStaffOrderBoardController({
   }
 
   useEffect(() => {
-    const enabled = window.localStorage.getItem("stallorder_staff_order_alerts") === "enabled";
+    let enabled = false;
+    try { enabled = window.localStorage.getItem("stallorder_staff_order_alerts") === "enabled"; } catch { /* Use the in-memory preference when storage is blocked. */ }
     alertsEnabledRef.current = enabled;
-    const preferenceTimer = window.setTimeout(() => setAlertsEnabled(enabled), 0);
+    const preferenceTimer = window.setTimeout(() => setAlertsEnabled(alertsEnabledRef.current), 0);
     const ageTimer = window.setInterval(() => setNow(Date.now()), 30_000);
     return () => {
       window.clearTimeout(preferenceTimer);
