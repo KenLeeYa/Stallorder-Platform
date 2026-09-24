@@ -53,12 +53,16 @@ test("icon toolbar, search modal, responsive three panes and phone common contro
     await page.setViewportSize({ width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     const common = page.getByTestId("staff-common-controls");
-    const theme = await common.getByTestId("theme-toggle").boundingBox();
     const sound = await common.getByRole("switch").boundingBox();
     const printer = await common.locator("[data-printer-status]").boundingBox();
     const sse = await common.getByRole("status").boundingBox();
-    expect(theme!.x).toBeLessThan(sound!.x); expect(sound!.x).toBeLessThan(printer!.x); expect(printer!.x).toBeLessThan(sse!.x);
-    await expect(page.getByTestId("staff-function-grid").locator("[data-extra-tool]")).toBeHidden();
+    if (width < 768) {
+      expect(sound!.x).toBeLessThan(printer!.x); expect(printer!.x).toBeLessThan(sse!.x);
+      await expect(page.getByTestId("staff-push-controls")).toBeHidden();
+    } else {
+      await expect(page.getByTestId("staff-tools-toggle")).toBeHidden();
+      await expect(page.getByTestId("staff-push-controls")).toBeVisible();
+    }
     if (width >= 768) {
       await expect(page.getByTestId("staff-attendance")).toBeVisible();
       await expect(page.getByRole("heading", { name: "今日製作／逾期", exact: true })).toBeHidden();
@@ -87,7 +91,9 @@ test("icon toolbar, search modal, responsive three panes and phone common contro
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
   await expect(page.getByTestId("staff-search-open")).toBeFocused();
-  await page.getByTestId("staff-common-controls").getByTestId("theme-toggle").click();
+  await page.getByTestId("staff-tools-toggle").click();
+  await page.getByTestId("staff-sticky-header").getByTestId("theme-toggle").click();
+  await page.getByTestId("staff-tools-toggle").click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.getByTestId("staff-common-controls").getByRole("switch").click();
   await expect(page.getByTestId("staff-common-controls").getByRole("switch")).toHaveAttribute("aria-checked", "true");

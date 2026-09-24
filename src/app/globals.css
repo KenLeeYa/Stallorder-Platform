@@ -720,8 +720,8 @@ textarea.form-input {
 }
 
 /* Desktop/tablet retain the full icon row; phones expand secondary tools on demand. */
-[data-compact-tools="true"] [data-extra-tool="true"] { display: none; }
 @media (max-width: 767px) {
+  [data-compact-tools="true"] [data-extra-tool="true"],
   [data-compact-tools="true"] [data-testid="staff-function-identity-group"],
   [data-compact-tools="true"] [data-testid="staff-function-status-group"],
   [data-compact-tools="true"] [data-testid="staff-function-offline"],

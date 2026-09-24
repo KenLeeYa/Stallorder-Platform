@@ -240,12 +240,6 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       const workMode = visibleHeader
         .getByTestId("work-mode-icon-staff")
         .locator("..");
-      const allFunctions = visibleHeader.getByTestId("staff-tools-toggle");
-      if (await allFunctions.isVisible()) {
-        await expect(workMode).toBeHidden();
-        await allFunctions.click();
-        await expect(allFunctions).toHaveAttribute("aria-expanded", "true");
-      }
       await expect(workMode).toBeVisible();
       await workMode.click();
       const workModeDialog = ownerPage.getByRole("dialog", {

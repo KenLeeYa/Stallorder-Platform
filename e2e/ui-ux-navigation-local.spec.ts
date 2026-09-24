@@ -46,10 +46,8 @@ test("staff filters survive reload, remain scoped and preserve source summaries"
   const actionText = page.getByTestId("staff-function-order-group").getByRole("button").first().locator("span");
   expect(await actionText.evaluate(element => element.getBoundingClientRect().width)).toBeLessThanOrEqual(1);
   await expect(page.getByTestId("staff-attendance")).toBeVisible();
-  await expect(page.getByTestId("staff-function-grid").locator("[data-extra-tool]")).toBeHidden();
-  await page.getByTestId("staff-tools-toggle").click();
-  await expect(page.getByTestId("staff-function-grid").locator("[data-extra-tool]")).toBeVisible();
-  await page.getByTestId("staff-tools-toggle").click();
+  await expect(page.getByTestId("staff-tools-toggle")).toBeHidden();
+  await expect(page.getByTestId("staff-push-controls")).toBeVisible();
   await expect(page.getByTestId("staff-attendance")).toBeVisible();
   const filters = page.getByTestId("staff-queue-filters");
   await filters.getByRole("button", { name: /待接單/ }).click();

@@ -60,7 +60,7 @@ describe("StaffOrderBoard presentation characterization", () => {
     expect(presentationSource).toContain('data-testid="staff-function-order-group"');
     expect(presentationSource).toContain("min-w-0 overflow-x-clip overflow-y-visible");
     expect(presentationSource).toContain('data-testid="staff-function-device-group"');
-    expect(presentationSource).toContain('<PwaControls showTheme={false} showQualityLabel={false} />');
+    expect(presentationSource).toContain('<PwaControls showQualityLabel={false} />');
     expect(presentationSource).toContain('<PwaWakeControl />');
     expect(presentationSource).toContain('data-testid="staff-common-controls"');
     expect(presentationSource).toContain('aria-label={t("staff.view.kitchenMode")}');

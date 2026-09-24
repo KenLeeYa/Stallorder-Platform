@@ -46,7 +46,6 @@ import { workspaceNavigationMessage } from "@/lib/messages/workspace-navigation"
 import { useOperationsLocale } from "@/components/operations-locale";
 import { LogoutButton } from "@/components/logout-button";
 import { ExperienceDialog } from "@/components/experience-dialog";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { isPublicStaffAmendment } from "@/lib/staff-order-edit-eligibility";
 import { PwaControls, PwaWakeControl } from "@/components/pwa-controls";
 import { StaffPushControls } from "@/components/staff-push-controls";
@@ -479,30 +478,17 @@ function StaffOrderBoardToolbar({
     }));
   return (
     <>
-      <header data-testid="staff-sticky-header" data-compact-tools={compactTools || undefined} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 sticky top-0 z-50 -mx-4 min-w-0 overflow-x-clip overflow-y-visible border-b border-stone-200 bg-white px-4 pb-1 shadow-sm print:static print:border-0 print:bg-transparent print:px-0 print:shadow-none sm:mx-0 sm:px-0">
-        <div className="min-w-0 py-1 md:col-span-2 print:hidden">
+      <header data-testid="staff-sticky-header" data-compact-tools={compactTools || undefined} className="sticky top-0 z-50 -mx-4 min-w-0 overflow-x-clip overflow-y-visible border-b border-stone-200 bg-white px-4 pb-1 shadow-sm print:static print:border-0 print:bg-transparent print:px-0 print:shadow-none sm:mx-0 sm:px-0">
+        <div className="min-h-14 min-w-0 py-1 pr-60 md:min-h-0 md:pr-0 print:hidden">
           <div className="min-w-0">
             <h1 className="truncate text-sm font-semibold sm:text-base">{stall.name}</h1>
             <p className="truncate text-xs font-medium text-teal-800">{account.displayName} · {roleLabel(role, t)}</p>
           </div>
         </div>
-        <div data-testid="staff-common-controls" className="col-start-2 row-start-1 flex items-center gap-1 md:row-start-2 [&_button]:h-11 [&_button]:w-11 [&_svg]:h-5 [&_svg]:w-5">
-          <ThemeToggle />
-          <button type="button" role="switch" disabled={!clientReady} aria-checked={alertsEnabled} aria-label={alertsEnabled ? t("staff.action.notificationsOn") : t("staff.action.notificationsOff")} onClick={actions.onToggleAlerts} title={alertsEnabled ? t("staff.action.notificationsDisable") : t("staff.action.notificationsEnable")} className={`${staffFunctionTileClass} border ${alertsEnabled ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600"}`}>{alertsEnabled ? <Volume2 className={staffFunctionIconClass} /> : <VolumeX className={staffFunctionIconClass} />}<span aria-hidden="true" className="sr-only">{t("staff.action.notifications")}</span></button>
-          <PwaWakeControl />
-          {modules.print && hasPermission(role, "MANAGE_PRINT_QUEUE") ? <Link
-            href={`/staff/${stall.slug}/print`}
-            title={`${t("staff.action.printQueue")}：${printerState?.detail || t("print.agent.checking")}`}
-            aria-describedby={printerState ? `staff-printer-status-${stall.slug}` : undefined}
-            data-printer-status={printerState?.status ?? "CHECKING"}
-            className={`${staffFunctionTileClass} relative border ${printerConnected ? "border-teal-700 bg-teal-50 text-teal-800" : printerNeedsAttention ? "border-amber-400 bg-amber-50 text-amber-900" : "border-stone-300 bg-white text-stone-700"}`}
-          ><Printer className={staffFunctionIconClass} />{printerNeedsAttention ? <span aria-hidden="true" className="absolute right-1 top-1 h-2 w-2 rounded-full bg-amber-600" /> : null}<span className="sr-only">{t("staff.action.printQueue")}</span></Link> : null}
-
-          <LiveConnectionBadge state={liveConnection} t={t} />
-        </div>
-        <div className="col-span-2 row-start-2 flex min-w-0 items-center gap-1 md:col-span-1">
+        <div className="flex min-w-0 items-center gap-1">
           <nav id="staff-function-navigation" aria-label={t("staff.functions")} data-testid="staff-function-grid" data-persist-horizontal-scroll="staff-function-grid" className="flex min-h-12 flex-1 min-w-0 scroll-pr-4 items-center gap-2 overflow-x-auto overscroll-x-contain py-1 pr-4 print:hidden sm:pr-0 [&>*]:shrink-0 [&_button]:box-border [&_a]:box-border [&_svg]:h-5 [&_svg]:w-5">
-        <div data-testid="staff-function-identity-group" className="flex items-center gap-2 border-r border-stone-200 pr-2">
+        <div data-testid="staff-common-controls" className="absolute right-4 top-1 flex items-center gap-1 md:contents [&_button]:h-11 [&_button]:w-11 [&_svg]:h-5 [&_svg]:w-5">
+          <div className="md:order-1">
           {switcherVisibility.showWorkMode ? <WorkModeSwitcher
             destinations={workModeDestinations}
             currentMode="STAFF"
@@ -510,6 +496,20 @@ function StaffOrderBoardToolbar({
             stallId={stall.id}
             offlineGuardStallId={stall.id}
           /> : null}
+          </div>
+          <div className="md:order-[15]"><button type="button" role="switch" disabled={!clientReady} aria-checked={alertsEnabled} aria-label={alertsEnabled ? t("staff.action.notificationsOn") : t("staff.action.notificationsOff")} onClick={actions.onToggleAlerts} title={alertsEnabled ? t("staff.action.notificationsDisable") : t("staff.action.notificationsEnable")} className={`${staffFunctionTileClass} border ${alertsEnabled ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600"}`}>{alertsEnabled ? <Volume2 className={staffFunctionIconClass} /> : <VolumeX className={staffFunctionIconClass} />}<span aria-hidden="true" className="sr-only">{t("staff.action.notifications")}</span></button></div>
+          <div className="md:order-[12]"><PwaWakeControl /></div>
+          {modules.print && hasPermission(role, "MANAGE_PRINT_QUEUE") ? <Link
+            href={`/staff/${stall.slug}/print`}
+            title={`${t("staff.action.printQueue")}：${printerState?.detail || t("print.agent.checking")}`}
+            aria-describedby={printerState ? `staff-printer-status-${stall.slug}` : undefined}
+            data-printer-status={printerState?.status ?? "CHECKING"}
+            className={`${staffFunctionTileClass} md:order-6 relative border ${printerConnected ? "border-teal-700 bg-teal-50 text-teal-800" : printerNeedsAttention ? "border-amber-400 bg-amber-50 text-amber-900" : "border-stone-300 bg-white text-stone-700"}`}
+          ><Printer className={staffFunctionIconClass} />{printerNeedsAttention ? <span aria-hidden="true" className="absolute right-1 top-1 h-2 w-2 rounded-full bg-amber-600" /> : null}<span className="sr-only">{t("staff.action.printQueue")}</span></Link> : null}
+
+          <div className="md:order-[13]"><LiveConnectionBadge state={liveConnection} t={t} /></div>
+        </div>
+        <div data-testid="staff-function-identity-group" className="md:order-2 flex items-center gap-2 border-r border-stone-200 pr-2">
           {switcherVisibility.showStall ? <WorkspaceSwitcher
             kind="STALL"
             destinations={stallDestinations}
@@ -525,27 +525,27 @@ function StaffOrderBoardToolbar({
             className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}
           ><Clock3 className={staffFunctionIconClass} /><span className="sr-only">員工定位打卡</span></Link> : null}
         </div>
-        <div data-testid="staff-function-order-group" className="flex items-center gap-2 border-r border-stone-200 pr-2">
-          {orderCatalog && hasPermission(role, "CREATE_ORDERS") ? <button type="button" title={t("staff.action.createOrder")} disabled={!clientReady || posConfigurationLoading} onClick={() => void actions.onOpenComposer()} className={`${staffFunctionTileClass} bg-teal-800 text-white disabled:cursor-wait disabled:opacity-60`}><ShoppingCart className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.createOrder")}</span></button> : null}
-          {hasPermission(role, "CHECKOUT_ORDERS") ? <button type="button" data-testid="staff-pickup-code-lookup" disabled={!clientReady} title={t("staff.action.pickupLookup")} onClick={actions.onOpenPickupLookup} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><KeyRound className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.pickupLookup")}</span></button> : null}
-          <button type="button" data-testid="staff-search-open" title={t("staff.search.label")} aria-label={t("staff.search.label")} aria-haspopup="dialog" onClick={() => setSearchOpen(true)} className={`${staffFunctionTileClass} border ${query ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-700"}`}><Search className={staffFunctionIconClass} /></button>
-          {modules.dineIn ? <Link href={`/staff/${stall.slug}/floor`} title={t("staff.action.floor")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><MapPinned className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.floor")}</span></Link> : null}
-          {hasPermission(role, "MANAGE_CASH_SHIFT") ? <Link data-secondary-tool="true" href={`/staff/${stall.slug}/cash`} title={t("staff.action.cashShift")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><WalletCards className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.cashShift")}</span></Link> : null}
-          {capacity ? <div data-secondary-tool="true"><StaffCapacityControl stallSlug={stall.slug} initialData={capacity} compact /></div> : null}
+        <div data-testid="staff-function-order-group" className="md:contents flex items-center gap-2 border-r border-stone-200 pr-2">
+          {orderCatalog && hasPermission(role, "CREATE_ORDERS") ? <button type="button" title={t("staff.action.createOrder")} disabled={!clientReady || posConfigurationLoading} onClick={() => void actions.onOpenComposer()} className={`${staffFunctionTileClass} md:order-3 bg-teal-800 text-white disabled:cursor-wait disabled:opacity-60`}><ShoppingCart className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.createOrder")}</span></button> : null}
+          {hasPermission(role, "CHECKOUT_ORDERS") ? <button type="button" data-testid="staff-pickup-code-lookup" disabled={!clientReady} title={t("staff.action.pickupLookup")} onClick={actions.onOpenPickupLookup} className={`${staffFunctionTileClass} md:order-4 border border-stone-300 bg-white text-stone-700`}><KeyRound className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.pickupLookup")}</span></button> : null}
+          {modules.dineIn ? <Link href={`/staff/${stall.slug}/floor`} title={t("staff.action.floor")} className={`${staffFunctionTileClass} md:order-5 border border-stone-300 bg-white text-stone-700`}><MapPinned className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.floor")}</span></Link> : null}
+          {hasPermission(role, "MANAGE_CASH_SHIFT") ? <Link data-secondary-tool="true" href={`/staff/${stall.slug}/cash`} title={t("staff.action.cashShift")} className={`${staffFunctionTileClass} md:order-7 border border-stone-300 bg-white text-stone-700`}><WalletCards className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.cashShift")}</span></Link> : null}
+          {capacity ? <div data-testid="staff-capacity-tool" data-secondary-tool="true" className="md:order-8"><StaffCapacityControl stallSlug={stall.slug} initialData={capacity} compact /></div> : null}
+          <button type="button" data-testid="staff-search-open" title={t("staff.search.label")} aria-label={t("staff.search.label")} aria-haspopup="dialog" onClick={() => setSearchOpen(true)} className={`${staffFunctionTileClass} md:order-9 border ${query ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-700"}`}><Search className={staffFunctionIconClass} /></button>
         </div>
-        <div data-testid="staff-function-status-group" className="flex items-center gap-2 border-r border-stone-200 pr-2 [&_button]:h-11 [&_button]:w-11 [&_label]:h-11 [&_label]:min-h-11 [&_label]:w-11 [&_span[title]]:h-11 [&_span[title]]:w-11 [&_span[title]]:justify-center [&_span[title]]:rounded-md [&_span[title]]:border [&_span[title]]:border-stone-300 [&_span[title]]:px-0">
+        <div data-testid="staff-function-status-group" className="md:order-10 flex items-center gap-2 border-r border-stone-200 pr-2 [&_button]:h-11 [&_button]:w-11 [&_label]:h-11 [&_label]:min-h-11 [&_label]:w-11 [&_span[title]]:h-11 [&_span[title]]:w-11 [&_span[title]]:justify-center [&_span[title]]:rounded-md [&_span[title]]:border [&_span[title]]:border-stone-300 [&_span[title]]:px-0">
           <div data-testid="staff-pwa-controls" className="shrink-0">
-            <PwaControls showTheme={false} showQualityLabel={false} />
+            <PwaControls showQualityLabel={false} />
           </div>
         </div>
-        <div data-testid="staff-function-device-group" className="flex items-center gap-2">
-          <div data-extra-tool="true"><StaffPushControls stallSlug={stall.slug} /></div>
+        <div data-testid="staff-function-device-group" className="md:contents flex items-center gap-2">
+          <div data-testid="staff-push-controls" data-extra-tool="true" className="md:order-[14]"><StaffPushControls stallSlug={stall.slug} /></div>
 
-          <div data-testid="staff-function-offline" className={`${staffFunctionTileClass} relative overflow-visible text-stone-700 [&>div]:h-11 [&>div]:w-11 [&>div>button:first-child]:h-11 [&>div>button:first-child]:w-11 [&>div>button:first-child]:border [&>div>button:first-child]:border-stone-300 [&>div>button:first-child>svg]:h-5 [&>div>button:first-child>svg]:w-5`}><OfflineBootstrapControl stallId={stall.id} stallSlug={stall.slug} appVersion={appVersion} /><span className="sr-only">{t("staff.action.offlineDevice")}</span></div>
-          <button type="button" data-secondary-tool="true" disabled={!clientReady} onClick={actions.onRefresh} title={t("common.refresh")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><RefreshCw className={`${staffFunctionIconClass} ${isRefreshing ? "animate-spin" : ""}`} /><span className="sr-only">{t("common.refresh")}</span></button>
-          <div data-testid="staff-function-logout" className={`${staffFunctionTileClass} overflow-visible text-stone-700 [&>button]:h-11 [&>button]:w-11 [&>button]:border [&>button]:border-stone-300 [&>button>svg]:h-5 [&>button>svg]:w-5`}><LogoutButton offlineStallId={stall.id} /><span className="sr-only">{t("staff.action.logout")}</span></div>
+          <div data-testid="staff-function-offline" className={`${staffFunctionTileClass} md:order-[16] relative overflow-visible text-stone-700 [&>div]:h-11 [&>div]:w-11 [&>div>button:first-child]:h-11 [&>div>button:first-child]:w-11 [&>div>button:first-child]:border [&>div>button:first-child]:border-stone-300 [&>div>button:first-child>svg]:h-5 [&>div>button:first-child>svg]:w-5`}><OfflineBootstrapControl stallId={stall.id} stallSlug={stall.slug} appVersion={appVersion} /><span className="sr-only">{t("staff.action.offlineDevice")}</span></div>
+          <button type="button" data-secondary-tool="true" disabled={!clientReady} onClick={actions.onRefresh} title={t("common.refresh")} className={`${staffFunctionTileClass} md:order-[17] border border-stone-300 bg-white text-stone-700`}><RefreshCw className={`${staffFunctionIconClass} ${isRefreshing ? "animate-spin" : ""}`} /><span className="sr-only">{t("common.refresh")}</span></button>
+          <div data-testid="staff-function-logout" className={`${staffFunctionTileClass} md:order-[18] overflow-visible text-stone-700 [&>button]:h-11 [&>button]:w-11 [&>button]:border [&>button]:border-stone-300 [&>button>svg]:h-5 [&>button>svg]:w-5`}><LogoutButton offlineStallId={stall.id} /><span className="sr-only">{t("staff.action.logout")}</span></div>
         </div>
-          <div data-secondary-tool="true" className="shrink-0">
+          <div data-secondary-tool="true" className="shrink-0 md:order-[19]">
         {modules.kds && role === "KITCHEN" ? (
           <div className="inline-grid grid-cols-2 rounded-md border border-stone-300 bg-white p-1" aria-label={t("staff.view.kitchenMode")}><button type="button" aria-pressed={viewMode === "TICKETS"} onClick={() => actions.onViewModeChange("TICKETS")} className={`min-h-11 rounded px-3 text-xs font-semibold ${viewMode === "TICKETS" ? "bg-stone-900 text-white" : "text-stone-600"}`} title={t("staff.view.ticket")} aria-label={t("staff.view.ticket")}><ListChecks className="h-5 w-5" /></button><button type="button" aria-pressed={viewMode === "SUMMARY"} onClick={() => actions.onViewModeChange("SUMMARY")} className={`min-h-11 rounded px-3 text-xs font-semibold ${viewMode === "SUMMARY" ? "bg-stone-900 text-white" : "text-stone-600"}`} title={t("staff.view.itemSummary")} aria-label={t("staff.view.itemSummary")}><ChefHat className="h-5 w-5" /></button></div>
         ) : modules.kds && modules.dineIn ? (
@@ -553,7 +553,7 @@ function StaffOrderBoardToolbar({
         ) : null}
           </div>
           </nav>
-          <button type="button" data-testid="staff-tools-toggle" disabled={!clientReady} title={workspaceNavigationMessage(locale, "all")} aria-label={workspaceNavigationMessage(locale, "all")} aria-expanded={toolsExpanded} aria-controls="staff-function-navigation" onClick={() => setToolsExpanded(!toolsExpanded)} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700 print:hidden`}>
+          <button type="button" data-testid="staff-tools-toggle" disabled={!clientReady} title={workspaceNavigationMessage(locale, "all")} aria-label={workspaceNavigationMessage(locale, "all")} aria-expanded={toolsExpanded} aria-controls="staff-function-navigation" onClick={() => setToolsExpanded(!toolsExpanded)} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700 md:hidden print:hidden`}>
             {toolsExpanded ? <ChevronUp className={staffFunctionIconClass} /> : <LayoutGrid className={staffFunctionIconClass} />}
           </button>
         </div>
@@ -676,6 +676,7 @@ function StaffTicketList(props: StaffTicketListProps) {
   const setRecentOnly = (value: boolean) => updatePreferences({ recentOnly: value });
   const [page, setPage] = useState(1);
   const [printingPage, setPrintingPage] = useState(false);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
   useEffect(() => {
     const before = () => flushSync(() => setPrintingPage(true));
     const after = () => setPrintingPage(false);
@@ -691,18 +692,22 @@ function StaffTicketList(props: StaffTicketListProps) {
   const selectedOrder = visibleOrders.find((order) => order.id === selectedOrderId) ?? visibleOrders[0] ?? null;
 
   return <section className={`mt-6 print:block ${props.fullViewport ? "md:mt-3 md:flex md:min-h-0 md:flex-1 md:flex-col" : ""}`}>
-    <div className="md:hidden print:hidden"><h2 className="text-lg font-semibold">{props.t("staff.today.title")}</h2><p className="mt-1 text-sm text-stone-600">{props.t("staff.today.description")}</p></div>
-    {props.queueRedesignEnabled ? <><div data-testid="staff-queue-toolbar" className="grid shrink-0 gap-2 md:grid-cols-[auto_minmax(0,1fr)] print:hidden"><div className="mt-3 flex min-w-0 flex-wrap md:col-span-2 md:mt-0 md:flex-nowrap md:overflow-x-auto items-center gap-2 print:hidden" role="group" aria-label={props.t("staff.queue.filters")} data-testid="staff-queue-filters">
-      {STAFF_QUEUE_FILTERS.filter((key) => key !== "PRINT_ATTENTION" || props.printEnabled).map((key) => <button type="button" key={key} aria-pressed={filter === key} onClick={() => { setFilter(key); setPage(1); }} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-stone-300 bg-white px-3 text-sm font-semibold aria-pressed:border-teal-800 aria-pressed:bg-teal-50 aria-pressed:text-teal-900">
+    {props.queueRedesignEnabled ? <><div data-testid="staff-queue-toolbar" className="grid shrink-0 items-center gap-2 md:grid-cols-[minmax(0,1fr)_auto_auto] print:hidden">
+      <button type="button" data-testid="staff-queue-toggle" aria-expanded={filtersExpanded} aria-controls="staff-queue-filter-options staff-queue-source-options" aria-label={props.t("staff.queue.filters")} onClick={() => setFiltersExpanded(!filtersExpanded)} className="flex min-h-11 w-full items-center justify-between gap-2 rounded-lg border border-stone-300 bg-white px-3 py-2 text-left text-sm md:hidden">
+        <span className="min-w-0"><strong>{props.t(`staff.queue.${filter}`)} · {queue.total}</strong><span className="ml-2 text-stone-600">{props.t(sourceLabels[source])}{recentOnly ? ` · ${props.t("staff.queue.recent")}` : ""}</span></span>
+        {filtersExpanded ? <ChevronUp className="h-5 w-5 shrink-0" /> : <ChevronDown className="h-5 w-5 shrink-0" />}
+      </button>
+      <div id="staff-queue-filter-options" className={`${filtersExpanded ? "flex" : "hidden"} min-w-0 flex-wrap md:flex md:flex-nowrap md:overflow-x-auto items-center gap-2 print:hidden`} role="group" aria-label={props.t("staff.queue.filters")} data-testid="staff-queue-filters">
+      {STAFF_QUEUE_FILTERS.filter((key) => key !== "PRINT_ATTENTION" || props.printEnabled).map((key) => <button type="button" key={key} aria-pressed={filter === key} onClick={() => { setFilter(key); setPage(1); }} className="inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border border-stone-300 bg-white px-3 text-sm font-semibold aria-pressed:border-teal-800 aria-pressed:bg-teal-50 aria-pressed:text-teal-900">
         {props.t(`staff.queue.${key}`)}<span className="rounded-full bg-stone-100 px-2 text-xs tabular-nums">{queue.counts[key]}</span>
       </button>)}
     </div>
-    <div className="flex shrink-0 flex-wrap gap-2 md:flex-nowrap print:hidden">
-      <label className="flex items-center gap-2 text-sm">{props.t("print.rule.sources")}<select className="min-h-11 min-w-0 rounded-lg border border-stone-300 bg-white px-2" value={source} onChange={(event) => { setSource(event.target.value as StaffQueueSource); setPage(1); }}>{STAFF_QUEUE_SOURCES.map((value) => <option key={value} value={value}>{props.t(sourceLabels[value])}</option>)}</select></label>
+    <div id="staff-queue-source-options" data-testid="staff-queue-source" className={`${filtersExpanded ? "flex" : "hidden"} shrink-0 flex-wrap gap-2 md:flex md:justify-end md:flex-nowrap print:hidden`}>
+      <label className="flex items-center gap-2 text-sm"><span className="sr-only">{props.t("print.rule.sources")}</span><select className="min-h-11 min-w-0 rounded-lg border border-stone-300 bg-white px-2" value={source} onChange={(event) => { setSource(event.target.value as StaffQueueSource); setPage(1); }}>{STAFF_QUEUE_SOURCES.map((value) => <option key={value} value={value}>{props.t(sourceLabels[value])}</option>)}</select></label>
       <button type="button" aria-pressed={recentOnly} className="min-h-11 rounded-lg border border-stone-300 px-3 text-sm aria-pressed:underline" onClick={() => { setRecentOnly(!recentOnly); setPage(1); }}>{props.t("staff.queue.recent")}</button>
     </div>
-    <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 md:justify-end print:hidden" data-testid="staff-queue-pagination">
-      <p role="status" aria-live="polite" className="text-sm text-stone-600">{props.t("staff.queue.page", { page: queue.page, pages: queue.totalPages, count: queue.total })}</p>
+    <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 md:flex-nowrap md:justify-end print:hidden" data-testid="staff-queue-pagination">
+      <p role="status" aria-live="polite" className="text-sm text-stone-600 md:whitespace-nowrap">{props.t("staff.queue.page", { page: queue.page, pages: queue.totalPages, count: queue.total })}</p>
       <div className="flex gap-2"><button type="button" disabled={queue.page === 1} onClick={() => setPage(queue.page - 1)} className="min-h-11 rounded-lg border border-stone-300 px-3 text-sm disabled:opacity-40" title={props.t("staff.queue.previous")} aria-label={props.t("staff.queue.previous")}><ChevronLeft className="h-5 w-5" /></button><button type="button" disabled={queue.page === queue.totalPages} onClick={() => setPage(queue.page + 1)} className="min-h-11 rounded-lg border border-stone-300 px-3 text-sm disabled:opacity-40" title={props.t("staff.queue.next")} aria-label={props.t("staff.queue.next")}><ChevronRight className="h-5 w-5" /></button></div>
     </div>
     </div>
@@ -721,8 +726,6 @@ function StaffTicketList(props: StaffTicketListProps) {
               <span className="mt-2 block text-sm font-semibold">{order.customerName}</span>
               {props.queueRedesignEnabled ? <>
                 <span className="mt-1 block text-xs font-semibold text-teal-800">{staffQueueSource(order) ? props.t(sourceLabels[staffQueueSource(order)!]) : workspaceNavigationMessage(props.locale, "otherSource")}</span>
-                <span className="mt-1 line-clamp-2 text-xs text-stone-700">{order.items.map(item => `${item.quantity} × ${item.name}`).join(" · ")}</span>
-                {order.note ? <span className="mt-1 line-clamp-2 text-xs text-amber-900">{props.t("staff.order.orderNote", { note: order.note })}</span> : null}
               </> : null}
               <span className="mt-1 block text-xs text-stone-600">{orderTimingSummary(order, timing, props.now, props.stall.timezone, props.locale, props.t)}</span>
               <span className="mt-2 block text-xs font-semibold text-stone-800">{props.t("common.portions", { count: order.items.reduce((sum, item) => sum + item.quantity, 0) })} · {formatMoney(order.total, props.currency, props.locale)}</span>
