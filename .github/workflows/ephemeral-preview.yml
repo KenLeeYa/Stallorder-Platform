@@ -115,7 +115,7 @@ jobs:
             supabase branches create "$PREVIEW_BRANCH_NAME" \
               --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
               --region ap-southeast-1 \
-              --size nano \
+              --size micro \
               --git-branch "$PREVIEW_GIT_BRANCH" \
               --log-level error >/dev/null
           fi
