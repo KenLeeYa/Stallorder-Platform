@@ -19,4 +19,12 @@
 5. 先以兩項契約失敗重現上述缺口，補強後31項workflow契約全數通過；不是雲端執行結果。
 6. Gitleaks掃描待推送commit範圍：兩筆均逐一核對為測試UUID idempotency key、明示synthetic callback key，不是真實憑證。沒有新增全域忽略规则；掃描原始結果留本機artifacts。
 
-後續PR／run／branch ref／deployment／期限／實際驗收結果於遠端建立後填入，不能以本頁草稿當作已部署。
+## 雲端建立與第一輪結果
+
+- 草稿 [PR #365](https://github.com/KenLeeYa/Stallorder-Platform/pull/365)，base staging；未合併。
+- 候選 `b361d731542ec180876f03b1e47a1b5349169649`；Preview run `36358520474` 已完成 migrations、seed、migration history，資料庫測試執行中，尚無部署 URL。
+- Supabase branch `pr-365-oauth-delivery`，ID `adf5e447-c919-4594-91bf-1cce2394d613`，child ref `gfoscoqwumwdtvkbfoiv`，已確認非 parent、data-less、Micro。建立時間 2026-09-28 07:24:03 台北。
+- `line-preview-24` heartbeat 每小時檢查；09-29 06:24 台北起清理，最遲07:24到期。資源ID及後續變更保留於本機 `artifacts/line-v2-preview-resources.json`；不得延長或清理其他 branch。
+- 首輪CI `36358520438` 被 UI audit 擋下：11項缺少 button/input type 與 QR textarea 長度。明確指定 action/submit 語意、文字輸入型別及61字QR上限後，366個TSX檢查與typecheck通過；待推送後雲端重驗。
+- CodeQL `36358520451` 成功。此為靜態安全掃描，不是真LINE／付款證据。
+- 測試DB設定已存於受限本機private目錄，ACL僅MSI\KY與SYSTEM；OA／Pay尚未匯入雲端，MINI Endpoint／OA Webhook未改。

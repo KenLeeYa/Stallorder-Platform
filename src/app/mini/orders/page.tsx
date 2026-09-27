@@ -27,7 +27,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
   return <main className="mx-auto max-w-3xl space-y-4 p-4"><h1 className="text-2xl font-bold">我的訂單</h1>
     <form className="flex flex-wrap gap-2"><label className="flex flex-col gap-1">訂單狀態<select name="view" defaultValue={history ? "history" : "active"} className="min-h-11 rounded-lg border bg-transparent px-3"><option value="active">進行中</option><option value="history">歷史訂單</option></select></label>
       <label className="flex min-w-0 flex-1 flex-col gap-1">店家<select name="stall" defaultValue={stall ?? ""} className="min-h-11 max-w-full rounded-lg border bg-transparent px-3"><option value="">全部店家</option>{stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
-      <button className="min-h-11 self-end rounded-lg border px-4">查詢</button></form>
+      <button type="submit" className="min-h-11 self-end rounded-lg border px-4">查詢</button></form>
     {orders.slice(0,20).map(o => <Link key={o.id} href={`/mini/orders/${o.id}`} className="block space-y-2 rounded-xl border p-4">
       <div className="flex flex-wrap justify-between gap-2"><strong className="break-words">{o.store_name}</strong><span>{platformOrderStatusLabel(o.status)}</span></div>
       <div className="flex flex-wrap justify-between gap-2"><span>訂單 {o.order_no}</span><strong>NT$ {o.total.toLocaleString("zh-TW")}</strong></div>

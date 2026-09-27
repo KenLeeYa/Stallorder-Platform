@@ -60,7 +60,7 @@ function StallOperations({stallId}:{stallId:string}){
     })}</ul>}
     {selected&&loaded?<form className="space-y-3 rounded-lg border-2 border-amber-600 p-4" onSubmit={event=>{event.preventDefault();void operate(selected,true);}}>
       <h3 className="font-semibold">確認退款：{selected.orderNo}</h3><p>目前可退款 NT$ {remaining}。送出後依金流查核結果入帳。</p>
-      <label className="block">退款原因<input className="mt-1 block min-h-11 w-full rounded border px-3" value={reason} minLength={3} maxLength={500} required onChange={event=>{setReason(event.target.value);setConfirmed(false);}}/></label>
+      <label className="block">退款原因<input type="text" className="mt-1 block min-h-11 w-full rounded border px-3" value={reason} minLength={3} maxLength={500} required onChange={event=>{setReason(event.target.value);setConfirmed(false);}}/></label>
       {selected.partialRefundEnabled?<label className="block">退款金額（留空為剩餘全額）<input type="number" min={1} max={remaining} step={1} className="mt-1 block min-h-11 w-full rounded border px-3" value={amount} onChange={event=>{setAmount(event.target.value);setConfirmed(false);}}/></label>:null}
       <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={confirmed} onChange={event=>setConfirmed(event.target.checked)}/>我確認退款原因與 NT$ {requestedAmount} 金額</label>
       <div className="flex gap-2"><button type="submit" disabled={busy||!validRefund||!confirmed} className="min-h-11 rounded bg-teal-800 px-4 text-white disabled:opacity-50">{busy?"處理中…":"確認送出退款"}</button><button type="button" disabled={busy} onClick={()=>setSelected(null)} className="min-h-11 rounded border px-4">取消</button></div>
