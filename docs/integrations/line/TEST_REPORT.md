@@ -20,6 +20,13 @@ Gitleaks 檢查原 187 個本次檔案：2 個命中均逐項確認為測試 UUI
 
 Clone曾因restore owner/ACL缺漏出現summary-date、permission錯誤；按原migration恢复原grant/functionowner，未放寬v2 private snapshot。artifact line-v2-core-pgtap-20260927.json保留前後結果；line-v2-clone-baseline-repair.sql僅clone修復，不是Productionmigration。
 
+## 2026-09-28 外部設定與 Preview 準備增量
+
+- 平台 OA／Messaging API 及 Developing／Review／Published MINI App 實際建立／讀回完成；MINI linked OA、openid/profile及一般加好友提示已保存，Endpoint仍為LINE範例頁。OA身份、訊息格式與配額使用官方API；Pay僅執行官方Sandbox唯讀查詢，詳 [設定收據](PROVIDER_SETUP_RECEIPT_20260928.md)。
+- 本機設定格式七項通過；沒有傳送真實Push，沒有Pay Request／Confirm／退款或實機核銷。上方2026-09-27的應用測試結果沒有改記為真provider成功。
+- `99b1f9d` 將隔離 Preview 建立規格 Nano 改 Micro。既有workflow契約先出現1項預期失敗，修正後執行 `npm exec -- vitest run scripts/lib/production-workflow-contract.test.mjs --reporter=dot`，30項通過、0失敗／0跳過。未執行雲端建立，不視為雲端QA成功。
+- 本次沒有啟動服務或遠端部署；原3023／共用55722保留供人工QA，3024仍停止。後續需依 [隔離資源方案](SETUP_RUNBOOK.md#2026-09-28-公開測試資源方案尚未執行) 取得資源及憑證目的地授權。
+
 ## 測試命令與範圍
 
 ```powershell

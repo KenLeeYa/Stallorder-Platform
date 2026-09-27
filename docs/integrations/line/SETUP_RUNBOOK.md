@@ -50,3 +50,43 @@
 ## MINI 下單相依開關
 
 MINI 使用既有 Circuit B 下單入口。非 development 環境須依現有受控 rollout 啟用 `DUAL_ORDER_INTAKE_ENABLED`，並具備原本的 QR session、反濫用驗證、攤位營業／可預約時段與庫存設定；LINE 平台旗標不取代這些檢查。本機測試使用原 development 入口，不修改正式旗標。既有核心未實作「每一取餐時段固定名額上限」；時段合法性與商品库存需分開驗證，不宣稱時段容量預占已存在。
+
+## 2026-09-28 公開測試資源方案（尚未執行）
+
+用途：讓已建立的 Developing MINI App 接入真實 LINE 登入、平台 OA 訊息與 LINE Pay Sandbox；本機自簽環境仍只作合成 QA。本節是資源建立及測試的具體範圍，**不是發布完成收據或 Production 啟用授權**。
+
+### 固定來源與目標
+
+| 項目 | 待執行範圍 |
+|---|---|
+| Repo／來源 | `KenLeeYa/Stallorder-Platform`；`codex/line-platform-oa-v2-20260927`，候選 `99b1f9d`（LINE 應用基準 `d7d67c7`，其後為文件與 Micro 修正）。後續文件提交不改應用 tree；應用或設定變更仍須重新記錄 QA。 |
+| PR | 草稿 PR 以 `staging` 為 base；目前尚未 push／建立。對 staging 的候選包含先前 UI、LINE v1 與 v2，不能把全部差異描述為本次兩行修正，也不能自動 merge。 |
+| Supabase | 原 parent `eyuctbnlvnbnivwasvqr`；organization `urxujyhcggjgwsjtleys`（目前顯示名 KuanGuard、Pro）。新建一個 ephemeral data-less Micro，沿用 workflow 的 `pr-<實際PR號>-oauth-delivery` 與 ap-southeast-1；新 project_ref 必須不等於 parent，僅合成雙店資料。 |
+| Vercel | 既有 team `team_MMfsiG94K9Zy3e6w7Ccc9xY4`／project `prj_uoG4FNJIgnF1LdKRiXnfRaieXnUP`；僅該候選的 Preview deployment，讀回 target、commit、branch、DB fingerprint 與唯一 HTTPS hostname。普通 Git 自動 Preview 不作驗收。 |
+| LINE MINI | Developing `2011762558`／`2011762558-AZbWkGcb`，僅改其 Endpoint 為通過檢查的 `https://<實際Preview主機>/mini`；Review／Published 不啟用。 |
+| OA／Pay | 平台 OA `@028sijlm`、Messaging `2011762548`；Pay 僅 Sandbox `2011753464` 綁測試越好吃店。第二店無獨立 Sandbox 資格前只驗現金及拒絕錯帳號，不把第一店金鑰套到第二店。 |
+
+### 憑證與對外入口
+
+現有同意只涵蓋 repo 外本機儲存。後續需明確允許將 OA Token／Secret 匯入這個測試 branch 的 Supabase Vault，以及將 Pay Sandbox Secret、獨立資料加密 key／callback-state key／cron key 注入該 Vercel Preview 的 server runtime。若使用 GitHub 執行器中轉，只允許本 repo 的 `Preview` Environment、exact branch guard；不得寫共用 Production env、前端 bundle、PR body、Actions artifact 或日誌。OA binding JSON 只含 Vault reference，不含原始 Token。
+
+新建分支仍需檢查帶入的 schema／設定／Edge Functions／cron 目的地；data-less 不代表沒有外部呼叫。先停用未核對的測試觸發源，再於新 DB 套受審 migration、合成 fixtures 及專用測試旗標。現有 workflow 的 LINE live 設定屬於舊的員工 Login，不能直接視為 v2 的 registry／Vault／worker 已配置。
+
+Preview authentication 必須與 LINE callback、Webhook、QR PNG 可達性相容；先查該 deployment 的有效保護設定。不能把 Vercel bypass secret 放進公開圖片或 MINI URL；若必須降低 project 共用保護，停止並另提範圍，不能為一個測試站放寬其他部署。僅允許 exact hostname，不增加正式 `*.vercel.app` 或任意 tunnel allowlist。
+
+### 費用與驗收窗口
+
+提案為第一次資源健康後 **24 小時**內驗收，資料庫 Micro 約 **US$0.32／24 小時**運算，其他用量另計。建議本次新增費用管理預算 **US$2**；這不是供應商硬性上限，帳單可能延遲，若預估將超過則停止新增使用並清理。不升級方案、不加席次／PITR／自訂環境。價格與條件見 [官方成本查核](PREVIEW_RESOURCE_COSTS_20260928.md)。
+
+需保留等候手機驗證時，登記實際建立時間、到期時間、資源ID與負責任務；未核准不自動延長。到期先停排程與新測試，再移除這次的 Endpoint／Webhook、測試部署、測試 branch 及中轉 secrets，逐項讀回。先保留脫敏驗收結果；清理只針對這次可拋棄的合成資料與資源，不刪3023、本機測試資料、parent或DR。
+
+### 自動執行順序及停止條件
+
+1. 取得上述資源費用／PR／憑證目的地的範圍同意後，核對 Primary deployment、登入與授權的受影響下單路徑，確認唯一遠端 writer；不沿用過時健康證據。
+2. 先通過候選 reviewed migrations、DB／RLS／build／paired Preview gates；任何 gate 失敗只修復候選，不能跳过後啟用。
+3. 初始化 v2 registry 與明確 audience／DB fingerprint、讀回 OA bot info；開新平台入口和取餐測試，Push／Pay 先關。通過真 LINE 首次入會、拒絕／重登／切帳號、跨店隔離後才開對應 Push／Pay 測試。
+4. 只在使用者指定的測試帳號及同意下限量發訊。需先取得確切測試者，不把控制台管理者 userId 自動當成授權收件者。Webhook 先保存空白原設定，完成簽章與empty events驗證再啟用；歡迎詞／全體選單不自動發布。
+5. 跑真正 Sandbox Request→LINE授權→Confirm、取消／返回／查核／退款；再驗真通知卡片→關閉MINI→READY→獨立店員裝置掃碼預覽→交付→PICKED_UP。手機登入／支付操作交由本人，未做不得記PASS。
+6. 分列程式、模擬／DB自動化、真LINE、Pay Sandbox、實機掃碼與正式狀態；完成或到期按上述清理。正式啟用另依發布規則與授權，不由草稿PR或此次測試自動進行。
+
+實際 Preview URL、branch ref、deployment ID、Vault reference、到期時間目前均未產生；不得在 LINE 控制台填猜測網址。現階段可同意此資源範圍，但仍須每一步證據成立才繼續，不把此計畫當成已可手機驗收。

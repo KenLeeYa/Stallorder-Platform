@@ -25,7 +25,7 @@
 
 | Phase | 程式／文件 | 驗收邊界 |
 |---|---|---|
-| 0 | 真實 repo 盤點、官方 Pay v4/Messaging/MINI 查核 | 平台 OA、Provider及Pay Sandbox已live讀回；MINI建立草稿待條款同意 |
+| 0 | 真實 repo 盤點、官方 Pay v4/Messaging/MINI 查核 | 平台 OA、Provider、MINI三環境及Pay Sandbox已live讀回；尚未端到端登入／發訊／付款 |
 | 1 | ADR、七份相容 migration、FORCE RLS | 僅本機 clone，未套 Staging/Production |
 | 2 | 登入交換、會員條款/選填同意、好友事件、本人跨店訂單、歸戶 | 合成登入及測試證據見 TEST_REPORT；真人登入/返回待驗 |
 | 3 | 原事件→outbox→固定平台 OA adapter、舊渠道隔離 | 真 DB + provider fixture；未真實 Push/遠端 cron |
@@ -39,4 +39,4 @@
 - 3024 為臨時 HTTPS 合成 QA，假 Channel、自簽憑證，不能驗真 LINE；3023 人工環境保留。最終程序狀態見 TEST_REPORT。
 - 2026-09-28 已依授權建立平台 OA「攤點通」`@028sijlm`，Messaging Channel `2011762548`／Provider `2005461563`。bot/info與訊息格式驗證通過；尚未真實Push、設定Webhook或匯入Vault。OA尚未認證。
 - 既有 LINE Pay Sandbox完成OTP，Channel `2011753464` 的簽章唯讀查詢回覆HTTP 200／1150（探測訂單不存在）；尚未Request／Confirm／退款。憑證已依授權限制存於repo外私密目錄，不能把此結果當付款成功。
-- MINI建立草稿仍待MINI條款與代表權聲明同意，沒有Channel／LIFF ID；公開HTTPS、法定條款、雙店帳號及裝置缺項集中在 [外部清單](EXTERNAL_SETUP_CHECKLIST.md)。完整當日證據見 [帳號設定驗證](PROVIDER_SETUP_RECEIPT_20260928.md)。
+- MINI已依使用者條款／代表權與資料使用同意建立，Developing `2011762558`／LIFF `2011762558-AZbWkGcb`；另有獨立Review與Published ID。已連平台OA、啟用openid/profile與一般加好友提示。仍為Unverified、Endpoint為預設頁，沒有正式發布。公開HTTPS、法定條款、雙店帳號及裝置缺項集中在 [外部清單](EXTERNAL_SETUP_CHECKLIST.md)。完整當日證據見 [帳號設定驗證](PROVIDER_SETUP_RECEIPT_20260928.md)。

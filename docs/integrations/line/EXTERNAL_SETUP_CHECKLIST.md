@@ -14,14 +14,15 @@
 - 阻擋：真實端到端通知、對外條款、平台認證及正式啟用。API可驗證格式不代表訊息送達。
 - 回復：保存原webhook/Bot/選單來源，先停止新Push，不清除待發證據。
 
-## 2. MINI App／LINE Login／各環境設定 — BLOCKED
+## 2. MINI App／LINE Login／各環境設定 — Channel已建立；HTTPS與真登入待驗
 
 - 角色：同Provider管理者／認證申請負責人。
 - 位置：Developers該Provider各Channel，Developing/Review/Published、LIFF、linked OA、tester設定。
-- 2026-09-28已確認：Provider `2005461563` 已有管理員；既有 LINE Login Channels `2011580550`（正式登入）及 `2011201000` 保持原樣。已備妥 Taiwan、名稱「攤點通」的 MINI 建立草稿，尚待使用者同意 MINI 自己的條款、地區與代表權聲明；沒有提交，沒有 MINI Channel／LIFF ID。假LIFF ID仍僅供本機fixture。
+- 2026-09-28已確認：使用者確認MINI條款、台灣地區／代表權聲明並同意提交後另出現的MINI資料使用同意書，已建立「攤點通」Taiwan／Unverified MINI。Developing `2011762558`／LIFF `2011762558-AZbWkGcb`；Review `2011762559`／LIFF `2011762559-2vU9KSSA`；Published `2011762560`／LIFF `2011762560-0xmjKlDS`。同屬Provider `2005461563`。
+- 已儲存並讀回linked OA `@028sijlm`、scopes `openid, profile`、Add friend `On (normal)`；未開啟 `chat_message.write`，未申請email權限。三個Endpoint仍是LINE預設頁，未發布服務、未送認證，也尚無可供顧客驗收的真實入口。既有LINE Login Channels `2011580550`／`2011201000`維持原樣。
 - 官方台灣頁目前允許先建立／開發 MINI；Certified Provider 是台灣 Verified MINI 送審條件，不直接視作 Developing 建立門檻。官方Policy仍有不同步文字，資格差異與認證所需資料見 [台灣申請查核](TAIWAN_MINIAPP_REQUIREMENTS_20260928.md)。不使用普通 Login＋LIFF冒充MINI。
 - 欄位：Provider ID、每環境Channel/LIFF ID、scope、Taiwan region、Endpoint/callback、linked平台OA、tester、Certified Provider、Verified MINI App各自狀態。
-- 前置：平台OA/HTTPS Preview/真實條款。OA認證、Provider認證及MINI認證不可相互替代。
+- 待辦：受控HTTPS Preview的精確`/mini` Endpoint、測試者角色、真實條款與隱私網址。現有repo採data-less Supabase Branch＋Vercel Preview，沒有常駐Staging網站；不得指向DR或正式站。OA認證、Provider認證及MINI認證不可相互替代。
 - 完成驗證：真LINE首次/重複登入、不同audience拒絕、深連結、帳號切換、失去Session返回；兩種手機版本記錄。
 - 阻擋：真身分/永久連結/實機/正式；普通OA Push不以缺Service Message模板作理由。
 - 回復：保留各環境原設定，錯audience硬拒绝，不拿Published設定供Preview。
@@ -53,6 +54,7 @@
 - 位置：受控Staging/Preview Vercel、Supabase Vault/DB與Cron、既有Cloudflare/WAF。
 - 欄位：HTTPS Endpoint、database fingerprint、32-byte資料金鑰、OA Vault UUID、callback/state secret、CRON_SECRET、worker origin及原report endpoint一致。
 - 已確認：本機3024自簽與loopback PNG不能由LINE公開抓圖；clone無遠端scheduler，沒有寫Production。
+- 2026-09-28準備：已核對 parent 所屬 Pro 組織及僅有 main 分支；本機 Preview workflow 改為付費組織可新建的 Micro，30項流程契約測試通過。仍未建立／部署雲端測試站，詳 [資源方案](SETUP_RUNBOOK.md#2026-09-28-公開測試資源方案尚未執行) 與 [成本](PREVIEW_RESOURCE_COSTS_20260928.md)。
 - 完成驗證：Webhook原bytes/簽章、media合法抓取、private no-store、CDN/APM URL遮罩、pg_net commit wakeup、worker lease重啟與首次Push延遲、Pay每分鐘查核。
 - 阻擋：真OA圖片/背景時效/實機/正式。
 - 回復：保存Primary健康artifact與映射，不影響DR，遵守Staging→Production與单一writer。
