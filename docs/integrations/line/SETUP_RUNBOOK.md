@@ -40,7 +40,7 @@
 
 ## 選單
 
-先 `node scripts/line-platform-rich-menu.mjs --example` 與 `node --test scripts/line-platform-rich-menu.test.mjs`，零網路。示例JSON不能發布。真實設定重新dry-run，查原Manager/API/per-user覆蓋及備份；精確plan/hash授權後才能apply/restore，詳RICH_MENU_OPERATIONS。歡迎訊息為草稿，未自動發布。
+先 `node scripts/line-platform-rich-menu.mjs --example` 與 `npm test -- scripts/line-platform-rich-menu.test.mjs`，零網路。示例JSON不能發布。真實設定重新dry-run，查原Manager/API/per-user覆蓋及備份；精確plan/hash授權後才能apply/restore，詳RICH_MENU_OPERATIONS。歡迎訊息為草稿，未自動發布。
 
 ## 回復
 

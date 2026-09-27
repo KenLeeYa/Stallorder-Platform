@@ -1,4 +1,4 @@
-import test from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -17,7 +17,7 @@ const policy = () => ({ version: 1, operatorProfileId: "33333333-3333-4333-8333-
 const env = { VERCEL_ENV: "preview", LINE_PLATFORM_ENVIRONMENT: "preview", LINE_PLATFORM_BINDING_JSON: JSON.stringify(binding) };
 async function workspace(t) {
   const prefix = resolve(tmpdir(), "qidaigo-rich-menu-test-"); const path = await mkdtemp(prefix);
-  t.after(async () => { if (!resolve(path).startsWith(prefix)) throw new Error("UNSAFE_TEST_CLEANUP"); await rm(path, { recursive: true }); });
+  t.onTestFinished(async () => { if (!resolve(path).startsWith(prefix)) throw new Error("UNSAFE_TEST_CLEANUP"); await rm(path, { recursive: true }); });
   return { path, assets: resolve(path, "assets"), output: resolve(path, "plan"), policy: resolve(path, "policy.json") };
 }
 function mockLine(options = {}) {

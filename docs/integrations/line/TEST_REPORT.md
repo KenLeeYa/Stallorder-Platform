@@ -33,7 +33,7 @@ Clone曾因restore owner/ACL缺漏出現summary-date、permission錯誤；按原
 node scripts/run-line-platform-qa.mjs unit
 node scripts/run-line-platform-qa.mjs database
 node scripts/run-line-platform-qa.mjs browser
-node --test scripts/line-platform-rich-menu.test.mjs
+npm test -- scripts/line-platform-rich-menu.test.mjs
 npm run typecheck
 npm run build
 ```
@@ -173,3 +173,10 @@ PASS表示該列已列出的本機自動化範圍成立；要求真provider/装�
 - 瀏覽器 `e2e/line-platform-v2.spec.ts`：最終 9/9，1.7 分鐘。前期 hydration、canonical code、Next route props 及原 Web 會員入口問題均修復後重驗。
 - `line-v2-build.txt`、`line-v2-lint.txt`、`line-v2-secret-scan.json`／`line-v2-secret-review.json`、`line-v2-client-secret-check.json` 保留本機結果。
 - 七份 migration 僅指定 clone 套用；fixtures 保留，不複製進正式。原 3023 人工測試版本未切換為此候選。
+
+## 2026-09-28 隔離 Preview 增量
+
+- 使用者已授權最長24小時的單一隔離測試站；草稿PR #365，無merge／Production。資源、到期清理及各次CI結果見 [執行紀錄](PREVIEW_EXECUTION_20260928.md)。
+- 首次雲端child資料庫72個SQL檔／1,619項pgTAP PASS、schema lint無錯誤；後續commit取消未完成的部署步驟，整輪CANCELLED不算部署成功。
+- 修正Rich Menu測試執行器後，本機完整unit 591檔／3,553項 PASS，12檔／97項 SKIP。保留原12個Rich Menu案例與斷言。此結果不代替DB integration、真LINE、Pay Sandbox及實機掃碼。
+- 新HEAD的CI、公開Preview、真provider與裝置驗收仍待後續收據；上方既有本機失敗／外部BLOCKED紀錄未改標PASS。

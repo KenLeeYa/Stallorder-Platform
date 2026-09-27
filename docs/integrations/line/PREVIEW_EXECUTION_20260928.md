@@ -28,3 +28,18 @@
 - 首輪CI `36358520438` 被 UI audit 擋下：11項缺少 button/input type 與 QR textarea 長度。明確指定 action/submit 語意、文字輸入型別及61字QR上限後，366個TSX檢查與typecheck通過；待推送後雲端重驗。
 - CodeQL `36358520451` 成功。此為靜態安全掃描，不是真LINE／付款證据。
 - 測試DB設定已存於受限本機private目錄，ACL僅MSI\KY與SYSTEM；OA／Pay尚未匯入雲端，MINI Endpoint／OA Webhook未改。
+
+
+## 雲端 gate 增量（07:46 台北）
+
+- `b361d73` 的 Preview `36358520474`：72個SQL檔／1,619項 pgTAP PASS，728秒；schema lint無錯誤。為執行新UI修正 `c7fbb6f`，推送後自動取消尚未完成的建置／部署步驟，因此整個run為CANCELLED，不能稱Preview部署成功。
+- `c7fbb6f` 的CI `36359425292`：lint、UI audit、typecheck通過，3,541 unit PASS／97 SKIP，但Rich Menu使用node:test，被Vitest判定無suite而FAIL。以相同命令本機重現，將該檔改用既有Vitest及onTestFinished cleanup後，原12案例全部PASS，未刪除斷言／跳過套件。
+- 新一輪Preview `36359425297`仍使用原child branch，資料庫測試執行中。無新增資料庫。
+- 07:34台北Primary再次讀回：原deployment／commit、PRIMARY及EDGE_PRIMARY不變，QR/Staff AVAILABLE。
+- 尚需在Chrome完成Vercel既有帳號2FA以操作exact-domain exception；未修改保護設定。測試runtime獨立secret已先準備於同一受限private目錄，ACL僅MSI\KY與SYSTEM；Push/Pay/平台入口仍關閉，尚未送到雲端。
+
+## Rich Menu 測試執行器修正
+
+- 原因：CI 的 Vitest 掃描 `.test.mjs`，但該檔以 `node:test` 註冊案例，造成 `No test suite found`。改為既有 Vitest 的 `test`／`onTestFinished`，保留12項案例及全部斷言。
+- 07:46–07:48台北，本機完整 `npm test -- --reporter=dot`：591檔／3,553項 PASS，12檔／97項 SKIP，exit 0，123.09秒。收據 `artifacts/line-v2-preview-full-unit.log`；SKIP不算通過，外部LINE／付款驗證仍未完成。
+- `c7fbb6f` 的 CodeQL `36359425295` SUCCESS。修正推送後仍需新HEAD雲端CI及配對Preview結果。

@@ -31,7 +31,7 @@ API 404／空清單只能證明「本 API 沒有讀到預設值」。它不能�
 
 ```powershell
 node scripts/line-platform-rich-menu.mjs --example
-node --test scripts/line-platform-rich-menu.test.mjs
+npm test -- scripts/line-platform-rich-menu.test.mjs
 ```
 
 預設 `dry-run`，輸出三個 public 資產，以及 `artifacts/line-platform-rich-menu/dry-run.json` 的 deep-link 對照、歡迎訊息草稿、阻擋事項與 hash。`publishable:false`、`providerVerified:false`，不能把它直接用於 apply。
