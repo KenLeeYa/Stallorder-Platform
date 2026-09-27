@@ -9,6 +9,10 @@
 5. 下單沿原價格/庫存/營業/排程/session/device，同交易固定 owner。本人跨 A/B 店清單可讀；他人 detail 404。
 6. 會員頁可改交易通知同意/查看好友/登出。封鎖或解除不把舊單改送另一人。Worker 發送前查 active identity/會員同意/好友。資料刪除沿原 privacy request，付款/交付稽核依原保留政策。
 
+已登入的有效平台會員從原 Web 店面進入自取／外送時，若店家已啟用且到達 cutover，會導往同店 MINI 入口，保留 view／locale 並使用本人隔離草稿。舊條款會員仍導入 MINI，由既有條款畫面引導更新；匿名、公開 menu、非試點與平台 optional 設定錯誤保留原 Web。
+
+已存在的公開 Circuit B 點餐 Session 仍可提交；伺服器驗原 session／device／QR、有效會員及試點邊界，再沿原交易固定 owner 與通知聯絡。已綁某會員的 Session 不可由其他會員或登出後重新使用，既有訂單歸屬也不可變更。Circuit A 訪客仍沿下述 proof 歸戶，沒有改寫 Edge 核心。
+
 ## 訪客歸戶
 
 訪客沿原 Web/QR。短取餐號、電話、orderId、QR 圖都不足歸戶。成功建單後，server 驗原 CONSUMED session hash＋装置＋高熵 tracking＋店別，簽發加密 HttpOnly proof，每單 cookie 獨立。

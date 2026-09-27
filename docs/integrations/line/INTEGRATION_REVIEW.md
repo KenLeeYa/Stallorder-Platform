@@ -56,5 +56,6 @@
 - **R6：會員表單在 hydration 前可提交。** browser 實際重現只有 GET、没有 PATCH且偏好未保存。沿既有 useClientReady 在處理器準備前停用輸入／送出；SSR 新入會與既有會員兩案例加回歸，瀏覽器重驗真的 PATCH 及 DB 讀回。
 - **R7：原接單吞掉 Serializable 衝突。** 精確 clone 診斷取得 40001，診斷 transaction ROLLBACK 並讀回原函式未变。070000 只重新拋出 serialization_failure；平台原交易最多重試兩次，沿相同 order/session/idempotency。最後庫存、失效時段、真 40001 後成功及唯一 owner/stock 均有 DB 案例，外部驗證不重跑。原核心沒有每時段固定名額上限，不宣稱存在。
 - **R8：購物車交接歸屬與撤銷。** 原 B Session 發行即綁已登入的平台會員；logout後不能 export 成客人。Consume 鎖 active member/identity；原 owner 綁定與 guest proof 也驗不可變 Session claim。不同會員重放、撤銷競爭與原公開點餐 disabled/invalid 平台設定 fallback 有回歸。
+- **R9：一般 Web 會員訂單漏綁歸屬。** 原先只有 /api/mini/orders 傳入 platformContext，公開 Session 雖已綁會員，/api/public/orders 卻仍按匿名建立訂單。現於原 public B 驗原 session／device／QR、會員及試點後沿相同原子交易綁定；API 真 cookie／DB 8 案涵蓋唯一 owner／事件、重送及 fallback／換會員拒絕。公開自取／外送入口另導有效試點會員到同店 MINI，保留會員隔離草稿；舊條款由既有 MINI gate 引導。最後 browser 第 9 案驗雙履約方式、匿名草稿保留與登出，不以單純 HTTP 200 判定導頁成功。
 
 最終合併測試結果以 TEST_REPORT 為準；以上為本機來源與 fixture／DB／browser 證據，沒有真 OA、Pay Sandbox 或硬體完成宣告。

@@ -367,3 +367,76 @@ test("guest explicitly transfers a fresh cart and the same browser member import
     await db.resilienceFeatureFlagOverride.delete({ where: { id: override.id } });
   }
 });
+
+test("public pickup and delivery entries keep anonymous carts and route valid members into isolated MINI carts", async ({ page }) => {
+  test.setTimeout(180_000);
+  const errors = observe(page);
+  const stallId = randomUUID(), code = `entry-${stallId}`;
+  await db.stall.create({ data: { id: stallId, organizationId: org, code, slug: `entry-private-${stallId}`,
+    name: "合成會員入口店", address: "合成地址", location: "合成入口測試" } });
+  await db.stallOrderingSettings.create({ data: { organizationId: org, stallId,
+    takeoutPreorderEnabled: true, deliveryModuleEnabled: true } });
+  await db.stallBusinessHour.createMany({ data: Array.from({ length: 7 }, (_, dayOfWeek) => ({ organizationId: org,
+    stallId, dayOfWeek, opensAt: "00:00", closesAt: "00:00" })) });
+  await db.$executeRaw`insert into public.line_platform_stalls(stall_id,environment,enabled,cutover_at)
+    values(${stallId}::uuid,'local',true,now()-interval '1 hour')`;
+  const category = await db.productCategory.create({ data: { organizationId: org, name: `合成入口 ${stallId}` } });
+  const products = await Promise.all(["匿名入口原草稿餐", "會員隔離新草稿餐"].map(name => db.product.create({ data: {
+    organizationId: org, categoryId: category.id, name, description: "Synthetic member entry fixture", defaultPrice: 67,
+    stallProducts: { create: { organizationId: org, stallId, stockRemaining: 20 } },
+  } })));
+  await db.qrCode.create({ data: { organizationId: org, stallId, token: `entry-ui-${randomUUID()}`,
+    label: "Synthetic pickup and delivery entry" } });
+  await page.setExtraHTTPHeaders({ "x-real-ip": "198.18.27.62", "cf-connecting-ip": "198.18.27.62" });
+
+  for (const view of ["pickup", "delivery"] as const) {
+    const mode = view === "pickup" ? "PREORDER" : "DELIVERY";
+    const publicPath = `/store/${code}?view=${view}&locale=zh-TW`;
+    const openSession = async () => {
+      const [response, document] = await Promise.all([
+        page.waitForResponse(r => new URL(r.url()).pathname === "/api/public/order-session" && r.request().method() === "POST", { timeout: 60_000 }),
+        page.goto(publicPath),
+      ]);
+      expect(document?.status()).toBe(200);
+      expect(response.status()).toBe(201);
+      const session = await response.json() as { orderingMode: string; orderSessionToken: string };
+      expect(session.orderingMode).toBe(mode);
+      return digest(session.orderSessionToken);
+    };
+    const guestHash = await openSession();
+    await expect(page).toHaveURL(`${origin}${publicPath}`);
+    await expect(page.getByTestId("qr-cart-line")).toHaveCount(0);
+    if (view === "pickup") await page.getByRole("button", { name: "套用這個時間", exact: true }).click();
+    await page.locator(`article#qr-product-${products[0].id}`).getByRole("button", { name: "增加 匿名入口原草稿餐", exact: true }).click();
+    await expect(page.getByTestId("qr-cart-line")).toHaveCount(1);
+    await expect(page.getByTestId("qr-cart-line")).toContainText("匿名入口原草稿餐");
+    await expect(page.getByRole("button", { name: "用 LINE 繼續此購物車", exact: true })).toBeVisible();
+
+    await establishLocalTestSession(page, db, profiles[1].id);
+    const memberHash = await openSession();
+    await expect(page).toHaveURL(`${origin}/mini/store/${code}?locale=zh-TW&view=${view}`);
+    await expect(page.getByTestId("qr-cart-line")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "匯入剛才的訪客購物車", exact: true })).toHaveCount(0);
+    if (view === "pickup") await page.getByRole("button", { name: "套用這個時間", exact: true }).click();
+    await page.locator(`article#qr-product-${products[1].id}`).getByRole("button", { name: "增加 會員隔離新草稿餐", exact: true }).click();
+    await expect(page.getByTestId("qr-cart-line")).toHaveCount(1);
+    await expect(page.getByTestId("qr-cart-line")).toContainText("會員隔離新草稿餐");
+    await expect(page.getByTestId("qr-cart-line")).not.toContainText("匿名入口原草稿餐");
+    const claims = await db.$queryRaw<Array<{ token_hash: string; owner: string | null }>>`
+      select token_hash,line_platform_cart_claim_profile_id::text as owner from public.order_sessions
+      where stall_id=${stallId}::uuid and token_hash in (${guestHash},${memberHash}) order by token_hash`;
+    expect(claims).toEqual([{ token_hash: guestHash, owner: null }, { token_hash: memberHash, owner: profiles[1].id }]
+      .sort((left, right) => left.token_hash.localeCompare(right.token_hash)));
+
+    await page.goto("/mini/member");
+    await page.getByRole("button", { name: "登出", exact: true }).click();
+    await expect(page).toHaveURL(`${origin}/mini`);
+    await openSession();
+    await expect(page).toHaveURL(`${origin}${publicPath}`);
+    await expect(page.getByTestId("qr-cart-line")).toHaveCount(1);
+    await expect(page.getByTestId("qr-cart-line")).toContainText("匿名入口原草稿餐");
+    await expect(page.getByTestId("qr-cart-line")).not.toContainText("會員隔離新草稿餐");
+  }
+  expect(await db.order.count({ where: { stallId } })).toBe(0);
+  expect(errors).toEqual([]);
+});

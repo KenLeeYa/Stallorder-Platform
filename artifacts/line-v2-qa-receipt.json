@@ -1,27 +1,28 @@
 {
-  "recordedAt": "2026-09-27T08:14:39.367689+00:00",
+  "recordedAt": "2026-09-27T08:31:46.273Z",
   "branch": "codex/line-platform-oa-v2-20260927",
   "baseCommit": "5dcbca4309dd6aa5095c0b6418856991f2cbd480",
   "requirementSha256": "13c37906b6bfdd829e7d53df237603357a3ee158b30d6d725df64b37519eb93e",
   "local": {
     "unit": {
-      "passed": 603,
-      "skipped": 89,
+      "passed": 615,
+      "skipped": 97,
       "failed": 0
     },
     "database": {
-      "files": 9,
-      "passed": 80,
+      "files": 10,
+      "passed": 88,
       "failed": 0,
       "skipped": 0,
       "target": "loopback:55722/stallorder_line_miniapp_20260926"
     },
     "browser": {
-      "passed": 8,
+      "passed": 9,
       "failed": 0,
       "layoutCombinations": 40,
       "identity": "synthetic local sessions",
-      "scope": "membership, consent persistence, same-owner cross-store, private authorization, explicit staff handoff, guest cart import, logout"
+      "scope": "membership, consent persistence, same-owner cross-store, private authorization, explicit staff handoff, guest cart import, authenticated public pickup/delivery redirect and cart isolation, logout",
+      "durationMinutes": 1.7
     },
     "richMenu": {
       "passed": 12,
@@ -30,7 +31,7 @@
     "typecheck": "PASS",
     "productionModeBuild": "PASS",
     "eslint": {
-      "files": 150,
+      "files": 152,
       "errors": 0,
       "preexistingWarnings": 1
     },
@@ -47,8 +48,8 @@
     "productionActivation": "NOT_RUN"
   },
   "serviceReadback": {
-    "3024": "STOPPED",
     "3023": "RETAINED user manual QA, separate worktree PID49312",
+    "3024": "STOPPED",
     "55722": "RETAINED shared catalog-ops DB container, healthy"
   },
   "remoteWrites": false,
@@ -62,5 +63,6 @@
     "anonymousHealthHttp": 401,
     "authenticatedOrderFlowVerified": false,
     "backendTarget": "not read in this task"
-  }
+  },
+  "implementationCheckpoint": "d7de7b4"
 }

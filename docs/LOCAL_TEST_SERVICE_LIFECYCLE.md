@@ -4,7 +4,7 @@
 
 ## 2026-09-27 LINE v2 本轮
 
-- `line-miniapp-pay/Stallorder-Platform` 的本輪 HTTPS QA 3024 已完成測試並停止，listener 讀回為空；只停止確認屬此服務的 19372／25732／8748 程序。建置前先停服務，未共用正在運行的 `.next`。
+- `line-miniapp-pay/Stallorder-Platform` 的本輪 HTTPS QA 3024 已完成測試並停止，listener 讀回為空；最後補測一般 Web 會員入口後，只停止確認屬此服務的 24900／1652／23764 程序（前輪 19372／25732／8748 已停止）。建置前先停服務，未共用正在運行的 `.next`。
 - 原 UI/UX 工作樹 3023（讀回 PID 49312）依使用者人工 QA 要求保留；共用 `supabase_db_stallorder-catalog-ops-20260907` 的 55722 仍有依賴，沒有停止 Engine／刪容器／volume。
 - LINE 專用 DB `stallorder_line_miniapp_20260926` 與 3023 資料庫分離；保留合成測試資料。重啟本輪合成測試：在隔離工作樹按 [QA 手冊](integrations/line/TEST_REPORT.md) 執行 `node scripts/start-line-platform-qa.mjs`，不把假 Channel／自簽憑證當成真 LINE。
 

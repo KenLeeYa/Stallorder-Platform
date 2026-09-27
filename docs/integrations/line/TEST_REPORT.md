@@ -4,13 +4,15 @@
 
 ## 執行摘要
 
-最終本機結果：**603 個單元／API 回歸、80 個真 DB 整合、8 個瀏覽器流程、12 個 Rich Menu 工具案例通過**。TypeScript 與正式模式建置通過（113 頁生成）。變更範圍 150 個程式／測試檔 ESLint 無錯誤，保留原 public-order-tracker 第 881 行導頁警告 1 個。
+最終本機結果：**615 個單元／API 回歸、88 個真 DB 整合、9 個瀏覽器流程、12 個 Rich Menu 工具案例通過**。TypeScript 與正式模式建置通過（113 頁生成）。變更範圍原 150 檔及最後 7 檔（其中 2 檔新增）ESLint 無錯誤，保留原 public-order-tracker 第 881 行導頁警告 1 個。
 
-Unit 模式的 89 個 SKIP 中，80 個已由受限 clone 專用 runner 通過；其餘 9 個原 Circuit A/B replay／terminal cases 需要原 56322／Edge replay stack，本次未啟動，不能算 PASS。原 SQL 基線仍有下述 1 FAIL／1 SKIP。全需求尚有外部 BLOCKED 與部分回歸缺口，**不是整體功能／正式啟用驗收完成**。
+Unit 模式的 97 個 SKIP 中，88 個已由受限 clone 專用 runner 通過；其餘 9 個原 Circuit A/B replay／terminal cases 需要原 56322／Edge replay stack，本次未啟動，不能算 PASS。原 SQL 基線仍有下述 1 FAIL／1 SKIP。全需求尚有外部 BLOCKED 與部分回歸缺口，**不是整體功能／正式啟用驗收完成**。
 
-最終瀏覽器包含 code≠slug 的原訪客購物車→本機合成會員登入→明確匯入、會員通知設定 PATCH／持久化、跨店本人訂單及他人 404、原 Staff 明確交付、登出隱私、平台／門市權限與 40 種版面组合。沒有用假成功回應代替真 LINE 身分或真 Sandbox 授權。
+最終瀏覽器包含 code≠slug 的原訪客購物車→本機合成會員登入→明確匯入、會員通知設定 PATCH／持久化、跨店本人訂單及他人 404、原 Staff 明確交付、登出隱私、平台／門市權限與 40 種版面組合。另驗自取／外送的原 Web 入口→有效會員導同店 MINI→本人草稿隔離→真登出後原訪客草稿仍在。沒有用假成功回應代替真 LINE 身分或真 Sandbox 授權。
 
-Gitleaks 檢查 187 個本次檔案：2 個命中均逐項確認為測試 UUID／明示 synthetic state key，未發現實際憑證；建置後另比對 3 個本機私有設定值與 153 個 client 檔案，0 命中。這不代表正式 CDN／APM 日誌已驗證。
+最後新增原公開 API 的真 AuthSession cookie → /api/public/order-session → /api/public/orders 測試：沿原交易建立唯一 owner／contact；原確認狀態轉移後有唯一通知事件。匿名、非試點、停用、cutover 前與 optional 設定錯誤保留原 Web；已綁 Session 換會員或登出使用會拒絕，沒有建單或扣庫存。這是實際 API／DB 的接單證據；完整瀏覽器建單及真 LINE 付款仍不可由草稿測試替代。
+
+Gitleaks 檢查原 187 個本次檔案：2 個命中均逐項確認為測試 UUID／明示 synthetic state key，未發現實際憑證；最後 7 個補強檔另掃描為 0 命中。建置後另比對 3 個本機私有設定值與 153 個 client 檔案，0 命中。這不代表正式 CDN／APM 日誌已驗證。
 
 已確認外部 Sandbox 帳號可登入，尚未執行任何 Sandbox API 收退款；平台 OA、真 MINI 和實機未驗。
 
@@ -159,8 +161,8 @@ PASS表示該列已列出的本機自動化範圍成立；要求真provider/装�
 
 ## 收據與失敗保留
 
-- `artifacts/line-v2-unit-results.json`：108 個檔案通過、11 個有條件跳過；603 PASS／89 SKIP。
-- `artifacts/line-v2-database-results.json`：9 檔／80 PASS。首輪曾誤收集暫存掃描目錄內的複本而出現 2 import 失敗；已將副本移至系統 Temp 並讓 runner 排除 artifacts，再以原始 9 檔重跑通過。未將失敗輪算入通過數。
-- 瀏覽器 `e2e/line-platform-v2.spec.ts`：最終 8/8，1.5 分鐘。前期 hydration、canonical code 及 Next route props 問題均修復後重驗。
+- `artifacts/line-v2-unit-results.json`：108 個檔案通過、12 個有條件跳過；615 PASS／97 SKIP。
+- `artifacts/line-v2-database-results.json`：最終 10 檔／88 PASS。首輪曾誤收集暫存掃描目錄內的複本而出現 2 import 失敗；已將副本移至系統 Temp 並讓 runner 排除 artifacts，再以原始 9 檔重跑通過，最後加入原 Web 會員接單 8 案並全量重跑。未將失敗輪算入通過數。
+- 瀏覽器 `e2e/line-platform-v2.spec.ts`：最終 9/9，1.7 分鐘。前期 hydration、canonical code、Next route props 及原 Web 會員入口問題均修復後重驗。
 - `line-v2-build.txt`、`line-v2-lint.txt`、`line-v2-secret-scan.json`／`line-v2-secret-review.json`、`line-v2-client-secret-check.json` 保留本機結果。
 - 七份 migration 僅指定 clone 套用；fixtures 保留，不複製進正式。原 3023 人工測試版本未切換為此候選。

@@ -117,16 +117,22 @@ export default async function PublicStorefrontPage({ params, searchParams, miniA
   const pickupReady = stall.orderingSettings?.takeoutPreorderEnabled === true && Boolean(pickupQrToken);
   const deliveryReady = stall.orderingSettings?.deliveryModuleEnabled === true && Boolean(deliveryQrToken);
   let platformGuestCartEnabled = false;
+  let platformMemberRedirect = false;
   if (!miniApp && view !== 'menu' && process.env.LINE_PLATFORM_ENABLED === 'true') {
     try {
-      const [{getLinePlatformRuntime},{getPagePrincipal},{prisma}] = await Promise.all([import('@/server/line-platform/runtime'),import('@/lib/auth'),import('@/lib/prisma')]);
+      const [{getLinePlatformRuntime},{getPagePrincipal},{prisma},{getPlatformMember}] = await Promise.all([import('@/server/line-platform/runtime'),import('@/lib/auth'),import('@/lib/prisma'),import('@/server/line-platform/member-service')]);
       const runtime=getLinePlatformRuntime();
-      if(runtime&&!await getPagePrincipal()) {
-        const rows=await prisma.$queryRaw<Array<{stall_id:string}>>`select stall_id from public.line_platform_stalls where stall_id=${stall.id}::uuid and environment=${runtime.environment} and enabled`;
-        platformGuestCartEnabled=rows.length>0;
+      if(runtime) {
+        const principal=await getPagePrincipal();
+        const rows=await prisma.$queryRaw<Array<{stall_id:string}>>`select stall_id from public.line_platform_stalls where stall_id=${stall.id}::uuid and environment=${runtime.environment} and enabled and cutover_at<=now()`;
+        platformGuestCartEnabled=!principal&&rows.length>0;
+        const member=principal&&rows.length ? await getPlatformMember(principal) : null;
+        platformMemberRedirect=Boolean(member);
       }
     }catch{/* Optional member handoff must not affect original guest ordering. */}
   }
+  // Keep redirects outside the optional configuration catch (Next redirects throw).
+  if (platformMemberRedirect) redirect("/mini" + buildPublicStorefrontPath(resolution.canonicalIdentifier, view, query));
   const availability = {
     menu: {
       enabled: view === "menu" ? Boolean(menu) : Boolean(stall.orderingSettings),
