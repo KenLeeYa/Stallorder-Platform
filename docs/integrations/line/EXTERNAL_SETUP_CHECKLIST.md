@@ -1,36 +1,38 @@
 # LINE v2 外部設定清單
 
-更新：2026-09-27，Asia/Taipei。缺項集中於此。欄位只列名稱，不放Secret/OTP。狀態須分開：程式、自動化、真實OA、Pay Sandbox、實機、認證及正式。
+更新：2026-09-28，Asia/Taipei。缺項集中於此。欄位只列名稱，不放Secret/OTP。狀態須分開：程式、自動化、真實OA、Pay Sandbox、實機、認證及正式。當日控制台與官方 API 收據見 [帳號設定驗證](PROVIDER_SETUP_RECEIPT_20260928.md)。
 
-## 1. 攤點通平台 OA 及合法營運資料 — BLOCKED
+## 1. 攤點通平台 OA 及合法營運資料 — OA/API已建立；通知流程待驗
 
 - 負責角色：平台擁有者／OA管理者。
 - 控制台：LINE Official Account Manager https://manager.line.biz/；LINE Developers https://developers.line.biz/console/。
-- 已確認：原Chrome可用；已知越好吃商家OA不是平台OA。2026-09-27 Developers Session已登出，未live確認平台OA存在及Provider關聯；不宣稱不存在或已建立。
+- 2026-09-28已確認：依使用者逐項條款／資訊使用／API授權建立「攤點通」`@028sijlm`，Messaging Channel `2011762548` 綁定既有 StallOrder Provider `2005461563`。`bot/info` 精確讀回相同 OA ID 與名稱；訊息格式驗證 HTTP 200。輕用量方案額度200、用量0；未發送測試訊息，OA尚未認證。
+- 已核准建立通知存取權杖，OA Secret／Token存於repo外私密目錄，ACL僅本機擁有者與SYSTEM；沒有存登入密碼。bot destination已安全保存，未寫入前端／Git／Production。
 - 欄位：平台OA顯示名/basic ID/bot userId、Messaging Channel ID、Provider ID、管理人、目前Bot/webhook、方案/配額、OA驗證狀態；平台實際法人/客服/會員條款/隱私/退款政策。
-- 前置：確認正確Provider和既有整合；未獲授權不新建OA、不升級方案。
+- 待辦：合法營運主體與公開政策、測試顧客好友／通知同意、HTTPS Webhook與Vault匯入；目前Webhook尚空，預設歡迎／自動回應仍開啟，尚未發布自訂歡迎訊息或選單。不升級方案。
 - 完成驗證：bot/info精確destination；好友webhook簽章/重送；A/B店都由同一平台OA送測試訊息。
-- 阻擋：真OA、對外條款、平台認證及正式啟用。沒有平台OA仍可完成合成adapter/QR測試。
+- 阻擋：真實端到端通知、對外條款、平台認證及正式啟用。API可驗證格式不代表訊息送達。
 - 回復：保存原webhook/Bot/選單來源，先停止新Push，不清除待發證據。
 
 ## 2. MINI App／LINE Login／各環境設定 — BLOCKED
 
 - 角色：同Provider管理者／認證申請負責人。
 - 位置：Developers該Provider各Channel，Developing/Review/Published、LIFF、linked OA、tester設定。
-- 已確認：歷史v1記錄不作當前證據；本次未重新登入控制台readback。假LIFF ID僅在受限本機fixture中使用。
+- 2026-09-28已確認：Provider `2005461563` 已有管理員；既有 LINE Login Channels `2011580550`（正式登入）及 `2011201000` 保持原樣。已備妥 Taiwan、名稱「攤點通」的 MINI 建立草稿，尚待使用者同意 MINI 自己的條款、地區與代表權聲明；沒有提交，沒有 MINI Channel／LIFF ID。假LIFF ID仍僅供本機fixture。
+- 官方台灣頁目前允許先建立／開發 MINI；Certified Provider 是台灣 Verified MINI 送審條件，不直接視作 Developing 建立門檻。官方Policy仍有不同步文字，資格差異與認證所需資料見 [台灣申請查核](TAIWAN_MINIAPP_REQUIREMENTS_20260928.md)。不使用普通 Login＋LIFF冒充MINI。
 - 欄位：Provider ID、每環境Channel/LIFF ID、scope、Taiwan region、Endpoint/callback、linked平台OA、tester、Certified Provider、Verified MINI App各自狀態。
 - 前置：平台OA/HTTPS Preview/真實條款。OA認證、Provider認證及MINI認證不可相互替代。
 - 完成驗證：真LINE首次/重複登入、不同audience拒絕、深連結、帳號切換、失去Session返回；兩種手機版本記錄。
 - 阻擋：真身分/永久連結/實機/正式；普通OA Push不以缺Service Message模板作理由。
 - 回復：保留各環境原設定，錯audience硬拒绝，不拿Published設定供Preview。
 
-## 3. LINE Pay Sandbox — 帳號登入 PASS；API驗收 BLOCKED
+## 3. LINE Pay Sandbox — 帳號／唯讀API連線通過；付款流程待驗
 
 - 角色：授權測試商家管理者／收件信箱擁有者。
 - 位置：https://pay.line.me/portal/tw/auth/login → 開發者工具 → 管理連結金鑰。
-- 2026-09-27證據：官方「測試ID發出指引」信已存在，已登入台灣測試商家後台；查詢金鑰開啟電子郵件OTP驗證，尚未取用API key。**不需要重新申請同一測試帳號。**
+- 2026-09-28證據：沿用既有官方測試帳號重新登入、完成郵件OTP，取得 Sandbox Channel `2011753464`。依授權將既有Secret存於repo外受限目錄。簽章 `GET /v4/payments` 以全新探測orderId查詢，HTTP 200／`1150 Transaction record not found.`；這是唯讀連線證據，沒有建立交易。**不需要重新申請同一測試帳號。**
 - 欄位：Sandbox Channel ID/Secret、merchantReference、credentialVersion、正確店別Connection、API v4、currency TWD、callback origin；Secret只存安全設定。
-- 前置：完成後台電子郵件驗證、安全寫入server版本化secret；驗明這是Sandbox而非正式越好吃收款商家資格。
+- 待辦：匯入隔離server的店別版本化secret、公開HTTPS callback與真正Request／Confirm／退款。此通路是官方測試帳號，不能当作正式越好吃線上收款資格；正式QR收款商店未操作。
 - 完成驗證：B01真Request→LINE授權→Confirm；19位ID、取消/返回、查核、UNKNOWN與退款，核對原店收款。
 - 阻擋：Pay Sandbox；不阻擋Mock/資料庫/現金履約回歸。
 - 回復：停新PAY保留原憑證版本/attempt/UNKNOWN，沒有不明退款再送一次的捷徑。

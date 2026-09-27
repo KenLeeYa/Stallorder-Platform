@@ -1,6 +1,6 @@
 # 攤點通 LINE 整合 v2 實作狀態
 
-更新：2026-09-27，Asia/Taipei。需求為 Downloads/prompt.md 全文 1,069 行，SHA-256 `13C37906B6BFDD829E7D53DF237603357A3EE158B30D6D725DF64B37519EB93E`。此頁取代 v1 進度；舊商家 OA 指南不能用作 v2 sender 設定。
+更新：2026-09-28，Asia/Taipei。需求為 Downloads/prompt.md 全文 1,069 行，SHA-256 `13C37906B6BFDD829E7D53DF237603357A3EE158B30D6D725DF64B37519EB93E`。此頁取代 v1 進度；舊商家 OA 指南不能用作 v2 sender 設定。
 
 候選：`codex/line-platform-oa-v2-20260927`，v1 checkpoint `5dcbca4309dd6aa5095c0b6418856991f2cbd480`。獨立工作樹及 clone。本次沒有部署、正式資料寫入、真實 LINE Push、Pay 收退款或選單發布。**本機候選不等於外部或正式驗收完成。**
 
@@ -25,7 +25,7 @@
 
 | Phase | 程式／文件 | 驗收邊界 |
 |---|---|---|
-| 0 | 真實 repo 盤點、官方 Pay v4/Messaging/MINI 查核 | 平台 OA/MINI 控制台 live readback 未完成 |
+| 0 | 真實 repo 盤點、官方 Pay v4/Messaging/MINI 查核 | 平台 OA、Provider及Pay Sandbox已live讀回；MINI建立草稿待條款同意 |
 | 1 | ADR、七份相容 migration、FORCE RLS | 僅本機 clone，未套 Staging/Production |
 | 2 | 登入交換、會員條款/選填同意、好友事件、本人跨店訂單、歸戶 | 合成登入及測試證據見 TEST_REPORT；真人登入/返回待驗 |
 | 3 | 原事件→outbox→固定平台 OA adapter、舊渠道隔離 | 真 DB + provider fixture；未真實 Push/遠端 cron |
@@ -37,5 +37,6 @@
 
 - DB 僅 `127.0.0.1:55722/stallorder_line_miniapp_20260926`；與 3023 共用容器但不是同一 DB。保留合成 fixtures，不複製至正式。
 - 3024 為臨時 HTTPS 合成 QA，假 Channel、自簽憑證，不能驗真 LINE；3023 人工環境保留。最終程序狀態見 TEST_REPORT。
-- 2026-09-27 已讀到官方 Sandbox ID 發出信並成功登入台灣測試後台；查串接金鑰需電子郵件 OTP。帳號可登入不等於付款成功。
-- 平台 OA、MINI、公開 HTTPS Preview、法定條款、雙店帳號及裝置缺項集中在 [外部清單](EXTERNAL_SETUP_CHECKLIST.md)。現有越好吃商家 OA 不能冒充攤點通平台 OA。
+- 2026-09-28 已依授權建立平台 OA「攤點通」`@028sijlm`，Messaging Channel `2011762548`／Provider `2005461563`。bot/info與訊息格式驗證通過；尚未真實Push、設定Webhook或匯入Vault。OA尚未認證。
+- 既有 LINE Pay Sandbox完成OTP，Channel `2011753464` 的簽章唯讀查詢回覆HTTP 200／1150（探測訂單不存在）；尚未Request／Confirm／退款。憑證已依授權限制存於repo外私密目錄，不能把此結果當付款成功。
+- MINI建立草稿仍待MINI條款與代表權聲明同意，沒有Channel／LIFF ID；公開HTTPS、法定條款、雙店帳號及裝置缺項集中在 [外部清單](EXTERNAL_SETUP_CHECKLIST.md)。完整當日證據見 [帳號設定驗證](PROVIDER_SETUP_RECEIPT_20260928.md)。
