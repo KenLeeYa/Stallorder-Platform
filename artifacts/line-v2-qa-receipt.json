@@ -1,0 +1,66 @@
+{
+  "recordedAt": "2026-09-27T08:14:39.367689+00:00",
+  "branch": "codex/line-platform-oa-v2-20260927",
+  "baseCommit": "5dcbca4309dd6aa5095c0b6418856991f2cbd480",
+  "requirementSha256": "13c37906b6bfdd829e7d53df237603357a3ee158b30d6d725df64b37519eb93e",
+  "local": {
+    "unit": {
+      "passed": 603,
+      "skipped": 89,
+      "failed": 0
+    },
+    "database": {
+      "files": 9,
+      "passed": 80,
+      "failed": 0,
+      "skipped": 0,
+      "target": "loopback:55722/stallorder_line_miniapp_20260926"
+    },
+    "browser": {
+      "passed": 8,
+      "failed": 0,
+      "layoutCombinations": 40,
+      "identity": "synthetic local sessions",
+      "scope": "membership, consent persistence, same-owner cross-store, private authorization, explicit staff handoff, guest cart import, logout"
+    },
+    "richMenu": {
+      "passed": 12,
+      "providerHTTP": false
+    },
+    "typecheck": "PASS",
+    "productionModeBuild": "PASS",
+    "eslint": {
+      "files": 150,
+      "errors": 0,
+      "preexistingWarnings": 1
+    },
+    "migrations": "20260927010000 through 20260927070000, local clone only"
+  },
+  "retainedGaps": {
+    "originalSqlFoundation": "18 PASS / 1 FAIL: pre-existing enabled defaults",
+    "originalLineScheduler": "33 PASS / 1 SKIP: no pg_cron on clone",
+    "originalCircuitReplay": "9 SKIP: dedicated 56322/Edge stack not run",
+    "slotQuota": "original core has no per-slot capacity; stock/schedule legality tested",
+    "realLine": "BLOCKED",
+    "paySandbox": "test portal login PASS; API transactions BLOCKED by credential verification/config",
+    "physicalCamera": "BLOCKED",
+    "productionActivation": "NOT_RUN"
+  },
+  "serviceReadback": {
+    "3024": "STOPPED",
+    "3023": "RETAINED user manual QA, separate worktree PID49312",
+    "55722": "RETAINED shared catalog-ops DB container, healthy"
+  },
+  "remoteWrites": false,
+  "primaryReadOnly": {
+    "deploymentId": "dpl_Cx8GfP12KuFHcCgtnZ7SXxzt4AYZ",
+    "target": "production",
+    "readyState": "READY",
+    "loginHttp": 200,
+    "staffLoginHttp": 200,
+    "storeHttp": 200,
+    "anonymousHealthHttp": 401,
+    "authenticatedOrderFlowVerified": false,
+    "backendTarget": "not read in this task"
+  }
+}

@@ -115,7 +115,7 @@ describe.runIf(process.env.LINE_MINIAPP_DB_QA === "true")("MINI App real local D
     const second = await exchange(await createMiniAppLoginChallenge(binding, "/mini"), fetchImpl);
     expect(second.profile.id).toBe(first.profile.id);
     expect(second.session.id).not.toBe(first.session.id);
-    await prisma.stallMembership.create({ data: { organizationId: binding.organizationId, stallId: binding.stallId, profileId: first.profile.id, role: "STAFF" } });
+    await prisma.stallMembership.create({ data: { organizationId: binding.organizationId!, stallId: binding.stallId!, profileId: first.profile.id, role: "STAFF" } });
     await expect(exchange(await createMiniAppLoginChallenge(binding, "/mini"), fetchImpl)).rejects.toThrow("OPERATOR_IDENTITY_REJECTED");
   });
 });

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { WorkspaceFunctionNavigation, type WorkspaceFunction } from "@/components/workspace-function-navigation";
 import {
   Activity,
+  MessageCircle,
   BadgeDollarSign,
   ChartNoAxesCombined,
   ClipboardList,
@@ -45,8 +46,9 @@ const items: ReadonlyArray<AdminNavigationItem> = [
   { href: "/admin/e-invoice", label: "Electronic invoice integrations", icon: ReceiptText },
 ];
 
-export function AdminBillingHeader({ displayName, moduleVisibility = { delivery: false, payments: false } }: {
+export function AdminBillingHeader({ displayName, moduleVisibility = { delivery: false, payments: false }, linePlatformEnabled = false }: {
   displayName: string;
+  linePlatformEnabled?: boolean;
   moduleVisibility?: { delivery: boolean; payments: boolean };
 }) {
   const { m, locale } = useAdminLocale();
@@ -58,6 +60,8 @@ export function AdminBillingHeader({ displayName, moduleVisibility = { delivery:
       : item.href === "/admin/login-methods" ? "audit"
       : item.href.includes("integrations") || item.href === "/admin/e-invoice" ? "settings" : "finance",
   }));
+
+  if (linePlatformEnabled) navigation.push({ href: "/admin/line-platform", label: m("Platform LINE notifications"), icon: MessageCircle, group: "operations" });
 
   return (
     <>

@@ -1,0 +1,63 @@
+{
+  "size": {
+    "width": 2500,
+    "height": 1686
+  },
+  "selected": false,
+  "name": "QIDAIGO 平台四入口",
+  "chatBarText": "攤點通服務",
+  "areas": [
+    {
+      "bounds": {
+        "x": 0,
+        "y": 166,
+        "width": 1250,
+        "height": 760
+      },
+      "action": {
+        "type": "uri",
+        "label": "立即點餐",
+        "uri": "https://miniapp.line.me/1234567891-localfixture"
+      }
+    },
+    {
+      "bounds": {
+        "x": 1250,
+        "y": 166,
+        "width": 1250,
+        "height": 760
+      },
+      "action": {
+        "type": "uri",
+        "label": "我的訂單",
+        "uri": "https://miniapp.line.me/1234567891-localfixture/orders"
+      }
+    },
+    {
+      "bounds": {
+        "x": 0,
+        "y": 926,
+        "width": 1250,
+        "height": 760
+      },
+      "action": {
+        "type": "uri",
+        "label": "會員中心",
+        "uri": "https://miniapp.line.me/1234567891-localfixture/member"
+      }
+    },
+    {
+      "bounds": {
+        "x": 1250,
+        "y": 926,
+        "width": 1250,
+        "height": 760
+      },
+      "action": {
+        "type": "uri",
+        "label": "聯絡客服",
+        "uri": "https://miniapp.line.me/1234567891-localfixture/help"
+      }
+    }
+  ]
+}

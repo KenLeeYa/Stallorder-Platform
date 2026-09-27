@@ -7,6 +7,7 @@ import { encryptOAuthValue, requireOAuthStateSecret } from "@/server/auth/oauth/
 import { verifyMiniAppIdentity } from "./identity";
 import type { MiniAppBinding } from "./configuration";
 import { getMiniAppStall, miniAppBindingFingerprint } from "./runtime";
+import { encryptPlatformValue } from "@/server/line-platform/crypto";
 
 export const MINI_APP_CHALLENGE_COOKIE = "stallorder_mini_challenge";
 export const MINI_APP_CHALLENGE_TTL_SECONDS = 300;
@@ -59,7 +60,9 @@ export async function exchangeMiniAppLogin(input: {
       claims: { provider: "LINE", subject: identity.subject, email: null, emailVerified: false,
         displayName: "LINE 顧客", avatarUrl: null,
         metadata: { flow: "LINE_MINIAPP", channelId: identity.channelId, providerId: identity.providerId,
-          internalChannel: identity.internalChannel } },
+          internalChannel: identity.internalChannel,
+          ...(input.binding.scope === "PLATFORM" ? { environment: input.binding.deployment,
+            subjectCiphertext: encryptPlatformValue(identity.lineSubject) } : {}) } },
     });
   } catch (error) {
     await prisma.oAuthTransaction.updateMany({ where: { id: pending.id, status: "PROCESSING" }, data: { status: "FAILED" } });

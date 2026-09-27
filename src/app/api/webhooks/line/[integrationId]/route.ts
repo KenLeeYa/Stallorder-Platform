@@ -47,9 +47,9 @@ export async function POST(request: Request, context: RouteContext) {
     return response({ error: status === 413 ? "REQUEST_TOO_LARGE" : "REQUEST_TIMEOUT" }, status, requestId);
   }
   const integration = await prisma.notificationIntegration.findFirst({
-    where: { id: integrationId, provider: "LINE", status: "ACTIVE" },
+    where: { id: integrationId, provider: "LINE", status: "ACTIVE", stallId: { not: null } },
   });
-  if (!integration?.secretReference) return response({ error: "NOT_FOUND" }, 404, requestId);
+  if (!integration?.secretReference || !integration.organizationId || !integration.stallId) return response({ error: "NOT_FOUND" }, 404, requestId);
 
   try {
     const secretValue = await readNotificationSecret(integration.secretReference);

@@ -137,4 +137,10 @@ describe("POST /api/public/orders", () => {
     expect(payload.error).toBe("請選擇預約取餐時間。");
     expect(mocks.createOrderThroughCircuitB).not.toHaveBeenCalled();
   });
+  it("preserves the original committed guest success when optional platform configuration is invalid",async()=>{
+    vi.stubEnv("LINE_PLATFORM_ENABLED","true");vi.stubEnv("LINE_PLATFORM_BINDING_JSON","invalid");
+    const route=await import("./route");const response=await route.POST(orderRequest(validOrder));
+    expect(response.status).toBe(201);expect(await response.json()).toEqual({trackingToken:"sto_result"});
+    expect(response.headers.get("set-cookie")).toBeNull();expect(mocks.createOrderThroughCircuitB).toHaveBeenCalledOnce();
+  });
 });

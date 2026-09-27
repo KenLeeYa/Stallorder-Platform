@@ -79,6 +79,8 @@ const nextConfig: NextConfig = {
         /\/api\/auth\/(?:google|line|apple)\/callback/,
         /\/api\/auth\/mock\/authorize/,
         /^\/mini(?:[/?]|$)/,
+        /^\/api\/line-platform\/media\//,
+        /^\/api\/payments\/line-pay\/(?:return|cancel)/,
       ],
     },
   },
@@ -144,6 +146,15 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "no-referrer" },
           { key: "Content-Security-Policy", value: miniAppContentSecurityPolicy },
         ],
+      },
+      {
+        source: "/staff/:path*",
+        headers: [{ key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=(self)" }],
+      },
+      {
+        source: "/api/line-platform/media/:path*",
+        headers: [{ key: "Cross-Origin-Resource-Policy", value: "cross-origin" },
+          { key: "Referrer-Policy", value: "no-referrer" }, { key: "Cache-Control", value: "private, no-store" }],
       },
     ];
   },

@@ -82,4 +82,9 @@ describe("LINE Pay v4 sandbox protocol", () => {
     const fetchImpl = vi.fn().mockResolvedValue(reply(`{"returnCode":"0000","info":{"transactionId":${id},"orderId":"other-order","payInfo":[{"amount":100}]}}`));
     await expect(new LinePayV4SandboxClient({ ...options, fetchImpl }).confirmPayment({ ...request, transactionId: id })).rejects.toThrow("LINE_PAY_EVIDENCE_MISMATCH");
   });
+  it("reconciles only refund facts nested under the exact original payment, preserving int64 and negative provider amount", async () => {
+    const fetchImpl=vi.fn().mockResolvedValue(reply(`{"returnCode":"0000","info":[{"transactionId":${id},"orderId":"qa-order-1","currency":"TWD","transactionType":"PAYMENT","payInfo":[{"amount":100}],"refundList":[{"refundTransactionId":2026092201234567892,"transactionType":"PARTIAL_REFUND","refundAmount":-50,"refundTransactionDate":"2026-09-27T00:00:01Z"}]}]}`));
+    const client=new LinePayV4SandboxClient({...options,fetchImpl});
+    expect(await client.retrieveRefunds({...request,transactionId:id})).toEqual([{refundTransactionId:"2026092201234567892",amount:50,occurredAt:"2026-09-27T00:00:01Z"}]);
+  });
 });

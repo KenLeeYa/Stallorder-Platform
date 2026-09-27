@@ -1,6 +1,7 @@
 import "server-only";
 
 import { Prisma } from "@prisma/client";
+import { bindPlatformOrderOwner, type PlatformOrderContext } from "@/server/line-platform/member-service";
 import { prisma } from "@/lib/prisma";
 
 export type StoredPublicOrder = {
@@ -346,7 +347,7 @@ export function checkPublicOrderSubmissionGate(input: {
   `);
 }
 
-export function createPublicOrderWithSchedule(input: {
+export async function createPublicOrderWithSchedule(input: {
   orderingMode: "DEFAULT" | "DELIVERY" | "PREORDER";
   orderId: string;
   qrToken: string;
@@ -374,8 +375,9 @@ export function createPublicOrderWithSchedule(input: {
   waitAcknowledged: boolean;
   scheduledPickupAt: string | null;
   lotteryDrawId: string | null;
+  platformContext?: PlatformOrderContext;
 }) {
-  return jsonResult<OrderCreateResult>(Prisma.sql`
+  const query = Prisma.sql`
     select public.create_public_order_with_daily_pickup_code_targeted(
       ${input.orderId}::uuid,
       ${input.qrToken}::text,
@@ -398,7 +400,26 @@ export function createPublicOrderWithSchedule(input: {
       ${input.scheduledPickupAt}::timestamptz,
       ${input.lotteryDrawId}::uuid
     ) as result
-  `);
+  `;
+  if (!input.platformContext) return jsonResult<OrderCreateResult>(query);
+  const platformContext = input.platformContext;
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await prisma.$transaction(async db => {
+        const rows = await db.$queryRaw<Array<{ result: OrderCreateResult | null }>>(query);
+        const result = rows[0]?.result ?? null;
+        if (result?.ok && result.order) await bindPlatformOrderOwner(db, result.order.order_id, platformContext);
+        return result;
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      const serializationConflict = error instanceof Prisma.PrismaClientKnownRequestError
+        && (error.code === "P2034" || (error.code === "P2010" && error.meta?.code === "40001"));
+      if (!serializationConflict) throw error;
+      if (attempt >= 2) return { ok: false, code: "ORDER_CONFLICT" };
+      // Retry only the rolled-back DB transaction, using the same order/session/
+      // idempotency identity. Abuse checks and external verification run once.
+    }
+  }
 }
 
 export function getOrderQuote(orderId: string) {

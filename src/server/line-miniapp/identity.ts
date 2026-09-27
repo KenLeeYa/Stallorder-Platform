@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { readBoundedText } from "@/server/delivery-platforms/bounded-text-reader";
 import { type MiniAppBinding, validateMiniAppBinding } from "./configuration";
+import { hashPlatformSubject } from "@/server/line-platform/crypto";
 
 const claimsSchema = z.object({
   iss: z.literal("https://access.line.me"),
@@ -42,7 +43,10 @@ export async function verifyMiniAppIdentity(
   return {
     provider: "LINE" as const,
     // Keep this customer's MINI identity separate from operator OAuth and other Providers.
-    subject: `miniapp:${binding.providerId}:${binding.internalChannel}:${binding.channelId}:${claims.data.sub}`,
+    subject: binding.scope === "PLATFORM"
+      ? `miniapp:${binding.deployment}:${binding.providerId}:${hashPlatformSubject(binding.deployment, binding.providerId, claims.data.sub)}`
+      : `miniapp:${binding.providerId}:${binding.internalChannel}:${binding.channelId}:${claims.data.sub}`,
+    lineSubject: claims.data.sub,
     channelId: binding.channelId,
     providerId: binding.providerId,
     internalChannel: binding.internalChannel,

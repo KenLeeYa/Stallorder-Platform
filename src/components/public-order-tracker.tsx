@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BadgeCheck, ChevronDown, CircleHelp, CircleX, Clock3, FilePenLine, LoaderCircle, RefreshCw, Store, Trash2, X } from "lucide-react";
+import { LinePlatformGuestClaim } from "@/components/line-platform-guest-claim";
 import { LineNotificationControls } from "@/components/line-notification-controls";
 import { PublicOrderFeedbackDialog } from "@/components/public-order-feedback-dialog";
 import { PublicOrderClosureNotice } from "@/components/public-order-closure-notice";
@@ -609,9 +610,11 @@ export function PublicOrderCancelDialog({
 
 export function PublicOrderTracker({
   trackingToken,
+  platformClaim,
   qrToken = null,
 }: {
   trackingToken: string;
+  platformClaim?: { member: boolean };
   qrToken?: string | null;
 }) {
   const { locale } = useAppLocale();
@@ -980,7 +983,7 @@ export function PublicOrderTracker({
             onRefresh={() => void refreshOrder()}
             locale={locale}
           />
-          <LineNotificationControls trackingToken={trackingToken} />
+          {platformClaim ? <LinePlatformGuestClaim trackingToken={trackingToken} member={platformClaim.member} /> : <LineNotificationControls trackingToken={trackingToken} />}
         </section>
       ) : null}
       {showPickupReadyDialog && order?.fulfillmentType === "TAKEOUT" && order.pickupVerificationCode

@@ -31,9 +31,17 @@ export function safeMiniAppReturnPath(value: string) {
   if (!value.startsWith("/mini/") || /[\\%#\s]/.test(value) || value.includes("..")) return "/mini";
   try {
     const url = new URL(value, "https://return.invalid");
+    if (!url.search && (/^\/mini\/(orders|member|help)$/.test(url.pathname)
+      || /^\/mini\/orders\/[0-9a-f-]{36}$/i.test(url.pathname))) return url.pathname;
     assertPublicStorePath(url.pathname.slice("/mini".length), url.searchParams);
     return url.pathname + url.search;
   } catch {
     return "/mini";
   }
+}
+
+/** Private deep links carry only an identifier; the destination always requires ownership. */
+export function buildMiniAppOrderLink(liffId: string, orderId: string) {
+  if (!/^\d+-[A-Za-z0-9]+$/.test(liffId) || !/^[0-9a-f-]{36}$/i.test(orderId)) throw new Error("LINE_MINIAPP_LINK_INVALID");
+  return `https://miniapp.line.me/${liffId}/orders/${orderId}`;
 }

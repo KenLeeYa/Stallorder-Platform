@@ -1,49 +1,41 @@
-# LINE 整合進度（2026-09-26）
+# 攤點通 LINE 整合 v2 實作狀態
 
-需求來源：完整閱讀 `QIDAIGO_LINE_MINIAPP_LINEPAY_CODEX_PROMPT_v1_20260922.md` 754 行。文件為需求，不能用其範例當成已驗證的程式或外部授權。
+更新：2026-09-27，Asia/Taipei。需求為 Downloads/prompt.md 全文 1,069 行，SHA-256 `13C37906B6BFDD829E7D53DF237603357A3EE158B30D6D725DF64B37519EB93E`。此頁取代 v1 進度；舊商家 OA 指南不能用作 v2 sender 設定。
 
-本次交付是第一批可審查基礎，不是 Phase 0–8 全部完成。已加入真正可送出簽章 HTTP 的 Sandbox transport（測試以 fixture 攔截）、MINI ID-token verifier、環境綁定檢查與公開永久連結限制。10 檔 71 tests PASS；詳見 [測試報告](TEST_REPORT.md)。本輪已追加 MINI 登入 API／Session 與未啟用的入口殼層；付款仍未開放，未執行外部交易。
+候選：`codex/line-platform-oa-v2-20260927`，v1 checkpoint `5dcbca4309dd6aa5095c0b6418856991f2cbd480`。獨立工作樹及 clone。本次沒有部署、正式資料寫入、真實 LINE Push、Pay 收退款或選單發布。**本機候選不等於外部或正式驗收完成。**
 
-使用者已確認 MINI 測試 Channel 與 LINE Pay Sandbox 存在，稍後提供安全設定位置。外部驗證等待設定；同時仍有下表列出的未實作程式，不能將其全部歸因於缺憑證。
+## Phase 0：真實架構與差距
 
-候選：`codex/line-miniapp-pay-20260926`，基底 `766df1e217f9418739f6f907e9f4113fd02e3436`。獨立工作樹 `C:/Users/KY/.codex/worktrees/line-miniapp-pay/Stallorder-Platform`；原 3023 UI 候選及未提交修改保留。沒有部署、正式資料寫入、外部訊息、收退款、Channel 或選單變更。
+| 責任 | 原程式／資料 | v2 實際变更 |
+|---|---|---|
+| 應用 | Next 16.3.4、Node 24、Prisma 6.19.3、PostgreSQL/Supabase | 沿用原應用、Session、SQL migration |
+| 身分 | src/server/line-miniapp、oauth_transactions、auth_identities、auth_sessions | 官方 Token verify + 精確 audience；env/Provider/sub 唯一平台顧客 |
+| 會員 | 原 Profile；CustomerContactLink 實際屬單筆 order | 新會員條款／同意、不可變 order owner；不建員工 membership |
+| 下單 | public-order/trusted-rpc-repository、circuit-b-service、原 session/device/價格/庫存 RPC | /api/mini/orders 沿原接單交易；原訪客歸戶需 consumed session、裝置及高熵 proof |
+| 通知 | notification_integrations/jobs、Vault、原 worker | PLATFORM_OA 唯一 registry、快照/retry/lease、好友 webhook；排除舊渠道 |
+| 履約 | orders/items、原 KDS／非 KDS command、order_events | READY 同交易 outbox；只有明確交付事件產生 PICKED_UP |
+| 核銷 | 原 Staff、checkout 權限、完成單 Billing | 自有 PNG QR、media/取餐票據分離、preview、原子 redeem、人工核對 |
+| 付款 | payment_provider_*、payments、reconciliation | 原台帳延伸、各店商家快照、UNKNOWN/退款/查核；不挪 SaaS PaymentAttempt |
+| 介面 | 原 PublicStorefront/QrOrderFlow、merchant/admin | MINI 會員/本人跨店訂單、通知看板、商家查核退款 |
+| Production | stallorder-platform，prj_uoG4FNJIgnF1LdKRiXnfRaieXnUP | 基線 dpl_Cx8GfP12KuFHcCgtnZ7SXxzt4AYZ；未寫 Primary/DR |
 
-## 盤點
+公開 login、staff/login、store/viet-food-yc 入口基線可訪問；匿名 health 401 不能算已登入 health 或完整訂單測試。
 
-| 需求 | 現有能力／真實來源 | 缺口／擬修改與驗收 |
-| --- | --- | --- |
-| 店家、訂單、庫存、計費 | `prisma/schema.prisma` Organization/Stall/Order、既有 public-order/service 與 Billing | 重用，不新建核心；MINI App 不可自行改金額或計完成單 |
-| 商家登入 | 既有 OIDC、Google/LINE/Apple 與 session；`src/server/notifications/line-oauth.ts` 是訂單通知 OAuth | 已加一次性 browser-bound challenge，沿用既有 Session；普通 OAuth 與 MINI flow 互斥 |
-| 顧客 LINE | `CustomerContactLink`、`LineLinkSession`、`LineWebhookEvent`；通知文件 `docs/LINE_NOTIFICATIONS_AND_REORDER.md` | 現有是訂單範圍連結，非跨訂單 MINI App 會員 session。跨 Provider 身分與通知映射需分開設計 |
-| 金流 | `PaymentProviderConnection`、`PaymentProviderTransaction`、`PaymentProviderRefund`、`PaymentReconciliationCase`；`src/server/payment-providers/*` | LINE Pay registry 目前返回 ContractOnly；Mock 流程不能拿來上線 |
-| 網路付款帳本 | `src/server/online-payments/*`、`docs/ONLINE_ORDER_PAYMENT_RECONCILIATION_ADR.md` | 目前限定 LOCAL_MOCK 與其 HMAC 事件；不可假裝 LINE Pay 有相同 webhook |
-| 精度／簽章 | Node 24 runtime；現有 provider contract 的 transaction ID 為 string | 增加 LINE Pay v4 專用 transport；原始 JSON source 無損處理；API 回應與狀態 fixture 驗證 |
-| 不確定付款／退款 | 現有 Mock 及 reconciliation case | 缺 durable Request/Confirm/Refund lease、憑證版本快照、未知結果保留及真實對帳 integration |
-| 取餐通知 | 既有 OA Messaging provider、Vault、notification job processor | MINI Service Message 需 Channel／認證／template／token rotation；缺官方設定，不啟用 |
-| POS/KDS/列印 | 既有 staff checkout、order event、print job | 付款事件須接既有 outbox，不能把 adapter 成功直接等同完成單 |
-| 試點 | 文件指定 `/store/viet-food-yc` | 正式 Organization/Stall 與商家 Pay 所有權尚未讀回，不硬編碼店名授權 |
-| 外部配置 | 尚無本次提供的 MINI App/Pay Sandbox 設定或商家資格證據 | 已詢問安全設定位置；狀態為未取得，不宣稱帳號不存在 |
+## 各階段
 
-## 階段
+| Phase | 程式／文件 | 驗收邊界 |
+|---|---|---|
+| 0 | 真實 repo 盤點、官方 Pay v4/Messaging/MINI 查核 | 平台 OA/MINI 控制台 live readback 未完成 |
+| 1 | ADR、七份相容 migration、FORCE RLS | 僅本機 clone，未套 Staging/Production |
+| 2 | 登入交換、會員條款/選填同意、好友事件、本人跨店訂單、歸戶 | 合成登入及測試證據見 TEST_REPORT；真人登入/返回待驗 |
+| 3 | 原事件→outbox→固定平台 OA adapter、舊渠道隔離 | 真 DB + provider fixture；未真實 Push/遠端 cron |
+| 4 | 真 PNG、preview、明確交付、唯一事件/Billing | 本機 SQL/API/瀏覽器；相機/LINE 快取待實機 |
+| 5 | Sandbox-only v4、durable operation、UNKNOWN、退款/查核 | 未執行真 Sandbox API；LIVE endpoint 不可用 |
+| 6 | 平台/門市看板、用量/補發、金流操作、Rich Menu 工具 | 只有 dry-run，無 provider apply |
+| 7 | 94 項矩陣及 G 組逐項記錄 | BLOCKED/NOT_RUN 不算 PASS |
+| 8 | 營運/安全/回復/外部設定與整合審查 | 尚未達正式啟用關卡 |
 
-| Phase | 本輪狀態 | 尚缺 |
-| --- | --- | --- |
-| 0 | 進行中：程式／官方協定盤點 | 全部 baseline、試點 Provider/Channel 對照 |
-| 1 | 部分完成：[ADR](ARCHITECTURE_DECISIONS.md)、server-only binding schema | 真實映射、tenant-scoped immutable attempt + operations migration |
-| 2 | 部分完成：ID Token server verify、browser-bound challenge、Session、SDK 殼層、公開連結 | 既有顧客訂單授權整合、真實 Channel／SDK 成功流程；殼層與 Session/challenge 已實作 |
-| 3 | 部分完成：v4 Request/Check/Confirm/Details/Refund transport 與 regression | 既有 checkout／durable operation／安全 callback；尚未接收款入口 |
-| 4 | 未完成 | durable unknown/refund/reconciliation + order/outbox integration |
-| 5 | 未完成 | Service Message、選單工具與真實 OA 驗證 |
-| 6 | 未完成 | 後台、完整跨租戶／安全與 migration 驗證 |
-| 7 | BLOCKED（外部）／其餘待測 | Sandbox 憑證、LINE 手機、Preview Channel；fixture 不等於真實通過 |
-| 8 | 七份文件初版完成 | 持續更新真實整合／實機／發布證據，不能將此表稱為全部完成 |
-
-不得啟用正式 LINE Pay。原 3023 是 UI 人工測試環境；本工作樹已改為獨立 node_modules（LIFF 2.31.0），使用同機既有 DB 容器內獨立資料庫 stallorder_line_miniapp_20260926。migration 僅套於這份 clone；3024 是短暫 QA 程序，驗證後停止，3023 保留。
-
-## 同日第二批：登入交換與設定準備
-
-- OAuthTransaction 加 flow/contextFingerprint，以同一交易鎖及 Session 建立流程消耗 challenge；標準 callback 拒絕 MINI flow。
-- 跨 origin、瀏覽器 secret、時效、Channel fingerprint、並行與重放驗證；MINI 不連結或登入具有商家／平台權限的身分。原始 ID Token 不落資料庫。
-- 75 個原本選取 regression 加 3 個 runtime 設定案例，共 78 PASS（包含 8 個 real-local-DB/provider-fixture cases）；2 個本機 browser PASS。不是真實 LINE 成功證據。
-- 設定引導見 [商家逐步指南](MERCHANT_SETUP_GUIDE.zh-TW.md)。使用者要求詳細步驟，目前安全交接檔仍空白。
-- Phase 3–6 付款持久化／私人訂單所有權／通知／後台等仍需實作；不可因憑證待填就當成其餘已完成。
+- DB 僅 `127.0.0.1:55722/stallorder_line_miniapp_20260926`；與 3023 共用容器但不是同一 DB。保留合成 fixtures，不複製至正式。
+- 3024 為臨時 HTTPS 合成 QA，假 Channel、自簽憑證，不能驗真 LINE；3023 人工環境保留。最終程序狀態見 TEST_REPORT。
+- 2026-09-27 已讀到官方 Sandbox ID 發出信並成功登入台灣測試後台；查串接金鑰需電子郵件 OTP。帳號可登入不等於付款成功。
+- 平台 OA、MINI、公開 HTTPS Preview、法定條款、雙店帳號及裝置缺項集中在 [外部清單](EXTERNAL_SETUP_CHECKLIST.md)。現有越好吃商家 OA 不能冒充攤點通平台 OA。

@@ -8,6 +8,10 @@
   "regions": ["hnd1"],
   "crons": [
     {
+      "path": "/api/cron/line-pay-recovery",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/staff-push",
       "schedule": "* * * * *"
     },

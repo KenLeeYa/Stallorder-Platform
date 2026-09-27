@@ -7,7 +7,7 @@ import { useAppLocale } from "@/components/locale-provider";
 import { SessionKeepAlive } from "@/components/session-keep-alive";
 import { csrfHeaders } from "@/lib/csrf-client";
 
-export function LogoutButton({ offlineStallId }: { offlineStallId?: string } = {}) {
+export function LogoutButton({ offlineStallId, destination = "/login" }: { offlineStallId?: string; destination?: "/login" | "/mini" } = {}) {
   const router = useRouter();
   const { t } = useAppLocale();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -24,7 +24,7 @@ export function LogoutButton({ offlineStallId }: { offlineStallId?: string } = {
     setIsSubmitting(true);
     const response = await fetch("/api/auth/logout", { method: "POST", headers: csrfHeaders() });
     if (response.ok) {
-      router.push("/login");
+      router.push(destination);
       router.refresh();
       return;
     }
@@ -34,7 +34,7 @@ export function LogoutButton({ offlineStallId }: { offlineStallId?: string } = {
   const label = isSubmitting ? t("logout.progress") : t("logout.action");
 
   return (<>
-    <SessionKeepAlive />
+    {destination === "/login" && <SessionKeepAlive />}
     <button
       type="button"
       data-senior-action-tile="true"

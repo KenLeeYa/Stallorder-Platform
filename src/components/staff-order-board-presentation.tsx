@@ -1,6 +1,7 @@
 "use client";
 
 import { StaffOrderEditProductPicker, type ConfiguredEditProduct } from "@/components/staff-order-edit-product-picker";
+import { LinePlatformPickupPanel } from "@/components/line-platform-pickup-panel";
 import type { OrderItemStatus, OrderStatus, UserRole } from "@prisma/client";
 import { useEffect, useState } from "react";
 import { useClientReady } from "./use-client-ready";
@@ -286,6 +287,7 @@ export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationPr
         actions={actions}
         t={t}
       />
+      {hasPermission(account.role, "CHECKOUT_ORDERS") ? <LinePlatformPickupPanel stallSlug={stall.slug} orders={props.orders} onCompleted={actions.onRefresh} /> : null}
       {props.modules.print && account.role !== "KITCHEN" ? <StaffAutoPrintAgent key={stall.slug} stallSlug={stall.slug} onStatusChange={setPrinterState} /> : null}
       {props.modules.kds ? <StaffOrderBatchBars
         selectedItems={selectedItems}

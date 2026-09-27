@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { PaymentIntegrationManager } from "@/components/payment-integration-manager";
+import { LinePlatformPaymentOperations } from "@/components/line-platform-payment-operations";
 import { getRequestAppLocale } from "@/lib/app-locale-server";
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac";
@@ -163,6 +164,7 @@ export default async function MerchantPaymentsPage({ searchParams }: PageProps) 
         initialTransactions={transactions.map((transaction) => ({ ...transaction, createdAt: transaction.createdAt.toISOString() }))}
         copy={copy}
       />
+      {process.env.LINE_PLATFORM_ENABLED === "true" ? <LinePlatformPaymentOperations stalls={workspace.stalls.filter((stall) => stall.isActive).map((stall) => ({ id: stall.id, name: stall.name }))} /> : null}
     </main>
   );
 }

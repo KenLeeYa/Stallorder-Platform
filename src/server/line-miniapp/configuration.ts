@@ -2,15 +2,16 @@ import "server-only";
 import { z } from "zod";
 
 const bindingSchema = z.object({
-  organizationId: z.string().uuid(),
-  stallId: z.string().uuid(),
+  organizationId: z.string().uuid().optional(),
+  stallId: z.string().uuid().optional(),
+  scope: z.literal("PLATFORM").optional(),
   providerId: z.string().regex(/^\d{1,30}$/),
   channelId: z.string().regex(/^\d{1,30}$/),
   liffId: z.string().regex(/^\d+-[A-Za-z0-9]+$/),
   internalChannel: z.enum(["developing", "review", "published"]),
   endpointUrl: z.string().url().max(500),
   deployment: z.enum(["local", "preview", "production"]),
-}).strict();
+}).strict().refine(value => value.scope === "PLATFORM" || Boolean(value.organizationId && value.stallId), "A legacy binding requires its stall");
 
 export type MiniAppBinding = z.infer<typeof bindingSchema>;
 

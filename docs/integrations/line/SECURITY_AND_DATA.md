@@ -1,28 +1,31 @@
-# LINE 安全與資料邊界
+# LINE v2 安全與資料邊界
 
-2026-09-26；協定層已驗證不等於租戶 API／DB 邊界已完成。新元件目前不公開為可收款 API。
+2026-09-27。適用本機候選；正式 WAF、CDN/反向代理/存取日誌、Secrets、備援與真實手機仍須外部驗收。
 
-| 面向 | 已實作 | 尚未完成 |
-| --- | --- | --- |
-| 傳輸 | 固定 Sandbox/API host、禁止 redirect、timeout、bounded response、錯誤訊息不含外部 raw body | 真實 Sandbox 憑證／網路結果 |
-| ID Token | 官方伺服器 verify、issuer/audience/exp/iat、環境驗證、忽略 Email／role | 一次性 challenge、CSRF、節流與現有 session rotation |
-| 身分隔離 | Provider/Channel/env namespace；不採 client profile 作證明 | 顧客訂單 mapping、帳號切換、訪客購物車安全合併 |
-| 分享連結 | 同 Endpoint 公開店面、view/locale allowlist；拒私人資訊 | SDK 實際永久連結與 LINE WebView 返回 |
-| 付款 | POST/GET 固定簽章向量、19 位 ID 無損、按 endpoint 分辨成功 | 租戶與金額 DB 約束、immutable account snapshot、lease fencing、回跳 state |
-| 退款 | 明確正整數 amount | RBAC、可退餘額保留、並行、未知結果對帳 |
-| 通知 | 現有 OA 模組回歸通過 | MINI token 輪替／配額／模板與通道去重 |
+| 威脅 | 控制與資料 | 實際邊界 |
+|---|---|---|
+| 假身份/角色提升 | 官方 raw Token verify、精確 audience、短效challenge、原Session rotation、拒operator identity | 不採 client profile/email合併，不建商家membership |
+| 跨會員/門市 | immutable owner、原店權限/CSRF、FORCE RLS、參數化SQL、原order同交易 | API/SQL負向證據見 TEST_REPORT |
+| 任意發訊/錯OA | 平台唯一 registry、固定bot/info、server模板與收件人 | 商家不能讀密鑰/快照或指定to；provider真驗待完成 |
+| 重播/未知Push | immutable密文bytes+retrykey、lease/fence、24h人工窗口 | API接受不是實際送達 |
+| QR/圖片外洩 | 各256-bit purpose分離票據、hash+AAD密文、no-store、限流、明確POST | 圖片可被转傳/快取；server撤銷/原子核銷是最後防線 |
+| 假付款/跨商家 | 原訂單owner、server金額/版本、原商家憑證快照、長ID無損、固定Sandboxhost | 沒有LIVE適配；callback不是登入/PII授權 |
+| 重付/超退 | durable operations、原order先鎖、UNKNOWN保留、worker只安全查詢 | 不明結果不能直接改現金或當退款失敗重送 |
+| 環境混用 | VERCEL_ENV/內部Channel/Endpoint/DB fingerprint對照 | fingerprint不是資料庫遠端身分證明，發布仍需readback |
+| 訪客盜歸戶 | consumed原Session+device+tracking+每單HttpOnly加密proof | 非僅短碼/QR/電話；proof補發失敗不重建原單 |
+| Log/分析 | MINI URL遮罩、媒體與回跳no-referrer、固定錯誤、私有資料不進URL | provider/平台邊緣access log遮罩仍須確認 |
 
-建議保存分類（待產品／資料政策落地，不是法定保存期結論）：
+## 資料最小化與保存
 
-- ID Token、Pay／OA secrets：僅記憶體／受控 Vault；前端只短暫持有 SDK ID Token，不寫 URL、localStorage 或日誌。
-- return state／login challenge：只持久化高熵值 hash 與必要關聯，短 TTL、一次性；清除不刪金流證據。
-- 支付／退款台帳及 audit：保存必要金額、狀態與商家關聯，依現有帳務保存政策；secret 只保留引用及版本。
-- Webhook／通知：最小 payload／hash，依來源與事件版本去重；不複製完整顧客名單至測試。
-- 帳號刪除／撤回同意不自動刪除應保留的交易；行銷同意不從訂單電話或 LINE 登入推導。
+- Raw ID Token僅記憶體；不入DB/URL/localStorage/artifact。subject必要時AES-256-GCM保存；查找以env/Provider hash。資料金鑰32-byte Base64、server-only；更換須有版本/舊資料可解密遷移，不直接棄舊key。
+- OA credential留原Vault；Pay credential為server環境版本化reference。reference不是允許對商家公開的secret。快照固定原版本，撤銷舊版本前先清查未結交易。
+- Webhook只留簽章驗證後最少event ID/時間/subject關係，不保存群組對話或抓全部好友。晚到follow不覆蓋unfollow。
+- Member同意與Audit分開，無預設行銷。好友不是入會，封鎖不刪帳本。刪除/資料請求沿原privacy流程；本次不發明法定保存年限。
+- 原付款/退款/交付/計費證據依原保存政策；不能以rollback/測試清理刪除真實帳務。合成fixture只留隔離庫。
+- 新表採SQL migrations及FORCE RLS，anon/authenticated無private內容權限。通知舊status必要read與密文欄位權限分開。沒有新增公開Realtime private-table publication。
 
-下一批權限矩陣：顧客只讀自身該店訂單；店員需既有攤位權限；退款與憑證設定需商家授權；worker 僅操作自身租戶 operation；瀏覽器不能直讀 Vault／操作台帳。API、SQL/RLS、Realtime、worker 都需驗收，不能只測 handler。
+## 網路與操作
 
-本批不增加資料表、RPC、Storage 或 Realtime 規則。沒有 migration 被套用到本機或遠端。
+外部provider host固定、禁止redirect、bounded timeout/response；OA/Pay/LIFF憑證用途分離。退款、補發、rollout需要原權限、CSRF與稽核。Cron使用原secret認證，不提供公開worker操作。local wakeup不沿clone中的遠端Vault URL發送。
 
-
-第二批：一次性登入 challenge 綁 HttpOnly/Secure/SameSite cookie、server tenant/channel fingerprint 與 5 分鐘有效期；原始 ID Token 不保存。Session 沿用既有 opaque token、device、CSRF 及撤銷機制；API 成功 cookie 強制 Secure。標準 OAuth 與 MINI flow 互斥，不做 Email 自動合併或商家權限授予。MINI 分析停用、初始化 URL 不寫 navigation sessionStorage。私人訂單顧客所有權、商家金流憑證版本及完整退款邊界仍是後續必做項目。
+正式前需確認：WAF允許合法LINE webhook/Pay回跳但不廣泛bypass、Webhook原body及HMAC、私有頁cache、media URL/APM遮罩、備份/復原與平台客服查阅流程。尚未驗證者列BLOCKED，不以HTTP200或本機fixture取代。

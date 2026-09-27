@@ -17,9 +17,13 @@ import { readNotificationSecret } from "./notification-secrets";
 const MAX_ATTEMPTS = 5;
 
 export async function processDueNotificationJobs(now = new Date(), limit = 20) {
+  await prisma.$executeRaw`update public.notification_jobs j set status='CANCELLED',next_attempt_at=null,last_error_code='PLATFORM_ORDER_LEGACY_BLOCKED'
+    where j.delivery_mode='LEGACY' and j.status in ('PENDING','FAILED','PROCESSING')
+      and exists(select 1 from public.line_platform_order_owners owner where owner.order_id=j.order_id)`;
   await prisma.notificationJob.updateMany({
     where: {
       status: "PROCESSING",
+      integration: { stallId: { not: null } },
       updatedAt: { lt: new Date(now.getTime() - 10 * 60_000) },
       attemptCount: { lt: MAX_ATTEMPTS },
     },
@@ -29,16 +33,12 @@ export async function processDueNotificationJobs(now = new Date(), limit = 20) {
       lastErrorCode: "WORKER_LEASE_EXPIRED",
     },
   });
-  const candidates = await prisma.notificationJob.findMany({
-    where: {
-      status: { in: ["PENDING", "FAILED"] },
-      attemptCount: { lt: MAX_ATTEMPTS },
-      OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: now } }],
-    },
-    orderBy: [{ nextAttemptAt: "asc" }, { createdAt: "asc" }],
-    take: Math.min(Math.max(limit, 1), 50),
-    select: { id: true, status: true },
-  });
+  const candidates = await prisma.$queryRaw<Array<{ id: string; status: "PENDING" | "FAILED" }>>`
+    select id::text,status from public.notification_jobs j where delivery_mode='LEGACY' and attempt_count<${MAX_ATTEMPTS}
+      and not exists(select 1 from public.line_platform_order_owners owner where owner.order_id=j.order_id)
+      and ((status='PENDING' and (next_attempt_at is null or next_attempt_at<=${now}))
+        or (status='FAILED' and next_attempt_at is not null and next_attempt_at<=${now}))
+    order by next_attempt_at,created_at limit ${Math.min(Math.max(limit, 1), 50)}`;
   const claimed: string[] = [];
   for (const candidate of candidates) {
     const result = await prisma.notificationJob.updateMany({
@@ -60,6 +60,11 @@ async function processClaimedNotificationJob(jobId: string, now: Date) {
     },
   });
   if (!job || job.status !== "PROCESSING") return { jobId, status: "SKIPPED" };
+  const platformOwner = await prisma.$queryRaw<Array<{ order_id: string }>>`select order_id::text from public.line_platform_order_owners where order_id=${job.orderId}::uuid`;
+  if (platformOwner.length) {
+    await prisma.notificationJob.update({where:{id:job.id},data:{status:"CANCELLED",nextAttemptAt:null,lastErrorCode:"PLATFORM_ORDER_LEGACY_BLOCKED"}});
+    return {jobId,status:"CANCELLED"};
+  }
   if (
     !job.order
     || job.integration.status !== "ACTIVE"

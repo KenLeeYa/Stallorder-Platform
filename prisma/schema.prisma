@@ -3582,7 +3582,7 @@ model StallOrderCounter {
 
 model NotificationIntegration {
   id               String                        @id @default(uuid()) @db.Uuid
-  organizationId   String                        @map("organization_id") @db.Uuid
+  organizationId   String?                       @map("organization_id") @db.Uuid
   stallId          String?                       @map("stall_id") @db.Uuid
   provider         NotificationProvider
   status           NotificationIntegrationStatus @default(DISABLED)
@@ -3591,7 +3591,7 @@ model NotificationIntegration {
   settingsJson     Json                          @default("{}") @map("settings_json")
   createdAt        DateTime                      @default(now()) @map("created_at")
   updatedAt        DateTime                      @updatedAt @map("updated_at")
-  organization     Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization     Organization?                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   stall            Stall?                        @relation(fields: [stallId], references: [id], onDelete: Cascade)
   contactLinks     CustomerContactLink[]
   jobs             NotificationJob[]
@@ -3685,8 +3685,8 @@ model LineLinkSession {
 
 model LineWebhookEvent {
   id                String                  @id @default(uuid()) @db.Uuid
-  organizationId    String                  @map("organization_id") @db.Uuid
-  stallId           String                  @map("stall_id") @db.Uuid
+  organizationId    String?                 @map("organization_id") @db.Uuid
+  stallId           String?                 @map("stall_id") @db.Uuid
   integrationId     String                  @map("integration_id") @db.Uuid
   providerEventHash String                  @unique @map("provider_event_hash")
   eventType         String                  @map("event_type")
@@ -3694,8 +3694,8 @@ model LineWebhookEvent {
   processedAt       DateTime?               @map("processed_at")
   createdAt         DateTime                @default(now()) @map("created_at")
   updatedAt         DateTime                @updatedAt @map("updated_at")
-  organization      Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  stall             Stall                   @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  organization      Organization?           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall             Stall?                  @relation(fields: [stallId], references: [id], onDelete: Cascade)
   integration       NotificationIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
 
   @@index([integrationId, receivedAt(sort: Desc)])

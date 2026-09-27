@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { safeMiniAppReturnPath } from "@/lib/line-miniapp-links";
 
 export function LineMiniAppLogin({ liffId, endpointUrl }: { liffId: string; endpointUrl: string }) {
   const [busy, setBusy] = useState(false);
@@ -10,17 +11,18 @@ export function LineMiniAppLogin({ liffId, endpointUrl }: { liffId: string; endp
     setBusy(true);
     setError("");
     try {
-      const { default: liff } = await import("@/lib/line-miniapp-liff");
-      await liff.init({ liffId });
+      const { default: liff, initializeMiniApp } = await import("@/lib/line-miniapp-liff");
+      await initializeMiniApp(liffId);
+      const returnTo = safeMiniAppReturnPath(window.location.pathname + window.location.search);
       if (!liff.isLoggedIn()) {
-        liff.login({ redirectUri: endpointUrl });
+        liff.login({ redirectUri: new URL(returnTo, endpointUrl).href });
         return;
       }
       const idToken = liff.getIDToken();
       if (!idToken) throw new Error("ID_TOKEN_MISSING");
       const challengeResponse = await fetch("/api/mini/auth/challenge", {
         method: "POST", credentials: "same-origin", cache: "no-store",
-        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ returnTo: "/mini" }),
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ returnTo }),
       });
       if (!challengeResponse.ok) throw new Error("CHALLENGE_FAILED");
       const { challenge } = await challengeResponse.json();
@@ -30,7 +32,8 @@ export function LineMiniAppLogin({ liffId, endpointUrl }: { liffId: string; endp
       });
       if (!response.ok) throw new Error("EXCHANGE_FAILED");
       // The raw ID token is never stored or copied into links/analytics.
-      window.location.replace("/mini");
+      const result = await response.json() as { returnTo?: string };
+      window.location.replace(safeMiniAppReturnPath(result.returnTo ?? "/mini"));
     } catch {
       setError("LINE 登入未完成。請確認使用測試帳號並允許登入，再重新嘗試。");
     } finally { setBusy(false); }

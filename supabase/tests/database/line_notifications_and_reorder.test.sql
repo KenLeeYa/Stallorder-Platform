@@ -33,7 +33,8 @@ select ok(
 );
 select ok(
   has_table_privilege('authenticated', 'public.notification_integrations', 'SELECT')
-  and has_table_privilege('authenticated', 'public.notification_jobs', 'SELECT'),
+  and has_column_privilege('authenticated', 'public.notification_jobs', 'status', 'SELECT')
+  and not has_column_privilege('authenticated', 'public.notification_jobs', 'snapshot_ciphertext', 'SELECT'),
   'authorized management reads are exposed only behind RLS'
 );
 select is(
@@ -347,7 +348,7 @@ select is(
   'KITCHEN cannot read LINE integration settings'
 );
 select is(
-  (select count(*)::integer from public.notification_jobs
+  (select count(status)::integer from public.notification_jobs
    where order_id = '9a200000-0000-4000-8000-000000000001'),
   0,
   'KITCHEN cannot read notification delivery jobs'

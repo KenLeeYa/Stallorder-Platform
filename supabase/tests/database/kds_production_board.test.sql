@@ -4,6 +4,10 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 select plan(32);
 
+-- Shared local fixtures may retain acknowledged alerts; this transaction rolls back.
+delete from public.operational_alerts
+where stall_id = '22222222-2222-4222-8222-222222222222'
+  and alert_type in ('KDS_ORDER_OVERDUE', 'STATION_BACKLOG');
 delete from public.order_production_tasks where stall_id = '22222222-2222-4222-8222-222222222222';
 delete from public.kitchen_station_assignments where stall_id = '22222222-2222-4222-8222-222222222222';
 delete from public.kitchen_stations

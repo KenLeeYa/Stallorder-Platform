@@ -159,4 +159,17 @@ export class LinePayV4SandboxClient {
     const info = z.object({ refundTransactionId: transactionId }).parse(this.requireSuccess(result));
     return { refundTransactionId: info.refundTransactionId, amount: input.amount };
   }
+
+  async retrieveRefunds(input: ExpectedPayment) {
+    assertTwdAmount(input.amount,input.currency);
+    const query=new URLSearchParams({transactionId:transactionId.parse(input.transactionId)}).toString();
+    const result=await this.send("GET","/v4/payments",undefined,query);
+    const refund=z.object({refundTransactionId:transactionId,transactionType:z.literal("PARTIAL_REFUND"),refundAmount:z.number().int().negative().min(-100_000_000),refundTransactionDate:z.string().datetime()});
+    const items=z.array(paymentEvidence.extend({currency:z.literal("TWD"),transactionType:z.literal("PAYMENT"),refundList:z.array(refund).default([])})).parse(this.requireSuccess(result));
+    if(items.length!==1) throw new PaymentProviderError("LINE_PAY_EVIDENCE_MISMATCH",502);
+    this.validateEvidence(items[0],input);
+    const refunds=items[0].refundList;
+    if(new Set(refunds.map(item=>item.refundTransactionId)).size!==refunds.length) throw new PaymentProviderError("LINE_PAY_REFUND_EVIDENCE_AMBIGUOUS",502);
+    return refunds.map(item=>({refundTransactionId:item.refundTransactionId,amount:-item.refundAmount,occurredAt:item.refundTransactionDate}));
+  }
 }

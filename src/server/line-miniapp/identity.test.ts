@@ -17,7 +17,7 @@ describe("MINI App verified identity boundary", () => {
   it("verifies raw ID token server-side without inventing a LIFF OAuth nonce", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(response(claims));
     const identity = await verifyMiniAppIdentity("synthetic-id-token", binding, { fetchImpl, now: () => now });
-    expect(identity).toEqual({ provider: "LINE", subject: `miniapp:12345:developing:54321:${claims.sub}`, channelId: "54321", providerId: "12345", internalChannel: "developing" });
+    expect(identity).toEqual({ provider: "LINE", subject: `miniapp:12345:developing:54321:${claims.sub}`, lineSubject: claims.sub, channelId: "54321", providerId: "12345", internalChannel: "developing" });
     expect(fetchImpl.mock.calls[0][0]).toBe("https://api.line.me/oauth2/v2.1/verify");
     expect(fetchImpl.mock.calls[0][1].body.toString()).toBe("id_token=synthetic-id-token&client_id=54321");
     expect(fetchImpl.mock.calls[0][1].redirect).toBe("error");
