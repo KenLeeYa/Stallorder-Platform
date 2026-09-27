@@ -56,6 +56,13 @@ const contentSecurityPolicy = [
   "object-src 'none'",
 ].join("; ");
 
+// LIFF 2.31.0 core/login plugin origins; only the MINI document can access them.
+const miniAppContentSecurityPolicy = contentSecurityPolicy.split("; ").map(directive => {
+  if (directive.startsWith("script-src ")) return `${directive} https://static.line-scdn.net`;
+  if (directive.startsWith("connect-src ")) return `${directive} https://api.line.me https://access.line.me https://liff.line.me https://liffsdk.line-scdn.net`;
+  return directive;
+}).join("; ");
+
 const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_STALLORDER_BUILD_REVISION:
@@ -71,6 +78,7 @@ const nextConfig: NextConfig = {
       ignore: [
         /\/api\/auth\/(?:google|line|apple)\/callback/,
         /\/api\/auth\/mock\/authorize/,
+        /^\/mini(?:[/?]|$)/,
       ],
     },
   },
@@ -127,6 +135,14 @@ const nextConfig: NextConfig = {
           ...(isProduction
             ? [{ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" }]
             : []),
+        ],
+      },
+      {
+        source: "/mini/:path*",
+        headers: [
+          { key: "Cache-Control", value: "private, no-store" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "Content-Security-Policy", value: miniAppContentSecurityPolicy },
         ],
       },
     ];

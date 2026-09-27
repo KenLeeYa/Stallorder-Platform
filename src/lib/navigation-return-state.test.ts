@@ -49,6 +49,13 @@ describe("return navigation state", () => {
       .toBe("stallorder:navigation:horizontal:staff%2Ffunction%20row");
   });
 
+  it("does not persist MINI initialization URLs or token-bearing return paths", () => {
+    for (const path of ["/mini", "/mini?liff.state=secret", "/mini/store/demo#access_token=secret"]) {
+      expect(normalizeInternalNavigationPath(path)).toBeNull();
+    }
+    expect(normalizeInternalNavigationPath("/merchant/catalog")).toBe("/merchant/catalog");
+  });
+
   it("mounts the navigation recorder and routes shared back links through it", () => {
     const layout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
     const backLink = readFileSync(new URL("../components/stall-settings-back-link.tsx", import.meta.url), "utf8");

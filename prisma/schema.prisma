@@ -3866,6 +3866,8 @@ model AuthIdentityLinkInvitation {
 model OAuthTransaction {
   id                    String    @id @default(uuid()) @db.Uuid
   provider              String
+  flow                  String    @default("OAUTH")
+  contextFingerprint    String?   @map("context_fingerprint")
   stateHash             String    @unique @map("state_hash")
   nonceHash             String    @map("nonce_hash")
   codeVerifierCiphertext String   @map("code_verifier_ciphertext")

@@ -100,4 +100,13 @@ Every entry must identify the affected user roles, routes/services/data/environm
 
 ## Maintenance rule
 
+| Date | ID | Status | Change | Affected surfaces | Evidence |
+| --- | --- | --- | --- | --- | --- |
+| 2026-09-26 | `LINE-MINIAPP-PAY-FOUNDATION-001` | Partial local implementation; not activated | Add Sandbox-only LINE Pay v4 signed transport with lossless int64 IDs, endpoint-specific states and no blind retry; add server-side MINI ID-token verification, environment binding and public-link restrictions. Existing registry remains contract-only until durable checkout/session integration passes. | New isolated server/lib modules; no existing customer route, migration, provider, Production or DR write | [Status](integrations/line/IMPLEMENTATION_STATUS.md), [QA and remaining work](integrations/line/TEST_REPORT.md); 71 local unit/regression tests, no real Sandbox or device claim |
+
 Do not rewrite an old row to make a later rollout look complete. Append a new row when status changes, include the exact commit/tree and protected evidence, and mark the prior row superseded only when the new decision is accepted.
+
+
+### LINE-MINIAPP-LOGIN-002 · 2026-09-26 · 隔離本機候選
+
+新增 LIFF 2.31.0 最小登入殼層與一次性 browser-bound challenge，沿用既有 Session 並區分 OAuth flow；新增 migration 僅在 `stallorder_line_miniapp_20260926` clone 套用。78 regression（含 8 DB/provider-fixture）、2 disabled-shell/既有登入 browser PASS，型別與 ESLint 通過。真實 LINE／Sandbox、私人訂單所有權及 durable payment workflow 尚未完成。逐步設定指南與不輸出 secret 的設定檢查 CLI 已備妥，無外部交易或部署。
