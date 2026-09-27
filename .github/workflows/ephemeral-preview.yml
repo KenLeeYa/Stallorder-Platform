@@ -184,13 +184,14 @@ jobs:
           raw_transaction_url="$(jq -r '.POSTGRES_URL' <<<"$config")"
           supabase_url="$(jq -r '.SUPABASE_URL' <<<"$config")"
           anon_key="$(jq -r '.SUPABASE_ANON_KEY' <<<"$config")"
+          service_role_key="$(jq -r '.SUPABASE_SERVICE_ROLE_KEY // empty' <<<"$config")"
           session_url="${raw_transaction_url/:6543\//:5432\/}"
           case "$raw_transaction_url" in
             *\?*) transaction_url="${raw_transaction_url}&pgbouncer=true" ;;
             *) transaction_url="${raw_transaction_url}?pgbouncer=true" ;;
           esac
 
-          for value in "$raw_transaction_url" "$transaction_url" "$session_url" "$supabase_url" "$anon_key"; do
+          for value in "$raw_transaction_url" "$transaction_url" "$session_url" "$supabase_url" "$anon_key" "$service_role_key"; do
             test -n "$value" && test "$value" != "null" || {
               echo "::error::Preview Branch configuration is incomplete."
               exit 1
@@ -203,6 +204,9 @@ jobs:
             echo "DIRECT_URL=$session_url"
             echo "EPHEMERAL_DATABASE_URL=$session_url"
             echo "NEXT_PUBLIC_SUPABASE_URL=$supabase_url"
+            echo "PRIMARY_SUPABASE_URL=$supabase_url"
+            echo "SUPABASE_SECRET_KEY=$service_role_key"
+            echo "PRIMARY_SUPABASE_SECRET_KEY=$service_role_key"
             echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$anon_key"
             echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$anon_key"
             echo "NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL=$supabase_url/functions/v1"
@@ -409,8 +413,13 @@ jobs:
           }
 
           line_env_args=()
+          if [ "$PREVIEW_GIT_BRANCH" = "codex/line-platform-oa-v2-20260927" ]; then
+            for entry in "OPENAI_API_KEY=" "AZURE_TRANSLATOR_KEY=" "OPENAI_TRANSLATION_ENABLED=false" "CATALOG_TRANSLATION_ENABLED=false" "LINE_PLATFORM_ENABLED=false"; do
+              line_env_args+=(--build-env "$entry" --env "$entry")
+            done
+          fi
           if [ "${{ steps.line-preview.outputs.enabled }}" = "true" ]; then
-            line_env_args=(
+            line_env_args+=(
               --build-env "OAUTH_LINE_PREVIEW_LIVE=true"
               --build-env "LINE_CHANNEL_ID=$LINE_PREVIEW_CHANNEL_ID"
               --build-env "LINE_CHANNEL_SECRET=$LINE_PREVIEW_CHANNEL_SECRET"
@@ -434,6 +443,9 @@ jobs:
               --meta "githubCommitRef=$PREVIEW_GIT_BRANCH" \
               --build-env "DATABASE_URL=$DATABASE_URL" \
               --build-env "DIRECT_URL=$DIRECT_URL" \
+              --build-env "PRIMARY_SUPABASE_URL=$PRIMARY_SUPABASE_URL" \
+              --build-env "SUPABASE_SECRET_KEY=$SUPABASE_SECRET_KEY" \
+              --build-env "PRIMARY_SUPABASE_SECRET_KEY=$PRIMARY_SUPABASE_SECRET_KEY" \
               --build-env "NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL" \
               --build-env "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" \
               --build-env "NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL=$NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL" \
@@ -453,6 +465,9 @@ jobs:
               --build-env "PRODUCTION_ENVIRONMENT_APPROVED=false" \
               --env "DATABASE_URL=$DATABASE_URL" \
               --env "DIRECT_URL=$DIRECT_URL" \
+              --env "PRIMARY_SUPABASE_URL=$PRIMARY_SUPABASE_URL" \
+              --env "SUPABASE_SECRET_KEY=$SUPABASE_SECRET_KEY" \
+              --env "PRIMARY_SUPABASE_SECRET_KEY=$PRIMARY_SUPABASE_SECRET_KEY" \
               --env "NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL" \
               --env "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" \
               --env "NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL=$NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL" \
@@ -586,7 +601,7 @@ jobs:
         run: npm run production:smoke
 
       - name: Run isolated catalog translation glossary smoke
-        if: steps.vercel-auth.outputs.enabled == 'true' && steps.vercel-preview.outputs.translation_enabled == 'true'
+        if: steps.vercel-auth.outputs.enabled == 'true' && steps.vercel-preview.outputs.translation_enabled == 'true' && env.PREVIEW_GIT_BRANCH != 'codex/line-platform-oa-v2-20260927'
         env:
           CATALOG_TRANSLATION_SYNTHETIC_BASE_URL: ${{ steps.vercel-preview.outputs.url }}
           CATALOG_TRANSLATION_SYNTHETIC_CONFIRMATION: EPHEMERAL_PREVIEW_ONLY

@@ -598,8 +598,22 @@ describe("Production workflow approval contract", () => {
     expect(drInitialization).not.toContain("DR_STORAGE_OBJECTS_PRESENT");
   });
 
-  it("disables Vercel Git auto-deploy only for main", () => {
-    expect(vercel.git.deploymentEnabled).toEqual({ main: false });
+  it("keeps main and the live LINE QA branch on controlled deployments", () => {
+    expect(vercel.git.deploymentEnabled).toEqual({ main: false, "codex/line-platform-oa-v2-20260927": false });
+  });
+
+  it("pairs privileged Supabase access and disables inherited paid providers for LINE QA", () => {
+    const configuration = ephemeralPreview.slice(ephemeralPreview.indexOf("name: Load and mask Preview Branch configuration"), ephemeralPreview.indexOf("name: Wait for Preview Branch database stability"));
+    expect(configuration).toContain(".SUPABASE_SERVICE_ROLE_KEY");
+    expect(configuration).toContain('"$service_role_key"');
+    for (const name of ["SUPABASE_SECRET_KEY", "PRIMARY_SUPABASE_SECRET_KEY", "PRIMARY_SUPABASE_URL"]) {
+      expect(configuration).toContain(`echo "${name}=`);
+      expect(ephemeralPreview).toContain(`--env "${name}=$${name}"`);
+    }
+    expect(ephemeralPreview).toContain('"$PREVIEW_GIT_BRANCH" = "codex/line-platform-oa-v2-20260927"');
+    expect(ephemeralPreview).toContain('"OPENAI_API_KEY="');
+    expect(ephemeralPreview).toContain('"AZURE_TRANSLATOR_KEY="');
+    expect(ephemeralPreview).toContain('"LINE_PLATFORM_ENABLED=false"');
   });
 
   it("waits for the hosted branch action and stable database before Preview migrations", () => {
