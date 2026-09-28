@@ -6,6 +6,8 @@
 
 ## 1. 攤點通平台 OA 及合法營運資料 — OA/API已建立；通知流程待驗
 
+14:18 增量以此為準：已完成同一真會員的 A/B 訂單，平台 OA 接受 A 訂單卡及 B 訂單／READY／PICKED_UP 訊息；尚缺本人手機確認送達。B 的合成現金收款與人工取餐通過，鏡頭掃碼尚未進行。A Sandbox 已 Request，但未經本人授權而官方逾時取消，後續待本人配合新交易的授權／Confirm／退款。B 仍沒有第二個 Sandbox 商家。到期、預算及不發布正式的邊界不變。
+
 - 負責角色：平台擁有者／OA管理者。
 - 控制台：LINE Official Account Manager https://manager.line.biz/；LINE Developers https://developers.line.biz/console/。
 - 2026-09-28已確認：依使用者逐項條款／資訊使用／API授權建立「攤點通」`@028sijlm`，Messaging Channel `2011762548` 綁定既有 StallOrder Provider `2005461563`。`bot/info` 精確讀回相同 OA ID 與名稱；訊息格式驗證 HTTP 200。輕用量方案額度200、用量0；未發送測試訊息，OA尚未認證。

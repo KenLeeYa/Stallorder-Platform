@@ -57,6 +57,8 @@ flowchart LR
 
 ## 隔離與停用
 
+MINI 訂單的新付款入口同時要求 runtime 開啟、訂單未結束且未付款，以及訂單精確 organization/stall 的 ACTIVE SANDBOX LINE_PAY connection：PUBLIC_MENU 渠道、secret/merchant reference、API v4與credentialVersion。不能因平台開啟付款就對所有店顯示入口。已有 attempt 的狀態與恢復入口不因店別設定停用而隱藏；後端仍於每次 checkout 獨立驗證，頁面判斷不是收款授權。
+
 ### 既有好友的官方查核
 
 會員於 Webhook 啟用前已加好友時，不會補送 follow 事件。會員中心在 UNKNOWN 時自動查核，並提供「重新確認好友狀態」。瀏覽器只將 LIFF access token 送至同源、Session＋CSRF 保護的 POST `/api/mini/member/friendship`，不保存 Token。

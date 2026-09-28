@@ -6,6 +6,8 @@
 
 ## Phase 0：真實架構與差距
 
+14:18 增量：真會員已在隔離 A/B 兩店下單，平台 OA 已接受 A 訂單卡片及 B 訂單／READY／PICKED_UP 各1次；本人手機送達尚待確認。B 店原現金收款與人工取餐 API、顧客已取餐畫面及重放單次事件通過，不是鏡頭掃碼。A 的 Sandbox Request 成功、本人授權未完成，官方查核已逾時取消；Confirm／退款仍未驗證。導頁、新時段 QR 恢復及店別付款入口修正待最新 CI/隔離 Preview；正式未變更。
+
 | 責任 | 原程式／資料 | v2 實際变更 |
 |---|---|---|
 | 應用 | Next 16.3.4、Node 24、Prisma 6.19.3、PostgreSQL/Supabase | 沿用原應用、Session、SQL migration |
