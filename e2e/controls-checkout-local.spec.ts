@@ -166,13 +166,13 @@ test("既有訂單結帳的金額按鈕也位於折扣右側", async ({ page }, 
 test("金流通路使用可鍵盤操作的複選標籤", async ({ page }, info) => {
   const paymentsPath = `/merchant/payments?organizationId=${organizationId}`;
   await expect.poll(async () => {
-    const response = await page.request.get(paymentsPath, { maxRedirects: 0 });
-    const status = response.status();
-    await response.dispose();
+    // Chromium sends Secure login cookies to loopback HTTP; APIRequestContext does not.
+    const response = await page.goto(paymentsPath);
+    expect(new URL(page.url()).pathname).toBe("/merchant/payments");
+    const status = response?.status();
     expect([200, 404]).toContain(status);
     return status;
   }).toBe(200);
-  await page.goto(paymentsPath);
   const delivery = page.getByRole("checkbox", { name: "外送", exact: true });
   await expect(delivery).not.toBeChecked();
   await delivery.locator("..").click();
