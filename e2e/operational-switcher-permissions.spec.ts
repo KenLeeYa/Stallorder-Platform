@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { dismissStaffStartReminder } from "./local-navigation";
+import { dismissStaffStartReminder, openStaffMobileTools } from "./local-navigation";
 import { PrismaClient } from "@prisma/client";
 
 const db = new PrismaClient();
@@ -36,11 +36,10 @@ test("純店員與純廚房帳號不顯示工作模式或攤位切換", async ({
 
   await quickLogin(page, "店員", /\/staff\/aming-chicken/u);
   await dismissStaffStartReminder(page);
+  await openStaffMobileTools(page);
   await expect(page.getByTestId("work-mode-icon-staff")).toHaveCount(0);
   await expect(page.getByRole("button", { name: /選擇攤位/u })).toHaveCount(0);
 
-  const tools = page.getByTestId("staff-tools-toggle");
-  if (await tools.isVisible()) await tools.click();
   const logoutResponse = page.waitForResponse(response => response.url().endsWith("/api/auth/logout") && response.request().method() === "POST", { timeout: 45_000 });
   await page.getByRole("button", { name: "登出", exact: true }).click();
   expect((await logoutResponse).status()).toBe(200);
@@ -64,12 +63,12 @@ test("商家進入店員與廚房頁仍可切換工作模式", async ({ page }) 
   await page.goto("/staff/aming-chicken");
   await dismissStaffStartReminder(page);
   await expect(page.getByTestId("work-mode-icon-staff")).toHaveCount(1);
-  const tools = page.getByTestId("staff-tools-toggle");
-  if (await tools.isVisible()) await tools.click();
+  await openStaffMobileTools(page);
   await page.getByTestId("work-mode-icon-staff").click();
-  const switcher = page.getByRole("dialog");
-  await switcher.getByRole("button", { name: "廚房 · 阿明鹽酥雞 · StallOrder 示範商戶", exact: true }).click();
-  await expect(page).toHaveURL(/\/kitchen/u);
+  const switcher = page.getByTestId("compact-switcher-dialog");
+  await expect(switcher).toBeVisible();
+  await switcher.getByRole("button", { name: /^廚房 · 阿明鹽酥雞(?: · StallOrder 示範商戶)?$/u }).click();
+  await expect(page).toHaveURL(/\/kitchen\?stall=aming-chicken$/u);
 
   await expect(page.getByTestId("work-mode-icon-kitchen")).toHaveCount(1);
   const sound = page.getByTestId("kitchen-alert-control");

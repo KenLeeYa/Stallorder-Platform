@@ -70,3 +70,13 @@
 - 商品設定及使用同一成功對話框的預約／抽獎設定，改由 dialog 內的 status 檢查，保留完整文字斷言。多攤位測試登入明確指定受測組織，測試組織清理先刪除其測試攤位，再刪組織，保留預設工作站保護規則。
 - 本機多攤位回歸目前不算通過：補齊 CI 的模擬 OAuth fixture 後，登入建攤案例通過，批次分派收到400；clone 內已有235個保留的攤位，與乾淨 CI fixture 不同。原 OAuth overrides 已還原，未清除既有範例資料；完整驗證交由新 HEAD 的乾淨 CI 重跑。
 - 08:52 Primary provider/readback 仍為原 deployment／commit、NORMAL_PRIMARY／PRIMARY／EDGE_PRIMARY。真 LINE runtime、Vault、Endpoint、Webhook、Pay 及公開例外尚未啟用；本機已準備 deployment guard script，但尚未執行遠端部署。
+
+## 手機工具列與單一商家模式回歸（09:43 台北）
+
+- `a9e3260` 配對 Preview `36364641423` SUCCESS：72 SQL／1,619 pgTAP、22項 read-only smoke 及合成 OAuth／delivery 通過。第三個部署 `dpl_9CzrZFnBf9SVjiH4uBRSoGFD9ci3`，merge tree `dab8b22271e51679b4598db238514faf26c026da`，尚無 alias。
+- 完整 CI `36364641379` FAIL：前3組35＋34＋26項 PASS／11 SKIP；第4組33 PASS、3 FAIL、1 FLAKY，其餘未執行。CI 的 E2E 已使用 `next start` 正式建置模式；獨立 resilience smoke 因前一步失敗未執行。
+- 離線裝置及跨角色手機流程仍直接操作收進「所有功能」的按鈕；修正為點開手機工具列並確認展開。純店員登出案例原本以即時 `isVisible()` 決定是否展開，可能在頁面未就緒時跳過；改為等待按鈕可見及啟用。
+- 工作模式案例把多組織才有的商家名稱後綴写死。保留確切店名、允許單／多組織兩種標籤，並加強切換後 URL 必須是指定 `aming-chicken` 廚房。另將受測帳號的登入 next 明確指向既有測試組織／攤位。
+- 隔離本機正式建置模式的店員／廚房權限、登出及 Storage 禁用時的模式切換：2 PASS（33.1秒）；lint／typecheck PASS。離線完整流程及 QR 跨角色流程待乾淨 CI 的 Storage／Edge 服務驗證，本機未為此啟動其他 Docker 容器。
+- 09:43 Primary provider 回讀仍為原 deployment／commit／保護設定；availability 仍為 NORMAL_PRIMARY／PRIMARY／EDGE_PRIMARY，QR／Staff AVAILABLE。3024及55431已停止，原3023人工測試與共用55722保留。
+- 尚未匯入 OA Vault、修改 MINI endpoint／Webhook／公開例外，亦未發送真實 LINE 訊息或建立 Pay Sandbox 交易。24小時到期時程不變。

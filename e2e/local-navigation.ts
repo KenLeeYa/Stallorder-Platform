@@ -293,6 +293,16 @@ export async function dismissStaffStartReminder(page: Page) {
   await backdrop.waitFor({ state: "detached", timeout: 5_000 });
 }
 
+export async function openStaffMobileTools(page: Page) {
+  const tools = page.getByTestId("staff-tools-toggle");
+  await expect(tools).toBeVisible();
+  await expect(tools).toBeEnabled();
+  if (await tools.getAttribute("aria-expanded") !== "true") {
+    await tools.click();
+  }
+  await expect(tools).toHaveAttribute("aria-expanded", "true");
+}
+
 export async function waitForDefaultMerchantDashboard(
   page: Page,
   organizationId: string,

@@ -6,6 +6,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import {
   dismissStaffStartReminder,
+  openStaffMobileTools,
   qrProductSelectionControl,
 } from "./local-navigation";
 
@@ -483,6 +484,7 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
       }
 
       const staffRefresh = staffPage.getByTitle("重新整理", { exact: true });
+      await openStaffMobileTools(staffPage);
       await expectActionInViewport(staffRefresh);
       await waitForReactHydration(staffRefresh);
       await staffRefresh.click({ timeout: 20_000 });
@@ -511,7 +513,12 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
 });
 
 async function login(page: Page, email: string) {
-  await page.goto("/login");
+  const next = email === "owner@stallorder.test"
+    ? `/merchant/dashboard?organizationId=${organizationId}`
+    : email === "kitchen@stallorder.test"
+      ? `/kitchen?stall=${stallSlug}`
+      : `/staff/${stallSlug}`;
+  await page.goto(`/login?next=${encodeURIComponent(next)}`);
   const emailLoginButton = page.getByRole("button", {
     name: "使用電子郵件與密碼登入",
     exact: true,

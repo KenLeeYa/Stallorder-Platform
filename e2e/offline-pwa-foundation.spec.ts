@@ -9,6 +9,7 @@ import {
   addFirstStaffCatalogProduct,
   dismissStaffStartReminder,
   gotoLocalPath,
+  openStaffMobileTools,
 } from "./local-navigation";
 
 loadLocalEnv();
@@ -105,6 +106,7 @@ test.describe("P4 離線 PWA 基礎", () => {
       }
       await gotoLocalPath(staffPage, `/staff/${stallSlug}`);
       await dismissStaffStartReminder(staffPage);
+      await openStaffMobileTools(staffPage);
       const staffBoard = staffPage.locator("main:visible").last();
       const offlineDeviceButton = staffBoard.getByTitle("離線裝置", { exact: true });
       await waitForReactHandler(offlineDeviceButton, "onClick");
@@ -643,7 +645,10 @@ async function removeLocalSnapshotObjects(objectPaths: string[]) {
 }
 
 async function login(page: Page, email: string, expectedUrl: RegExp) {
-  await gotoLocalPath(page, "/login");
+  const next = email === "owner@stallorder.test"
+    ? `/merchant/dashboard?organizationId=${organizationId}`
+    : `/staff/${stallSlug}`;
+  await gotoLocalPath(page, `/login?next=${encodeURIComponent(next)}`);
   await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
   await page.getByLabel("電子郵件").fill(email);
   await page.getByLabel("密碼").fill(password);
