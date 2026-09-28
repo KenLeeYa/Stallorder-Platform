@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useId, useState, type RefObject } from "react";
+import { useClientReady } from "@/components/use-client-ready";
 import { Flame, Minus, Plus, ShoppingCart, X } from "lucide-react";
 import { orderingExperienceMessage as experience } from "@/lib/messages/ordering-experience";
 import { ProductImage } from "@/components/product-image";
@@ -89,13 +90,14 @@ export function QrOrderMenu({
   onAddProduct,
 }: QrOrderMenuProps) {
   const searchId = useId();
+  const searchReady = useClientReady();
   const [query, setQuery] = useState("");
   const normalized = query.trim().toLocaleLowerCase(locale);
   const matchingProducts = visibleProducts.filter(product => product.id === configuringProductId || `${localizedProduct(product).name} ${localizedProduct(product).description} ${localizedCategory(product.category)} ${localizedProductGroup(product)}`.toLocaleLowerCase(locale).includes(normalized));
   return (
     <>
       <label htmlFor={searchId} className="mt-5 block text-sm font-semibold">{experience(locale, "search")}</label>
-      <input id={searchId} type="search" autoComplete="off" maxLength={160} value={query} onChange={event => setQuery(event.target.value)} className="mt-2 min-h-11 w-full rounded-lg border border-stone-300 bg-white px-3" />
+      <input id={searchId} type="search" autoComplete="off" maxLength={160} disabled={!searchReady} value={query} onChange={event => setQuery(event.target.value)} className="mt-2 min-h-11 w-full rounded-lg border border-stone-300 bg-white px-3 disabled:opacity-50" />
       {normalized && matchingProducts.length === 0 ? <p role="status" className="mt-3 rounded-lg border border-dashed border-stone-300 p-4 text-sm text-stone-600">{experience(locale, "empty")}</p> : null}
       {categories.length > 0 ? (
         <nav data-testid="qr-category-navigation" aria-label={copy.categoryNavigation} style={{ position: "sticky", top: "var(--storefront-mode-nav-height, 0px)" }} className="z-30 -mx-4 mt-5 flex gap-2 overflow-x-auto border-y border-stone-200 bg-stone-50/95 px-4 py-2 backdrop-blur sm:mx-0 sm:px-3">
