@@ -24,8 +24,10 @@ export function PublicOrderClosureNotice({ identifier, fulfillmentAt, pendingAt,
   useEffect(() => {
     let stopped = false;
     let activeRequest: AbortController | null = null;
+    let refreshQueued = false;
     const refresh = async () => {
-      if (document.visibilityState !== "visible" || activeRequest) return;
+      if (document.visibilityState !== "visible") return;
+      if (activeRequest) { refreshQueued = true; return; }
       const controller = new AbortController();
       activeRequest = controller;
       const timeout = window.setTimeout(() => controller.abort(), 8_000);
@@ -40,6 +42,10 @@ export function PublicOrderClosureNotice({ identifier, fulfillmentAt, pendingAt,
       } finally {
         window.clearTimeout(timeout);
         activeRequest = null;
+        if (refreshQueued && !stopped) {
+          refreshQueued = false;
+          void refresh();
+        }
       }
     };
     void refresh();
