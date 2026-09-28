@@ -2,6 +2,20 @@
 
 日期：2026-09-27 初版、2026-09-28 增補（Asia/Taipei）。基準需求為 requirements/prompt-v2-20260927.md。下方初版本機結果使用隔離 clone、合成顧客／店員／兩店，provider 回應為 fixture；不可與本節之後新增的真實外部證據混用。
 
+## 2026-09-28 15:26 最新驗證狀態
+
+本節為當前狀態；後續各時間段及 A–G 初版矩陣保留歷史失敗／缺口，不代表目前部署版本。
+
+- 原始碼 `a1b5f1225ff9ef4f3ada0f0a591fe63da45fa8c9`，tree `52008ff2a256f2c71398b66c8077065748884a80`。CI `36388329121`／CodeQL `36388329111` SUCCESS；paired Preview `36388329122` 為保留真人 fixtures 而 SKIPPED，未當成 PASS。
+- 同版 CI：3,578 unit PASS／100 SKIP、72 SQL 檔／1,619 pgTAP PASS、八 shard 瀏覽器 201 PASS／73 SKIP、production-mode resilience 8 PASS；lint、UI control audit、typecheck、Production guardrails、build、Worker bundle 通過，dependency audit 0 vulnerabilities。100 unit SKIP 內的 LINE DB 91 項已另以隔離 clone 跑通，其餘原 Circuit replay 9 項仍未驗；不將跳過案例加進成功數。
+- `dpl_FcDxJVsKt9DJPknM3YFNvxB5Jx3w`／sin1 已綁唯一公開網址。候選 6 項、公開站 15 項通過；raw deployment 仍需 Vercel 登入，原 Primary deployment／commit／backend 未變。
+- 真流程修正一：B 店 `260928-002` 從原商品頁實際選時間、加一份 NT$30、送單，自動到 `/mini/orders/ef900380-9273-483f-b0ae-cdf3ab22e181`，同一真人會員可見，沒有 LINE Pay 付款按鈕。原店員 API 確認時間及訂單後讀回 CONFIRMED／UNPAID，訂單通知已被 LINE 接受。
+- 真流程修正二：原 A READY 抑制工作經正常商家補送 API 入列，worker 在 15:23:01 產生唯一 `LINE_PLATFORM_PICKUP_SCHEDULE_REFRESHED`；QR v1 仍撤銷，v2 有效。通知 SENT／PROVIDER_ACCEPTED／attempt 2。驗證前未先點顧客更新 QR，因此涵蓋自動恢復路径。
+- 平台 OA 累計六個通知工作被接受：A007 訂單／READY、B001 訂單／READY／PICKED_UP、B002 訂單。本人手機顯示與 QR 掃描仍待確認，不以 API 接受冒充送達。
+- A007 新 Sandbox attempt `9802edb5-145a-4e21-a857-354df9933282` 已進入官方 Simulation QR，台帳 REQUIRES_CUSTOMER_ACTION；舊 attempt CANCELLED／0121 保留。本人授權、Confirm、退款未完成；B 仍缺第二個 Sandbox 商家。
+- 實機與正式：鏡頭掃碼、iOS／Android LINE 深連結、LINE 圖片快取與正式啟用仍未完成。沒有 Production／DR 發布。15:23 正式 hostname login／staff login／公開店200、匿名 health401，NORMAL_PRIMARY／PRIMARY，QR/Staff AVAILABLE；未建立真實正式訂單。
+- 證據：`artifacts/line-v2-ci-a1-success.log`、`line-v2-consenting-flow-final-{candidate,public}-qa.json`、`line-v2-ready-retry.json`、`line-v2-live-flow-readback.json`、`line-v2-new-store-b-owner-return.png`、`line-v2-sandbox-new-request-handoff.png`。完整時間序列见下列執行紀錄。
+
 ## 2026-09-28 14:43 真實隔離流程狀態
 
 - 環境：PR365 唯一公開 Preview、child `gfoscoqwumwdtvkbfoiv`、一位明確同意通知的本人 LINE 會員；未寫 Production／DR。當前 `9ac47b9`，修正候選 `e8d7e7c` 完整 CI 尚未結束。

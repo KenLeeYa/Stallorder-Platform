@@ -2,7 +2,7 @@
 
 更新：2026-09-28，Asia/Taipei。缺項集中於此。欄位只列名稱，不放Secret/OTP。狀態須分開：程式、自動化、真實OA、Pay Sandbox、實機、認證及正式。當日控制台與官方 API 收據見 [帳號設定驗證](PROVIDER_SETUP_RECEIPT_20260928.md)。
 
-目前狀態（14:38 台北）：公開隔離站執行 `9ac47b9`，修正候選 `e8d7e7c` 等待完整 CI。真 LINE 登入、通知同意、好友查核、本人跨店列表、四筆 OA API 接受與 B 店人工取餐已驗證。仍缺手機送達確認、Sandbox 本人授權／Confirm／退款、第二個 Sandbox 商家及鏡頭掃碼。各項下列狀態以本次驗證為準，歷史步驟見 [執行紀錄](PREVIEW_EXECUTION_20260928.md)。9/29 06:24 起清理、最晚 07:24 完成，不自動延長。
+目前狀態（15:26 台北）：公開隔離站執行 `a1b5f12`，完整 CI／CodeQL、候選與公開站 QA 通過。真 LINE 登入、通知同意、好友查核、本人跨店列表、六筆 OA API 接受與 B 店人工取餐已驗證；A READY 自動恢復 QR、原結帳返回本人頁及未接 Pay 店家隱藏付款按鈕已實測。仍缺手機送達確認、新 Sandbox Request 的本人授權／Confirm／退款、第二個 Sandbox 商家及鏡頭掃碼。歷史步驟見 [執行紀錄](PREVIEW_EXECUTION_20260928.md)。9/29 06:24 起清理、最晚 07:24 完成，不自動延長。
 
 ## 1. 攤點通平台 OA 及合法營運資料 — API已接受；手機送達待確認
 
@@ -12,7 +12,7 @@
 - 已核准建立通知存取權杖，OA Secret／Token存於repo外私密目錄，ACL僅本機擁有者與SYSTEM；沒有存登入密碼。bot destination已安全保存，未寫入前端／Git／Production。
 - 欄位：平台OA顯示名/basic ID/bot userId、Messaging Channel ID、Provider ID、管理人、目前Bot/webhook、方案/配額、OA驗證狀態；平台實際法人/客服/會員條款/隱私/退款政策。
 - 已設定：本人好友／通知同意、隔離 HTTPS Webhook、Vault 與通知排程。預設歡迎／自動回應維持原設定，未發布自訂歡迎訊息或選單。
-- 待辦：本人手機核對四筆卡片的店名／金額／QR、A 店時段變更後 READY 修正；正式合法營運主體與公開政策。API 接受不能代替手機送達。
+- 待辦：本人手機核對六筆卡片的店名／金額／QR（A 訂單／READY、B001 三階段、B002 訂單）；正式合法營運主體與公開政策。A 店時段變更後 READY 修正已由真 worker 驗證，API 接受不能代替手機送達。
 - 完成驗證：bot/info精確destination；好友webhook簽章/重送；A/B店都由同一平台OA送測試訊息。
 - 阻擋：真實端到端通知、對外條款、平台認證及正式啟用。API可驗證格式不代表訊息送達。
 - 回復：保存原webhook/Bot/選單來源，先停止新Push，不清除待發證據。
@@ -58,7 +58,7 @@
 - 位置：受控Staging/Preview Vercel、Supabase Vault/DB與Cron、既有Cloudflare/WAF。
 - 欄位：HTTPS Endpoint、database fingerprint、32-byte資料金鑰、OA Vault UUID、callback/state secret、CRON_SECRET、worker origin及原report endpoint一致。
 - 已確認：PR365 child `gfoscoqwumwdtvkbfoiv`，Vercel sin1 Preview、固定 HTTPS alias、OA Vault、通知及 Pay 查核排程均已運行；真實 LINE 訊息採公開 media URL。只對精確 alias 開放，raw deployments 仍受 Vercel 登入保護。未寫 Production／DR。
-- 公開入口：https://stallorder-line-v2-pr365-20260928.vercel.app 。`9ac47b9` 已通過 CI，修正候選 `e8d7e7c` 待完整 CI。保留真人 fixture 的 paired Preview workflow 明列 SKIP，不能稱為 PASS。歷次部署／SQL 證據見 [執行紀錄](PREVIEW_EXECUTION_20260928.md)；資源身分及到期回復以 `artifacts/line-v2-preview-resources.json` 為準。
+- 公開入口：https://stallorder-line-v2-pr365-20260928.vercel.app 。`a1b5f12` 的 CI `36388329121`、CodeQL `36388329111` 已通過；已讀回部署身分並完成受影響公開流程。保留真人 fixture 的 paired Preview workflow 明列 SKIP，不能稱為 PASS。歷次部署／SQL 證據見 [執行紀錄](PREVIEW_EXECUTION_20260928.md)；資源身分及到期回復以 `artifacts/line-v2-preview-resources.json` 為準。
 - 成本：24 小時／US$2 管理預算不延長；9/29 06:24 起清理。Vercel 團隊用量不是本 PR 專屬成本，最後讀回有時間延遲。詳 [成本](PREVIEW_RESOURCE_COSTS_20260928.md)。
 - 完成驗證：Webhook原bytes/簽章、media合法抓取、private no-store、CDN/APM URL遮罩、pg_net commit wakeup、worker lease重啟與首次Push延遲、Pay每分鐘查核。
 - 阻擋：真OA圖片/背景時效/實機/正式。

@@ -2,11 +2,11 @@
 
 更新：2026-09-28，Asia/Taipei。需求為 Downloads/prompt.md 全文 1,069 行，SHA-256 `13C37906B6BFDD829E7D53DF237603357A3EE158B30D6D725DF64B37519EB93E`。此頁取代 v1 進度；舊商家 OA 指南不能用作 v2 sender 設定。
 
-候選：`codex/line-platform-oa-v2-20260927`，v1 checkpoint `5dcbca4309dd6aa5095c0b6418856991f2cbd480`。獨立工作樹及 clone。14:38 台北：公開隔離站執行 `9ac47b9`；修正候選 `e8d7e7c` 等待完整 CI，不先切換 alias。真 LINE 登入、會員／通知同意、官方好友查核、同一會員 A/B 訂單列表已驗證。平台 OA 接受四筆本人測試訊息，手機送達尚待確認。B 店現金收款、人工取餐、重放唯一事件與顧客完成畫面通過；A 店 Sandbox Request 成功後因未授權而逾時取消。Confirm／退款、鏡頭掃碼與正式啟用未完成。**隔離部署不等於外部或正式驗收完成。** 詳細時間序列見 [執行紀錄](PREVIEW_EXECUTION_20260928.md)。
+候選：`codex/line-platform-oa-v2-20260927`，v1 checkpoint `5dcbca4309dd6aa5095c0b6418856991f2cbd480`。15:26 台北：公開隔離站已執行 `a1b5f12`／`dpl_FcDxJVsKt9DJPknM3YFNvxB5Jx3w`，完整 CI／CodeQL 通過。真 LINE 登入、會員／通知同意、官方好友查核、同一會員 A/B 列表、原點餐建單後返回本人頁均已驗證。平台 OA 接受六筆本人測試訊息，包含修正後的 A READY；手機送達尚待确认。B 店現金收款、人工取餐、唯一交付及顧客完成畫面通過。新的 A 店 NT$30 Sandbox Request 等待本人手機授權；Confirm／退款、鏡頭掃碼與正式啟用未完成。**隔離部署不等於外部或正式驗收完成。** 詳細時間序列見 [執行紀錄](PREVIEW_EXECUTION_20260928.md)。
 
 ## Phase 0：真實架構與差距
 
-最新缺陷修正範圍：本人原結帳成功頁導向私人訂單；僅因已確認時段變更而撤銷的有效 QR 可由完成通知恢復；付款入口依該訂單的店別 Sandbox Connection 判定，保留既有付款查核。三項均有先失敗後通過的聚焦回歸，待候選 Preview 真實流程驗證。
+最新缺陷修正範圍：本人原結帳成功頁導向私人訂單；僅因已確認時段變更而撤銷的有效 QR 可由完成通知恢復；付款入口依該訂單的店別 Sandbox Connection 判定，保留既有付款查核。三項均有先失敗後通過的聚焦回歸，並在新 Preview 驗證：B `260928-002` 原點餐→本人頁且無 Pay 按鈕；A READY worker 自動發行 QR v2 並由 LINE 接受，沒有先操作顧客更新 QR。
 
 | 責任 | 原程式／資料 | v2 實際变更 |
 |---|---|---|
@@ -29,8 +29,8 @@
 |---|---|---|
 | 0 | 真實 repo 盤點、官方 Pay v4/Messaging/MINI 查核 | 平台 OA、Provider、MINI三環境及 Pay Sandbox 已讀回；實際登入／通知 API 已驗，付款授權未完成 |
 | 1 | ADR、七份相容 migration、FORCE RLS | 本機 clone 與 PR365 data-less child 已套用；未套 Production/DR |
-| 2 | 登入交換、會員條款/選填同意、好友事件、本人跨店訂單、歸戶 | 真人登入／同意／好友查核／A/B 列表通過；原結帳返回修正待新 Preview |
-| 3 | 原事件→outbox→固定平台 OA adapter、舊渠道隔離 | 遠端 worker 與四筆真實 API 接受通過；手機送達、A 完成通知修正待驗 |
+| 2 | 登入交換、會員條款/選填同意、好友事件、本人跨店訂單、歸戶 | 真人登入／同意／好友查核／A/B 列表／原結帳返回本人頁通過 |
+| 3 | 原事件→outbox→固定平台 OA adapter、舊渠道隔離 | 遠端 worker 與六筆真實 API 接受通過，包含修正後 A 完成通知；手機送達待驗 |
 | 4 | 真 PNG、preview、明確交付、唯一事件/Billing | B 店未付款拒絕、合成現金收款、人工取餐與重放通過；相機／LINE 快取待實機 |
 | 5 | Sandbox-only v4、durable operation、UNKNOWN、退款/查核 | 真 Request 及逾時取消查核通過；本人授權、Confirm、退款未驗；LIVE 不可用 |
 | 6 | 平台/門市看板、用量/補發、金流操作、Rich Menu 工具 | 只有 dry-run，無 provider apply |

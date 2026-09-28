@@ -53,6 +53,8 @@ MINI 使用既有 Circuit B 下單入口。非 development 環境須依現有受
 
 ## 2026-09-28 公開測試資源方案（尚未執行）
 
+本節保留申請時的原始方案與授權邊界。使用者之後已核准，PR365／child／單一 HTTPS alias 已建立；下文「尚未建立、需授權」均屬歷史前置狀態，不能再要求相同範圍核准。當前身分／到期及驗證結果以 [執行紀錄](PREVIEW_EXECUTION_20260928.md)、[外部設定清單](EXTERNAL_SETUP_CHECKLIST.md) 及 `artifacts/line-v2-preview-resources.json` 為準。
+
 用途：讓已建立的 Developing MINI App 接入真實 LINE 登入、平台 OA 訊息與 LINE Pay Sandbox；本機自簽環境仍只作合成 QA。本節是資源建立及測試的具體範圍，**不是發布完成收據或 Production 啟用授權**。
 
 ### 固定來源與目標
@@ -89,4 +91,13 @@ Preview authentication 必須與 LINE callback、Webhook、QR PNG 可達性相�
 5. 跑真正 Sandbox Request→LINE授權→Confirm、取消／返回／查核／退款；再驗真通知卡片→關閉MINI→READY→獨立店員裝置掃碼預覽→交付→PICKED_UP。手機登入／支付操作交由本人，未做不得記PASS。
 6. 分列程式、模擬／DB自動化、真LINE、Pay Sandbox、實機掃碼與正式狀態；完成或到期按上述清理。正式啟用另依發布規則與授權，不由草稿PR或此次測試自動進行。
 
-實際 Preview URL、branch ref、deployment ID、Vault reference、到期時間目前均未產生；不得在 LINE 控制台填猜測網址。現階段可同意此資源範圍，但仍須每一步證據成立才繼續，不把此計畫當成已可手機驗收。
+以上是建立前計畫，不能作為目前雲端結果。已確認公開入口為 https://stallorder-line-v2-pr365-20260928.vercel.app ，9/29 06:24 起清理、最晚 07:24 完成；不自動延長。
+
+## 本人手機驗證的接續步驟
+
+1. 在原本的 LINE 查看「攤點通 @028sijlm」：核對 A 店 `260928-007` 的 NT$30 訂單卡，以及 B 店 `260928-001` 的訂單、餐點完成、已取餐通知。回報實際收到的種類與店名／金額／圖片是否正確；伺服器 `PROVIDER_ACCEPTED` 不能代替此步。
+2. 從 Developing MINI 入口 https://miniapp.line.me/2011762558-AZbWkGcb 進入「我的訂單」。仍需持有原本人 LINE Session，不能以店員帳號覆蓋它。
+3. 修正版 `a1b5f12` 已通過 Preview 實際流程。15:24 已從 A 店訂單開啟新的官方 Simulation 付款 QR，由本人完成手機授權；舊交易已逾時的 QR 不再使用。此流程只有 NT$30 測試交易，並非真實付款。返回後讀回已付款；若出現查核中，先查原交易，不直接建立另一筆。
+4. 店員掃碼請使用另一支裝置或獨立瀏覽器 Session，登入**同一 Preview** 的 A 店測試帳號；不能使用 3023／Production 的店員頁掃這筆隔離訂單。測試帳號存於已核准的本機私密設定，不放進文件或公開 QR。
+5. 掃 A 店最新「餐點完成」通知的取餐 QR，原訂單卡上的 v1 已因確認取餐時間而撤銷；新 v2 到 9/28 15:55 有效。只預覽時不交付，確認店名／單號／份數／付款，再按交付。核對顧客頁已取餐、平台 OA 已取餐通知與再次掃碼不重複交付。若已逾時，經原店員時段流程調整並重新確認後另驗，不改資料庫延長舊票。保留手機 OS／LINE 版本與測試時間；尚未操作鏡頭就維持 NOT_RUN。
+6. Pay Confirm 成立後才能做原交易的 Sandbox 退款驗證；兩間店獨立 Pay 收款仍需要 B 店自己的 Sandbox 商家，不挪用 A 店金鑰。

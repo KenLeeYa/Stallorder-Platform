@@ -183,3 +183,15 @@
 - Trace 顯示廚房可見按鈕在 `main-content`，另有 Next.js 串流的 `div[hidden]#S:2` 尚未移除，測試按 test ID 同時命中兩者；店員搜尋相同。修正測試為僅選可見元素、仍斷言唯一可見控制項，保留聲音開關／搜尋／訂單操作結果驗證。沒有改應用功能或跳過案例。
 - 14:39 Primary 仍為既定部署與 backend，login／staff login／公開菜單 200，匿名 health 401；隔離 worker 最近 11 次回應 200、無逾時。同一真會員的 A/B 歷史列表已在 Chrome 確認，截圖 `artifacts/line-v2-member-cross-store-history.png`。Chrome viewport override 未套用，因此該截图只作桌面證據，已 reset，不算新增手機驗收。
 - 聚焦重跑：廚房切換／聲音案例 PASS；QR 註記案例在本機 clone 因原商品選擇規格 disabled，未到達店員搜尋，記 FAIL／環境差異，不冒充通過。新 CI 會重跑原完整 QR 接單到店員搜尋／取消流程；變更測試 ESLint 通過。臨時3024隨聚焦測試結束停止。
+
+## 15:26：完整 CI、新 Preview 與三項真流程修正讀回
+
+- 精確來源 `a1b5f1225ff9ef4f3ada0f0a591fe63da45fa8c9`，tree `52008ff2a256f2c71398b66c8077065748884a80`。CI `36388329121`、CodeQL `36388329111` SUCCESS。3,578 unit PASS／100 SKIP、72 SQL／1,619 pgTAP PASS、201 browser PASS／73 SKIP、resilience 8 PASS；其餘 lint/types/guardrails/build/Worker bundle 通過。paired Preview `36388329122` 刻意 SKIPPED 以保留真人資料，未重 seed。前一輪 e8 失敗及本機 QR fixture 失敗仍保留。
+- 唯一協調 writer 部署 `dpl_FcDxJVsKt9DJPknM3YFNvxB5Jx3w`（sin1／Preview／meta pr-365）；候選 6 項通過後才切原公開 alias，15 項公開 QA 通過。部署為 manifest 第九筆，清理涵蓋所有精確部署 ID。未更動 Primary／DR／parent DB／原 3023，未合併 PR。
+- A `260928-007` READY 原因 `PICKUP_CREDENTIAL_UNAVAILABLE`，以正常本店通知補送 API（HTTP200）入列。worker 於 07:23:01Z 自動發行 QR v2，舊 v1 保留 SCHEDULE_CHANGED 撤銷；單一 SCHEDULE_REFRESHED audit。READY 讀回 SENT／PROVIDER_ACCEPTED／attempt2。未先呼叫顧客更新 QR；新 QR 到 07:55Z 有效，沒有自行延長期限。
+- 新 B `260928-002`（`ef900380-9273-483f-b0ae-cdf3ab22e181`）：同一真人會員從 MINI 原點餐 UI 選15:30、加入30元不製作餐點、送出，實際返回自己的 MINI 詳情；未開通 Pay 的 B 店沒有付款按鈕。經原店員 API 確認時段與接單，CONFIRMED／UNPAID；原 receipt outbox 被 LINE 接受。截圖 `line-v2-new-store-b-owner-return.png`，非手機實機證據。
+- 合計六筆通知工作 PROVIDER_ACCEPTED：A007 receipt/READY、B001 receipt/READY/PICKED_UP、B002 receipt。手機顯示、圖片與相機仍待本人確認。
+- 新 A007 Sandbox attempt `9802edb5-145a-4e21-a857-354df9933282`（NT$30）由真正訂單按鈕產生並跳官方 Simulation QR；狀態 REQUIRES_CUSTOMER_ACTION。已交由本人 LINE 手機授權，未假造 Confirm 或實際扣款。舊 attempt `480ef5da-03e2-4d33-9ef6-ebd20bb455bb` 的 CANCELLED／0121 保留。新頁截圖僅本機 artifact，不提交付款識別 URL／QR 到 Git。
+- 15:23 Primary 讀回仍 `dpl_Cx8GfP12KuFHcCgtnZ7SXxzt4AYZ`／`5cc15c6a6189cfd56e127676bc5228e9ffd2ff56`、NORMAL_PRIMARY／PRIMARY／EDGE_PRIMARY epoch3；login、staff/login、公開店200，匿名health401，QR/Staff AVAILABLE。這不是正式訂單端到端驗證。
+- 資源窗口不延長：9/29 06:24 台北起清理，最晚07:24完成，US$2管理預算。臨時3024已停止，原3023／共用55722因人工QA保留。後續文件提交不改已驗證應用 tree；執行版本仍以此 deployment/source 為準。
+- 15:28 顧客按「更新訂單狀態」實際顯示 B002「店家已確認」。Chrome 日誌仍有 `Receiving end does not exist` 與明確來自 `chrome-extension://…/scripts/inspector.js` 的逾時，未造成此次建單／返回／更新中斷；不把該瀏覽器工作階段描述為零錯誤日誌，也未擅自修改使用者擴充套件。
