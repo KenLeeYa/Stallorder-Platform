@@ -12,7 +12,7 @@ export default async function MiniLayout({ children }: { children: React.ReactNo
   const current = await headers();
   if (current.get("host") !== new URL(runtime.endpointUrl).host) return <main className="p-6"><p role="alert">請從攤點通提供的 LINE 入口開啟。</p></main>;
   return <div className="mini-shell">
-    <header className="mini-brand"><span className="mini-brand-mark"><Store aria-hidden="true" /></span><span><strong>攤點通</strong><small>點好餐，安心取</small></span><span className="mini-brand-wordmark" aria-hidden="true">QIDAIGO</span></header>
+    <header className="mini-brand"><span className="mini-brand-mark"><Store aria-hidden="true" /></span><span><strong>攤點通</strong><small>點好餐，安心取</small></span></header>
     <LineMiniAppNavigation />{children}
   </div>;
 }

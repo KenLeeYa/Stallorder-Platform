@@ -29,7 +29,6 @@
 .mini-brand-mark svg { width: 1.4rem; height: 1.4rem; }
 .mini-brand strong { display: block; font-size: 1rem; }
 .mini-brand small { display: block; color: var(--mini-muted); font-size: .7rem; letter-spacing: .08em; }
-.mini-brand-wordmark { margin-left: auto; font-size: .65rem; letter-spacing: .18em; white-space: nowrap; color: var(--mini-muted); }
 .mini-navigation { position: fixed; inset: auto 0 0; z-index: 60; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: .5rem; padding: .5rem .5rem calc(.5rem + env(safe-area-inset-bottom)); border-top: 1px solid var(--mini-line); background: var(--mini-surface); }
 .mini-navigation a { min-height: 3.5rem; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .25rem; border-radius: .85rem; color: var(--mini-muted); font-size: .75rem; font-weight: 600; text-align: center; }
 .mini-navigation svg { width: 1.25rem; height: 1.25rem; flex-shrink: 0; }

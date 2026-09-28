@@ -53,7 +53,7 @@ export function assertSender(info, binding) {
 export function createManifest(binding) {
   const labels = ["立即點餐", "我的訂單", "會員中心", "使用協助"];
   const paths = ["", "/orders", "/member", "/help"];
-  return { size: { width: 2500, height: 1686 }, selected: false, name: "QIDAIGO 平台四入口",
+  return { size: { width: 2500, height: 1686 }, selected: false, name: "攤點通平台四入口",
     chatBarText: "攤點通服務", areas: paths.map((path, i) => ({
       bounds: { x: (i % 2) * 1250, y: 166 + Math.floor(i / 2) * 760, width: 1250, height: 760 },
       action: { type: "uri", label: labels[i], uri: `https://miniapp.line.me/${binding.liffId}${path}` },
@@ -88,7 +88,7 @@ export function renderSvg(brandPng) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="2500" height="1686" viewBox="0 0 2500 1686">
 <rect width="2500" height="1686" fill="#f6f4ed"/>
 <image href="data:image/png;base64,${brandPng.toString("base64")}" x="56" y="23" width="120" height="120"/>
-<g font-family="Microsoft JhengHei, Noto Sans CJK TC, sans-serif"><text x="216" y="111" font-size="72" font-weight="700" fill="#117873">QIDAIGO 攤點通</text><text x="2430" y="103" text-anchor="end" font-size="40" fill="#53605b">每一餐，都有好照應</text>
+<g font-family="Microsoft JhengHei, Noto Sans CJK TC, sans-serif"><text x="216" y="111" font-size="72" font-weight="700" fill="#117873">攤點通</text><text x="2430" y="103" text-anchor="end" font-size="40" fill="#53605b">每一餐，都有好照應</text>
 ${names.map((name, i) => { const x = (i % 2) * 1250; const y = 166 + Math.floor(i / 2) * 760; const dark = i === 0; const ink = dark ? "#ffffff" : "#175c57";
     return `<rect x="${x + 22}" y="${y + 16}" width="1206" height="728" rx="42" fill="${dark ? "#117873" : i === 1 ? "#E4F1EA" : "#ffffff"}"/>
 <g transform="translate(${x + 625} ${y + 196})" fill="none" stroke="${ink}" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">${icons[i]}</g>

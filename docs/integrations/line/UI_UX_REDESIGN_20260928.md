@@ -43,6 +43,10 @@
 
 本機圖文檢視：`artifacts/line-ui-redesign/review.html`，Flex 區塊明示為 HTML 版面示意；MINI 圖片為瀏覽器合成測試截圖。
 
+2026-09-28 22:00 後續調整：依使用者回饋，Rich Menu 與 MINI 品牌列移除英文 QIDAIGO，保留圖示與「攤點通」；Rich Menu PNG 重新產生為 133,131 bytes。此為本機候選的文字／版面修改，公開入口仍為原 85f441a。本次驗證另記於 `artifacts/line-ui-redesign/logo-followup-receipt.json`，不把前一版完整 QA 冒充新版本全套重跑。
+
+中文 Logo 增量驗證：12 項 Rich Menu 測試、TypeScript、ESLint，以及 development 模式會員同意／儲存與 320/390/768/1440 明暗色／200% 文字兩項瀏覽器案例均 PASS（1.2 分鐘）。先前只選版面案例時漏跑建立測試訂單的前置案例，導到不存在的訂單頁；補跑既有前置流程後通過，未改應用路由或放寬斷言。兩次日誌均保留；新版截圖已更新。
+
 ## 雲端更新界線
 
 目前 manifest 的 `authorizedRemainingDeployments=0`；先前 US$3 方案只核准最後一次 85f441a 修正版部署。本次程式候選先留本機，未 push 觸發新部署、未變更公開 alias、未套用 OA default Rich Menu。

@@ -4,7 +4,7 @@
 
 ## 資產及入口
 
-`public/line-platform/rich-menu.svg` 為可編輯向量版面，內嵌原有 `public/icons/stallorder-512.png` 品牌圖示；PNG 由 sharp 本機轉換。四格使用 QIDAIGO／攤點通文字、原有青綠色及自製 SVG 線條圖示，無外部圖片或其他品牌吉祥物。
+`public/line-platform/rich-menu.svg` 為可編輯向量版面，內嵌原有 `public/icons/stallorder-512.png` 品牌圖示；PNG 由 sharp 本機轉換。四格使用「攤點通」中文品牌、原有青綠色及自製 SVG 線條圖示，無外部圖片或其他品牌吉祥物。
 
 `rich-menu.json` 是 LINE 操作區定義，採官方操作教學使用的 2500 × 1686 尺寸、PNG，工具另外限制低於 1,000,000 bytes。已產出圖片約 140 KB。每格 1250 × 760，頂部 166px 為品牌列；URI action 帶讀屏可用 label。圖片文字不能取代訊息中的可讀文字連結。
 
@@ -15,7 +15,7 @@
 | 會員中心 | `/mini/member` | `https://miniapp.line.me/{liffId}/member` |
 | 使用協助 | `/mini/help` | `https://miniapp.line.me/{liffId}/help` |
 
-2026-09-28 UI 候選將第四格改為「使用協助」，不暗示真人客服；第二格增加淡青綠底色，文字與 MINI 頁面對齊。新版 PNG 為 139,100 bytes，仍使用 example binding、尚未套用 OA。詳見 [介面改版與驗證](UI_UX_REDESIGN_20260928.md)。
+2026-09-28 UI 候選將第四格改為「使用協助」，不暗示真人客服；第二格增加淡青綠底色，文字與 MINI 頁面對齊。依後續回饋移除 Logo 英文，保留圖示與中文「攤點通」；新版 PNG 為 133,131 bytes，仍使用 example binding、尚未套用 OA。詳見 [介面改版與驗證](UI_UX_REDESIGN_20260928.md)。
 
 本次提交的 JSON 使用 `--example` 合成 ID，僅供版面／程式驗證，不能宣稱這些示例 URL 已連到正式 LINE channel。部署前須以正確環境的真實 `LINE_PLATFORM_BINDING_JSON` 重新 dry-run，再由裝置驗證永久連結。產生器會確認四個本地 route 存在，完整 manifest 必須與固定四入口完全一致，不能注入任意 URL、店家 sender 或顧客 token。
 
