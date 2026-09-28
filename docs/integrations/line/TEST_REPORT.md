@@ -2,7 +2,14 @@
 
 日期：2026-09-27 初版、2026-09-28 增補（Asia/Taipei）。基準需求為 requirements/prompt-v2-20260927.md。下方初版本機結果使用隔離 clone、合成顧客／店員／兩店，provider 回應為 fixture；不可與本節之後新增的真實外部證據混用。
 
-## 2026-09-28 18:38 最新 Preview 驗證結果
+## 2026-09-28 20:25 手機店員入口診斷
+
+- 使用者回報手機「找不到此頁面」，補充使用LINE內建瀏覽器。Chrome現有真人會員session同樣重現該404；可見的 `/api/auth/me` 顯示LINE顧客身分。`requirePagePermission` 對已登入但無B店權限的身分呼叫notFound，符合既有跨店／角色邊界。
+- B店帳密正常API登入，分別使用desktop與Android LINE user-agent，均返回正確B店路徑、200店員看板、session有效，取餐capability為200／enabled=true。這是server/UA驗證，不冒充LINE WebView實機測試。初版helper誤以特定訂單號必須存在於初始HTML斷言看板，造成測試腳本失敗；改為實際看板標記、B店標題、身分及取餐權限後兩組通過，保留initial-failure證據。
+- 提供明確 `/staff/login?next=%2Fstaff%2Fline-preview-store-b`，並請使用者以手機Chrome輸入B店測試帳密，讓LINE保留顧客session。使用者已回覆「已看到 B 店看板」。**手機Chrome登入／到達看板PASS；相機掃碼交付及手機收到OA訊息仍待驗。**
+- 沒有修改應用、店家權限、正式站或部署；更新測試指南即可。公開版本仍85f441a。20:19 Primary與Preview身份／入口讀回均維持原狀。證據：line-v2-mobile-staff-before.png、line-v2-staff-mobile-access-check.json、line-v2-mobile-staff-primary-before.json及本次使用者確認。
+
+## 2026-09-28 18:38 最新 Preview 部署驗證結果
 
 - 使用者核准 US$3 管理預算後，精確來源85f441ac71768946f7c06bd0287279e09251e039已部署至dpl_Z7e199RXcchhT4VscTdd4KR2G2Ev（sin1、Preview、metadata pr-365）。原單一公開入口仍為 https://stallorder-line-v2-pr365-20260928.vercel.app/mini；候選6項及公開站15項本版回歸全數PASS，alias及source讀回相符。raw deployment仍保留登入保護，沒有發布Production或DR。
 - 原真人LINE會員重新整理A007退款訂單，實際看到「已退款」及NT$30，取餐QR區塊／按鈕均消失；點擊更新訂單狀態後仍正確。該新頁的console error／warning讀回為空。前後畫面保存在artifacts/line-v2-refund-qr-before.png與line-v2-refund-qr-after.png。瀏覽器工具曾有一次evaluate逾時及一次全頁截圖逾時，改以新DOM和viewport截圖完成；不是未發生工具錯誤。

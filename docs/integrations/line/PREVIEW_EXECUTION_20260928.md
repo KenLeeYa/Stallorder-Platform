@@ -256,3 +256,10 @@
 - 18:26用量讀回StallOrder project Infrastructure US$1.68（含Build CPU US$0.38），加全24h Micro估算US$0.32256；包含Primary且有延遲，非PR365精確增量。US$3管理預算已核准，24h與9/29 06:24起／07:24最晚清理不變。
 - 部署前、建立後及切alias後Primary均維持dpl_Cx8GfP12KuFHcCgtnZ7SXxzt4AYZ／5cc15c6／NORMAL_PRIMARY／PRIMARY／EDGE_PRIMARY epoch3；login、staff/login、公開店200，匿名health401。不是正式訂單端到端QA。未修改Production、DR、parent或原3023。
 - 後續僅同步五份驗收文件與草稿PR，執行版本仍是85f441a；應用tree等價須於文件提交後核對。不另建Preview、不merge。3024維持停止，3023／55722依原人工QA需求保留。
+
+### 20:25 手機店員入口已確認可用
+
+- 使用者回報LINE內建瀏覽器直接開B店頁404；現有Chrome的LINE顧客session亦重現，auth/me顯示LINE顧客。既有requirePagePermission會以404遮蔽未授權店家，未發現裝置專屬路由或B店停用。
+- 正常B店密碼登入以desktop／Android LINE UA分別檢查：導向正確B店、看板與身分200、取餐capability200且enabled；未修改角色或發行新的業務憑證。初版helper的訂單號HTML斷言不適合此登入案例，其失敗已保留，改驗看板標记／本店標題與能力後兩組PASS。
+- 改提供直接B店登入網址，店員用手機Chrome、顧客保留LINE；本人回覆「已看到 B 店看板」，手機入口PASS。相機掃碼、確認交付與OA實機收到仍不列PASS，原B002 v2至今日23:00有效。
+- 本次僅更新指南／驗收文件，沒有應用或遠端設定修改，不新建部署。20:19 Primary與Preview仍原版本及後端，正式公開入口正常。US$3／24h與明早清理期限不變。

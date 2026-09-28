@@ -98,6 +98,6 @@ Preview authentication 必須與 LINE callback、Webhook、QR PNG 可達性相�
 1. 在原本的 LINE 查看「攤點通 @028sijlm」：核對 A 店 `260928-007` 的 NT$30 訂單卡，以及 B 店 `260928-001` 的訂單、餐點完成、已取餐通知。回報實際收到的種類與店名／金額／圖片是否正確；伺服器 `PROVIDER_ACCEPTED` 不能代替此步。
 2. 從 Developing MINI 入口 https://miniapp.line.me/2011762558-AZbWkGcb 進入「我的訂單」。仍需持有原本人 LINE Session，不能以店員帳號覆蓋它。
 3. A 店 `260928-007` 已於15:44由本人完成 Sandbox 授權及 Confirm，15:49全額退款 NT$30。QR已由原退款交易撤銷，不能再用 A007 測試取餐；舊逾時付款 QR 同樣不再使用。沒有真實收退款。
-4. 改用 B 店 `260928-002`：READY／合成現金 PAID，沒有交付事件。店員掃碼請使用另一支裝置或獨立瀏覽器 Session，登入**同一 Preview** 的 `/staff/line-preview-store-b`；不能使用3023／Production或A店員帳號。限定B店的操作指南及帳號位於 repo 外受限 `C:/Users/KY/.codex/private/stallorder-line-test/PR365_DEVICE_PICKUP_GUIDE.md`，不公開憑證。
+4. 改用 B 店 `260928-002`：READY／合成現金 PAID，沒有交付事件。顧客繼續用LINE；店員使用另一支裝置或獨立Chrome Session，直接開啟 **[B店員工登入](https://stallorder-line-v2-pr365-20260928.vercel.app/staff/login?next=%2Fstaff%2Fline-preview-store-b)**，選電子郵件與密碼，使用B店測試帳號。不要使用顧客LINE身分進店員頁：顧客没有本店權限，直接開 `/staff/line-preview-store-b` 會被權限邊界以404拒絕；這不代表網址或手機版不存在。登入後返回B店看板。不能使用3023／Production或A店員帳號；限定B店帳號位於repo外受限 `C:/Users/KY/.codex/private/stallorder-line-test/PR365_DEVICE_PICKUP_GUIDE.md`，不公開憑證。
 5. B002 原QR v1於9/28 17:30到期；18:31已透過正常商家補發API產生v2，有效至今日23:00，舊v1已撤銷。不可再用舊碼判斷相機功能；此次沒有直接改DB延長期限。顧客在「我的訂單」開有效測試訂單的「顯示／更新取餐 QR」。店員點「平台 QR 掃碼交付」→「開啟相機掃描」→「預覽餐點與付款」。只預覽時不交付，核對店名／單號／份數／付款後模擬交付。確認顧客已取餐、OA通知及重掃不重複交付。若過期，透過原憑證管理正常重發並撤銷舊碼，不直接改DB延長。保留 OS／LINE版本及時間；未操作鏡頭維持NOT_RUN。
 6. A店全額退款及官方明細已驗證。部分退款因原交易能力快照為false仍未驗；兩間店獨立 Pay 收款仍需要B店自己的Sandbox商家，不挪用A店金鑰。
