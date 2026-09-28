@@ -263,3 +263,11 @@
 - 正常B店密碼登入以desktop／Android LINE UA分別檢查：導向正確B店、看板與身分200、取餐capability200且enabled；未修改角色或發行新的業務憑證。初版helper的訂單號HTML斷言不適合此登入案例，其失敗已保留，改驗看板標记／本店標題與能力後兩組PASS。
 - 改提供直接B店登入網址，店員用手機Chrome、顧客保留LINE；本人回覆「已看到 B 店看板」，手機入口PASS。相機掃碼、確認交付與OA實機收到仍不列PASS，原B002 v2至今日23:00有效。
 - 本次僅更新指南／驗收文件，沒有應用或遠端設定修改，不新建部署。20:19 Primary與Preview仍原版本及後端，正式公開入口正常。US$3／24h與明早清理期限不變。
+
+### 20:31 本人實機 QR 交付與 OA 通知已確認
+
+- 本人提供 iPhone 16 Pro、LINE 26.15.0 及三張實機畫面，確認 B 店掃碼、店員與顧客已取餐、平台 OA 取餐卡片收到。iOS 版本未提供；不冒稱跨裝置全部通過。
+- child 唯讀查核 B002／260928-002 為 COMPLETED／PAID／NT$30，v2 consumed_at=2026-09-28T12:21:20.585Z（台北20:21:20）、redemption_method=QR；只有一筆 LINE_PLATFORM_PICKED_UP，method=QR。原 v1 撤銷不變，沒有再次核銷或新增訂單。
+- 一筆 ORDER_PICKED_UP 通知工作為 SENT／PROVIDER_ACCEPTED，attempt_count=2、目前無錯誤碼；真手機卡片資料與訂單一致。工作唯一不等於網路請求只有一次，其他七筆卡片手機送達仍各自待核對。
+- 脫敏收據／原圖保留本機 artifacts/line-v2-device-pickup-receipt.json 與 line-v2-device-pickup-{customer,oa,staff}.png；首次唯讀診斷查錯 metadata 欄位的 P2010 已保留，修正為 metadata_json 後成功。
+- 補齊本次裝置與通知驗收文件、私密指南及草稿 PR 描述；執行版本仍85f441a，不新增部署。剩餘第二店 Sandbox／部分退款、其他實機邊界、認證及正式啟用未宣稱完成。US$3及9/29 06:24起、07:24最晚清理不變。

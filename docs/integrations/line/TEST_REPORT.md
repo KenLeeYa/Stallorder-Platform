@@ -2,6 +2,14 @@
 
 日期：2026-09-27 初版、2026-09-28 增補（Asia/Taipei）。基準需求為 requirements/prompt-v2-20260927.md。下方初版本機結果使用隔離 clone、合成顧客／店員／兩店，provider 回應為 fixture；不可與本節之後新增的真實外部證據混用。
 
+## 2026-09-28 20:31 B 店實機 QR 交付與 OA 送達通過
+
+- 使用者確認在 iPhone 16 Pro、LINE 26.15.0 完成 B 店實機掃碼；此為裝置型號，iOS 版本尚未提供，不以「16 Pro」當作 OS 版本。店員端與顧客端皆已取餐，並提供攤點通 OA 已完成取餐通知畫面。這三項實機結果為 PASS；不推定 Android 或其他裝置也已通過。
+- 精確訂單 B002／260928-002／NT$30（合成現金）：20:30 唯讀查核 COMPLETED／PAID，v2 在 20:21:20 核銷、redemption_method=QR，只有一筆 LINE_PLATFORM_PICKED_UP（method=QR）。v1 維持 REISSUE 撤銷，沒有補發新碼或再次交付。
+- 此單只有一筆 ORDER_PICKED_UP 工作，SENT／PROVIDER_ACCEPTED，last_error_code 為空；attempt_count=2，不能描述為「只嘗試送出一次」。使用者截圖確認實際 OA 卡片已送達且店名、單號、NT$30、20:21 完成時間一致。此前七筆接受紀錄加本次為八筆；其餘卡片的手機送達不因此全數標為 PASS。
+- 證據：artifacts/line-v2-mobile-staff-completion-readback.json、line-v2-device-pickup-receipt.json、line-v2-device-pickup-{customer,oa,staff}.png。首次唯讀 helper 誤用 metadata 欄位失敗 P2010，改用 schema 的 metadata_json 後讀回成功，原錯誤另外保存，並非產品失敗。
+- 本次無程式或部署變更。其餘裝置、實機重掃／拒權／弱網、部分退款、第二個 Sandbox 商家、真 Provider UNKNOWN 故障、MINI 認證及正式啟用仍按各自缺口追蹤。以下為歷史時間點，不以舊「待掃碼」覆蓋本次結果。
+
 ## 2026-09-28 20:25 手機店員入口診斷
 
 - 使用者回報手機「找不到此頁面」，補充使用LINE內建瀏覽器。Chrome現有真人會員session同樣重現該404；可見的 `/api/auth/me` 顯示LINE顧客身分。`requirePagePermission` 對已登入但無B店權限的身分呼叫notFound，符合既有跨店／角色邊界。

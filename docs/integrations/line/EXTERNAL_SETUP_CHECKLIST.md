@@ -2,11 +2,11 @@
 
 更新：2026-09-28，Asia/Taipei。缺項集中於此。欄位只列名稱，不放Secret/OTP。狀態須分開：程式、自動化、真實OA、Pay Sandbox、實機、認證及正式。當日控制台與官方 API 收據見 [帳號設定驗證](PROVIDER_SETUP_RECEIPT_20260928.md)。
 
-目前狀態（18:33台北）：85f441a已部署至唯一公開隔離站，CI／CodeQL、候選6項／公開15項、真人會員退款頁驗證通過。A007真Sandbox付款／全額退款已驗，七筆OA API接受；手機收訊、部分退款、第二Sandbox商家與鏡頭掃碼仍待驗。B002已透過正常商家API補發v2至今日23:00，舊v1撤銷、未交付。歷史失敗保留在[執行紀錄](PREVIEW_EXECUTION_20260928.md)。9/29 06:24起清理、最晚07:24完成，不自動延長。
+目前狀態（20:31台北）：85f441a為唯一公開隔離站版本，既有CI／CodeQL、候選6項／公開15項及真人退款頁已驗。A007真Sandbox付款／全額退款已驗。本人以iPhone 16 Pro／LINE 26.15.0完成B002實機QR交付、店員與顧客已取餐及平台OA取餐卡片送達，三張畫面與後端20:21:20核銷一致；iOS版本未提供。B002已完成，不能再作未交付fixture。其他七筆卡片手機送達、其他裝置邊界、部分退款、第二Sandbox商家仍待驗。歷史失敗保留在[執行紀錄](PREVIEW_EXECUTION_20260928.md)。9/29 06:24起清理、最晚07:24完成，不自動延長。
 
 預算：使用者於18:19核准提高至US$3，原24小時期限不變，最後一次修正版已部署。Vercel18:26讀回本次期間的整個StallOrder專案Infrastructure US$1.68（含Primary與Build CPU US$0.38），加24小時Micro估算US$0.32256為較大範圍參考US$2.00256，**不是本PR實際費用或最終帳單**，資料可能延遲1小時。沒有新增訂閱；本次部署身分均列入原清理排程。
 
-## 1. 攤點通平台 OA 及合法營運資料 — API已接受；手機送達待確認
+## 1. 攤點通平台 OA 及合法營運資料 — B002 取餐卡片實機送達通過；其他卡片待確認
 
 - 負責角色：平台擁有者／OA管理者。
 - 控制台：LINE Official Account Manager https://manager.line.biz/；LINE Developers https://developers.line.biz/console/。
@@ -14,9 +14,10 @@
 - 已核准建立通知存取權杖，OA Secret／Token存於repo外私密目錄，ACL僅本機擁有者與SYSTEM；沒有存登入密碼。bot destination已安全保存，未寫入前端／Git／Production。
 - 欄位：平台OA顯示名/basic ID/bot userId、Messaging Channel ID、Provider ID、管理人、目前Bot/webhook、方案/配額、OA驗證狀態；平台實際法人/客服/會員條款/隱私/退款政策。
 - 已設定：本人好友／通知同意、隔離 HTTPS Webhook、Vault 與通知排程。預設歡迎／自動回應維持原設定，未發布自訂歡迎訊息或選單。
-- 待辦：本人手機核對七筆卡片的店名／金額／QR（A訂單／READY、B001三階段、B002訂單／READY）；正式合法營運主體與公開政策。A007退款後的舊QR已撤銷；B002於18:31經正常商家API補發v2，有效至今日23:00，舊v1已撤銷；請从訊息按鈕開本人訂單顯示新版QR，不用舊訊息圖片掃碼。A時段變更後READY修正已由真worker驗證，API接受不能代替手機送達。
+- 已補齊：B002 ORDER_PICKED_UP 實機卡片送達；單號260928-002、門市B、NT$30及20:21完成時間一致。一筆通知工作、attempt_count=2、SENT／PROVIDER_ACCEPTED，累計八筆OA API接受，不等同八筆手機畫面均驗證。
+- 待辦：本人手機核對其餘七筆卡片的店名／金額／QR（A訂單／READY、B001三階段、B002訂單／READY）；正式合法營運主體與公開政策。A007退款後的QR撤銷；B002 v2已核銷，不再展示為待取餐範例。A時段變更後READY修正已有真worker證據，仍不以API接受代替手機送達。
 - 完成驗證：bot/info精確destination；好友webhook簽章/重送；A/B店都由同一平台OA送測試訊息。
-- 阻擋：真實端到端通知、對外條款、平台認證及正式啟用。API可驗證格式不代表訊息送達。
+- 阻擋：其他通知階段的實機核對、對外條款、平台認證及正式啟用。B002已取餐通知有真實送達證據，其餘API接受不可等同送達。
 - 回復：保存原webhook/Bot/選單來源，先停止新Push，不清除待發證據。
 
 ## 2. MINI App／LINE Login／各環境設定 — Developing真登入通過；實機及認證待驗
@@ -66,9 +67,10 @@
 - 阻擋：真OA圖片/背景時效/實機/正式。
 - 回復：保存Primary健康artifact與映射，不影響DR，遵守Staging→Production與单一writer。
 
-## 6. 裝置與外部验收 — BLOCKED
+## 6. 裝置與外部验收 — B 店 iPhone 掃碼交付通過；其餘案例待驗
 
-- 已驗證：Chrome 真 LINE 登入、會員同意、既有好友官方查核、同一會員 A/B 訂單列表、B 店完成畫面。B 店人工核對 API 不是鏡頭掃碼，OA API 接受不是手機送達。手機通知、MINI 內深連結與獨立店員相機核銷仍待本人配合。
+- 已驗證：Chrome 真 LINE 登入、會員同意、官方好友查核、同一會員 A/B 訂單列表；本人於iPhone 16 Pro／LINE 26.15.0完成B002相機掃碼，店員與顧客已取餐、OA卡片實際收到。後端只有一筆QR交付事件。B001先前人工API不改稱鏡頭掃碼；手機Chrome B店登入已由本人確認。
+- 待補：iOS系統版本、Android本次LINE驗收、其他通知階段、MINI深連結／Session返回、相機拒權、重掃、弱網等裝置邊界；不能將單次正常交付概括為整組G驗收完成。
 
 - 角色：授權測試顧客A/B及兩店員。
 - 需求：iPhone LINE、Android LINE、Safari/Chrome、獨立店員掃碼裝置；記OS/LINE版本、時間/環境及遮罩證據。
