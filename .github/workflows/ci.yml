@@ -75,6 +75,10 @@ jobs:
         run: npx supabase db reset
       - name: Database tests
         run: npm run db:test
+      - name: Public cart replay database regression
+        env:
+          PLAYWRIGHT_APP_URL: http://127.0.0.1:3000
+        run: node scripts/qa-public-order-original-items-local.mjs
       - name: Database lint
         run: npx supabase db lint --local --level warning --fail-on warning
       - name: Production guardrails

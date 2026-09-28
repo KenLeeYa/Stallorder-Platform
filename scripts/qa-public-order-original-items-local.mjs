@@ -9,6 +9,9 @@ import { Prisma, PrismaClient } from "@prisma/client";
 function guard() {
   const db = new URL(process.env.DATABASE_URL ?? "postgresql://invalid");
   const app = new URL(process.env.PLAYWRIGHT_APP_URL ?? "http://invalid");
+  if (process.env.CI === "true" && app.href === "http://127.0.0.1:3000/"
+    && db.hostname === "127.0.0.1" && db.port === "54322" && db.pathname === "/postgres"
+    && ["postgres:", "postgresql:"].includes(db.protocol)) return;
   assert.equal(process.env.UI_UX_QA, "true", "LOCAL_QA_REQUIRED");
   assert.equal(app.href, "http://127.0.0.1:3023/", "LOCAL_APP_3023_REQUIRED");
   assert.ok(["postgres:", "postgresql:"].includes(db.protocol), "POSTGRES_REQUIRED");

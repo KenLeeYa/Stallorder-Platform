@@ -10,7 +10,7 @@ alter table public.order_sessions add constraint order_sessions_original_items_d
 create function app_private.public_order_items_digest_v1(p_items jsonb)
 returns text
 language plpgsql
-immutable
+stable
 set search_path = ''
 as $$
 declare
