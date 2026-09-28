@@ -1,7 +1,49 @@
+import { randomBytes, randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
+import { PrismaClient } from "@prisma/client";
 import { addFirstStaffCatalogProduct, dismissStaffStartReminder, loginLocalTestAccount } from "./local-navigation";
 
+const prisma = new PrismaClient();
+const organizationId = "11111111-1111-4111-8111-111111111111";
+const stallId = "22222222-2222-4222-8222-222222222222";
+let checkoutOrderId = "";
+let checkoutOrderNo = "";
+let paymentsUiOverrideId = "";
+
 test.use({ serviceWorkers: "block", trace: "off", video: "off" });
+test.beforeAll(async () => {
+  const database = new URL(process.env.DATABASE_URL ?? "");
+  if (!["127.0.0.1", "localhost"].includes(database.hostname)
+    || database.port !== (process.env.CI ? "54322" : "55722")) throw new Error("LOCAL_QA_DATABASE_REQUIRED");
+  const product = await prisma.product.findFirstOrThrow({
+    where: { organizationId, stallProducts: { some: { stallId, isEnabled: true } } },
+    select: { id: true, name: true },
+  });
+  const order = await prisma.order.create({ data: {
+    organizationId, stallId, orderNo: `QA-CASH-${randomUUID().slice(0, 8)}`,
+    trackingTokenHash: randomBytes(32).toString("hex"), idempotencyKey: randomUUID(),
+    deviceHash: "checkout-controls-local-qa", customerName: "結帳版面測試",
+    source: "QR_MENU", isTest: true, fulfillmentType: "TAKEOUT", status: "READY",
+    paymentStatus: "UNPAID", subtotal: 95, total: 95,
+    confirmationExpiresAt: new Date(Date.now() + 30 * 60_000),
+    items: { create: { organizationId, stallId, productId: product.id, name: product.name,
+      baseUnitPrice: 95, unitPrice: 95, quantity: 1, status: "READY" } },
+  } });
+  checkoutOrderId = order.id;
+  checkoutOrderNo = order.orderNo;
+  const flag = await prisma.resilienceFeatureFlag.findUniqueOrThrow({ where: { code: "PAYMENTS_ADMIN_UI_ENABLED" }, select: { id: true } });
+  paymentsUiOverrideId = (await prisma.resilienceFeatureFlagOverride.create({ data: {
+    flagId: flag.id, scopeType: "GLOBAL", enabled: true,
+    reason: "Isolated payment channel accessibility regression",
+    expiresAt: new Date(Date.now() + 15 * 60_000),
+  } })).id;
+});
+test.afterAll(async () => {
+  try {
+    if (paymentsUiOverrideId) await prisma.resilienceFeatureFlagOverride.deleteMany({ where: { id: paymentsUiOverrideId } });
+    if (checkoutOrderId) await prisma.order.deleteMany({ where: { id: checkoutOrderId } });
+  } finally { await prisma.$disconnect(); }
+});
 test.beforeEach(async ({ page }) => {
   const app = new URL(process.env.PLAYWRIGHT_APP_URL ?? "http://invalid");
   if (!["127.0.0.1", "localhost"].includes(app.hostname)) throw new Error("LOCAL_QA_ONLY");
@@ -83,15 +125,12 @@ test("既有訂單結帳的金額按鈕也位於折扣右側", async ({ page }, 
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/staff/aming-chicken");
   await dismissStaffStartReminder(page);
-  await page.getByRole("button", { name: /^待交付\s*[／/]\s*結帳/ }).click();
-  const cards = page.getByTestId("staff-order-list-pane").getByRole("button");
-  let opened = false;
-  for (const card of await cards.all()) {
-    await card.click();
-    const checkout = page.getByTestId("staff-order-actions-pane").getByRole("button", { name: "結帳收款", exact: true });
-    if (await checkout.isVisible()) { await checkout.click(); opened = true; break; }
-  }
-  expect(opened, "本機範例須有待結帳訂單").toBe(true);
+  await page.getByTestId("staff-search-open").click();
+  const search = page.getByRole("dialog", { name: "搜尋桌號或訂單編號", exact: true });
+  await search.getByRole("searchbox").fill(checkoutOrderNo);
+  await search.getByRole("button", { name: "確認", exact: true }).click();
+  await page.getByTestId("staff-order-list-pane").getByRole("button").filter({ hasText: checkoutOrderNo }).click();
+  await page.getByTestId("staff-order-actions-pane").getByRole("button", { name: "結帳收款", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "結帳收款", exact: true });
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
@@ -125,7 +164,15 @@ test("既有訂單結帳的金額按鈕也位於折扣右側", async ({ page }, 
 });
 
 test("金流通路使用可鍵盤操作的複選標籤", async ({ page }, info) => {
-  await page.goto("/merchant/payments?organizationId=11111111-1111-4111-8111-111111111111");
+  const paymentsPath = `/merchant/payments?organizationId=${organizationId}`;
+  await expect.poll(async () => {
+    const response = await page.request.get(paymentsPath, { maxRedirects: 0 });
+    const status = response.status();
+    await response.dispose();
+    expect([200, 404]).toContain(status);
+    return status;
+  }).toBe(200);
+  await page.goto(paymentsPath);
   const delivery = page.getByRole("checkbox", { name: "外送", exact: true });
   await expect(delivery).not.toBeChecked();
   await delivery.locator("..").click();

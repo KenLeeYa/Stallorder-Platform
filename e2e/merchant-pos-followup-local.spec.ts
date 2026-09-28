@@ -1,8 +1,40 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
+import { PrismaClient } from "@prisma/client";
 import { addFirstStaffCatalogProduct, dismissStaffStartReminder, loginLocalTestAccount } from "./local-navigation";
 
+const prisma = new PrismaClient();
+const organizationId = "11111111-1111-4111-8111-111111111111";
+const stallId = "22222222-2222-4222-8222-222222222222";
+const createdOrderIds: string[] = [];
+let createdCashShiftId = "";
+
 test.use({ serviceWorkers: "block", viewport: { width: 1024, height: 900 }, trace: "off", video: "off", screenshot: "only-on-failure" });
+test.beforeAll(async () => {
+  const database = new URL(process.env.DATABASE_URL ?? "");
+  if (!["127.0.0.1", "localhost"].includes(database.hostname)
+    || database.port !== (process.env.CI ? "54322" : "55722")) throw new Error("LOCAL_QA_DATABASE_REQUIRED");
+  const activeShift = await prisma.cashShift.findFirst({ where: { organizationId, stallId, status: "OPEN" }, select: { id: true } });
+  if (!activeShift) {
+    const owner = await prisma.profile.findUniqueOrThrow({ where: { email: "owner@stallorder.test" }, select: { id: true } });
+    createdCashShiftId = (await prisma.cashShift.create({ data: {
+      organizationId, stallId, openingAmount: 0, openedById: owner.id, note: "Isolated staff delivery checkout regression",
+    } })).id;
+  }
+});
+test.afterAll(async () => {
+  try {
+    if (createdOrderIds.length) {
+      await prisma.payment.deleteMany({ where: { orderId: { in: createdOrderIds } } });
+      await prisma.order.deleteMany({ where: { id: { in: createdOrderIds } } });
+    }
+    if (createdCashShiftId) {
+      await prisma.cashShiftReview.deleteMany({ where: { cashShiftId: createdCashShiftId } });
+      await prisma.cashMovement.deleteMany({ where: { cashShiftId: createdCashShiftId } });
+      await prisma.cashShift.deleteMany({ where: { id: createdCashShiftId } });
+    }
+  } finally { await prisma.$disconnect(); }
+});
 test.beforeEach(() => {
   const db = new URL(process.env.DATABASE_URL ?? "https://invalid");
   const app = new URL(process.env.PLAYWRIGHT_APP_URL ?? "http://invalid");
@@ -35,6 +67,7 @@ for (const scenario of [
   await dialog.getByRole("button", { name: scenario.payNow ? "建立訂單並收款" : "建立訂單送入廚房", exact: true }).click();
   const response = await pending;
   const body = await response.json();
+  if (body.order?.id) createdOrderIds.push(body.order.id);
   mkdirSync(info.outputDir, { recursive: true });
   writeFileSync(info.outputPath("create-result.json"), JSON.stringify({ status: response.status(), code: body.code, error: body.error,
     order: body.order ? { id: body.order.id, orderNo: body.order.orderNo, fulfillmentType: body.order.fulfillmentType, status: body.order.status, paymentStatus: body.order.paymentStatus } : null }, null, 2));
@@ -47,6 +80,7 @@ for (const scenario of [
   await search.getByRole("button", { name: "確認", exact: true }).click();
   await expect(page.getByTestId("staff-order-list-pane").getByRole("button").filter({ hasText: body.order.orderNo })).toBeVisible();
   await page.reload();
+  await dismissStaffStartReminder(page);
   await page.getByTestId("staff-search-open").click();
   await search.getByRole("searchbox").fill(body.order.orderNo);
   await search.getByRole("button", { name: "確認", exact: true }).click();

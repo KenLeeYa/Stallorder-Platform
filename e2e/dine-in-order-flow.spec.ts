@@ -585,7 +585,7 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
   const discountDialog = staffPage.getByRole("dialog", { name: "結帳折扣" });
   await expect(discountDialog).toBeVisible();
   await discountDialog.getByRole("button", { name: "9 折" }).click();
-  await checkout.getByRole("button", { name: "$500" }).click();
+  await checkout.getByTestId("cash-quick-amounts").getByRole("button", { name: "500", exact: true }).click();
   await expect(checkout).toContainText("$135");
   await expect(checkout).toContainText("$365");
   await captureMobileScreenshot(staffPage, testInfo, "05-staff-checkout");

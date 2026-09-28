@@ -413,7 +413,7 @@ test.describe("P1 營運功能", () => {
     await expect(checkout.getByText("此折扣超過店員免核准門檻")).toBeVisible();
     await checkout.getByLabel("折扣原因").fill("P1 E2E 等候補償");
     await checkout.getByLabel("管理授權碼").fill(managerAuthorizationCode);
-    await checkout.getByRole("button", { name: "$500" }).click();
+    await checkout.getByTestId("cash-quick-amounts").getByRole("button", { name: "500", exact: true }).click();
     await expect(checkout).toContainText("$106");
     await checkout
       .getByRole("button", { name: "完成訂單", exact: true })
