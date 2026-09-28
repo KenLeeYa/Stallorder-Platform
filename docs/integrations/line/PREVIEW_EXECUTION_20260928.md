@@ -90,3 +90,13 @@
 - `b22e23b` 的完整 CI／配對 Preview 尚在執行，後續推送可能使其取消，不能計為完成。最新候選及全部實際部署仍以 `artifacts/line-v2-preview-resources.json` 讀回記錄。
 - Vercel team 用量頁本期基礎設施 US$4.94／包含額度US$20，全数由額度抵扣，其中全團隊 Build CPU 顯示US$0.22；這不是本PR單獨用量，頁面可延遲1小時。沒有加購方案；本次Micro的24小時基本運算估計仍約US$0.32，清理時程不延長。
 - child 排程唯讀核對：目前 Vault 及 notification integrations 皆空，既有排程未設定外部發送目的地。OA／Pay live測試尚未開始。
+
+## 八組完整結果與 MINI 初始設定測試（10:36 台北）
+
+- `791ec82` 配對 Preview `36368127813` SUCCESS：72 SQL／1,619 pgTAP、22 read-only checks、合成 OAuth／delivery 通過。部署 `dpl_7EuWg1VF1UipNAQrNQt6BMwdZb5Q` READY，merge tree `9d9b8297a2b995b6bae933e4fe09ab7d108f58a1` 的 parents 為原 staging 與 `791ec82`；沒有 alias 或公開例外。
+- 完整 CI `36368127787` 已跑完8組：199 PASS、2 FAIL、72 SKIP，無 flaky。前7組無失敗；先前手機工具列、模式切換、跨角色訂單，以及手機 POS 收款／列印與失敗重印後結單案例均通過。SKIP主要是另需顯式本機 QA 模式的案例，不計入PASS。獨立 resilience smoke 及 dependency audit 因 E2E 失敗尚未執行。
+- 最後2項同在 `line-miniapp-setup.spec.ts`，在進入頁面前被3024及本機旗標硬編碼的 guard擋下。本機6秒重現相同失敗。改用 Playwright 配置中的明確 HTTP loopback 位址限制；不允許遠端站點，也不跳過案例。未設定頁保留外部請求、登入迴圈、cache/referrer/CSP斷言。
+- 商戶回歸改走現有帳密表單，固定授權組織，驗證登入成功、MINI challenge 503/no-store、瀏覽器 Session及重新整理後受保護頁。快速登入另有既有本機 readiness案例；未為CI開啟快速登入。瀏覽器請求保留production Secure cookie；APIRequestContext在HTTP loopback的401不作Session失效結論。Dashboard自動加入日期／攤位篩選，URL斷言核對origin/path/組織而不禁止正常篩選參數。
+- 聚焦2項最終 PASS（7.9秒）；中途401及過度嚴格query斷言失敗各自保留於artifacts，未刪除證據。沒有改應用功能或Production。新HEAD仍需完整CI與配對Preview。
+- 10:20 Primary讀回：原deployment／commit不變，NORMAL_PRIMARY／PRIMARY／EDGE_PRIMARY，QR／Staff AVAILABLE。3024與55431測試程序退出；3023人工QA及共用DB保留。
+- 已保存MINI三環境原始Endpoint（LINE預設頁）；OA API讀回404 `Webhook endpoint not found`，啟用狀態仍須控制台讀回。沒有寫入OA Vault、Endpoint、Webhook、Push或Pay；期限仍為09-29 06:24起清理、最晚07:24完成。
