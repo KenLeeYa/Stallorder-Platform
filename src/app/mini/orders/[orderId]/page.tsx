@@ -46,7 +46,7 @@ export default async function OrderPage({ params }: { params: Promise<{ orderId:
       <p>{order.stall.location}</p>
     </section>
     <ul className="divide-y rounded-xl border px-4">{order.items.map(item => <li key={item.id} className="flex justify-between gap-4 py-3"><span className="break-words">{item.quantity} × {item.name}</span><span className="shrink-0">NT$ {item.quantity * item.unitPrice}</span></li>)}</ul>
-    {capability?.pickup_required && !pickedUp && active && <LinePlatformPickupCard orderId={order.id} />}
+    {capability?.pickup_required && !pickedUp && active && order.paymentStatus !== "REFUNDED" && <LinePlatformPickupCard orderId={order.id} />}
     {(capability?.has_payment || allowNewPayment) && <LinePlatformPayButton orderId={order.id} amount={order.total} orderVersion={order.updatedAt.toISOString()} allowNewPayment={allowNewPayment} />}
     <Link href={`/mini/store/${encodeURIComponent(order.stall.code)}?view=menu`} className="inline-flex min-h-11 items-center underline">查看本店資訊</Link>
     <p className="text-sm">以本頁最新狀態為準。付款完成不代表餐點已做好；請待餐點完成後，由店員確認交付。</p>

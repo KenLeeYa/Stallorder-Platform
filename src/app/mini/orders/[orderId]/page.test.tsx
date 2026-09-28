@@ -32,6 +32,12 @@ describe("MINI order stop switches preserve inflight recovery",()=>{
     m.runtime.mockReturnValue({payEnabled:true,pickupEnabled:true});m.order.mockResolvedValue({...await m.order(),paymentStatus:"PAID"});
     expect(await render()).toContain("付款狀態可查・新付款停用");
   });
+  it("hides unusable pickup credentials after full refund while retaining payment history",async()=>{
+    m.order.mockResolvedValue({...await m.order(),paymentStatus:"REFUNDED"});
+    const html=await render();
+    expect(html).toContain("已退款");expect(html).toContain("付款狀態可查・新付款停用");
+    expect(html).not.toContain("取餐憑證可查");
+  });
   it("does not offer payment when this store has no configured connection",async()=>{
     m.runtime.mockReturnValue({payEnabled:true});
     m.query.mockResolvedValue([{has_payment:false,pickup_required:true,payment_configured:false}]);
