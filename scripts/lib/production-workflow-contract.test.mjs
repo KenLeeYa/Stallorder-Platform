@@ -767,6 +767,16 @@ describe("Production workflow approval contract", () => {
     expect(fixture).toContain("'OAUTH_IDENTITY_FOUNDATION_ENABLED', 'OAUTH_LINE_ENABLED'");
   });
 
+  it("preserves the public LINE test fixture only for its exact labeled PR and branch", () => {
+    const validate = workflowJob(ephemeralPreview, "validate");
+    const gate = validate.slice(0, validate.indexOf("runs-on:"));
+    expect(gate).toContain("github.event.pull_request.number == 365 &&");
+    expect(gate).toContain("github.event.pull_request.head.ref == 'codex/line-platform-oa-v2-20260927' &&");
+    expect(gate).toContain("contains(github.event.pull_request.labels.*.name, 'line-preview-live')");
+    expect(gate).toMatch(/!\(\s+github.event.pull_request.number/u);
+    expect(workflowJob(ephemeralPreview, "cleanup")).not.toContain("line-preview-live");
+  });
+
   it("deletes every metadata-matched Preview URL and verifies cleanup", () => {
     const cleanupStart = ephemeralPreview.indexOf(
       "name: Remove closed Pull Request Vercel Previews",

@@ -55,4 +55,12 @@ flowchart LR
 
 ## 隔離與停用
 
+### 既有好友的官方查核
+
+會員於 Webhook 啟用前已加好友時，不會補送 follow 事件。會員中心在 UNKNOWN 時自動查核，並提供「重新確認好友狀態」。瀏覽器只將 LIFF access token 送至同源、Session＋CSRF 保護的 POST `/api/mini/member/friendship`，不保存 Token。
+
+伺服器依序向 LINE 驗證 access token 的 Channel、期限、profile scope，取得其 userId 並與已登入會員的環境／Provider／subject hash 比對，最後讀取官方 friendship API。只寫入目前平台 OA integration 的 `VERIFIED_API` 證據；外部查核後再次檢查會員未撤銷，較新簽章封鎖事件不被較舊查核覆蓋。API 故障顯示可重試錯誤，不能直接把 UNKNOWN 當作好友或合成 follow。既有 profile scope 足夠，不新增 LINE scope。
+
+回歸：`friendship.test.ts`、`api/mini/member/friendship/route.test.ts`、`notification.integration.test.ts`；真實來源證據及公開 Preview QA 見 `PREVIEW_EXECUTION_20260928.md`。不改 schema 或通知同意。
+
 新增旗標預設 false。部署環境、Channel、HTTPS Endpoint、DB fingerprint 各自驗證；fingerprint 是獨立設定比對，不能取代 provider readback/發布審查。Preview 不接受 Published audience、正式 host/DB。先停新單/新付款，保留在途查核與受控交付；整體 PLATFORM_ENABLED 關閉會停相關 API，不得有 pickup_required 單卻未安排交付就直接全關。

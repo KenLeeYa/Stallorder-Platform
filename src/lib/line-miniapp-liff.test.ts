@@ -4,6 +4,7 @@ vi.mock('@line/liff/core',()=>({default:{use(){return this;},init}}));
 vi.mock('@line/liff/login',()=>({default:class Login{}}));
 vi.mock('@line/liff/is-logged-in',()=>({default:class IsLoggedIn{}}));
 vi.mock('@line/liff/get-id-token',()=>({default:class GetIDToken{}}));
+vi.mock('@line/liff/get-access-token',()=>({default:class GetAccessToken{}}));
 beforeEach(()=>{vi.resetModules();init.mockReset();});
 describe('LIFF SDK initialization retry boundary',()=>{
   it('shares one in-flight initialization for concurrent entry and login consumers',async()=>{

@@ -9,6 +9,7 @@ import { encryptPlatformValue,hashPlatformSubject,decryptPlatformValue } from ".
 import { platformPayloadHash } from "./messaging";
 import { getLinePlatformRuntime,type LinePlatformRuntime } from "./runtime";
 import { ensurePickupMediaForOrder,managePlatformPickup,renderPickupMedia } from "./pickup-service";
+import { refreshPlatformFriendship } from "./friendship";
 const url = process.env.LINE_PLATFORM_TEST_DATABASE_URL;
 if (url) { const db = new URL(url); if (!['localhost','127.0.0.1'].includes(db.hostname) || db.port!=='55722' || db.pathname!=='/stallorder_line_miniapp_20260926') throw new Error("NOTIFICATION_TEST_DATABASE_REJECTED"); }
 const org = "11111111-1111-4111-8111-111111111111";
@@ -206,5 +207,33 @@ describe.skipIf(!url)("platform OA durable notification lifecycle with real loca
     const [state]=await prisma.$queryRaw<Array<{last_error_code:string;next_attempt_at:Date|null}>>`select last_error_code,next_attempt_at from public.notification_jobs where id=${first.id}::uuid`;
     expect(state).toEqual({last_error_code:'PICKUP_SNAPSHOT_STALE',next_attempt_at:null});
     await expect(retryPlatformNotification(first.id,stallA,'合成：嘗試重送',profile,'stale-qr')).rejects.toThrow('NOTIFICATION_RETRY_NOT_ALLOWED');
+  });
+  it('restores an existing friend through verified API, preserves newer blocks and rejects concurrent revocation',async()=>{
+    const principal={user:{id:profile}} as Parameters<typeof refreshPlatformFriendship>[0];
+    await prisma.$executeRaw`update public.line_platform_friendships set status='UNKNOWN',observed_at=now()-interval '1 hour'
+      where integration_id=${integrationId}::uuid and subject_hash=${subjectHash}`;
+    const provider=vi.fn<typeof fetch>(async request=>{
+      const path=new URL(String(request)).pathname;
+      return Response.json(path.endsWith('/verify')?{client_id:runtime.channelId,expires_in:60,scope:'openid profile'}
+        :path==='/v2/profile'?{userId:subject}:{friendFlag:true});
+    });
+    expect(await refreshPlatformFriendship(principal,runtime,'synthetic-user-access-token',provider)).toBe('FRIEND');
+    const [saved]=await prisma.$queryRaw<Array<{status:string;source:string}>>`select status,source from public.line_platform_friendships where integration_id=${integrationId}::uuid and subject_hash=${subjectHash}`;
+    expect(saved).toEqual({status:'FRIEND',source:'VERIFIED_API'});
+    const concurrentBlock=vi.fn<typeof fetch>(async(request,init)=>{
+      if(new URL(String(request)).pathname==='/friendship/v1/status'){
+        await event('unfollow',Date.now()+100);await processPlatformFriendshipEvents(runtime);
+      }
+      return provider(request,init);
+    });
+    expect(await refreshPlatformFriendship(principal,runtime,'synthetic-user-access-token',concurrentBlock)).toBe('NOT_FRIEND_OR_BLOCKED');
+    const concurrentRevoke=vi.fn<typeof fetch>(async(request,init)=>{
+      if(new URL(String(request)).pathname==='/friendship/v1/status')await prisma.authIdentity.updateMany({where:{profileId:profile},data:{revokedAt:new Date()}});
+      return provider(request,init);
+    });
+    try {await expect(refreshPlatformFriendship(principal,runtime,'synthetic-user-access-token',concurrentRevoke)).rejects.toThrow('LOGIN_REQUIRED');}
+    finally {await prisma.authIdentity.updateMany({where:{profileId:profile},data:{revokedAt:null}});}
+    const [member]=await prisma.$queryRaw<Array<{notification_consent:boolean}>>`select notification_consent from public.line_platform_members where profile_id=${profile}::uuid`;
+    expect(member.notification_consent).toBe(true);
   });
 });

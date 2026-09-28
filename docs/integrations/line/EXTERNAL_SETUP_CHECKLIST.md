@@ -2,6 +2,8 @@
 
 更新：2026-09-28，Asia/Taipei。缺項集中於此。欄位只列名稱，不放Secret/OTP。狀態須分開：程式、自動化、真實OA、Pay Sandbox、實機、認證及正式。當日控制台與官方 API 收據見 [帳號設定驗證](PROVIDER_SETUP_RECEIPT_20260928.md)。
 
+最新增量（12:15 台北）：`d85b881` 完整 CI 及配對 Preview 通過。使用者已確認單一網址公開，Developing Endpoint、平台OA Webhook及child worker已設定。Webhook曾間歇逾時；同程式改用與child DB同區的部署 `dpl_HSsXwrQueF7UB31azRMNYqE9nXiK` 後，官方Webhook驗證5/5成功、公開入口15項QA通過。A店Sandbox版本化連線已準備；B店尚缺第二個Sandbox商家。各節早期未部署／等待2FA是歷史狀態，以 [最新執行紀錄](PREVIEW_EXECUTION_20260928.md) 為準。當前仍缺真實測試者LINE登入／好友及本人同意、Sandbox交易與實機掃碼；Push／Pay關閉，正式未啟用。9/29 06:24起清理、最晚07:24到期，不自動延長。
+
 ## 1. 攤點通平台 OA 及合法營運資料 — OA/API已建立；通知流程待驗
 
 - 負責角色：平台擁有者／OA管理者。
@@ -61,6 +63,8 @@
 - 回復：保存Primary健康artifact與映射，不影響DR，遵守Staging→Production與单一writer。
 
 ## 6. 裝置與外部验收 — BLOCKED
+
+- 2026-09-28 12:50：本人已建立真LINE會員並同意通知；Chrome實際回到會員頁。已重現「Webhook啟用前既有好友」未同步，正補官方API查核，公開修正及真實訂單訊息仍待驗。此登入證據不能代替Sandbox付款或實機掃碼。
 
 - 角色：授權測試顧客A/B及兩店員。
 - 需求：iPhone LINE、Android LINE、Safari/Chrome、獨立店員掃碼裝置；記OS/LINE版本、時間/環境及遮罩證據。

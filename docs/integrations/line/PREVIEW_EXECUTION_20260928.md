@@ -100,3 +100,53 @@
 - 聚焦2項最終 PASS（7.9秒）；中途401及過度嚴格query斷言失敗各自保留於artifacts，未刪除證據。沒有改應用功能或Production。新HEAD仍需完整CI與配對Preview。
 - 10:20 Primary讀回：原deployment／commit不變，NORMAL_PRIMARY／PRIMARY／EDGE_PRIMARY，QR／Staff AVAILABLE。3024與55431測試程序退出；3023人工QA及共用DB保留。
 - 已保存MINI三環境原始Endpoint（LINE預設頁）；OA API讀回404 `Webhook endpoint not found`，啟用狀態仍須控制台讀回。沒有寫入OA Vault、Endpoint、Webhook、Push或Pay；期限仍為09-29 06:24起清理、最晚07:24完成。
+
+## 完整 CI 通過與受保護 runtime 準備（11:10 台北）
+
+- 候選 `d85b881d2537ee1c13ba976ec37b8a78b2b8d517`：CI `36370505127` SUCCESS，3,557 unit PASS／97 SKIP；8組 E2E 合計201 PASS／72 SKIP／0 FAIL／0 FLAKY；獨立 production-mode resilience 8 PASS；dependency audit 0 vulnerabilities。CodeQL `36370505143` SUCCESS。條件式 SKIP 不算通過，真 LINE／付款／實機仍待驗。
+- 配對 Preview `36370505130` SUCCESS，72 SQL／1,619 pgTAP PASS；read-only smoke 實際20 PASS／2 SKIP（報表把跳過的 root/WWW 與 Production QR 也列入22/22，本收據不沿用該通過數）。合成 OAuth／delivery PASS。merge tree `d143e08eb0cb869fd2dbe38a59e0652bb9625220` 的兩個 parents 為原 staging 與本候選。第五個部署 `dpl_3fCZYn8M6KPGx1Hqwpx4UYvdhnn4`。
+- 11:01 Primary：原 deployment／commit／backend不變；login、staff/login、公開越好吃菜單HTTP200，匿名health401。沒有正式建單。
+- 測試fixture初始化曾因 QR `(stall_id, token_version)` 重複而失敗，兩次交易均回復。一次性準備腳本改取該店下一版號後成功；4個seed帳號改用private檔案中的獨立密碼、停用合成Google身份、撤銷舊Session。讀回A／B兩店、6個啟用測試商品、A QR版本2與B版本1。沒有修改应用程式或重跑CI seeding。
+- 固定別名 `stallorder-line-v2-pr365-20260928.vercel.app` 原GET404；獨立alias Plan／SHA256及讀回保存在artifacts。建立後匿名 `/mini` 302至Vercel SSO，仍受登入保護；Primary與共用保護設定不變。清理須先核對alias仍指向manifest記錄的本次部署，再移除，不能動其他aliases。
+- OA控制台原狀讀回：Webhook關閉且disabled；聊天關閉，歡迎訊息及自動回應開啟，均未改。OA Secret／Token已依授權存入child Vault（參照manifest的兩個UUID），以官方bot/info確認平台OA身份；integration已建。MINI Endpoint／Webhook未改，Push／Pay仍關閉。
+- 第六個部署 `dpl_GwSQtmv5VZFhNEZGG7EmxCYbNu98`，URL `https://stallorder-platform-ej9wfpgop-ada76145-8663s-projects.vercel.app`，同一merge tree，server/build只注入本次47個明確設定。metadata為 `stallorderPreviewResource=pr-365`、runtime `line-v2-live-disabled-push-pay`；目前BUILDING，尚未改alias到此runtime，不能稱可實機驗收。
+- 設定後不可直接重跑會重置fixture的paired Preview workflow；若需新候選，先收回公開入口／停測並重新封存測試帳號。24小時期限維持09-29 06:24起清理、最晚07:24完成，不延長。
+
+## 受保護 Preview 實際登入與權限驗證（11:25 台北）
+
+- 第六個部署已 READY；固定別名已由第五個部署切到 `dpl_GwSQtmv5VZFhNEZGG7EmxCYbNu98`，來源仍為已通過 CI 的 merge tree `d143e08eb0cb869fd2dbe38a59e0652bb9625220`。匿名 `/mini` 與 `/login` 仍會導向 Vercel 登入，沒有公開例外。
+- Chrome 由登入表單使用隔離 owner 帳號，已實際進入 A 店的商家儀表板；證據 `artifacts/line-v2-preview-owner-dashboard.png`。這是商家帳密登入，不是真實 LINE 顧客登入。
+- 部署後 HTTP QA 15 項 PASS：A/B 菜單、匿名401、商家平台管理 API 拒絕、平台管理者讀回、MINI challenge/cache/referrer、跨來源拒絕、Webhook 簽章與12個前端 JS 不含受測 server 機密值。測試使用既有 automation bypass header 連入此精確 Preview，不新增 bypass credential；正式站未建單。
+- 首輪 helper 將商家拒絕錯寫為403；實際授權程式刻意回404及「找不到指定資源。」。保留失敗收據 `line-v2-preview-runtime-qa-before.json`，修正 helper 為精確404及錯誤文字後重驗15項通過，未放寬應用權限、未改 app code。最終收據 `artifacts/line-v2-preview-runtime-qa.json`。
+- Preview 菜單約3.7–3.8秒、密碼登入約4.8–6.0秒；瀏覽器冷載入曾出現網路品質提醒。這是本次隔離站觀測，不能當作正式效能數字或流暢性驗收。
+- 11:24 Primary provider/readback：原 deployment／commit、`NORMAL_PRIMARY`／`PRIMARY`／`EDGE_PRIMARY` 不變；login、staff/login、公開菜單200，匿名health401。仍沒有正式核心建單實測，不能稱正式全流程通過。
+- 已填妥唯一公開例外 `stallorder-line-v2-pr365-20260928.vercel.app`，尚未點 Continue；瀏覽器規則要求降低存取保護時取得當下確認，已集中詢問使用者。待確認畫面 `artifacts/line-v2-preview-exception-confirmation.png`。MINI三環境Endpoint、OA Webhook及其開關均未變更，Push／Pay仍關閉；真LINE、Sandbox交易、實機掃碼及正式啟用仍未完成。
+- 此處只有本機收據更新，未推送候選，不觸發會重置 child fixture 的 CI workflow。cleanup automation 保持 ACTIVE，時程不延長。
+
+## 單一網址公開與 LINE 官方驗證（12:15 台北）
+
+- 使用者明確回覆「確認公開單一測試網址，繼續後續測試」，依此只新增 `stallorder-line-v2-pr365-20260928.vercel.app` 公開例外。UI清單及匿名HTTP讀回：`/mini` 200、平台管理API401；部署原始網址仍302到Vercel。專案保護仍 `all_except_custom_domains`，Primary deployment與commit未變。
+- Developing `2011762558` Endpoint 已設為公開別名 `/mini`，Review／Published仍為原LINE預設網址。平台 OA `@028sijlm` Webhook 已設定 `/api/webhooks/line-platform` 並開啟；聊天／歡迎／自動回應設定不變。這些設定已記入manifest，清理須比對基準後還原。
+- LINE官方Webhook驗證首輪 `REQUEST_TIMEOUT`；後續3次中2次成功、1次逾時。相同空事件的直接簽章請求約1.7–2.4秒，沒有假造好友事件或發送訊息。讀回runtime在東京 `hnd1`、child資料庫pooler在新加坡。
+- 同一已通過CI的merge tree及47項runtime設定，以deployment單獨覆寫 `sin1` 做比較；未改app code、專案預設region或正式站。新部署 `dpl_HSsXwrQueF7UB31azRMNYqE9nXiK`／`stallorder-platform-s9rqz89nc-ada76145-8663s-projects.vercel.app`，metadata `pr-365`，已加入清理manifest。暖機後東京1794/1752ms、新加坡589/454ms；冷啟動新加坡1631ms。固定別名已切到新部署，公開例外保留。
+- 切換後官方驗證 **5/5 success=true／HTTP200**，約598–1028ms（含呼叫LINE驗證API往返）；公開alias、不帶Vercel bypass的15項QA全數PASS。菜單334–589ms、登入620–1042ms、直接空Webhook188ms，皆屬當次Preview觀測，不外推正式環境或保證所有冷啟動。收據 `line-v2-region-comparison.json`、`line-v2-webhook-official-verify-sin1.json`、`line-v2-preview-public-qa.json`。
+- child Vault 新增精確worker URL／CRON_SECRET兩筆，沿用原通知排程，另新增job12 `stallorder-preview-365-line-pay-recovery`。匿名兩個worker API皆401、授權皆200／processed0，pg_net最近6次皆200／未逾時。清理前須先停止本次writer／通知及job12，保留本機資料。
+- A店已建立獨立SANDBOX Connection `30161f39-a405-4567-ac06-487f0b6e0f5d`，引用既有版本化Preview憑證；B店沒有第二個Sandbox商家，維持現金。Push／Pay旗標仍false，沒有Request、Confirm、Refund或真LINE訂單訊息。
+- 已請使用者用 `https://miniapp.line.me/2011762558-AZbWkGcb` 完成真LINE登入、本人會員／通知同意與加入平台好友；12:15讀回會員0／事件0。等待此本人操作，不能以控制台管理者ID或合成Session替代真實顧客。實機、Sandbox與正式仍未驗收。到期清理時程不變。
+
+## 真實身分操作待續與正式站讀回（12:23 台北）
+
+- Chrome 已從公開 MINI 登入按鈕到達 LINE 的個人資料授權頁，尚未代按「許可」或接受平台會員條款；頁面保留供本人操作。child 仍為會員0、平台 Webhook事件0、好友紀錄0。此為真實登入流程的中間狀態，不能列為登入通過。
+- 待驗邊界：LINE 授權頁顯示既有好友，但加入時點早於 Webhook 啟用。現行程式僅由已簽章 follow/unfollow 事件建立好友狀態，登入僅交換 ID token，會員頁沒有官方好友狀態重查。因此「先加好友、後啟用 Webhook」可能維持 UNKNOWN 並抑制通知。須於本人登入後重現，必要時補官方身分綁定的好友查核；不可直接將 DB 標成好友或偽造 follow 事件，也不可把此案例算通過。
+- 最新 provider 讀回：公開 alias 指向 `dpl_HSsXwrQueF7UB31azRMNYqE9nXiK`，`sin1`、同一來源 tree、READY；Primary 仍 `dpl_Cx8GfP12KuFHcCgtnZ7SXxzt4AYZ`／`5cc15c6a6189cfd56e127676bc5228e9ffd2ff56`。正式 login、staff/login、公開菜單200，標準化 `/api/health` 匿名401；availability 為 NORMAL_PRIMARY／PRIMARY／EDGE_PRIMARY，QR及Staff AVAILABLE。未做正式建單。
+- 最近5分鐘 child worker HTTP 結果11筆200、沒有 timeout。讀回收據 `artifacts/line-v2-preview-final-live-readback.json`。初版唯讀 helper 誤用不存在的事件表名，核對來源改為既有 `line_webhook_events` 後成功；這是診斷 helper 錯誤，沒有修改 schema 或應用。
+- 本階段未再新增部署或啟動本機服務；7個 Preview 部署及唯一 alias／公開例外、LINE Developing Endpoint／Webhook、worker Vault／job12均已納入到期清理 manifest。Push與Pay仍false；等本人授權後才繼續真通知、Sandbox與掃碼驗收。
+
+## 既有好友同步修正（12:50 台北）
+
+- 使用者回覆已登入及同意通知。真 Chrome 從公開 MINI → LINE 登入 → callback → 平台會員頁，確認會員已建立且通知同意已勾選。child 讀回1位會員、0個follow事件，會員頁仍顯示「尚未確認好友狀態」；截圖 `line-v2-real-member-friendship-before.png`。此為真實重現，不偽造 follow 或直接改好友狀態。
+- 新增 Session/CSRF 保護的同源 POST；伺服器向官方驗證 LIFF token Channel／期限／profile scope，再比對官方 profile 與目前會員身分，最後讀取 friendship API。UI自動查核 UNKNOWN，並保留重試。只儲存 VERIFIED_API 狀態；Token不保存、不輸出；授權撤銷及较新簽章封鎖優先。
+- 聚焦17項（11 provider／4 API／2 LIFF）通過，完整10組本機 LINE／付款資料庫測試89項PASS，包括查核期間unfollow及撤銷身份。typecheck、targeted lint、367個TSX控制項audit通過。新版本完整CI、公開介面與真通知仍待驗，未稱完成。
+- 公開child已有真實測試會員，因此後續候選不得執行原paired workflow的重設seed。新增僅適用PR365＋精確分支＋`line-preview-live`標籤的暫時防重填條件；其他PR、CI、CodeQL及closed cleanup保持原行為。先核對遠端沒有active workflow，再加標籤，才推送；fresh CI必須通過。該次paired workflow若被跳過，明記SKIP，不列PASS；schema不變、既有72 SQL／1,619 pgTAP證據僅適用未變schema；新程式以本機DB與保留資料的實际Preview驗收補足。此取代11:10需要收回入口重建fixture的建議，避免打斷已同意的實機會員。
+- 精確標籤列入清理收據，測試期間不可移除後再推送；到期先停止writer及排程、清理雲端資源，最後處理標籤。本機3023與共用55722沿用，未新增Docker；Push／Pay仍關閉，24小時期限不變。
+- 補充：全套本機單元測試3,573 PASS／98 SKIP；明確啟用的本機DB 89 PASS另列。12:51 Primary deployment／backend不變、登入／公開菜單200，匿名health401。遠端無active workflow；PR365精確保護標籤已建立並讀回，已加入cleanup manifest。

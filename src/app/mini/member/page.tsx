@@ -6,6 +6,7 @@ import { getPlatformMember, hasPlatformIdentity } from "@/server/line-platform/m
 import { LineMiniAppLogin } from "@/components/line-miniapp-login";
 import { LinePlatformMemberForm } from "@/components/line-platform-member-form";
 import { LogoutButton } from "@/components/logout-button";
+import { LinePlatformFriendship } from "@/components/line-platform-friendship";
 export const dynamic = "force-dynamic";
 export default async function MemberPage() {
   const runtime = getLinePlatformRuntime();
@@ -22,7 +23,7 @@ export default async function MemberPage() {
       <p>LINE 身分已登入{member ? "，平台會員已建立。" : "，請閱讀條款後加入平台會員。"}</p>
       <LinePlatformMemberForm termsVersion={runtime.termsVersion} enrolled={Boolean(member && member.terms_version === runtime.termsVersion)} initialConsent={member?.notification_consent} />
       <section className="space-y-3 rounded-xl border p-4"><h2 className="font-semibold">攤點通官方帳號</h2>
-        <p>{status === "FRIEND" ? "已確認好友狀態" : status === "NOT_FRIEND_OR_BLOCKED" ? "尚未加入好友或已封鎖" : "尚未確認好友狀態"}</p>
+        {member ? <LinePlatformFriendship liffId={runtime.liffId} initialStatus={status} /> : <p>加入平台會員後可確認好友狀態。</p>}
         <p>若沒有收到 LINE 通知，仍可從「我的訂單」查看進度及出示取餐碼。</p>
         {runtime.addFriendUrl && <a href={runtime.addFriendUrl} className="inline-flex min-h-11 items-center rounded-lg border px-4 font-semibold">加入攤點通好友</a>}
       </section><div className="flex items-center gap-3"><LogoutButton destination="/mini" /><span>登出平台會員；更換 LINE 帳號後須重新登入。</span></div></>}
