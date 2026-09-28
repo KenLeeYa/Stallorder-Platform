@@ -61,3 +61,12 @@
 - Vercel browser 仍等待使用者六位數2FA；沒有修改 deployment protection。真 LINE runtime、OA Vault、MINI endpoint、Webhook、Pay 與實機驗收未啟用。
 - 完整帳務及手機導覽：本機3024＋獨立clone、明確使用Circuit B，7項流程斷言PASS（2.3分鐘），包含方案申請／人工付款／停權與恢復／加購／手機版。之前兩輪本機完整驗證分別因dev解析错误及未啟動Edge服務失敗，保留`artifacts/line-v2-preview-e2e-regression*.log`，未計為PASS。
 - 最後一輪dev仍留下JSON解析／串流錯誤與React警告，不能稱無錯誤驗收；目前僅確認流程斷言通過，待正式建置模式CI確認。此次未啟動Docker容器；Playwright管理的3024／55431測試服務結束即停止，原3023及共用55722保留供人工QA。
+
+## Vercel 登入與第三組 E2E 修正（09:07 台北）
+
+- 使用者完成 Vercel 2FA；Chrome 已實際到達本團隊的 StallOrder Deployment Protection 頁，Require Log In 仍開啟，沒有新增公開例外。
+- `1c3e0d2` 的配對 Preview `36362844819` SUCCESS；部署 `dpl_6owziSCTAxbo88reEVFHDAXQfACs`，merge tree `af8b67533c2d2ae0d68b793a50db0e86d843cd61`，parents 為原 staging 與 `1c3e0d2`，仍無 alias。
+- CI `36362844718` FAIL：E2E 前兩組35＋34項通過，第三組22項通過、1項失敗、3項未執行；後續組與 production-mode smoke 未執行。失敗定位到 `page.getByRole("status")` 同時符合網路狀態及商品設定成功訊息，不是儲存 API 失敗。
+- 商品設定及使用同一成功對話框的預約／抽獎設定，改由 dialog 內的 status 檢查，保留完整文字斷言。多攤位測試登入明確指定受測組織，測試組織清理先刪除其測試攤位，再刪組織，保留預設工作站保護規則。
+- 本機多攤位回歸目前不算通過：補齊 CI 的模擬 OAuth fixture 後，登入建攤案例通過，批次分派收到400；clone 內已有235個保留的攤位，與乾淨 CI fixture 不同。原 OAuth overrides 已還原，未清除既有範例資料；完整驗證交由新 HEAD 的乾淨 CI 重跑。
+- 08:52 Primary provider/readback 仍為原 deployment／commit、NORMAL_PRIMARY／PRIMARY／EDGE_PRIMARY。真 LINE runtime、Vault、Endpoint、Webhook、Pay 及公開例外尚未啟用；本機已準備 deployment guard script，但尚未執行遠端部署。
