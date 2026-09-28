@@ -2,9 +2,53 @@
 
 日期：2026-09-27 初版、2026-09-28 增補（Asia/Taipei）。基準需求為 requirements/prompt-v2-20260927.md。下方初版本機結果使用隔離 clone、合成顧客／店員／兩店，provider 回應為 fixture；不可與本節之後新增的真實外部證據混用。
 
-## 2026-09-28 15:26 最新驗證狀態
+## 2026-09-28 18:38 最新 Preview 驗證結果
 
-本節為當前狀態；後續各時間段及 A–G 初版矩陣保留歷史失敗／缺口，不代表目前部署版本。
+- 使用者核准 US$3 管理預算後，精確來源85f441ac71768946f7c06bd0287279e09251e039已部署至dpl_Z7e199RXcchhT4VscTdd4KR2G2Ev（sin1、Preview、metadata pr-365）。原單一公開入口仍為 https://stallorder-line-v2-pr365-20260928.vercel.app/mini；候選6項及公開站15項本版回歸全數PASS，alias及source讀回相符。raw deployment仍保留登入保護，沒有發布Production或DR。
+- 原真人LINE會員重新整理A007退款訂單，實際看到「已退款」及NT$30，取餐QR區塊／按鈕均消失；點擊更新訂單狀態後仍正確。該新頁的console error／warning讀回為空。前後畫面保存在artifacts/line-v2-refund-qr-before.png與line-v2-refund-qr-after.png。瀏覽器工具曾有一次evaluate逾時及一次全頁截圖逾時，改以新DOM和viewport截圖完成；不是未發生工具錯誤。
+- B002仍為原READY／PAID訂單。18:31從正常B店商家API以expectedVersion1執行REISSUE成功200；舊版重送409 PICKUP_VERSION_CONFLICT。唯讀核對v1撤銷、v2未核銷且至今天23:00台北有效，只有1筆REISSUE audit、0筆PICKED_UP。真人顧客原頁顯示512×512 QR與新期限；沒有重建訂單、假造交付或再次推播。實機相機掃碼仍待使用者操作。
+- 已有真Sandbox單店付款、全額退款及冪等證據；七筆LINE訊息仍僅確認PROVIDER_ACCEPTED。手機實際收訊、相機掃码、部分退款、第二店Sandbox、真Provider UNKNOWN故障端到端、MINI認證及正式啟用仍未完成。
+- 85f441a完整CI／CodeQL結果如下17:46節；本次後續提交僅更新驗收文件，不改應用程式，不另建部署。原SKIP／FAIL及環境差異照實保留。
+- 18:26精確StallOrder project費用UI仍為Infrastructure US$1.68（含Build CPU US$0.38），加全24h Micro估算US$0.32256為較廣範圍US$2.00256，包含Primary且最多延遲一小時，不是PR365精確費用。US$3已核准並同步原line-preview-24；9/29 06:24起／07:24最晚清理不變，沒有新增訂閱或延長。
+- 證據：line-v2-refund-verified-{deploy-receipt,alias-receipt,candidate-qa,public-qa}.json、line-v2-store-b2-reissue.json、line-v2-preview-budget-readback-1826.json。下列段落保留歷史結果，以本節為目前部署狀態。
+
+## 2026-09-28 17:46 完整 CI 與當時部署邊界
+
+- 精確來源85f441ac71768946f7c06bd0287279e09251e039／tree4d222112041616c12304803f33bba413acfb2649：CI36402335281及CodeQL36402335299均SUCCESS。完整CI為3,583 unit PASS／100 SKIP、72 SQL檔／1,619 pgTAP PASS、八個瀏覽器shard合计202 PASS／73 SKIP、production-mode resilience 8 PASS；lint、367個TSX控制項稽核、型別、DB lint、Production guardrails、build與Worker bundle通過，dependency audit 0 vulnerabilities。
+- 原QR註記驗價→店員訂單案例及新增延遲JavaScript搜尋初始化案例均首跑PASS；沒有以重試或跳過替代修正。paired Preview36402335318明列SKIPPED，避免重seed真人fixture。100項unit SKIP中91項LINE DB／登入已另於專用clone通過，其餘9項原Circuit replay仍未驗；不把SKIP計入成功數。
+- 公開alias仍指向a1b5f12／dpl_FcDxJVsKt9DJPknM3YFNvxB5Jx3w。85f441a包含退款parser、退款後隱藏QR、店休刷新及搜尋初始化修正，但**尚未部署**；5030461／a16cc8d失敗紀錄保留。因原US$2管理預算無法精確分攤，最後一次新部署暫停等待預算選擇，不沿用CI成功宣稱線上修正完成。
+- A007真Sandbox授權、Confirm、全額退款與冪等／官方明細PASS；七筆OA為PROVIDER_ACCEPTED，手機收訊與鏡頭掃碼仍未驗。B002票據17:30已到期且未核銷，不能再作有效掃碼fixture。部分退款、第二個Sandbox商家、真Provider UNKNOWN故障端到端及正式啟用缺口保留。
+- 17:42 Primary部署／commit／backend不變，登入及公開入口可訪問；未做正式下單或收退款。3024無listener；原3023／55722依人工QA需求保留。9/29 06:24起清理、最晚07:24，不自動延長。
+- 證據：artifacts/line-v2-ci-85-success.log、line-v2-refund-verified-plan-readback.json、line-v2-preview-readback-1742.json、line-v2-preview-budget-readback-1724.json。下列段落是按時間保留的歷史結果，以本節判定當前狀態。
+
+## 2026-09-28 17:15 QR 搜尋初始化回歸
+
+- `a16cc8d` CI `36398393585` FAILURE：店休修正案例已通過，另一項 QR 註記流程首跑在搜尋 `no-product-xyz` 後仍有兩個分類連結而失敗，重試通過仍被 failOnFlakyTests 阻擋。CodeQL `36398393641` SUCCESS；沒有發布這個候選。
+- trace 顯示填寫時搜尋框仍是 server-rendered ID，填寫結束後被 client 元件替換，輸入變空。延遲載入 JavaScript 的獨立回歸重現「事件尚未連接時搜尋框卻可輸入」。沿用既有 `useClientReady`，只在搜尋事件就緒後啟用欄位；原註記驗價／店員訂單斷言未變。
+- 新來源 `85f441a`：修正前聚焦瀏覽器1FAIL，修正後production-mode連續3PASS（10.9s）；商品選項7項unit、ESLint及build通過。CI `36402335281`、CodeQL `36402335299` 進行中；paired Preview `36402335318` SKIP保留真人fixture。公開站仍a1b5f12。
+- 3024臨時程序測試後停止，3023／55722人工QA保留。此本機回歸限搜尋初始化與過濾；Circuit A代理缺少publishable key的背景環境限制仍保留，完整QR接單由CI另驗。
+
+## 2026-09-28 16:19 CI 阻擋與店休公告競態
+
+- 退款修正 `5030461` 的 CI `36394230510` FAILURE；CodeQL `36394230479` SUCCESS。unit 3,583 PASS／100 SKIP、SQL 1,619 PASS、lint／typecheck／build 等通過；瀏覽器 200 PASS／73 SKIP，另有店休公告測試首跑失敗、重試通過，因 failOnFlakyTests 阻擋，未部署此版。後續 resilience／dependency audit 未執行，不能沿用舊版結果。
+- 根因：店休查詢進行中再次收到 visibilitychange 時直接忽略；舊回應仍含已刪除的公告，必須等 30 秒輪詢才消失。新增受控延遲 E2E 保留舊回應、撤回公告、再次要求刷新，修正前穩定重現失敗。修正保留一次待更新要求，舊查詢結束後立即補查，沒有改動訂單狀態。
+- 首次修正後本機重跑被 Next 開發快取 `Manifest file is empty`／JSON 截斷導致頁面 500 阻擋，不能算功能測試結果；已停止精確的 3024 程序、保存舊快取並乾淨重啟。原 3023 未受影響。
+- `a16cc8d` 補上初次公告查詢已完成的測試前提；保留所有原行為斷言。16:42本機 production build 成功、受控延遲回歸連續2PASS（10.3s），changed ESLint與3項公告規則unit通過。正式CI `36398393585`／CodeQL `36398393641` 正執行，paired Preview `36398393616` SKIP保留fixture。
+- 本機環境限制完整保留：重啟dev仍發生layout chunk載入錯誤；保存的cache一度被TypeScript掃描，已移出source tree後重新build成功；production測試首跑漏PLAYWRIGHT_PRODUCTION_SERVER而被代理IP防護503拒絕，加入既有測試header後通過。3024無完整Circuit A環境，背景代理缺publishable key出錯、Circuit B狀態查詢200；此2PASS只證明公告流程，完整環境以CI另驗。
+
+## 2026-09-28 16:02 Sandbox 付款及全額退款增量
+
+- 本人確認完成官方 Simulation 後，15:44:36 原 A007 attempt `9802edb5-145a-4e21-a857-354df9933282` 為 CONFIRMED／PAID。官方簽章 Details 精確核對原商家 orderId、TWD30及19位交易ID，顧客原訂單頁顯示「已付款」「付款已確認」，不是只收到 callback。
+- 正常商家登入／CSRF／退款 API：超額31元拒絕409且無退款資料；全額30元成功200／REFUNDED，原 key 重送200。資料庫只有一筆 SUCCEEDED退款、一筆 provider REFUND operation；官方 Details 的唯一精確退款為 PAYMENT_REFUND／-30。原訂單 READY／REFUNDED、completedAt為null、無PICKED_UP；票據v2已因ORDER_UNAVAILABLE撤銷。沒有真實金流。
+- 官方真明細揭露：舊 retrieveRefunds 只接受 PARTIAL_REFUND，會拒絕全額退款 PAYMENT_REFUND。read-only官方查詢修正前只在transactionType失敗，修正後能核對原19位退款ID、30元及日期；未捏造UNKNOWN或重送實際退款。新schema只擴充這兩個退款類型，仍拒絕PAYMENT／非負金額。
+- 舊顧客頁退款後仍顯示取餐QR按鈕，實際點擊被後端拒絕；修正已退款訂單不渲染QR卡片，保留退款及付款歷史。兩個新回歸先2FAIL，再四組46PASS，變更ESLint通過。候選5030461後續完整CI遭上述店休競態阻擋，不能將本機成功描述為新版已部署。
+- B002已透過原店員製作及收款API變READY／PAID，票據v1未使用、有效至17:30；平台OA新增B002 READY為SENT／PROVIDER_ACCEPTED，累計七筆。鏡頭掃碼與手機送達待本人完成；沒有先手動核銷這張實機fixture。
+- 保留缺口：部分退款能力快照false、第二個Sandbox商家、UNKNOWN故障注入的真Provider端到端、iOS／Android實機、MINI認證／正式啟用。原逾時attempt仍CANCELLED／0121；不清除失敗證據。
+- 證據：`line-v2-sandbox-refund-{plan,apply}.json`、`line-v2-official-refund-recovery-{before,after}.json`、`line-v2-refund-regression-{before,after}.log`、`line-v2-sandbox-payment-confirmed.png`、`line-v2-store-b2-collect.json`、`line-v2-live-flow-readback.json`。首次QA helper把error欄位誤讀code的失敗另存first-harness-failure，不當作產品缺陷或掩蓋。
+
+## 2026-09-28 15:26 驗證狀態
+
+本節保留當時部署及驗證狀態；付款／退款與後续版本以上方最新增量為準。各時間段及A–G初版矩陣保留歷史失敗／缺口，不代表目前部署版本。
 
 - 原始碼 `a1b5f1225ff9ef4f3ada0f0a591fe63da45fa8c9`，tree `52008ff2a256f2c71398b66c8077065748884a80`。CI `36388329121`／CodeQL `36388329111` SUCCESS；paired Preview `36388329122` 為保留真人 fixtures 而 SKIPPED，未當成 PASS。
 - 同版 CI：3,578 unit PASS／100 SKIP、72 SQL 檔／1,619 pgTAP PASS、八 shard 瀏覽器 201 PASS／73 SKIP、production-mode resilience 8 PASS；lint、UI control audit、typecheck、Production guardrails、build、Worker bundle 通過，dependency audit 0 vulnerabilities。100 unit SKIP 內的 LINE DB 91 項已另以隔離 clone 跑通，其餘原 Circuit replay 9 項仍未驗；不將跳過案例加進成功數。

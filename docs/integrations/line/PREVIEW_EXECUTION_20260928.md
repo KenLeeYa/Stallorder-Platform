@@ -195,3 +195,64 @@
 - 15:23 Primary 讀回仍 `dpl_Cx8GfP12KuFHcCgtnZ7SXxzt4AYZ`／`5cc15c6a6189cfd56e127676bc5228e9ffd2ff56`、NORMAL_PRIMARY／PRIMARY／EDGE_PRIMARY epoch3；login、staff/login、公開店200，匿名health401，QR/Staff AVAILABLE。這不是正式訂單端到端驗證。
 - 資源窗口不延長：9/29 06:24 台北起清理，最晚07:24完成，US$2管理預算。臨時3024已停止，原3023／共用55722因人工QA保留。後續文件提交不改已驗證應用 tree；執行版本仍以此 deployment/source 為準。
 - 15:28 顧客按「更新訂單狀態」實際顯示 B002「店家已確認」。Chrome 日誌仍有 `Receiving end does not exist` 與明確來自 `chrome-extension://…/scripts/inspector.js` 的逾時，未造成此次建單／返回／更新中斷；不把該瀏覽器工作階段描述為零錯誤日誌，也未擅自修改使用者擴充套件。
+
+## 2026-09-28 16:02 本人 Sandbox 完成後的查核與退款
+
+- 本人回覆「Sandbox 已完成」。15:44:36以原 A007 attempt 讀回 CONFIRMED／PAID，官方 Details精確核對TWD30、原商家orderId及19位交易ID；Chrome原私人訂單顯示已付款。未另建重複付款。
+- 15:49依已授權Sandbox測試，從正常商家API執行：31元超額拒絕409；30元全退成功；相同冪等key重送維持同一退款。DB僅一筆SUCCEEDED退款及一次REFUND operation；官方Details全退明細為PAYMENT_REFUND／-30，原A007為READY／REFUNDED、零交付，取餐票據已撤銷。
+- 真Details讀取重現舊parser不接受PAYMENT_REFUND；修正5030461後同一官方只讀查詢成功。另修已退款私人訂單不顯示失效QR按鈕。兩項回歸修正前2FAIL、修正後四組46PASS。CI36394230510進行中，CodeQL36394230479成功；paired Preview36394230534維持SKIP保留真人fixture。部署計畫綁5030461與舊dpl_FcDxJVsKt9DJPknM3YFNvxB5Jx3w，尚未切alias。
+- B002原製作／現金收款流程為READY／PAID，QR至17:30有效、未核銷；新增READY訊息由LINE接受，累計7筆。私密B店實機指南置既有ACL目錄並交使用者操作，鏡頭掃碼／手機收訊仍待驗。
+- 16:00讀回Primary仍dpl_Cx8GfP12KuFHcCgtnZ7SXxzt4AYZ、5cc15c6；login／staff/login／公開店200、匿名health401，NORMAL_PRIMARY／PRIMARY。沒有Production測試單或正式收退款，亦未改DR。3023／55722保留，未啟動臨時本機服務。
+- 清理仍為9/29 06:24起、07:24完成，不延長；manifest需持續列出後續精確Preview部署。
+
+### 16:12 費用與剩餘測試條件
+
+- Vercel團隊本期使用US$7.30／20額度，包含其他專案及Agent費用。篩选精確StallOrder project及本次資源建立07:24～16:12，UI顯示Infrastructure US$1.54、Build CPU US$0.38；此為整個project含Primary，並非PR365專屬新增費用，資料最多延遲一小時。部分期間的Build欄與之前整期讀值不一致，保留觀察而不視作精確帳單。
+- 本次Micro24h估算US$0.32256，管理預算US$2不變；繼續限制新增build與runtime測試，下一次資源監看讀回費用。如確定本次增量將超支即提前清理，不以現有Pro額度解釋為免費。證據line-v2-preview-budget-readback-1612.json及line-v2-budget-1612.png。
+- 九項原Circuit A/B replay／terminal測試固定要求loopback56322與獨立Edge Functions；目前只有catalog-ops55722容器在用。未改防護或把LINE55722資料庫冒充原replay環境，仍列NOT_RUN；本次未啟動額外服務。
+
+### 16:44 退款候選的 CI 阻擋與修正
+
+- 5030461的CI36394230510因店休公告撤回測試首跑失敗而FAILURE；重試成功不當作整體PASS，也未部署此版。CodeQL通過。trace及受控延遲回歸證實進行中查詢會吞掉後續刷新要求，保留一次待刷新要求後修正。
+- 新來源a16cc8df39845b42b0d76edcd688840f2cb71a66／tree3dfca934c86bb637b8899e85400ab8627dbdcdc0，CI36398393585執行中、CodeQL36398393641成功；paired Preview36398393616仍SKIP以保留真人fixtures。新的immutable plan為artifacts/line-v2-refund-closure-deployment-plan.json，未沿用5030461的失效gate。
+- 本機production build及受控延遲公告流程2PASS；前段dev chunk、cache掃描、缺少代理IPheader等失敗及Circuit A背景環境限制均保存於TEST_REPORT，不描述為零錯誤完整環境。16:44停止本次3024PID53892並讀回無listener；3023PID49312及catalog-ops容器59f8e85233fa／55722因原人工QA保留。
+- 16:34 Primary讀回仍dpl_Cx8GfP12KuFHcCgtnZ7SXxzt4AYZ／5cc15c6、NORMAL_PRIMARY／PRIMARY，公開login／staff login／店家200；Preview仍a1b5f12／dpl_FcDxJVsKt9DJPknM3YFNvxB5Jx3w。最近11次worker HTTP200且無timeout。B002尚未核銷，七筆訊息API接受；手機結果待本人提供。
+- Chrome控制連線中斷，已請使用者重新連接；登入session及網頁不視為失效，尚未更動或擷取其cookie。後續新部署瀏覽器驗證仍必須完成。
+- 16:48以新的Chrome分頁恢復控制，原真人會員session仍有效，無需使用者再登入。用量頁07:24～16:48／一個project顯示Infrastructure US$1.61（已含Build CPU US$0.38）；加全24h Micro估算為US$1.93256的較廣範圍參考，仍非本PR精確歸戶，UI最多延遲一小時。僅計畫再建置本次通過gate的修正版，不延長或加購。證據line-v2-preview-budget-readback-1648.json。
+- 16:52精確child cron唯讀盤點：通知7SENT、付款1REFUNDED／1CANCELLED。job11每5秒檢查但僅有QUEUED／RETRY／lease到期／未處理Webhook才呼叫worker；保留通知及付款排程供既有驗收，不擅自降低恢復機制或寫其他project。證據line-v2-idle-job-audit.json。
+
+### 17:18 搜尋初始化修正與新候選
+
+- a16cc8d的CI36398393585因QR註記案例首跑搜尋遺失輸入而FAIL；店休撤回案例已通過。CodeQL成功，failed與retry通過分開記錄，未部署。trace確認輸入發生於SSR欄位被client替換前；延遲JS回歸修正前1FAIL，沿用useClientReady後連續3PASS，7unit／ESLint／build通過。
+- 新來源85f441ac71768946f7c06bd0287279e09251e039、tree4d222112041616c12304803f33bba413acfb2649；CI36402335281／CodeQL36402335299、paired Preview36402335318（保留fixture而SKIP）。新的immutable plan line-v2-refund-verified-deployment-plan.json已核對原Primary、公開alias、唯一consenting member、單店Sandbox及schema未變；尚未deploy。
+- 本次3024測試服務已停止，原3023與55722人工QA保留；本機Circuit A背景環境限制與首輪失敗已留TEST_REPORT，不當作完整QR接單PASS。B002截至17:14仍READY／PAID且未核銷，QR有效至17:30，手機結果待本人提供。
+
+- 17:30 B002票據v1到期，唯讀查核仍READY／PAID且consumed_at為null，沒有PICKED_UP；未收到本人實機回覆，不自動改履約時間／延長票據。操作指南已標示過期，下一輪實機需有效票據。
+
+### 17:45 預算邊界與部署暫停
+
+- Vercel 17:23精確StallOrder project／資源建立後期間顯示Infrastructure US$1.68（含Build CPU US$0.38）；加全24h Micro估算US$0.32256為較廣範圍參考US$2.00256，包含Primary，不能稱PR365已超支。Usage UI只可按Product／Project分組，官方billing NDJSON只有ProjectId／ProjectName，沒有deployment分攤；API最新日區間截至15:00且含本次開始前16小時，亦不能代替當前PR費用。Runtime log數量不是計費單位，未按數量比例猜測費用。
+- 原核准管理預算US$2不變。已把85f441a候選及immutable plan準備好，提出維持US$2／暫停新增部署，或提高US$3／完成最後一次候選部署的選擇。收到回覆前不deploy、不切alias；CI、文件及唯讀查核繼續。未建立新訂閱，清理仍9/29 06:24起、07:24最晚完成。費用證據：artifacts/line-v2-preview-budget-readback-1724.json。
+- 17:42正式站讀回仍dpl_Cx8GfP12KuFHcCgtnZ7SXxzt4AYZ／5cc15c6、NORMAL_PRIMARY／PRIMARY，login／staff login／公開店200、匿名health401；Preview仍a1b5f12／dpl_FcDxJVsKt9DJPknM3YFNvxB5Jx3w。只有1名同意通知會員，最近11次worker HTTP200／無timeout。此項是可用性與版本查核，不是正式訂單完整驗收。
+- 本機3024無listener；原人工QA3023 PID49312及shared55722容器59f8e85233fa仍保留，未啟動其他Docker／服務。line-preview-24自動化讀回ACTIVE，原期限與US$2未變。
+
+### 17:46 完整 CI 通過，等待部署預算選擇
+
+- 85f441ac71768946f7c06bd0287279e09251e039的CI36402335281／CodeQL36402335299均SUCCESS；3,583 unit PASS／100 SKIP、1,619 pgTAP PASS、202 browser PASS／73 SKIP、resilience8 PASS，其餘lint／types／DB lint／guardrails／build／Worker bundle均通過、dependency audit 0 vulnerabilities。QR註記接單及延遲JS搜尋回歸均首跑PASS。完整日誌artifacts/line-v2-ci-85-success.log。
+- paired Preview36402335318保持SKIPPED以保留真人fixture；沒有重seed、deploy或切alias。候選immutable plan仍綁85f441a，PR365保持OPEN／DRAFT、head85f441a。待預算選擇前保持公開a1b5f12；本次五份驗收文件先保留於工作樹，PR描述同步實際驗證結果，不因文件提交改變待用計畫的source綁定。
+
+### 18:21 使用者核准 US$3，開始最後一次修正版部署
+
+- 使用者「確認核准繼續後續」承接前一則US$3最後一次Preview部署方案。manifest及原line-preview-24排程已改US$3並讀回ACTIVE；24小時與9/29 06:24起／07:24最晚清理不變，沒有新增排程或訂閱。
+- 18:20發布前Primary部署／commit／PRIMARY後端與login、staff/login、公開店入口維持原狀；只本對話為目前活躍StallOrder writer。HEAD85f441a與immutable plan、完整CI／CodeQL成功、原alias、唯一通知同意會員、店別SANDBOX／DIRECT及schema未變均核對通過。
+- 新Preview dpl_Z7e199RXcchhT4VscTdd4KR2G2Ev，來源85f441a，region sin1，metadata pr-365；已加入manifest第十筆清理對象。僅本次一個新部署，暫未切alias；候選QA及公開頁驗證須完成後才宣告更新可用。
+
+### 18:38 修正版公開 QA 與實機票據補發
+
+- 18:25前完成候選6項PASS後，原公開alias切至dpl_Z7e199RXcchhT4VscTdd4KR2G2Ev／85f441a，再跑公開15項PASS：兩店菜單、真owner／admin登入與權限、MINI challenge及跨來源拒絕、Webhook簽章，以及12個client資產零私密值命中。raw deployment保護仍在。manifest合計十個精確部署，最後一次核准新部署已用完。
+- Chrome原真人會員A007退款頁重新載入，顯示已退款／NT$30，沒有取餐QR卡片或按鈕；「更新訂單狀態」後仍相同。保留前後viewport截圖，該頁console error／warning為空；瀏覽器控制evaluate／全頁截圖逾時已另記，不掩蓋工具錯誤。
+- B店原點餐入口回到未結束的B002，是既有訂單恢復規則；不另外造單或改其履約狀態。18:31以正常商家REISSUE API補發B002票據v2至9/28 23:00台北，舊v1撤銷。200成功、stale version409、1筆REISSUE audit／0 PICKED_UP、READY／PAID／completedAt null均讀回。顧客原頁QR512×512載入且期限正確，私密實機指南已更新；手機鏡頭與實際收訊仍等本人驗證。
+- 七筆OA仍為PROVIDER_ACCEPTED，補發票據沒有再推播。A007 Sandbox既有全額付款／退款及官方明細證據維持，不再重送付款或退款。部分退款、第二店Sandbox、真Provider UNKNOWN故障端到端及MINI正式認證缺口未標為PASS。
+- 18:26用量讀回StallOrder project Infrastructure US$1.68（含Build CPU US$0.38），加全24h Micro估算US$0.32256；包含Primary且有延遲，非PR365精確增量。US$3管理預算已核准，24h與9/29 06:24起／07:24最晚清理不變。
+- 部署前、建立後及切alias後Primary均維持dpl_Cx8GfP12KuFHcCgtnZ7SXxzt4AYZ／5cc15c6／NORMAL_PRIMARY／PRIMARY／EDGE_PRIMARY epoch3；login、staff/login、公開店200，匿名health401。不是正式訂單端到端QA。未修改Production、DR、parent或原3023。
+- 後續僅同步五份驗收文件與草稿PR，執行版本仍是85f441a；應用tree等價須於文件提交後核對。不另建Preview、不merge。3024維持停止，3023／55722依原人工QA需求保留。
