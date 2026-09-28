@@ -2,7 +2,7 @@
 
 更新：2026-09-28，Asia/Taipei。需求為 Downloads/prompt.md 全文 1,069 行，SHA-256 `13C37906B6BFDD829E7D53DF237603357A3EE158B30D6D725DF64B37519EB93E`。此頁取代 v1 進度；舊商家 OA 指南不能用作 v2 sender 設定。
 
-候選：`codex/line-platform-oa-v2-20260927`，v1 checkpoint `5dcbca4309dd6aa5095c0b6418856991f2cbd480`。獨立工作樹及 clone。本次沒有部署、正式資料寫入、真實 LINE Push、Pay 收退款或選單發布。**本機候選不等於外部或正式驗收完成。**
+候選：`codex/line-platform-oa-v2-20260927`，v1 checkpoint `5dcbca4309dd6aa5095c0b6418856991f2cbd480`。獨立工作樹及 clone。以下各 Phase 表格保留初版驗收邊界；當日追加的雲端測試以 [執行紀錄](PREVIEW_EXECUTION_20260928.md) 為準。13:48 台北：已部署授權的 PR365 隔離 Preview，真 LINE 登入、會員及通知同意、官方好友查核通過；第一筆本人訂單建立後發現舊追蹤頁導頁缺陷，本機已修復、待新候選驗證。該單於接單期限後成為 EXPIRED，沒有通知或付款。Push／Sandbox 旗標僅於隔離站啟用；尚未真實發訊、完成 Pay 交易、實機掃碼或正式發布。**隔離部署不等於外部或正式驗收完成。**
 
 ## Phase 0：真實架構與差距
 

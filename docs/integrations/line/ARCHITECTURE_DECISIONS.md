@@ -8,6 +8,8 @@
 
 一訂單一 immutable owner，固定 env/Provider/subject、建立時 pickup_required。原 session/device 驗證後同交易綁定；已有 owner 冪等重試不因門市停止新單改收件人。舊 merchant OA 綁定不能自動搬移。顧客看本人跨店資料，商家只看本店。
 
+2026-09-28 回店家點餐或復原購物車仍沿用原 `/order/[trackingToken]` 完成入口。伺服器以 Token 雜湊及目前會員完整 profile/environment/provider/subject 比對不可變 owner，精確命中才導向 `/mini/orders/[orderId]`；不依賴舊訪客裝置 cookie。非 owner、未登入或 optional LINE 設定失敗維持既有追蹤驗證，不能借此取得他人私有訂單。Next redirect 在 optional-error catch 外執行。回歸包含原入口實際導頁、PNG 顯示與其他會員 404。
+
 每環境一個 PLATFORM_OA registry，由伺服器設定與 PLATFORM_ADMIN 同步。商家不能指定 sender/to/任意 Flex 或讀平台 Vault。Worker 先比對 bot/info destination，再使用固定 OA token；Pay/MINI token 不混用。
 
 ## 唯一狀態來源

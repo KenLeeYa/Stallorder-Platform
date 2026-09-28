@@ -150,3 +150,13 @@
 - 公開child已有真實測試會員，因此後續候選不得執行原paired workflow的重設seed。新增僅適用PR365＋精確分支＋`line-preview-live`標籤的暫時防重填條件；其他PR、CI、CodeQL及closed cleanup保持原行為。先核對遠端沒有active workflow，再加標籤，才推送；fresh CI必須通過。該次paired workflow若被跳過，明記SKIP，不列PASS；schema不變、既有72 SQL／1,619 pgTAP證據僅適用未變schema；新程式以本機DB與保留資料的實际Preview驗收補足。此取代11:10需要收回入口重建fixture的建議，避免打斷已同意的實機會員。
 - 精確標籤列入清理收據，測試期間不可移除後再推送；到期先停止writer及排程、清理雲端資源，最後處理標籤。本機3023與共用55722沿用，未新增Docker；Push／Pay仍關閉，24小時期限不變。
 - 補充：全套本機單元測試3,573 PASS／98 SKIP；明確啟用的本機DB 89 PASS另列。12:51 Primary deployment／backend不變、登入／公開菜單200，匿名health401。遠端無active workflow；PR365精確保護標籤已建立並讀回，已加入cleanup manifest。
+
+## 真會員、測試啟用與送單返回修正（13:48 台北）
+
+- `9ac47b9` CI `36379511767` SUCCESS：3,573 unit PASS／98 SKIP、201 E2E PASS／72 SKIP、8 production-resilience PASS；CodeQL SUCCESS。paired workflow 因保留真實會員而 SKIP，不算通過。未變 schema 沿用已有72 SQL／1,619 pgTAP證據。
+- 單一公開 alias 更新為 `dpl_EQfj2fzij4qQg4WMWcKHgVT6UFPN`／sin1／來源9ac47b9，metadata pr-365。只有本次 Preview runtime 啟用Push與Pay SANDBOX，raw deployment仍受SSO保護。受保護候選6項及公開15項QA PASS，12個前端assets未含server私密值；第8個deployment已列入manifest，不延長到期。
+- 真 Chrome 會員頁重新查核後顯示「已確認好友狀態」，child为1會員／1同意／FRIEND、來源VERIFIED_API。截圖 `line-v2-real-member-friendship-after.png`。没有偽造follow或改DB好友值。
+- 真會員在A店送出合成餐點$30，建立 `260928-006`。原送單網址進入舊追蹤頁顯示資料不正確，但本人「我的訂單」可以讀取正確明細。修正為原URL經完整owner比對後導向私有MINI明細，不放寬訪客或他人訂單權限。單元先紅後綠4項PASS；production-mode瀏覽器3項PASS（會員同意、好友故障重試、原URL導頁/私有PNG/他人404），build PASS。
+- 該筆單等待修正超過接單期限，13:46由正常店員API接單回409，讀回EXPIRED／UNPAID；保留作逾期案例，不以DB回改。此時無通知job及Pay交易；後續需另建有效訂單接單驗真訊息。
+- 本機其他合成瀏覽器範圍：production模式8 PASS／1 FAIL／1 NOT_RUN，失敗為測試環境缺Public Edge key而不能走原訪客購物車；dev補測遇Next chunk/manifest錯誤，沒有改標全通過。私有PNG初次404是本機缺AUDIT_IP_HASH_SECRET，補測試設定後成功，公開Preview已具有該secret。暫存舊.next置於artifacts造成tsconfig掃入失效validator，已保留移至使用者Temp並乾淨build通過，不改應用tsconfig。
+- 13:45 Primary仍 `dpl_Cx8GfP12KuFHcCgtnZ7SXxzt4AYZ`／5cc15c6，NORMAL_PRIMARY／PRIMARY／EDGE_PRIMARY；login、staff/login、公開菜單200，匿名health401。沒有正式建單或其他遠端writer。本機3023/shared55722保留；3024僅本輪合成QA，完成即停。

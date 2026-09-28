@@ -17,6 +17,7 @@ const stalls = [randomUUID(), randomUUID()];
 const names = ["合成測試一店 🌿 蔬食餐盒與手作飲品的很長店名", "合成測試二店 🍜 夜間食堂"];
 const profiles: Array<{ id: string; identityId: string; hash: string; ciphertext: string }> = [];
 const orders: string[] = [];
+const trackingTokens = new Map<string, string>();
 let foreignOrder = "";
 let staffId = "";
 let managerId = "";
@@ -32,7 +33,11 @@ function observe(page: Page) {
   const errors: string[] = [];
   const redact = (s: string) => s.replace(/qpm1_[A-Za-z0-9_-]+|qidaigo:pickup:v1:[A-Za-z0-9_-]+/g, "[REDACTED]");
   page.on("pageerror", (error) => errors.push(redact(error.message)));
-  page.on("console", (entry) => { if (entry.type() === "error") errors.push(redact(entry.text())); });
+  page.on("console", (entry) => { if (entry.type() === "error") {
+    const source = entry.location().url;
+    const location = source ? new URL(source) : null;
+    errors.push(redact(`${entry.text()}${location ? ` ${location.origin}${location.pathname}` : ""}`));
+  } });
   page.on("response", (response) => {
     if (response.status() >= 400 && new URL(response.url()).origin === origin) {
       const path = new URL(response.url()).pathname.replace(/\/media\/.*/, "/media/[REDACTED]");
@@ -43,10 +48,12 @@ function observe(page: Page) {
 }
 async function createOrder(stallId: string, profileIndex = 0, cancelled = false) {
   const id = randomUUID();
+  const trackingToken = `sto_${randomBytes(32).toString("base64url")}`;
+  trackingTokens.set(id, trackingToken);
   await db.order.create({ data: { id, organizationId: org, stallId, orderNo: `UI-${id.slice(0, 12)}`,
     source: "QR_MENU", origin: "TEST", isTest: true, customerName: "合成顧客", fulfillmentType: "TAKEOUT",
     status: cancelled ? "CANCELLED" : "READY", paymentStatus: "PAID", subtotal: 180, total: 180,
-    deviceHash: digest(randomUUID()), trackingTokenHash: digest(randomUUID()), idempotencyKey: randomUUID(),
+    deviceHash: digest(randomUUID()), trackingTokenHash: digest(trackingToken), idempotencyKey: randomUUID(),
     pickupCodeDisplay: "627", pickupCodeHash: digest("627"), pickupCodeLength: 3,
     confirmationExpiresAt: new Date(Date.now() + 60 * 60_000),
     items: { create: { organizationId: org, stallId, name: "合成超長餐點名稱 🌿 手作鮮蔬便當（不辣）", quantity: 1,
@@ -89,6 +96,14 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { await db.$disconnect(); });
 
+test.beforeEach(async ({ page }) => {
+  // Synthetic sessions have no real LIFF channel. Model an invalid provider
+  // context without contacting LINE or granting a fake friendship.
+  await page.route("https://api.line.me/liff/v2/apps/1234568-fixture/contextToken", route => route.fulfill({
+    status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: "{}",
+  }));
+});
+
 test("member explicitly accepts terms and can persist transaction-notification preferences", async ({ page }) => {
   const errors = observe(page);
   const memberRequests: string[] = [];
@@ -128,6 +143,20 @@ test("member explicitly accepts terms and can persist transaction-notification p
   orders.push(await createOrder(stalls[0], 0, true)); foreignOrder = await createOrder(stalls[0], 1);
 });
 
+test("unavailable LIFF friendship stays unknown, preserves consent and offers a working retry", async ({ page }) => {
+  const errors = observe(page);
+  await establishLocalTestSession(page, db, profiles[0].id);
+  await page.goto("/mini/member");
+  await expect(page.getByRole("status")).toHaveText("尚未確認好友狀態");
+  await expect(page.getByRole("alert").filter({ hasText: "好友狀態尚未同步" })).toBeVisible();
+  await page.getByRole("button", { name: "重新確認好友狀態" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "暫時無法確認好友" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "重新確認好友狀態" })).toBeEnabled();
+  await expect(page.getByRole("checkbox", { name: /接收攤點通官方帳號/ })).toBeChecked();
+  expect(await db.$queryRaw`select status from public.line_platform_friendships where subject_hash=${profiles[0].hash}`).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
 test("owner sees both stores, filters history, opens a private QR, and another member receives 404", async ({ page, browser }) => {
   const errors = observe(page);
   await establishLocalTestSession(page, db, profiles[0].id);
@@ -144,13 +173,20 @@ test("owner sees both stores, filters history, opens a private QR, and another m
   await page.locator('select[name="view"]').selectOption("history");
   await page.getByRole("button", { name: "查詢", exact: true }).click();
   await expect(page.locator(`a[href="/mini/orders/${orders[2]}"]`)).toBeVisible();
-  await page.goto(`/mini/orders/${orders[0]}`);
+  // Original checkout/recovery URLs must return an authenticated owner to the
+  // private MINI details even without the old guest-device tracking cookie.
+  await page.goto(`/order/${trackingTokens.get(orders[0])}`);
+  await expect(page).toHaveURL(`${origin}/mini/orders/${orders[0]}`);
   await expect(page.getByText("餐點已完成", { exact: true })).toBeVisible();
   const privateJson = page.waitForResponse((r) => new URL(r.url()).pathname === `/api/line-platform/pickup/customer/${orders[0]}`);
   const privateImage = page.waitForResponse((r) => new URL(r.url()).pathname.startsWith("/api/line-platform/media/"));
   await page.getByRole("button", { name: "顯示／更新取餐 QR" }).click();
   expect((await privateJson).headers()["cache-control"]).toContain("no-store");
-  expect((await privateImage).headers()["cache-control"]).toContain("no-store");
+  const imageResponse = await privateImage;
+  expect(imageResponse.headers()["cache-control"]).toContain("no-store");
+  expect(imageResponse.status()).toBe(200);
+  expect(imageResponse.headers()["content-type"]).toContain("image/png");
+  expect((await imageResponse.body()).subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
   const qr = page.getByRole("img", { name: /由店員核對交付的取餐 QR/ });
   await expect(qr).toBeVisible();
   await expect.poll(() => qr.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBe(512);

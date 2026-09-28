@@ -2,7 +2,7 @@
 
 更新：2026-09-28，Asia/Taipei。缺項集中於此。欄位只列名稱，不放Secret/OTP。狀態須分開：程式、自動化、真實OA、Pay Sandbox、實機、認證及正式。當日控制台與官方 API 收據見 [帳號設定驗證](PROVIDER_SETUP_RECEIPT_20260928.md)。
 
-最新增量（12:15 台北）：`d85b881` 完整 CI 及配對 Preview 通過。使用者已確認單一網址公開，Developing Endpoint、平台OA Webhook及child worker已設定。Webhook曾間歇逾時；同程式改用與child DB同區的部署 `dpl_HSsXwrQueF7UB31azRMNYqE9nXiK` 後，官方Webhook驗證5/5成功、公開入口15項QA通過。A店Sandbox版本化連線已準備；B店尚缺第二個Sandbox商家。各節早期未部署／等待2FA是歷史狀態，以 [最新執行紀錄](PREVIEW_EXECUTION_20260928.md) 為準。當前仍缺真實測試者LINE登入／好友及本人同意、Sandbox交易與實機掃碼；Push／Pay關閉，正式未啟用。9/29 06:24起清理、最晚07:24到期，不自動延長。
+最新增量（13:48 台北）：`9ac47b9` 完整 CI 通過，保留真實會員的 paired workflow 明列 SKIP。公開單一 alias 指向 `dpl_EQfj2fzij4qQg4WMWcKHgVT6UFPN`／sin1，Push及Pay旗標只在此隔離站開啟。真LINE登入、本人會員／通知同意、官方好友查核及第一筆本人訂單建立已驗證；送單後舊追蹤頁失敗已有本機修正，待新候選。該單於接單期限後EXPIRED，尚未發訊或付款。仍缺真通知接受／裝置送達、Sandbox完整交易及實機掃碼；B店缺第二個Sandbox商家，正式未啟用。各節早期未部署／等待2FA為歷史狀態，以 [最新執行紀錄](PREVIEW_EXECUTION_20260928.md) 為準。9/29 06:24起清理、最晚07:24到期，不自動延長。
 
 ## 1. 攤點通平台 OA 及合法營運資料 — OA/API已建立；通知流程待驗
 

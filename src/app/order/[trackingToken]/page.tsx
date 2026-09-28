@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getPagePrincipal } from "@/lib/auth";
 import { getPlatformMember } from "@/server/line-platform/member-service";
@@ -24,8 +25,18 @@ export default async function PublicOrderPage({ params, searchParams }: PageProp
     ? rawQrToken
     : null;
   let platformClaim: { member: boolean } | undefined;
+  let ownedPlatformOrderId: string | undefined;
   try {
   const runtime = getLinePlatformRuntime();
+  const member = runtime ? await getPlatformMember(await getPagePrincipal()) : null;
+  if (member && /^sto_[A-Za-z0-9_-]{43}$/.test(trackingToken)) {
+    const hash = createHash("sha256").update(trackingToken).digest("hex");
+    const [owned] = await prisma.$queryRaw<Array<{ id: string }>>`select o.id::text from public.orders o
+      join public.line_platform_order_owners own on own.order_id=o.id
+      where o.tracking_token_hash=${hash} and own.profile_id=${member.profile_id}::uuid
+        and own.environment=${member.environment} and own.provider_id=${member.provider_id} and own.subject_hash=${member.subject_hash}`;
+    ownedPlatformOrderId = owned?.id;
+  }
   const cookieStore = runtime ? await cookies() : null;
   const proof = cookieStore?.get(guestClaimCookieName(trackingToken))?.value ?? "";
   if (runtime && readGuestClaimProof(trackingToken,cookieStore?.get("stallorder_device")?.value ?? "",proof,runtime)) {
@@ -36,12 +47,12 @@ export default async function PublicOrderPage({ params, searchParams }: PageProp
         and not exists(select 1 from public.customer_contact_links l join public.notification_integrations i on i.id=l.integration_id
           where l.customer_reference_id=o.id and i.sender_scope<>'PLATFORM_OA')`;
     if (eligible.length) {
-      const member=await getPlatformMember(await getPagePrincipal());
       platformClaim={member:Boolean(member && member.terms_version===runtime.termsVersion)};
     }
   }
   } catch {
     // Optional membership presentation must not interrupt the original tracker.
   }
+  if (ownedPlatformOrderId) redirect(`/mini/orders/${ownedPlatformOrderId}`);
   return <PublicOrderTracker trackingToken={trackingToken} qrToken={qrToken} platformClaim={platformClaim} />;
 }
