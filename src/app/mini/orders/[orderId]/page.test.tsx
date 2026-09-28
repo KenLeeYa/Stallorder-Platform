@@ -18,7 +18,7 @@ describe("MINI order stop switches preserve inflight recovery",()=>{
   beforeEach(()=>{
     vi.clearAllMocks();m.runtime.mockReturnValue({payEnabled:false,pickupEnabled:false});m.principal.mockResolvedValue({user:{id}});
     m.owner.mockResolvedValue({profile_id:id});m.query.mockResolvedValue([{has_payment:true,pickup_required:true}]);m.event.mockResolvedValue(null);
-    m.order.mockResolvedValue({id,orderNo:"TEST-1",status:"READY",paymentStatus:"UNPAID",total:100,updatedAt:new Date(),items:[],stall:{name:"合成測試店",code:"public-code",slug:"operator-slug",location:"測試"}});
+    m.order.mockResolvedValue({id,organizationId:"org-a",stallId:"stall-a",orderNo:"TEST-1",status:"READY",paymentStatus:"UNPAID",total:100,updatedAt:new Date(),items:[],stall:{name:"合成測試店",code:"public-code",slug:"operator-slug",location:"測試"}});
   });
   it("keeps existing payment recovery and required pickup when new-capability flags are off",async()=>{
     const html=await render();expect(html).toContain("付款狀態可查・新付款停用");expect(html).toContain("取餐憑證可查");
@@ -30,6 +30,22 @@ describe("MINI order stop switches preserve inflight recovery",()=>{
   });
   it("never offers a new payment for an already paid order",async()=>{
     m.runtime.mockReturnValue({payEnabled:true,pickupEnabled:true});m.order.mockResolvedValue({...await m.order(),paymentStatus:"PAID"});
+    expect(await render()).toContain("付款狀態可查・新付款停用");
+  });
+  it("does not offer payment when this store has no configured connection",async()=>{
+    m.runtime.mockReturnValue({payEnabled:true});
+    m.query.mockResolvedValue([{has_payment:false,pickup_required:true,payment_configured:false}]);
+    expect(await render()).not.toContain("付款狀態可查");
+  });
+  it("offers payment for this store's configured connection",async()=>{
+    m.runtime.mockReturnValue({payEnabled:true});
+    m.query.mockResolvedValue([{has_payment:false,pickup_required:true,payment_configured:true}]);
+    expect(await render()).toContain("付款狀態可查・新付款開放");
+    expect(m.query.mock.calls[0].slice(1)).toEqual(["org-a","stall-a",id]);
+  });
+  it("keeps existing recovery after a store connection is disabled",async()=>{
+    m.runtime.mockReturnValue({payEnabled:true});
+    m.query.mockResolvedValue([{has_payment:true,pickup_required:true,payment_configured:false}]);
     expect(await render()).toContain("付款狀態可查・新付款停用");
   });
   it("rejects another member before reading order or payment capabilities",async()=>{

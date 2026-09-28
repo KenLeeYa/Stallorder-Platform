@@ -168,3 +168,11 @@
 - 店員開始製作先被PRODUCTION_NOT_DUE拒絕，按原API確認顧客要求的取餐時間後開始成功，逐品項PREPARING→READY成功。此步造成原收據QR以SCHEDULE_CHANGED作廢，READY job被PICKUP_CREDENTIAL_UNAVAILABLE抑制。已在本機實際DB worker重現同樣失敗，修正僅對「未過期＋時間變更撤銷＋新時段已確認」同步發唯一新版，舊碼仍拒絕。原手動撤銷／未確認／過期／核銷邊界保留，33項pickup/notification資料庫測試PASS。既有抑制job待新Preview部署後用正式補發API恢復，不能直接改job或假稱已發。
 - 導頁候選570c2b9的CI `36383540543` 因guest-claim測試把所有SQL均stub為同一筆eligible order而誤命中owner查詢：3,571 PASS／4 FAIL／98 SKIP。修正fixture按SQL責任回應、保留proof斷言後，兩檔9 PASS、完整本機3,575 PASS／98 SKIP。此CI失敗不視為完成，須新HEAD全套CI；9ac公開站仍在原先通過版本。
 - 3024測試服務已停止並讀回無listener；3023 PID49312及shared55722保留。未新增Docker或延長雲端資源期限。
+
+## 跨店真訊息、人工取餐與付款入口（14:15 台北）
+
+- 同一真會員從 B 店 MINI 建立 `260928-001`／$30。正常店員 API 先確認取餐時間、再接單，逐項製作到 READY；訂單卡片及餐點完成兩個 job 均 SENT／PROVIDER_ACCEPTED／attempt1。這是平台 OA 發送，裝置送達仍待本人回覆。
+- B 店未付款取餐實際回409／PICKUP_PAYMENT_REQUIRED；以原現金班次及收款 API 記錄合成$30後，訂單維持 READY／PAID／completedAt空。正常人工取餐 API 完成，重放同一 idempotency key 回 alreadyRedeemed=true，只有1筆交付事件。未使用鏡頭掃碼，不能列為實機掃碼通過。
+- B 店沒有 LINE Pay connection，公開訂單頁仍顯示付款按鈕。新增回歸先重現2項失敗，修正頁面按精確 organization＋stall 的既有 SANDBOX connection／渠道／版本設定顯示新付款；停用 connection 後既有交易查核仍保留。7項單元PASS、typecheck／lint PASS；用應用原SQL在隔離child唯讀核對A=true/B=false。此修正仍待新候選CI及公開頁驗收。
+- a6c77e4 本機 LINE DB 回歸最初83 PASS／8 SKIP，原因是 MINI login 另需顯式 LINE_MINIAPP_DB_QA。補開該旗標重跑8項PASS，合計91項通過；不將最初SKIP直接改標PASS。公開站仍為9ac47b9。
+- A店 Sandbox 尚未經本人付款授權，原交易已由官方查核0121轉CANCELLED；不是付款成功。後續本人準備好時由原付款入口重新建立測試交易，不能沿用已逾時QR、偽造Confirm或直接修改payment狀態。

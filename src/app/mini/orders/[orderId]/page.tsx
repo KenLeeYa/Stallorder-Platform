@@ -19,16 +19,22 @@ export default async function OrderPage({ params }: { params: Promise<{ orderId:
   try { await requirePlatformOrderOwner(principal, orderId); } catch { notFound(); }
   const order = await prisma.order.findUnique({ where: { id: orderId }, include: { stall: { select: { name: true, code: true, location: true } }, items: true } });
   if (!order) notFound();
-  const [capability] = await prisma.$queryRaw<Array<{ pickup_required: boolean; has_payment: boolean }>>`
+  const [capability] = await prisma.$queryRaw<Array<{ pickup_required: boolean; has_payment: boolean; payment_configured: boolean }>>`
     select (own.pickup_required or exists(select 1 from public.line_platform_pickup_credentials c
       where c.order_id=own.order_id and c.environment=own.environment)) as pickup_required,
     exists(select 1 from public.line_platform_payment_attempts a
-      where a.order_id=own.order_id and a.environment=own.environment) as has_payment
+      where a.order_id=own.order_id and a.environment=own.environment) as has_payment,
+    exists(select 1 from public.payment_provider_connections c
+      where c.organization_id=${order.organizationId}::uuid and c.stall_id=${order.stallId}::uuid
+        and c.provider='LINE_PAY' and c.environment='SANDBOX' and c.status='ACTIVE'
+        and 'PUBLIC_MENU'=any(c.enabled_channels) and nullif(c.secret_reference,'') is not null
+        and nullif(c.merchant_reference,'') is not null and c.capabilities->>'apiVersion'='v4'
+        and jsonb_typeof(c.capabilities->'credentialVersion')='string') as payment_configured
     from public.line_platform_order_owners own where own.order_id=${order.id}::uuid`;
   const pickedUp = await prisma.orderEvent.findFirst({ where: { orderId, eventType: "LINE_PLATFORM_PICKED_UP" }, select: { createdAt: true } });
   const expected = order.committedFulfillmentAt ?? order.requestedFulfillmentAt ?? order.scheduledPickupAt ?? order.quotedReadyAt;
   const active = !["COMPLETED","CANCELLED","EXPIRED"].includes(order.status);
-  const allowNewPayment = runtime.payEnabled && active && order.paymentStatus === "UNPAID";
+  const allowNewPayment = runtime.payEnabled && capability?.payment_configured === true && active && order.paymentStatus === "UNPAID";
   return <main className="mx-auto max-w-lg space-y-4 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
     <h1 className="break-words text-2xl font-bold">{order.stall.name}</h1><p>訂單 {order.orderNo}</p>
     <LinePlatformOrderRefresh active={!["COMPLETED","CANCELLED","EXPIRED"].includes(order.status)} />
