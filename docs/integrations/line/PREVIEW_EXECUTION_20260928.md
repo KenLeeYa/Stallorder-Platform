@@ -160,3 +160,11 @@
 - 該筆單等待修正超過接單期限，13:46由正常店員API接單回409，讀回EXPIRED／UNPAID；保留作逾期案例，不以DB回改。此時無通知job及Pay交易；後續需另建有效訂單接單驗真訊息。
 - 本機其他合成瀏覽器範圍：production模式8 PASS／1 FAIL／1 NOT_RUN，失敗為測試環境缺Public Edge key而不能走原訪客購物車；dev補測遇Next chunk/manifest錯誤，沒有改標全通過。私有PNG初次404是本機缺AUDIT_IP_HASH_SECRET，補測試設定後成功，公開Preview已具有該secret。暫存舊.next置於artifacts造成tsconfig掃入失效validator，已保留移至使用者Temp並乾淨build通過，不改應用tsconfig。
 - 13:45 Primary仍 `dpl_Cx8GfP12KuFHcCgtnZ7SXxzt4AYZ`／5cc15c6，NORMAL_PRIMARY／PRIMARY／EDGE_PRIMARY；login、staff/login、公開菜單200，匿名health401。沒有正式建單或其他遠端writer。本機3023/shared55722保留；3024僅本輪合成QA，完成即停。
+
+## 第一張真卡片與 Sandbox Request（14:00 台北）
+
+- Chrome本人重新建立 `260928-007`（合成$30、不製作），正常店員API立即接單200。`ORDER_RECEIPT_AVAILABLE` job由原worker首次發送，結果SENT／PROVIDER_ACCEPTED／attempt1，未重送。已請本人回覆手機LINE送達與內容；API接受不當作裝置收到。
+- 同筆單從本人MINI詳情點「前往 LINE Pay Sandbox」，原店DIRECT／SANDBOX connection成功Request，交易 `480ef5da-03e2-4d33-9ef6-ebd20bb455bb` 為REQUIRES_CUSTOMER_ACTION，TWD30。Chrome官方 `sandbox-web-pay.line.me` Simulation掃碼頁留給本人，未代填LINE帳密、未真實扣款，也尚未Confirm／退款。
+- 店員開始製作先被PRODUCTION_NOT_DUE拒絕，按原API確認顧客要求的取餐時間後開始成功，逐品項PREPARING→READY成功。此步造成原收據QR以SCHEDULE_CHANGED作廢，READY job被PICKUP_CREDENTIAL_UNAVAILABLE抑制。已在本機實際DB worker重現同樣失敗，修正僅對「未過期＋時間變更撤銷＋新時段已確認」同步發唯一新版，舊碼仍拒絕。原手動撤銷／未確認／過期／核銷邊界保留，33項pickup/notification資料庫測試PASS。既有抑制job待新Preview部署後用正式補發API恢復，不能直接改job或假稱已發。
+- 導頁候選570c2b9的CI `36383540543` 因guest-claim測試把所有SQL均stub為同一筆eligible order而誤命中owner查詢：3,571 PASS／4 FAIL／98 SKIP。修正fixture按SQL責任回應、保留proof斷言後，兩檔9 PASS、完整本機3,575 PASS／98 SKIP。此CI失敗不視為完成，須新HEAD全套CI；9ac公開站仍在原先通過版本。
+- 3024測試服務已停止並讀回無listener；3023 PID49312及shared55722保留。未新增Docker或延長雲端資源期限。

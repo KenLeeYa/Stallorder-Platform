@@ -96,6 +96,18 @@ describe.skipIf(!url)("platform OA durable notification lifecycle with real loca
     const [legacy]=await prisma.$queryRaw<Array<{count:number}>>`select count(*)::integer as count from public.notification_jobs where order_id in (${a}::uuid,${b}::uuid) and delivery_mode='LEGACY'`;
     expect(legacy.count).toBe(0);
   });
+  it('refreshes the receipt QR after staff confirms pickup time and sends READY without a customer visit',async()=>{
+    const id=await fixture();await tick();
+    const original=await ensurePickupMediaForOrder(id,'local');expect(original).not.toBeNull();
+    await prisma.order.update({where:{id},data:{fulfillmentTimeState:'CONFIRMED',fulfillmentTimeVersion:1,
+      committedFulfillmentAt:new Date(Date.now()+60*60_000)}});
+    await prisma.order.update({where:{id},data:{status:'READY'}});
+    await tick();
+    expect((await jobs(id)).find(job=>job.template_code==='ORDER_READY')?.outcome).toBe('PROVIDER_ACCEPTED');
+    const current=await ensurePickupMediaForOrder(id,'local');
+    expect(current?.version).toBe(2);expect(current?.imageUrl).not.toBe(original?.imageUrl);
+    await expect(renderPickupMedia(new URL(original!.imageUrl).pathname.split('/').at(-1)!)).rejects.toThrow();
+  });
   it('recovers accepted-but-timeout with identical body/key and suppresses stale READY',async()=>{
     const id=await fixture(); let original='';
     const timeout=vi.fn<typeof fetch>(async (_url,init)=>{original=String(init?.body);throw new TypeError('synthetic timeout');});

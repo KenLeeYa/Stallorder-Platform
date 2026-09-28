@@ -191,7 +191,6 @@ describe.skipIf(!testUrl)("platform pickup real database lifecycle", () => {
     await prisma.order.update({ where: { id: orderId }, data: { fulfillmentTimeVersion: 1, fulfillmentTimeState: "CONFIRMED",
       committedFulfillmentAt: new Date(Date.now() + 60 * 60_000) } });
     await expect(previewPlatformPickup(stallId, { kind: "QR", token: old.token })).rejects.toMatchObject({ code: "PICKUP_REVOKED" });
-    expect(await ensurePickupMediaForOrder(orderId, "local")).toBeNull();
     await managePlatformPickup(stallId, actorId, { orderId, operation: "REISSUE", expectedVersion: 1, reason: "Confirmed delayed pickup" });
     const next = await credential(orderId); expect(next.version).toBe(2); expect(next.token).not.toBe(old.token);
     await expect(renderPickupMedia(old.mediaToken)).rejects.toThrow();
@@ -199,6 +198,26 @@ describe.skipIf(!testUrl)("platform pickup real database lifecycle", () => {
     const result = await redeemPlatformPickup(stallId, actorId, { credential: manual, expectedVersion: 2,
       idempotencyKey: randomUUID(), confirmedHandoff: true });
     expect(result.status).toBe("COMPLETED"); expect(await ledger(orderId)).toEqual({ handoffs: 1, billable: 1 });
+  });
+  it("does not automatically replace manual revocation, expired QR or unconfirmed schedule changes", async () => {
+    for (const scenario of ["manual", "expired", "unconfirmed"] as const) {
+      const id = await fixture(); await credential(id);
+      try {
+      if (scenario === "manual") {
+        await managePlatformPickup(stallId, actorId, { orderId: id, operation: "REVOKE", expectedVersion: 1, reason: "Verify manual stop" });
+      } else {
+        if (scenario === "expired") { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date(Date.now()+48*60*60_000)); }
+        await prisma.order.update({ where: { id }, data: { fulfillmentTimeVersion: 1,
+          fulfillmentTimeState: scenario === "unconfirmed" ? "CUSTOMER_ACTION_REQUIRED" : "CONFIRMED",
+          committedFulfillmentAt: new Date(Date.now()+60*60_000),
+          ...(scenario === "unconfirmed" ? { pendingFulfillmentAt: new Date(Date.now()+60*60_000),
+            fulfillmentTimeResponseExpiresAt: new Date(Date.now()+30*60_000) } : {}) } });
+      }
+      expect(await ensurePickupMediaForOrder(id, "local")).toBeNull();
+      expect((await getPlatformPickupManagement(stallId, id)).version).toBe(1);
+      expect(await ledger(id)).toEqual({ handoffs: 0, billable: 0 });
+      } finally { vi.useRealTimers(); }
+    }
   });
   it("requires explicit staff extension for an expired initial deadline", async () => {
     const orderId = await fixture({ expired: true });

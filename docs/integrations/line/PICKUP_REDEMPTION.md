@@ -30,7 +30,7 @@
 
 基準依 `committedFulfillmentAt`、`scheduledPickupAt`、`requestedFulfillmentAt`、`quotedReadyAt`、`createdAt` 順序選取；加 `PICKUP_TOKEN_GRACE_MINUTES`，預設 120，允許 15–1440 分鐘。媒體期限比 credential 多 24 小時以覆蓋讀卡及重試；expired credential 即使仍可顯圖也不能核銷。
 
-取消、到期、全額退款或履約時間版本／預定時間變更會撤銷未用憑證。讀圖片、預覽、顧客刷新或通知 retry 都不延長／復活過期或已撤銷憑證。店員在憑證管理先查目前版本，再填原因重發；可明確設定有界延遲到期時間。舊 QR 與 media 永久失效，新版由本人訂單頁取得。已交付訂單不能重發。
+取消、到期、全額退款或履約時間版本／預定時間變更會撤銷未用憑證。2026-09-28補齊正常確認時間的依賴：只有最新憑證因 `SCHEDULE_CHANGED` 作廢、原期限尚未到、新時段已 `CONFIRMED` 且仍可履約時，通知worker或本人取碼才在原訂單鎖內產生唯一新版、按新時段計算期限，留下 `LINE_PLATFORM_PICKUP_SCHEDULE_REFRESHED` 事件。舊 QR 與 media 永久失效；未確認新時段、人工撤銷、已過期或已核銷均不自動重發，不因掃描或讀圖片延長期限。合法延遲取餐仍由店員查版本、填原因受控重發，可明確設定有界新期限。已交付訂單不能重發。
 
 ## 原子交付與既有核心
 

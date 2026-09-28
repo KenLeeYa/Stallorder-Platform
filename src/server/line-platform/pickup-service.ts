@@ -15,12 +15,12 @@ type Credential = {
   id: string; order_id: string; organization_id: string; stall_id: string; environment: string;
   version: number; fulfillment_time_version: number; token_hash: string; media_hash: string;
   token_ciphertext: string; media_ciphertext: string; expires_at: Date; media_expires_at: Date;
-  revoked_at: Date | null; consumed_at: Date | null; idempotency_key: string | null;
+  revoked_at: Date | null; revoke_reason: string | null; consumed_at: Date | null; idempotency_key: string | null;
   request_hash: string | null;
 };
 type Order = {
   id: string; organizationId: string; stallId: string; orderNo: string; pickupCode: string | null;
-  status: string; paymentStatus: string; fulfillmentType: string; fulfillmentTimeVersion: number;
+  status: string; paymentStatus: string; fulfillmentType: string; fulfillmentTimeVersion: number; fulfillmentTimeState: string;
   committedFulfillmentAt: Date | null; scheduledPickupAt: Date | null;
   requestedFulfillmentAt: Date | null; quotedReadyAt: Date | null; createdAt: Date; total: number;
 };
@@ -48,7 +48,7 @@ async function loadOrder(tx: Transaction, orderId: string, environment: string, 
     select o.id, o.organization_id as "organizationId", o.stall_id as "stallId",
       o.order_no as "orderNo", o.pickup_code_display as "pickupCode", o.status::text,
       o.payment_status::text as "paymentStatus", o.fulfillment_type::text as "fulfillmentType",
-      o.fulfillment_time_version as "fulfillmentTimeVersion", o.total,
+      o.fulfillment_time_version as "fulfillmentTimeVersion", o.fulfillment_time_state as "fulfillmentTimeState", o.total,
       o.committed_fulfillment_at as "committedFulfillmentAt", o.scheduled_pickup_at as "scheduledPickupAt",
       o.requested_fulfillment_at as "requestedFulfillmentAt", o.quoted_ready_at as "quotedReadyAt", o.created_at as "createdAt"
     from public.orders o join public.line_platform_order_owners owner on owner.order_id = o.id
@@ -100,12 +100,26 @@ export async function ensurePickupMediaForOrder(orderId: string, environment: st
       const order = await loadOrder(tx, orderId, environment, undefined, true);
       if (!canIssue(order)) return null;
       const existing = await latestCredential(tx, orderId);
-      if (existing) {
-        return !existing.revoked_at && !existing.consumed_at && existing.expires_at > new Date()
-          && existing.fulfillment_time_version === order.fulfillmentTimeVersion ? existing : null;
-      }
+      const now = new Date();
       const expiresAt = pickupDeadline(order, Number(process.env.PICKUP_TOKEN_GRACE_MINUTES ?? "120"));
-      if (expiresAt <= new Date()) return null;
+      if (existing) {
+        if (!existing.revoked_at && !existing.consumed_at && existing.expires_at > now
+          && existing.fulfillment_time_version === order.fulfillmentTimeVersion) return existing;
+        // Only a confirmed schedule change may replace a still-unexpired QR.
+        // Manual revocation, expiration and handoff require their original controls.
+        if (existing.revoke_reason !== "SCHEDULE_CHANGED" || !existing.revoked_at
+          || existing.consumed_at || existing.expires_at <= now || expiresAt <= now
+          || order.fulfillmentTimeState !== "CONFIRMED") return null;
+        const next = await issue(tx, order, environment, existing.version + 1, expiresAt);
+        await tx.orderEvent.create({ data: {
+          organizationId: order.organizationId, stallId: order.stallId, orderId,
+          eventType: "LINE_PLATFORM_PICKUP_SCHEDULE_REFRESHED",
+          metadataJson: { previousVersion: existing.version, version: next.version,
+            fulfillmentTimeVersion: order.fulfillmentTimeVersion, expiresAt: expiresAt.toISOString() },
+        } });
+        return next;
+      }
+      if (expiresAt <= now) return null;
       return issue(tx, order, environment, 1, expiresAt);
     });
     if (!credential) return null;
