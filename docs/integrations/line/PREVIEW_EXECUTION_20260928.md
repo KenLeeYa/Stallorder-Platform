@@ -176,3 +176,10 @@
 - B 店沒有 LINE Pay connection，公開訂單頁仍顯示付款按鈕。新增回歸先重現2項失敗，修正頁面按精確 organization＋stall 的既有 SANDBOX connection／渠道／版本設定顯示新付款；停用 connection 後既有交易查核仍保留。7項單元PASS、typecheck／lint PASS；用應用原SQL在隔離child唯讀核對A=true/B=false。此修正仍待新候選CI及公開頁驗收。
 - a6c77e4 本機 LINE DB 回歸最初83 PASS／8 SKIP，原因是 MINI login 另需顯式 LINE_MINIAPP_DB_QA。補開該旗標重跑8項PASS，合計91項通過；不將最初SKIP直接改標PASS。公開站仍為9ac47b9。
 - A店 Sandbox 尚未經本人付款授權，原交易已由官方查核0121轉CANCELLED；不是付款成功。後續本人準備好時由原付款入口重新建立測試交易，不能沿用已逾時QR、偽造Confirm或直接修改payment狀態。
+
+## 隱藏載入內容的 CI 選取修正（14:48 台北）
+
+- `e8d7e7c` CI `36385785324` 的 lint、型別、單元、DB／SQL、guardrails、build 通過，完整 E2E 因 shard 4 控制項定位失敗而 FAILURE，未部署。CodeQL 通過；保留真人 fixture 的 paired Preview 為 SKIP。
+- Trace 顯示廚房可見按鈕在 `main-content`，另有 Next.js 串流的 `div[hidden]#S:2` 尚未移除，測試按 test ID 同時命中兩者；店員搜尋相同。修正測試為僅選可見元素、仍斷言唯一可見控制項，保留聲音開關／搜尋／訂單操作結果驗證。沒有改應用功能或跳過案例。
+- 14:39 Primary 仍為既定部署與 backend，login／staff login／公開菜單 200，匿名 health 401；隔離 worker 最近 11 次回應 200、無逾時。同一真會員的 A/B 歷史列表已在 Chrome 確認，截圖 `artifacts/line-v2-member-cross-store-history.png`。Chrome viewport override 未套用，因此該截图只作桌面證據，已 reset，不算新增手機驗收。
+- 聚焦重跑：廚房切換／聲音案例 PASS；QR 註記案例在本機 clone 因原商品選擇規格 disabled，未到達店員搜尋，記 FAIL／環境差異，不冒充通過。新 CI 會重跑原完整 QR 接單到店員搜尋／取消流程；變更測試 ESLint 通過。臨時3024隨聚焦測試結束停止。

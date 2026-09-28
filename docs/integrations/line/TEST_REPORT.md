@@ -1,6 +1,17 @@
 # LINE v2 測試報告
 
-日期：2026-09-27（Asia/Taipei）。基準需求為 requirements/prompt-v2-20260927.md。使用本機隔離 clone、合成顧客/店員/兩店；真DB並不等於真LINE。所有外部provider成功回應除明示控制台登入外皆為fixture。
+日期：2026-09-27 初版、2026-09-28 增補（Asia/Taipei）。基準需求為 requirements/prompt-v2-20260927.md。下方初版本機結果使用隔離 clone、合成顧客／店員／兩店，provider 回應為 fixture；不可與本節之後新增的真實外部證據混用。
+
+## 2026-09-28 14:43 真實隔離流程狀態
+
+- 環境：PR365 唯一公開 Preview、child `gfoscoqwumwdtvkbfoiv`、一位明確同意通知的本人 LINE 會員；未寫 Production／DR。當前 `9ac47b9`，修正候選 `e8d7e7c` 完整 CI 尚未結束。
+- 真實身分：LINE 登入返回、會員同意、官方好友查核及同一會員 A/B 店訂單／歷史列表通過。沒有用合成 Session 代替本人登入。
+- 真實訊息：平台 OA API 接受 A `260928-007` 訂單卡、B `260928-001` 訂單／READY／PICKED_UP，各一次；裝置送達／卡片圖片尚待本人確認。A READY 因已確認時段變更後 QR 被撤銷而抑制，已有聚焦修正待部署及補送驗證。
+- B 店取餐：未付款 redeem 409；正常測試現金收款後訂單 PAID／READY；人工取餐後 COMPLETED；同指令重放維持唯一交付事件，顧客畫面同步已取餐。人工 API 不能代替鏡頭掃碼。
+- 店別邊界：A/B 店員交叉讀訂單、通知及取餐 preview，共六項均 404；A 有獨立 DIRECT Sandbox Connection，B 無付款 Connection。實際來源 SQL 讀回 A 可新付款／B 不可；舊 B 頁付款按鈕仍出現的缺陷已有先失敗後通過回歸，待新 Preview。
+- 真 Sandbox：A 的 NT$30 Request 已被接受，未經本人手機授權而官方查核回 `0121`，台帳 CANCELLED、訂單 UNPAID。Confirm／退款仍 BLOCKED。
+- 此輪修正本機：本人結帳返回 4 unit＋3 production-mode browser 通過；QR／通知 33 DB 通過；十組 DB 初次 83 PASS／8 SKIP，另以專用開關重跑登入 8 PASS，合计 91 PASS；店別付款頁 7 PASS。型別／變更 ESLint 通過，四個提交 Gitleaks 無秘密命中。
+- 詳細執行與當前來源以 [執行紀錄](PREVIEW_EXECUTION_20260928.md) 為準。以下 A–F 表格為初版逐項基線，外部新增證據依本節與執行紀錄解讀；未完成的 G 組實機及正式驗收不改記為 PASS。
 
 ## 執行摘要
 

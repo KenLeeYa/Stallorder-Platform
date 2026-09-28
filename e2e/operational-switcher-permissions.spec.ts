@@ -71,7 +71,8 @@ test("商家進入店員與廚房頁仍可切換工作模式", async ({ page }) 
   await expect(page).toHaveURL(/\/kitchen\?stall=aming-chicken$/u);
 
   await expect(page.getByTestId("work-mode-icon-kitchen")).toHaveCount(1);
-  const sound = page.getByTestId("kitchen-alert-control");
+  const sound = page.getByTestId("kitchen-alert-control").filter({ visible: true });
+  await expect(sound).toHaveCount(1);
   await sound.click();
   await expect(sound).toHaveAttribute("aria-checked", "true");
   await sound.click();
