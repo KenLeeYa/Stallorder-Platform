@@ -80,3 +80,13 @@
 - 隔離本機正式建置模式的店員／廚房權限、登出及 Storage 禁用時的模式切換：2 PASS（33.1秒）；lint／typecheck PASS。離線完整流程及 QR 跨角色流程待乾淨 CI 的 Storage／Edge 服務驗證，本機未為此啟動其他 Docker 容器。
 - 09:43 Primary provider 回讀仍為原 deployment／commit／保護設定；availability 仍為 NORMAL_PRIMARY／PRIMARY／EDGE_PRIMARY，QR／Staff AVAILABLE。3024及55431已停止，原3023人工測試與共用55722保留。
 - 尚未匯入 OA Vault、修改 MINI endpoint／Webhook／公開例外，亦未發送真實 LINE 訊息或建立 Pay Sandbox 交易。24小時到期時程不變。
+
+## 相鄰工具列回歸與完整失敗收集（10:00 台北）
+
+- 相鄰 POS 案例在本機重現兩個過時斷言：以 `display: contents` 的外層容器量測按鈕列，及要求收合後的手機主要工具列一定水平溢出。改量測可见按鈕／連結的中心線及相互重疊，手機分別驗證收合時不溢出、展開所有功能後可水平捲動；同樣的平板 KDS 容器量測一併修正。
+- 桌面完整點餐版面案例 PASS（16.6秒）。手機流程已通過工具列、建單201、收款與班次關聯，最後列印斷言 FAIL：保留的本機 clone 回傳 CANCELLED 而非 PENDING；該斷言沒有放寬，待乾淨 CI fixture 核對，不稱完整手機收款／列印通過。
+- 既有 E2E runner 在首個失敗分組直接退出，後續測不到。新增聚焦回歸先重現提早退出，再改為完成所有分組並彙整失敗；任一非0／異常終止仍以非0退出，spawn錯誤仍立即拋出。4項 runner 測試 PASS、lint／typecheck PASS。
+- 每組保留獨立 trace/report，CI失敗時保存1天的隔離 fixture E2E 證據，後續不必靠推測排查。未放寬 flaky／skip／部署 gate。
+- `b22e23b` 的完整 CI／配對 Preview 尚在執行，後續推送可能使其取消，不能計為完成。最新候選及全部實際部署仍以 `artifacts/line-v2-preview-resources.json` 讀回記錄。
+- Vercel team 用量頁本期基礎設施 US$4.94／包含額度US$20，全数由額度抵扣，其中全團隊 Build CPU 顯示US$0.22；這不是本PR單獨用量，頁面可延遲1小時。沒有加購方案；本次Micro的24小時基本運算估計仍約US$0.32，清理時程不延長。
+- child 排程唯讀核對：目前 Vault 及 notification integrations 皆空，既有排程未設定外部發送目的地。OA／Pay live測試尚未開始。

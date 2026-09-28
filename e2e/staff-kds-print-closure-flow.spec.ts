@@ -310,9 +310,12 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
 
         if (viewport.width === 768) {
           const groupRows = await functions
-            .locator(":scope > *")
+            .locator("button:visible, a:visible")
             .evaluateAll((elements) =>
-              elements.map((element) => element.getBoundingClientRect().y),
+              elements.map((element) => {
+                const bounds = element.getBoundingClientRect();
+                return bounds.y + bounds.height / 2;
+              }),
             );
           expect(groupRows.every((y) => Math.abs(y - groupRows[0]!) <= 1)).toBe(
             true,

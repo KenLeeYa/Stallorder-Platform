@@ -7,6 +7,7 @@ import {
   continueQrCheckout,
   addFirstStaffCatalogProduct,
   dismissStaffStartReminder,
+  openStaffMobileTools,
   qrProductSelectionControl,
 } from "./local-navigation";
 
@@ -25,9 +26,10 @@ type AuthCookies = Awaited<ReturnType<BrowserContext["cookies"]>>;
 let ownerAuthCookies: AuthCookies | null = null;
 
 async function login(page: Page) {
+  const next = "/merchant/dashboard?organizationId=11111111-1111-4111-8111-111111111111";
   if (ownerAuthCookies) {
     await page.context().addCookies(ownerAuthCookies);
-    await page.goto("/merchant/dashboard");
+    await page.goto(next);
     await expect(page).toHaveURL(
       /\/merchant\/dashboard(?:\?organizationId=|$)/,
       { timeout: 30_000 },
@@ -40,6 +42,7 @@ async function login(page: Page) {
     data: {
       email: "owner@stallorder.test",
       password: "StallOrderDemo!2026",
+      next,
     },
     headers: {
       origin,
@@ -159,23 +162,24 @@ test("內用顧客名稱與桌位欄位在桌面版對齊", async ({ page }, tes
     ),
   ).toBe(true);
   const desktopFunctionPositions = await functionGrid
-    .locator(":scope > *")
+    .locator("button:visible, a:visible")
     .evaluateAll((elements) =>
       elements.map((element) => {
         const bounds = element.getBoundingClientRect();
-        return { x: bounds.x, y: bounds.y };
-      }),
+        return { x: bounds.x, right: bounds.right, centerY: bounds.y + bounds.height / 2 };
+      }).sort((left, right) => left.x - right.x),
     );
-  expect(desktopFunctionPositions.length).toBeLessThanOrEqual(12);
+  expect(desktopFunctionPositions.length).toBeGreaterThan(0);
+  await expect(staffMain.getByTestId("staff-tools-toggle")).toBeHidden();
   expect(
     desktopFunctionPositions.every(
-      ({ y }) => Math.abs(y - desktopFunctionPositions[0]!.y) <= 1,
+      ({ centerY }) => Math.abs(centerY - desktopFunctionPositions[0]!.centerY) <= 1,
     ),
   ).toBe(true);
   expect(
     desktopFunctionPositions.every(
       ({ x }, index) =>
-        index === 0 || x > desktopFunctionPositions[index - 1]!.x,
+        index === 0 || x >= desktopFunctionPositions[index - 1]!.right,
     ),
   ).toBe(true);
   await functionGrid.getByTitle("離線裝置", { exact: true }).click();
@@ -455,9 +459,13 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
   ).toBe(4);
   expect(
     await functionGrid.evaluate(
-      (element) => element.scrollWidth > element.clientWidth,
+      (element) => element.scrollWidth <= element.clientWidth + 1,
     ),
   ).toBe(true);
+  await openStaffMobileTools(page);
+  expect(await functionGrid.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+  await page.getByTestId("staff-tools-toggle").click();
+  await expect(page.getByTestId("staff-tools-toggle")).toHaveAttribute("aria-expanded", "false");
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth + 1,
