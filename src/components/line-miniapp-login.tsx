@@ -40,7 +40,7 @@ export function LineMiniAppLogin({ liffId, endpointUrl }: { liffId: string; endp
   }
   return <div>
     <button type="button" disabled={busy} onClick={() => void login()}
-      className="min-h-12 w-full rounded-lg bg-teal-800 px-4 py-3 font-semibold text-white disabled:opacity-50">
+      className="mini-primary min-h-12 w-full rounded-lg bg-teal-800 px-4 py-3 font-semibold text-white disabled:opacity-50">
       {busy ? "正在驗證 LINE 身分…" : "使用 LINE 顧客身分登入"}
     </button>
     {error ? <p role="alert" className="mt-3 text-sm text-red-700">{error}</p> : null}

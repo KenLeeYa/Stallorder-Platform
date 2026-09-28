@@ -3,6 +3,18 @@ import { buildPlatformMessages,type PlatformTemplateInput } from "./messaging-te
 import { platformNotificationSuppression } from "./notification-worker";
 const input: PlatformTemplateInput = { event: "ORDER_RECEIPT_AVAILABLE",orderId: "11111111-1111-4111-8111-111111111111",orderNo: "A081",stallName: "測試門市 🍜",address: "合成門市地址",phone: "+886 2 2345-6789",total: 120,paymentStatus: "UNPAID",pickupCode: "481",createdAt: new Date("2026-09-27T00:00:00Z"),fulfilledAt: null,expectedAt: null,endpointUrl: "https://mini.local.test/mini",liffId: "1234568-fixture",imageUrl: "https://mini.local.test/api/line-platform/media/synthetic" };
 describe("platform OA templates and stale event rules", () => {
+  it.each(["ORDER_PICKED_UP", "ORDER_CANCELLED"] as const)("removes the QR and pickup action from closed %s cards", event => {
+    const card = buildPlatformMessages({ ...input, event })[0].contents;
+    expect(JSON.stringify(card)).not.toContain(input.imageUrl);
+    expect(card.footer.contents[0]).toMatchObject({ action: { label: "查看訂單" } });
+    expect(JSON.stringify(card)).not.toContain("預約／預估時間");
+  });
+  it("makes the pickup number prominent without claiming an unpaid READY order is paid", () => {
+    const card = buildPlatformMessages({ ...input, event: "ORDER_READY" })[0].contents;
+    expect(JSON.stringify(card)).toContain('"size":"3xl"');
+    expect(JSON.stringify(card)).toContain("尚未付款");
+    expect(JSON.stringify(card)).toContain(input.imageUrl);
+  });
   it("keeps an unpaid receipt honest and uses only owned order/deep links and the matching store", () => {
     const message = JSON.stringify(buildPlatformMessages(input));
     expect(message).toContain("尚未付款"); expect(message).not.toContain("LINE Pay 已付款");

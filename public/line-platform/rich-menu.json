@@ -55,7 +55,7 @@
       },
       "action": {
         "type": "uri",
-        "label": "聯絡客服",
+        "label": "使用協助",
         "uri": "https://miniapp.line.me/1234567891-localfixture/help"
       }
     }

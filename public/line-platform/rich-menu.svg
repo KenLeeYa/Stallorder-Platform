@@ -5,20 +5,20 @@
 <rect x="22" y="182" width="1206" height="728" rx="42" fill="#117873"/>
 <g transform="translate(625 362)" fill="none" stroke="#ffffff" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M-75 -28h150l-10 108H-65zM-43 -25v-23a43 43 0 0 1 86 0v23"/></g>
 <text x="625" y="606" text-anchor="middle" font-size="88" font-weight="700" fill="#ffffff">立即點餐</text>
-<text x="625" y="701" text-anchor="middle" font-size="46" fill="#e5f3eb">探索合作店家，開始訂購</text>
+<text x="625" y="701" text-anchor="middle" font-size="46" fill="#e5f3eb">選店家・看菜單・輕鬆訂</text>
 <text x="625" y="818" text-anchor="middle" font-size="46" fill="#ffffff">進入 →</text>
-<rect x="1272" y="182" width="1206" height="728" rx="42" fill="#ffffff"/>
+<rect x="1272" y="182" width="1206" height="728" rx="42" fill="#E4F1EA"/>
 <g transform="translate(1875 362)" fill="none" stroke="#175c57" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M-64 -76H64V80l-32-15-32 15-32-15-32 15zM-30 -34h60M-30 0h60M-30 34H8"/></g>
 <text x="1875" y="606" text-anchor="middle" font-size="88" font-weight="700" fill="#175c57">我的訂單</text>
-<text x="1875" y="701" text-anchor="middle" font-size="46" fill="#56635e">查看訂單與取餐 QR</text>
+<text x="1875" y="701" text-anchor="middle" font-size="46" fill="#56635e">看進度・出示取餐 QR</text>
 <text x="1875" y="818" text-anchor="middle" font-size="46" fill="#175c57">進入 →</text>
 <rect x="22" y="942" width="1206" height="728" rx="42" fill="#ffffff"/>
 <g transform="translate(625 1122)" fill="none" stroke="#175c57" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><circle cy="-34" r="42"/><path d="M-78 86a78 78 0 0 1 156 0"/></g>
 <text x="625" y="1366" text-anchor="middle" font-size="88" font-weight="700" fill="#175c57">會員中心</text>
-<text x="625" y="1461" text-anchor="middle" font-size="46" fill="#56635e">個人資料與通知設定</text>
+<text x="625" y="1461" text-anchor="middle" font-size="46" fill="#56635e">會員與訂單通知設定</text>
 <text x="625" y="1578" text-anchor="middle" font-size="46" fill="#175c57">進入 →</text>
 <rect x="1272" y="942" width="1206" height="728" rx="42" fill="#ffffff"/>
-<g transform="translate(1875 1122)" fill="none" stroke="#175c57" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M-79 24V-9a79 79 0 0 1 158 0v68M-79 17h25v54h-25zM54 17h25v54H54zM79 60q0 35-68 35"/></g>
-<text x="1875" y="1366" text-anchor="middle" font-size="88" font-weight="700" fill="#175c57">聯絡客服</text>
-<text x="1875" y="1461" text-anchor="middle" font-size="46" fill="#56635e">常見問題與使用說明</text>
+<g transform="translate(1875 1122)" fill="none" stroke="#175c57" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><circle r="82"/><path d="M-28 -28a28 28 0 1 1 45 22q-17 12-17 31M0 51v2"/></g>
+<text x="1875" y="1366" text-anchor="middle" font-size="88" font-weight="700" fill="#175c57">使用協助</text>
+<text x="1875" y="1461" text-anchor="middle" font-size="46" fill="#56635e">通知・付款・取餐問題</text>
 <text x="1875" y="1578" text-anchor="middle" font-size="46" fill="#175c57">進入 →</text></g></svg>

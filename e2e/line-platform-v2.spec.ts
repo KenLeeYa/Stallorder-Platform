@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { createCipheriv, createHash, randomBytes, randomUUID } from "node:crypto";
+import { mkdir } from "node:fs/promises";
 import { dismissStaffStartReminder, establishLocalTestSession } from "./local-navigation";
 
 test.use({ ignoreHTTPSErrors: true, trace: "off", video: "off", screenshot: "off" });
@@ -123,8 +124,8 @@ test("member explicitly accepts terms and can persist transaction-notification p
   await page.getByRole("checkbox", { name: /我已閱讀並同意/ }).check();
   await Promise.all([page.waitForNavigation({ waitUntil: "load" }), page.getByRole("button", { name: "加入平台會員" }).click()]);
   await expect(page.getByRole("button", { name: "儲存通知設定" })).toBeVisible();
-  await expect(page.getByRole("checkbox", { name: /接收攤點通官方帳號/ })).not.toBeChecked();
-  await page.getByRole("checkbox", { name: /接收攤點通官方帳號/ }).check();
+  await expect(page.getByRole("radio", { name: "接收通知", exact: true })).not.toBeChecked();
+  await page.getByRole("radio", { name: "接收通知", exact: true }).check();
   const [saved] = await Promise.all([
     page.waitForResponse((response) => new URL(response.url()).pathname === "/api/mini/member" && response.request().method() === "PATCH", { timeout: 15_000 }),
     page.waitForNavigation({ waitUntil: "load", timeout: 15_000 }),
@@ -132,11 +133,11 @@ test("member explicitly accepts terms and can persist transaction-notification p
   ]).catch(() => { throw new Error(`MEMBER_SAVE_NOT_COMPLETED ${JSON.stringify({ path: new URL(page.url()).pathname, memberRequests, errors })}`); });
   expect(saved.status()).toBe(200);
   expect(saved.request().postDataJSON()).toEqual({ notificationConsent: true });
-  await expect(page.getByRole("checkbox", { name: /接收攤點通官方帳號/ })).toBeChecked();
+  await expect(page.getByRole("radio", { name: "接收通知", exact: true })).toBeChecked();
   await expect.poll(async () => (await db.$queryRaw<Array<{ consent: boolean }>>`
     select notification_consent as consent from public.line_platform_members where profile_id=${profiles[0].id}::uuid`)[0]?.consent).toBe(true);
   await page.reload();
-  await expect(page.getByRole("checkbox", { name: /接收攤點通官方帳號/ })).toBeChecked();
+  await expect(page.getByRole("radio", { name: "接收通知", exact: true })).toBeChecked();
   expect(await db.stallMembership.count({ where: { profileId: profiles[0].id } })).toBe(0);
   expect(errors).toEqual([]);
   for (const stall of stalls) orders.push(await createOrder(stall));
@@ -152,7 +153,7 @@ test("unavailable LIFF friendship stays unknown, preserves consent and offers a 
   await page.getByRole("button", { name: "重新確認好友狀態" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "暫時無法確認好友" })).toBeVisible();
   await expect(page.getByRole("button", { name: "重新確認好友狀態" })).toBeEnabled();
-  await expect(page.getByRole("checkbox", { name: /接收攤點通官方帳號/ })).toBeChecked();
+  await expect(page.getByRole("radio", { name: "接收通知", exact: true })).toBeChecked();
   expect(await db.$queryRaw`select status from public.line_platform_friendships where subject_hash=${profiles[0].hash}`).toEqual([]);
   expect(errors).toEqual([]);
 });
@@ -205,6 +206,8 @@ test("owner sees both stores, filters history, opens a private QR, and another m
 test("MINI pages fit 320/390/768/1440 light and dark with doubled text", async ({ page }) => {
   test.setTimeout(180_000);
   const errors = observe(page); const overflow: string[] = [];
+  // This application uses a saved theme, rather than the OS scheme alone.
+  await page.addInitScript(() => localStorage.setItem("stallorder.theme.preference", matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
   await establishLocalTestSession(page, db, profiles[0].id);
   const paths = ["/mini", "/mini/member", "/mini/orders", `/mini/orders/${orders[0]}`, "/mini/help"];
   for (const width of [320, 390, 768, 1440]) {
@@ -213,10 +216,22 @@ test("MINI pages fit 320/390/768/1440 light and dark with doubled text", async (
       await page.emulateMedia({ colorScheme: presentation.colorScheme });
       for (const path of paths) {
         await page.goto(path); await expect(page.locator("main h1")).toBeVisible();
+        await expect(page.locator("html")).toHaveAttribute("data-theme", presentation.colorScheme);
         await page.evaluate((size) => { document.documentElement.style.fontSize = size; }, presentation.fontSize);
         await page.evaluate(() => document.fonts.ready);
+        const nav = page.getByRole("navigation", { name: "攤點通會員導覽" });
+        await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
         const size = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, viewport: document.documentElement.clientWidth }));
         if (size.scroll > size.viewport + 1) overflow.push(`${path.includes("/orders/") ? "/mini/orders/[id]" : path} ${width} ${presentation.colorScheme} ${presentation.fontSize}: ${size.scroll}/${size.viewport}`);
+        if ([390, 1440].includes(width) && presentation.fontSize === "100%") {
+          await mkdir("artifacts/line-ui-redesign", { recursive: true });
+          const name = path.includes("/orders/") ? "order-detail" : path.split("/").at(-1);
+          // Keep screenshot tooling from injecting caret styles before hydration.
+          await page.screenshot({ path: `artifacts/line-ui-redesign/${name}-${width}.png`, fullPage: path !== "/mini", caret: "initial" });
+        }
+        if (width === 390 && path === "/mini/member" && presentation.colorScheme === "dark") {
+          await page.screenshot({ path: "artifacts/line-ui-redesign/member-dark-200.png", caret: "initial", fullPage: true });
+        }
       }
     }
   }
@@ -274,8 +289,30 @@ test("staff issues a first credential after pilot shutdown, previews and explici
   expect((await page.goto(`/staff/platform-ui-${stalls[0]}`))?.status()).toBe(200);
   await expect(page.getByRole("button", { name: "平台 QR 掃碼交付" })).toBeVisible({ timeout: 30_000 });
   await dismissStaffStartReminder(page);
-  const panel = page.getByRole("region", { name: "平台 QR 交付" });
-  await panel.getByRole("button", { name: "平台 QR 掃碼交付" }).click();
+  const trigger = page.getByTestId("staff-platform-qr-pickup");
+  const lookup = page.getByTestId("staff-pickup-code-lookup");
+  for (const width of [390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await trigger.scrollIntoViewIfNeeded();
+    const qrBox = await trigger.boundingBox(); const lookupBox = await lookup.boundingBox();
+    expect(qrBox?.width).toBeCloseTo(lookupBox!.width);
+    expect(qrBox?.y).toBeCloseTo(lookupBox!.y);
+    expect(qrBox!.x).toBeGreaterThan(lookupBox!.x);
+    expect(qrBox!.x - lookupBox!.x - lookupBox!.width).toBeLessThan(16);
+  }
+  await trigger.click();
+  const dialog = page.getByRole("dialog", { name: "平台 QR 掃碼交付" });
+  await expect(dialog).toBeVisible();
+  await page.getByRole("button", { name: "開啟相機掃描", exact: true }).click();
+  await expect(dialog.getByRole("status")).toContainText("無法開啟相機");
+  await expect(dialog.getByRole("button", { name: "人工核對／憑證管理" })).toBeEnabled();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  await mkdir("artifacts/line-ui-redesign", { recursive: true });
+  await page.screenshot({ path: "artifacts/line-ui-redesign/staff-qr-dialog.png", caret: "initial" });
+  const panel = dialog.getByRole("region", { name: "平台 QR 交付" });
   await panel.getByRole("button", { name: "人工核對／憑證管理" }).click();
   await panel.getByLabel("本店訂單").selectOption(handoffOrder);
   await panel.getByLabel("顧客短取餐碼").fill("627");
@@ -432,7 +469,7 @@ test("public pickup and delivery entries keep anonymous carts and route valid me
       const [response, document] = await Promise.all([
         page.waitForResponse(r => new URL(r.url()).pathname === "/api/public/order-session" && r.request().method() === "POST", { timeout: 60_000 }),
         page.goto(publicPath),
-      ]);
+      ]).catch(async () => { throw new Error(`ENTRY_SESSION_NOT_READY ${JSON.stringify({ path: new URL(page.url()).pathname, errors, body: (await page.locator("body").innerText()).slice(0, 1500) })}`); });
       expect(document?.status()).toBe(200);
       expect(response.status()).toBe(201);
       const session = await response.json() as { orderingMode: string; orderSessionToken: string };
@@ -451,6 +488,7 @@ test("public pickup and delivery entries keep anonymous carts and route valid me
     await establishLocalTestSession(page, db, profiles[1].id);
     const memberHash = await openSession();
     await expect(page).toHaveURL(`${origin}/mini/store/${code}?locale=zh-TW&view=${view}`);
+    await expect(page.locator('.mini-navigation[data-store]')).toHaveCSS("position", "static");
     await expect(page.getByTestId("qr-cart-line")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "匯入剛才的訪客購物車", exact: true })).toHaveCount(0);
     if (view === "pickup") await page.getByRole("button", { name: "套用這個時間", exact: true }).click();
@@ -465,6 +503,7 @@ test("public pickup and delivery entries keep anonymous carts and route valid me
       .sort((left, right) => left.token_hash.localeCompare(right.token_hash)));
 
     await page.goto("/mini/member");
+    await expect(page.getByRole("button", { name: "儲存通知設定" })).toBeEnabled();
     await page.getByRole("button", { name: "登出", exact: true }).click();
     await expect(page).toHaveURL(`${origin}/mini`);
     await openSession();

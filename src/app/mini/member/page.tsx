@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { CircleUserRound, MessageCircle } from "lucide-react";
 import { getPagePrincipal } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getLinePlatformRuntime } from "@/server/line-platform/runtime";
@@ -20,12 +21,12 @@ export default async function MemberPage() {
   const status = friendships[0]?.status ?? "UNKNOWN";
   return <main className="mx-auto max-w-lg space-y-5 p-4"><h1 className="text-2xl font-bold">平台會員中心</h1>
     {!lineIdentity ? <LineMiniAppLogin liffId={runtime.liffId} endpointUrl={runtime.endpointUrl} /> : <>
-      <p>LINE 身分已登入{member ? "，平台會員已建立。" : "，請閱讀條款後加入平台會員。"}</p>
+      <div className="mini-hero mini-member-hero"><span className="mini-store-icon"><CircleUserRound aria-hidden="true" /></span><div><p className="font-semibold">{member ? "歡迎回到攤點通" : "歡迎加入攤點通"}</p><p className="mini-muted">LINE 身分已登入{member ? "，平台會員已建立。" : "，請閱讀條款後加入平台會員。"}</p></div></div>
       <LinePlatformMemberForm termsVersion={runtime.termsVersion} enrolled={Boolean(member && member.terms_version === runtime.termsVersion)} initialConsent={member?.notification_consent} />
-      <section className="space-y-3 rounded-xl border p-4"><h2 className="font-semibold">攤點通官方帳號</h2>
+      <section className="mini-card space-y-4"><h2 className="flex items-center gap-2 font-semibold"><MessageCircle className="size-5" aria-hidden="true" />攤點通官方帳號</h2>
         {member ? <LinePlatformFriendship liffId={runtime.liffId} initialStatus={status} /> : <p>加入平台會員後可確認好友狀態。</p>}
-        <p>若沒有收到 LINE 通知，仍可從「我的訂單」查看進度及出示取餐碼。</p>
-        {runtime.addFriendUrl && <a href={runtime.addFriendUrl} className="inline-flex min-h-11 items-center rounded-lg border px-4 font-semibold">加入攤點通好友</a>}
-      </section><div className="flex items-center gap-3"><LogoutButton destination="/mini" /><span>登出平台會員；更換 LINE 帳號後須重新登入。</span></div></>}
+        <p className="mini-muted">所有合作店家的訂單與取餐通知，都由攤點通發送。未收到通知時，可至「我的訂單」查看進度。</p>
+        {runtime.addFriendUrl && <a href={runtime.addFriendUrl} className="mini-secondary w-full">加入攤點通好友</a>}
+      </section><div className="flex items-center gap-3"><LogoutButton destination="/mini" /><span className="mini-muted">登出平台會員<br />更換 LINE 帳號後須重新登入。</span></div></>}
   </main>;
 }

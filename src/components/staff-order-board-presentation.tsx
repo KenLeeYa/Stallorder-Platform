@@ -271,6 +271,7 @@ export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationPr
         queueRedesignEnabled={props.queueRedesignEnabled}
         stall={stall}
         account={account}
+        orders={props.orders}
         modules={props.modules}
         orderCatalog={props.orderCatalog}
         capacity={props.capacity}
@@ -287,7 +288,6 @@ export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationPr
         actions={actions}
         t={t}
       />
-      {hasPermission(account.role, "CHECKOUT_ORDERS") ? <LinePlatformPickupPanel stallSlug={stall.slug} orders={props.orders} onCompleted={actions.onRefresh} /> : null}
       {props.modules.print && account.role !== "KITCHEN" ? <StaffAutoPrintAgent key={stall.slug} stallSlug={stall.slug} onStatusChange={setPrinterState} /> : null}
       {props.modules.kds ? <StaffOrderBatchBars
         selectedItems={selectedItems}
@@ -405,6 +405,7 @@ export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationPr
 
 type StaffOrderBoardToolbarProps = Pick<
   StaffOrderBoardPresentationProps,
+  | "orders"
   | "queueRedesignEnabled"
   | "stall"
   | "account"
@@ -438,6 +439,7 @@ type StaffOrderBoardToolbarProps = Pick<
 function StaffOrderBoardToolbar({
   stall,
   account,
+  orders,
   modules,
   orderCatalog,
   capacity,
@@ -530,6 +532,7 @@ function StaffOrderBoardToolbar({
         <div data-testid="staff-function-order-group" className="md:contents flex items-center gap-2 border-r border-stone-200 pr-2">
           {orderCatalog && hasPermission(role, "CREATE_ORDERS") ? <button type="button" title={t("staff.action.createOrder")} disabled={!clientReady || posConfigurationLoading} onClick={() => void actions.onOpenComposer()} className={`${staffFunctionTileClass} md:order-3 bg-teal-800 text-white disabled:cursor-wait disabled:opacity-60`}><ShoppingCart className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.createOrder")}</span></button> : null}
           {hasPermission(role, "CHECKOUT_ORDERS") ? <button type="button" data-testid="staff-pickup-code-lookup" disabled={!clientReady} title={t("staff.action.pickupLookup")} onClick={actions.onOpenPickupLookup} className={`${staffFunctionTileClass} md:order-4 border border-stone-300 bg-white text-stone-700`}><KeyRound className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.pickupLookup")}</span></button> : null}
+          {hasPermission(role, "CHECKOUT_ORDERS") ? <LinePlatformPickupPanel stallSlug={stall.slug} orders={orders} onCompleted={actions.onRefresh} /> : null}
           {modules.dineIn ? <Link href={`/staff/${stall.slug}/floor`} title={t("staff.action.floor")} className={`${staffFunctionTileClass} md:order-5 border border-stone-300 bg-white text-stone-700`}><MapPinned className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.floor")}</span></Link> : null}
           {hasPermission(role, "MANAGE_CASH_SHIFT") ? <Link data-secondary-tool="true" href={`/staff/${stall.slug}/cash`} title={t("staff.action.cashShift")} className={`${staffFunctionTileClass} md:order-7 border border-stone-300 bg-white text-stone-700`}><WalletCards className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.cashShift")}</span></Link> : null}
           {capacity ? <div data-testid="staff-capacity-tool" data-secondary-tool="true" className="md:order-8"><StaffCapacityControl stallSlug={stall.slug} initialData={capacity} compact /></div> : null}

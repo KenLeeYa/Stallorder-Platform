@@ -51,7 +51,7 @@ export function assertSender(info, binding) {
   if (info?.userId !== binding.oaDestination) fail("RICH_MENU_SENDER_MISMATCH");
 }
 export function createManifest(binding) {
-  const labels = ["立即點餐", "我的訂單", "會員中心", "聯絡客服"];
+  const labels = ["立即點餐", "我的訂單", "會員中心", "使用協助"];
   const paths = ["", "/orders", "/member", "/help"];
   return { size: { width: 2500, height: 1686 }, selected: false, name: "QIDAIGO 平台四入口",
     chatBarText: "攤點通服務", areas: paths.map((path, i) => ({
@@ -77,20 +77,20 @@ export function verifyPlan(plan, expectedHash, binding, policy, image, manifest,
 }
 
 export function renderSvg(brandPng) {
-  const names = ["立即點餐", "我的訂單", "會員中心", "聯絡客服"];
-  const subtitles = ["探索合作店家，開始訂購", "查看訂單與取餐 QR", "個人資料與通知設定", "常見問題與使用說明"];
+  const names = ["立即點餐", "我的訂單", "會員中心", "使用協助"];
+  const subtitles = ["選店家・看菜單・輕鬆訂", "看進度・出示取餐 QR", "會員與訂單通知設定", "通知・付款・取餐問題"];
   const icons = [
     '<path d="M-75 -28h150l-10 108H-65zM-43 -25v-23a43 43 0 0 1 86 0v23"/>',
     '<path d="M-64 -76H64V80l-32-15-32 15-32-15-32 15zM-30 -34h60M-30 0h60M-30 34H8"/>',
     '<circle cy="-34" r="42"/><path d="M-78 86a78 78 0 0 1 156 0"/>',
-    '<path d="M-79 24V-9a79 79 0 0 1 158 0v68M-79 17h25v54h-25zM54 17h25v54H54zM79 60q0 35-68 35"/>',
+    '<circle r="82"/><path d="M-28 -28a28 28 0 1 1 45 22q-17 12-17 31M0 51v2"/>',
   ];
   return `<svg xmlns="http://www.w3.org/2000/svg" width="2500" height="1686" viewBox="0 0 2500 1686">
 <rect width="2500" height="1686" fill="#f6f4ed"/>
 <image href="data:image/png;base64,${brandPng.toString("base64")}" x="56" y="23" width="120" height="120"/>
 <g font-family="Microsoft JhengHei, Noto Sans CJK TC, sans-serif"><text x="216" y="111" font-size="72" font-weight="700" fill="#117873">QIDAIGO 攤點通</text><text x="2430" y="103" text-anchor="end" font-size="40" fill="#53605b">每一餐，都有好照應</text>
 ${names.map((name, i) => { const x = (i % 2) * 1250; const y = 166 + Math.floor(i / 2) * 760; const dark = i === 0; const ink = dark ? "#ffffff" : "#175c57";
-    return `<rect x="${x + 22}" y="${y + 16}" width="1206" height="728" rx="42" fill="${dark ? "#117873" : "#ffffff"}"/>
+    return `<rect x="${x + 22}" y="${y + 16}" width="1206" height="728" rx="42" fill="${dark ? "#117873" : i === 1 ? "#E4F1EA" : "#ffffff"}"/>
 <g transform="translate(${x + 625} ${y + 196})" fill="none" stroke="${ink}" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">${icons[i]}</g>
 <text x="${x + 625}" y="${y + 440}" text-anchor="middle" font-size="88" font-weight="700" fill="${ink}">${name}</text>
 <text x="${x + 625}" y="${y + 535}" text-anchor="middle" font-size="46" fill="${dark ? "#e5f3eb" : "#56635e"}">${subtitles[i]}</text>

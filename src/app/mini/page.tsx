@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Store, ArrowUpRight, CheckCircle2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getPagePrincipal } from "@/lib/auth";
 import { getLinePlatformRuntime } from "@/server/line-platform/runtime";
@@ -18,12 +19,13 @@ export default async function MiniAppPage({ searchParams }: { searchParams?: Pro
     select s.id,s.name,s.code from public.line_platform_stalls p join public.stalls s on s.id=p.stall_id
       where p.environment=${runtime.environment} and p.enabled and s.is_active order by s.name,s.id limit 100`;
   const content = <main className="mx-auto max-w-3xl space-y-6 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-    <h1 className="text-2xl font-bold">攤點通・合作店家</h1>
+    <div className="mini-hero"><p className="mini-eyebrow">每一餐，都有好照應</p><h1 className="font-bold">今天，想吃點什麼？</h1><p className="mini-muted mt-2">選擇合作店家，開始點餐。</p></div>
     {!lineIdentity ? <LineMiniAppLogin liffId={runtime.liffId} endpointUrl={runtime.endpointUrl} />
       : !member || member.terms_version !== runtime.termsVersion ? <LinePlatformMemberForm termsVersion={runtime.termsVersion} />
-        : <p role="status">已登入平台會員。訂單與取餐通知由攤點通官方帳號提供。</p>}
+        : <p role="status" className="mini-status"><CheckCircle2 aria-hidden="true" />已登入平台會員</p>}
+    <div className="mini-section-heading"><h2 className="font-bold">合作店家</h2><span className="mini-muted">{stores.length} 間店家</span></div>
     <div className="grid gap-3 sm:grid-cols-2">{stores.map(store => <Link key={store.id} href={`/mini/store/${encodeURIComponent(store.code)}?view=menu`}
-      className="flex min-h-20 items-center justify-between gap-4 rounded-xl border border-stone-300 p-4 font-semibold"><span className="break-words">{store.name}</span><span aria-hidden>→</span></Link>)}</div>
+      className="mini-card mini-store"><span className="mini-store-icon"><Store aria-hidden="true" /></span><span><strong>{store.name}</strong><small>查看菜單與店家資訊</small></span><ArrowUpRight aria-hidden="true" /></Link>)}</div>
     {!stores.length && <p role="status">目前尚未開放合作店家，請稍後再試。</p>}
   </main>;
   const query = await searchParams;

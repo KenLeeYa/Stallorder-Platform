@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { QrCode, ScanLine } from "lucide-react";
+import { ExperienceDialog } from "@/components/experience-dialog";
 import { csrfHeaders } from "@/lib/csrf-client";
 import type { PickupLookup } from "@/server/line-platform/pickup-contract";
 import type { PickupPreview } from "@/server/line-platform/pickup-service";
@@ -133,16 +135,19 @@ export function LinePlatformPickupPanel({ stallSlug, orders, onCompleted }: {
     finally { setBusy(false); }
   }
   if (!enabled) return null;
-  return <section className="my-2 rounded-lg border border-teal-200 bg-white p-3 print:hidden" aria-label="平台 QR 交付">
-    <button type="button" className={button} onClick={() => { setOpen(!open); setCamera(false); }}>平台 QR 掃碼交付</button>
-    {open ? <div className="mt-3 grid max-w-2xl gap-3">
+  return <>
+    <button type="button" title="平台 QR 掃碼交付" aria-label="平台 QR 掃碼交付" aria-haspopup="dialog" aria-expanded={open}
+      data-testid="staff-platform-qr-pickup" className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 bg-white text-stone-700 md:order-4"
+      onClick={() => { invalidate(); setOpen(true); setCamera(false); }}><QrCode className="h-5 w-5" aria-hidden="true" /></button>
+    <ExperienceDialog open={open} title="平台 QR 掃碼交付" onClose={() => { setOpen(false); setCamera(false); }}>
+    <section className="grid gap-3" aria-label="平台 QR 交付">
       <p className="text-sm text-stone-600">先核對本店餐點與付款，再於實際交付後確認。掃描與預覽不會完成訂單。</p>
       <div className="flex flex-wrap gap-2">
-        <button type="button" className={button} onClick={() => { setManual(false); invalidate(); }}>QR／條碼掃描器</button>
-        <button type="button" className={button} onClick={() => { setManual(true); setCamera(false); invalidate(); }}>人工核對／憑證管理</button>
+        <button type="button" aria-pressed={!manual} className={`${button} ${!manual ? "border-teal-700 bg-teal-50 text-teal-900" : ""}`} onClick={() => { setManual(false); invalidate(); }}>QR／條碼掃描器</button>
+        <button type="button" aria-pressed={manual} className={`${button} ${manual ? "border-teal-700 bg-teal-50 text-teal-900" : ""}`} onClick={() => { setManual(true); setCamera(false); invalidate(); }}>人工核對／憑證管理</button>
       </div>
       {!manual ? <>
-        <button type="button" className={button} onClick={() => setCamera(!camera)}>{camera ? "關閉相機" : "開啟相機掃描"}</button>
+        <button type="button" className={`${button} flex items-center justify-center gap-2 bg-teal-800 text-white`} onClick={() => setCamera(!camera)}><ScanLine className="size-5" aria-hidden="true" />{camera ? "關閉相機" : "開啟相機掃描"}</button>
         {camera ? <video ref={video} muted playsInline className="max-h-80 w-full rounded-lg bg-stone-900" aria-label="取餐 QR 掃描相機" /> : null}
         <label className="text-sm">取餐 QR 內容<textarea maxLength={61} aria-label="取餐 QR 內容" value={token} onChange={(event) => { setToken(event.target.value); invalidate(); }} autoComplete="off" spellCheck={false} className="form-input mt-1 min-h-20 w-full break-all" /></label>
       </> : <>
@@ -167,6 +172,7 @@ export function LinePlatformPickupPanel({ stallSlug, orders, onCompleted }: {
         {snapshot.value.canRedeem ? <><label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={handoffChecked} onChange={(event) => setHandoffChecked(event.target.checked)} />已核對並實際交付全部餐點</label><button type="button" className={`${button} bg-teal-800 text-white`} disabled={busy || !handoffChecked} onClick={() => void redeem()}>確認交付／完成取餐</button></> : !snapshot.value.pickedUpAt ? <p className="text-sm text-amber-900">請先於原訂單完成製作及收款；付款或退款待確認時不能交付。</p> : null}
       </div> : null}
       <p role="status" aria-live="polite" className="break-words text-sm text-teal-900">{message}</p>
-    </div> : null}
-  </section>;
+    </section>
+    </ExperienceDialog>
+  </>;
 }

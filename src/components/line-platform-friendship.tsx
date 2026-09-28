@@ -33,8 +33,8 @@ export function LinePlatformFriendship({ liffId, initialStatus }: { liffId: stri
     finally { setBusy(false); }
   }
   return <div className="space-y-2">
-    <p role="status">{status === "FRIEND" ? "已確認好友狀態" : status === "NOT_FRIEND_OR_BLOCKED" ? "尚未加入好友或已封鎖" : "尚未確認好友狀態"}</p>
-    <button type="button" disabled={busy} onClick={() => void refresh()} className="min-h-11 rounded-lg border px-4 font-semibold disabled:opacity-50">
+    <p role="status" className="mini-status">{status === "FRIEND" ? "已確認好友狀態" : status === "NOT_FRIEND_OR_BLOCKED" ? "尚未加入好友或已封鎖" : "尚未確認好友狀態"}</p>
+    <button type="button" disabled={busy} onClick={() => void refresh()} className="mini-secondary w-full disabled:opacity-50">
       {busy ? "確認中…" : "重新確認好友狀態"}
     </button>
     {error && <p role="alert" className="text-sm text-amber-700">{error}</p>}

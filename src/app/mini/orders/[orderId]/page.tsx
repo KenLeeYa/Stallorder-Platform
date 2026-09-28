@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowLeft, MapPin } from "lucide-react";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getPagePrincipal } from "@/lib/auth";
@@ -36,19 +37,20 @@ export default async function OrderPage({ params }: { params: Promise<{ orderId:
   const active = !["COMPLETED","CANCELLED","EXPIRED"].includes(order.status);
   const allowNewPayment = runtime.payEnabled && capability?.payment_configured === true && active && order.paymentStatus === "UNPAID";
   return <main className="mx-auto max-w-lg space-y-4 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-    <h1 className="break-words text-2xl font-bold">{order.stall.name}</h1><p>訂單 {order.orderNo}</p>
+    <Link href="/mini/orders" className="mini-secondary text-sm"><ArrowLeft className="size-4" aria-hidden="true" />我的訂單</Link>
+    <h1 className="break-words text-2xl font-bold">{order.stall.name}</h1><p className="mini-muted">訂單 {order.orderNo}</p>
     <LinePlatformOrderRefresh active={!["COMPLETED","CANCELLED","EXPIRED"].includes(order.status)} />
-    <section className="space-y-3 rounded-xl border p-4"><strong className="text-xl">{pickedUp ? "已完成取餐" : platformOrderStatusLabel(order.status)}</strong>
-      <p>{platformPaymentStatusLabel(order.paymentStatus)}・<strong>NT$ {order.total.toLocaleString("zh-TW")}</strong></p>
-      <p>取餐號碼：{order.pickupCodeDisplay ?? order.orderNo}</p>
-      {expected && <p>預約／預估時間：{expected.toLocaleString("zh-TW", { timeZone: "Asia/Taipei" })}</p>}
-      {pickedUp && <p>交付時間：{pickedUp.createdAt.toLocaleString("zh-TW", { timeZone: "Asia/Taipei" })}</p>}
-      <p>{order.stall.location}</p>
+    <section className="mini-hero space-y-4"><strong className="text-xl">{pickedUp ? "已完成取餐" : platformOrderStatusLabel(order.status)}</strong>
+      <div><p className="mini-muted">取餐號碼</p><p className="mini-pickup-number">{order.pickupCodeDisplay ?? order.orderNo}</p></div>
+      <dl className="mini-detail-rows"><div><dt>訂單金額</dt><dd>NT$ {order.total.toLocaleString("zh-TW")} · {platformPaymentStatusLabel(order.paymentStatus)}</dd></div>
+      {expected && <div><dt>預約／預估時間</dt><dd>{expected.toLocaleString("zh-TW", { timeZone: "Asia/Taipei" })}</dd></div>}
+      {pickedUp && <div><dt>交付時間</dt><dd>{pickedUp.createdAt.toLocaleString("zh-TW", { timeZone: "Asia/Taipei" })}</dd></div>}</dl>
+      {order.stall.location && <p className="mini-muted flex items-start gap-2"><MapPin className="mt-1 size-4 shrink-0" aria-hidden="true" />{order.stall.location}</p>}
     </section>
-    <ul className="divide-y rounded-xl border px-4">{order.items.map(item => <li key={item.id} className="flex justify-between gap-4 py-3"><span className="break-words">{item.quantity} × {item.name}</span><span className="shrink-0">NT$ {item.quantity * item.unitPrice}</span></li>)}</ul>
     {capability?.pickup_required && !pickedUp && active && order.paymentStatus !== "REFUNDED" && <LinePlatformPickupCard orderId={order.id} />}
+    <section className="mini-card"><h2 className="mb-2 font-semibold">餐點明細</h2><ul className="divide-y">{order.items.map(item => <li key={item.id} className="flex flex-wrap justify-between gap-2 py-3"><span className="min-w-0 flex-1">{item.quantity} × {item.name}</span><span className="shrink-0">NT$ {item.quantity * item.unitPrice}</span></li>)}</ul></section>
     {(capability?.has_payment || allowNewPayment) && <LinePlatformPayButton orderId={order.id} amount={order.total} orderVersion={order.updatedAt.toISOString()} allowNewPayment={allowNewPayment} />}
-    <Link href={`/mini/store/${encodeURIComponent(order.stall.code)}?view=menu`} className="inline-flex min-h-11 items-center underline">查看本店資訊</Link>
-    <p className="text-sm">以本頁最新狀態為準。付款完成不代表餐點已做好；請待餐點完成後，由店員確認交付。</p>
+    <Link href={`/mini/store/${encodeURIComponent(order.stall.code)}?view=menu`} className="mini-secondary w-full">查看本店資訊</Link>
+    <p className="mini-muted">以本頁最新狀態為準。付款完成不代表餐點已做好；請待餐點完成後，由店員確認交付。</p>
   </main>;
 }

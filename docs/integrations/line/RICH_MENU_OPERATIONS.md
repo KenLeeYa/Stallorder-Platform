@@ -13,7 +13,9 @@
 | 立即點餐 | `/mini` | `https://miniapp.line.me/{liffId}` |
 | 我的訂單 | `/mini/orders` | `https://miniapp.line.me/{liffId}/orders` |
 | 會員中心 | `/mini/member` | `https://miniapp.line.me/{liffId}/member` |
-| 聯絡客服 | `/mini/help` | `https://miniapp.line.me/{liffId}/help` |
+| 使用協助 | `/mini/help` | `https://miniapp.line.me/{liffId}/help` |
+
+2026-09-28 UI 候選將第四格改為「使用協助」，不暗示真人客服；第二格增加淡青綠底色，文字與 MINI 頁面對齊。新版 PNG 為 139,100 bytes，仍使用 example binding、尚未套用 OA。詳見 [介面改版與驗證](UI_UX_REDESIGN_20260928.md)。
 
 本次提交的 JSON 使用 `--example` 合成 ID，僅供版面／程式驗證，不能宣稱這些示例 URL 已連到正式 LINE channel。部署前須以正確環境的真實 `LINE_PLATFORM_BINDING_JSON` 重新 dry-run，再由裝置驗證永久連結。產生器會確認四個本地 route 存在，完整 manifest 必須與固定四入口完全一致，不能注入任意 URL、店家 sender 或顧客 token。
 

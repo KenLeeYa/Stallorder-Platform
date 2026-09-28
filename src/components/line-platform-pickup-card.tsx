@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { QrCode } from "lucide-react";
 import { csrfHeaders } from "@/lib/csrf-client";
 
 export function LinePlatformPickupCard({ orderId }: { orderId: string }) {
@@ -18,8 +19,8 @@ export function LinePlatformPickupCard({ orderId }: { orderId: string }) {
     } catch (error) { setMessage(error instanceof Error ? error.message : "無法載入取餐 QR。"); }
     finally { setBusy(false); }
   }
-  return <section className="grid justify-items-start gap-3 rounded-lg border border-stone-200 p-4" aria-label="取餐 QR">
-    <button type="button" disabled={busy} onClick={() => void show()} className="min-h-11 rounded-md bg-teal-800 px-4 py-2 font-semibold text-white disabled:opacity-50">{busy ? "讀取中…" : "顯示／更新取餐 QR"}</button>
+  return <section className="mini-card grid justify-items-center gap-3" aria-label="取餐 QR">
+    <button type="button" disabled={busy} onClick={() => void show()} className="mini-primary w-full disabled:opacity-50"><QrCode className="size-5" aria-hidden="true" />{busy ? "讀取中…" : "顯示／更新取餐 QR"}</button>
     {media ? <>
       {/* The capability image is served directly; Next image optimization must not cache it. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
