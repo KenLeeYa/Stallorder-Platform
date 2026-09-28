@@ -49,3 +49,15 @@
 - `6be05f8` CI `36360109446`：unit、DB tests／lint通過，Production guardrails在`.env.example`的`PICKUP_TOKEN_GRACE_MINUTES="120"`失敗，原因是欄位名稱含TOKEN而被視為憑證。
 - 本機`npm run production:check`同樣重現。該欄位是選填時長，runtime本來就預設120分鐘，因此改為註解式範例，保留預設說明；未放寬憑證掃描，也未修改取餐期限行為。
 - 此次失敗後build及E2E未執行，不能算通過；修正後重新走同一gate。
+
+## 配對 Preview 與導覽回歸（08:24 台北起）
+
+- `5e005cd` 的配對 Preview `36360718506` SUCCESS：72 SQL／1,619 pgTAP PASS、DB lint、Edge Functions、build、read-only smoke 與合成 OAuth／delivery smoke 通過。部署 `dpl_KgQRubycYquDMesVYXpLUBgmeqA8` READY，URL `https://stallorder-platform-dantho33d-ada76145-8663s-projects.vercel.app`，仍受 Vercel 登入保護。
+- 此 artifact 使用 GitHub PR merge tree `b2ba1452f4ac9130b0f6b7561444dbeef493ac63`，parents 為 staging `3ec6e9c1f2aa1291ed4b57f10d51a47bafedc079` 與候選 `5e005cd7c09be3bc3ab7c93935c45a2737b4795c`；PR 未合併。此部署沒有 alias，不推定存在分支網址。
+- CI `36360718526` 在 E2E shard 2 失敗：shard 1 的35項、shard 2 的27項通過；2項失敗、5項未執行，其餘 shards 未執行。原因是帳務開關已收進「系統設定」、手機庫存／成長入口已收進「所有功能」，舊案例仍直接搜尋收合內容。
+- 修正測試操作順序，保留 checked 狀態斷言，增加展開狀態及手機功能目錄實際點擊、到達正確頁面與關閉對話框的斷言。手機登入明確指定授權商家的 next 路徑，兼容多商家測試帳號。
+- 本機聚焦2項 PASS（49.5秒），lint／typecheck PASS；完整帳務回歸與新 HEAD 雲端 CI 另記結果，尚不能稱完整 E2E 通過。
+- 08:24 Primary readback 仍為原 deployment／commit，`NORMAL_PRIMARY`、`PRIMARY`、`EDGE_PRIMARY`，QR／Staff AVAILABLE。未做正式建單或 LINE／Pay 外部寫入。
+- Vercel browser 仍等待使用者六位數2FA；沒有修改 deployment protection。真 LINE runtime、OA Vault、MINI endpoint、Webhook、Pay 與實機驗收未啟用。
+- 完整帳務及手機導覽：本機3024＋獨立clone、明確使用Circuit B，7項流程斷言PASS（2.3分鐘），包含方案申請／人工付款／停權與恢復／加購／手機版。之前兩輪本機完整驗證分別因dev解析错误及未啟動Edge服務失敗，保留`artifacts/line-v2-preview-e2e-regression*.log`，未計為PASS。
+- 最後一輪dev仍留下JSON解析／串流錯誤與React警告，不能稱無錯誤驗收；目前僅確認流程斷言通過，待正式建置模式CI確認。此次未啟動Docker容器；Playwright管理的3024／55431測試服務結束即停止，原3023及共用55722保留供人工QA。

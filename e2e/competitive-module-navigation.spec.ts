@@ -4,7 +4,7 @@ import { gotoLocalPath } from "./local-navigation";
 const organizationId = "11111111-1111-4111-8111-111111111111";
 
 async function loginAsOwner(page: Page) {
-  await page.goto("/login");
+  await page.goto(`/login?next=${encodeURIComponent(`/merchant/dashboard?organizationId=${organizationId}`)}`);
   await page
     .getByRole("button", { name: "使用電子郵件與密碼登入", exact: true })
     .click();
@@ -27,21 +27,21 @@ test("已啟用的庫存、成長與菜單版本可由商家介面開啟", async
   const mobileNavigation = page.getByTestId(
     "merchant-function-navigation-mobile",
   );
-  await expect(mobileNavigation.getByTitle("庫存與配方")).toBeVisible();
-  await expect(mobileNavigation.getByTitle("會員與成長")).toBeVisible();
-
-  await gotoLocalPath(
-    page,
-    `/merchant/supply?organizationId=${organizationId}`,
-  );
+  await mobileNavigation.getByRole("button", { name: "所有功能", exact: true }).click();
+  const functionDirectory = page.getByRole("dialog", { name: "所有功能", exact: true });
+  await expect(functionDirectory.getByRole("link", { name: "庫存與配方", exact: true })).toBeVisible();
+  await expect(functionDirectory.getByRole("link", { name: "會員與成長", exact: true })).toBeVisible();
+  await functionDirectory.getByRole("link", { name: "庫存與配方", exact: true }).click();
+  await expect(page).toHaveURL(`/merchant/supply?organizationId=${organizationId}`);
+  await expect(functionDirectory).not.toBeVisible();
   await expect(
     page.getByRole("heading", { name: "原料與庫存管理", exact: true }),
   ).toBeVisible();
 
-  await gotoLocalPath(
-    page,
-    `/merchant/growth?organizationId=${organizationId}`,
-  );
+  await mobileNavigation.getByRole("button", { name: "所有功能", exact: true }).click();
+  await functionDirectory.getByRole("link", { name: "會員與成長", exact: true }).click();
+  await expect(page).toHaveURL(`/merchant/growth?organizationId=${organizationId}`);
+  await expect(functionDirectory).not.toBeVisible();
   await expect(
     page.getByRole("heading", { name: "會員與成長", exact: true }),
   ).toBeVisible();

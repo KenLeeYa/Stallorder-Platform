@@ -148,8 +148,12 @@ test.describe("Phase 1 商業帳務完整流程", () => {
       await page.context().clearCookies();
       await login(page, adminEmail);
       await page.goto("/admin/billing");
-      await expect(page.getByRole("switch", { name: "開放測試免費模式" })).toBeChecked();
-      await expect(page.getByRole("switch", { name: "向商家顯示訂閱與付款" })).not.toBeChecked();
+      const systemSettings = page.getByTestId("admin-system-settings");
+      await expect(systemSettings).not.toHaveAttribute("open");
+      await systemSettings.getByText("系統設定", { exact: true }).click();
+      await expect(systemSettings).toHaveAttribute("open", "");
+      await expect(systemSettings.getByRole("switch", { name: "開放測試免費模式" })).toBeChecked();
+      await expect(systemSettings.getByRole("switch", { name: "向商家顯示訂閱與付款" })).not.toBeChecked();
     } finally {
       await setBillingFlags({
         OPEN_BETA_FREE_ACCESS_ENABLED: false,

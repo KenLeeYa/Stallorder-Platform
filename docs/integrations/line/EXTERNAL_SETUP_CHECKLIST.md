@@ -55,6 +55,7 @@
 - 欄位：HTTPS Endpoint、database fingerprint、32-byte資料金鑰、OA Vault UUID、callback/state secret、CRON_SECRET、worker origin及原report endpoint一致。
 - 已確認：本機3024自簽與loopback PNG不能由LINE公開抓圖；clone無遠端scheduler，沒有寫Production。
 - 2026-09-28準備：已核對 parent 所屬 Pro 組織及僅有 main 分支；本機 Preview workflow 改為付費組織可新建的 Micro，30項流程契約測試通過。後續已獲24小時隔離測試授權、建立PR #365與child gfoscoqwumwdtvkbfoiv；72 SQL／1,619 pgTAP已通過首輪，但整體CI／部署仍未完成，詳 [執行紀錄](PREVIEW_EXECUTION_20260928.md) 及 [資源方案](SETUP_RUNBOOK.md#2026-09-28-公開測試資源方案尚未執行) 與 [成本](PREVIEW_RESOURCE_COSTS_20260928.md)。
+- 2026-09-28增量：配對Preview `36360718506` SUCCESS，1,619 pgTAP、read-only及合成OAuth/delivery smoke通過；部署仍受Vercel登入保護，瀏覽器等待2FA。完整CI另有2項舊導覽案例失敗，修正後本機聚焦通過，尚待新HEAD完整CI；沒有匯入OA／Pay憑證或公開網址。
 - 完成驗證：Webhook原bytes/簽章、media合法抓取、private no-store、CDN/APM URL遮罩、pg_net commit wakeup、worker lease重啟與首次Push延遲、Pay每分鐘查核。
 - 阻擋：真OA圖片/背景時效/實機/正式。
 - 回復：保存Primary健康artifact與映射，不影響DR，遵守Staging→Production與单一writer。

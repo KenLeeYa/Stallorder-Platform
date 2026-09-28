@@ -180,3 +180,5 @@ PASS表示該列已列出的本機自動化範圍成立；要求真provider/装�
 - 首次雲端child資料庫72個SQL檔／1,619項pgTAP PASS、schema lint無錯誤；後續commit取消未完成的部署步驟，整輪CANCELLED不算部署成功。
 - 修正Rich Menu測試執行器後，本機完整unit 591檔／3,553項 PASS，12檔／97項 SKIP。保留原12個Rich Menu案例與斷言。此結果不代替DB integration、真LINE、Pay Sandbox及實機掃碼。
 - 新HEAD的CI、公開Preview、真provider與裝置驗收仍待後續收據；上方既有本機失敗／外部BLOCKED紀錄未改標PASS。
+- `5e005cd` 配對Preview `36360718506`已成功：72 SQL／1,619 pgTAP、schema lint、build、read-only與合成OAuth/delivery smoke通過，部署仍受保護；真LINE/Pay旗標關閉。相同HEAD的CI在舊導覽E2E失敗（62 PASS、2 FAIL、其餘未跑），修正為展開系統設定及實際點手機功能目錄後，聚焦2項PASS、lint/typecheck PASS；完整CI待重驗。
+- 帳務／手機導覽本機Circuit B回歸7項流程斷言PASS（2.3分鐘）；dev仍記錄JSON解析／串流錯誤，屬尚待正式建置模式CI核對的限制。之前兩輪失敗仍保留，不以最終流程斷言PASS覆蓋錯誤日誌或宣稱整體無錯。
