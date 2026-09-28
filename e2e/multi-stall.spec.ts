@@ -233,7 +233,8 @@ test.describe("多攤位商戶關鍵流程", () => {
   });
 
   test("Google 登入 owner 並建立第二攤位", async ({ page }) => {
-    await page.goto("/auth/google?next=%2Fmerchant%2Fdashboard");
+    const next = `/merchant/dashboard?organizationId=${organization.id}`;
+    await page.goto(`/auth/google?next=${encodeURIComponent(next)}`);
     await expect(page).toHaveURL(/\/merchant\/dashboard/, { timeout: 20_000 });
     await expect(
       page.getByRole("heading", {
@@ -364,7 +365,7 @@ test.describe("多攤位商戶關鍵流程", () => {
   });
 
   test("共用商品分派、攤位覆寫價格與顧客菜單一致", async ({ page }) => {
-    await loginWithPassword(page, ownerEmail);
+    await loginWithPassword(page, ownerEmail, `/merchant/dashboard?organizationId=${organization.id}`);
     await expectDashboardOrganization(page, organization.id);
     const sharedProduct = await prisma.product.findFirstOrThrow({
       where: { organizationId: organization.id, name: sharedProductName },
@@ -456,7 +457,7 @@ test.describe("多攤位商戶關鍵流程", () => {
     );
     await saveProduct.click();
     expect((await saveProductResponse).status()).toBe(200);
-    await expect(page.getByRole("status")).toContainText(
+    await expect(page.getByRole("dialog").getByRole("status")).toContainText(
       `「${sharedProductName}」設定已儲存`,
     );
     await expect
@@ -1010,6 +1011,9 @@ async function deleteTestOrganizations(args: {
   await prisma.usageEvent.deleteMany({
     where: { organizationId: { in: organizationIds } },
   });
+  await prisma.stall.deleteMany({
+    where: { organizationId: { in: organizationIds } },
+  });
   await prisma.organization.deleteMany({
     where: { id: { in: organizationIds } },
   });
@@ -1113,8 +1117,8 @@ async function selectCompactOption(
     .click();
 }
 
-async function loginWithPassword(page: Page, email: string) {
-  await gotoLocalPath(page, "/login");
+async function loginWithPassword(page: Page, email: string, next?: string) {
+  await gotoLocalPath(page, next ? `/login?next=${encodeURIComponent(next)}` : "/login");
   await page
     .getByRole("button", { name: "使用電子郵件與密碼登入", exact: true })
     .click();

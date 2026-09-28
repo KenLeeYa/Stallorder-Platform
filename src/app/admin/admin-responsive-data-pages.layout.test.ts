@@ -7,7 +7,7 @@ function source(relativePath: string) {
 }
 
 const responsiveViews = [
-  ["admin-subscriptions", source("./subscriptions/page.tsx")],
+  ["admin-subscriptions", source("../../components/admin-subscription-directory.tsx")],
   ["admin-invoices", source("./invoices/page.tsx")],
   ["admin-invoice-detail", source("./invoices/[invoiceId]/page.tsx")],
   ["admin-usage", source("./usage/page.tsx")],

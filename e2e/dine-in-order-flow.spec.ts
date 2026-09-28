@@ -1,3 +1,4 @@
+import { searchStaffOrders } from "./helpers/staff-search";
 import { randomUUID } from "node:crypto";
 import {
   expect,
@@ -433,7 +434,7 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
   await expect(
     staffMain.getByRole("switch", { name: /新單提示音已(?:開啟|關閉)/ }),
   ).toBeVisible();
-  await staffMain.getByPlaceholder("搜尋桌號、訂單編號或顧客").fill(tableCode);
+  await searchStaffOrders(staffPage, tableCode);
   const staffOrder = staffMain
     .getByRole("article")
     .filter({ hasText: `訂單 ${orderNo}` });
@@ -584,7 +585,7 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
   const discountDialog = staffPage.getByRole("dialog", { name: "結帳折扣" });
   await expect(discountDialog).toBeVisible();
   await discountDialog.getByRole("button", { name: "9 折" }).click();
-  await checkout.getByRole("button", { name: "$500" }).click();
+  await checkout.getByTestId("cash-quick-amounts").getByRole("button", { name: "500", exact: true }).click();
   await expect(checkout).toContainText("$135");
   await expect(checkout).toContainText("$365");
   await captureMobileScreenshot(staffPage, testInfo, "05-staff-checkout");

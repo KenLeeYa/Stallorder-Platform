@@ -15,9 +15,10 @@ type Props = {
   onSelect: (optionId: string | null) => void;
   existingDiscountLabel?: string | null;
   isApplicable?: boolean;
+  compact?: boolean;
 };
 
-export function StaffDiscountSelector({ enabled, options, selectedOptionId, onSelect, existingDiscountLabel, isApplicable = true }: Props) {
+export function StaffDiscountSelector({ enabled, options, selectedOptionId, onSelect, existingDiscountLabel, isApplicable = true, compact = false }: Props) {
   const { t } = useOperationsLocale();
   const [open, setOpen] = useState(false);
   const state = getStaffDiscountState(enabled, options.length);
@@ -55,9 +56,9 @@ export function StaffDiscountSelector({ enabled, options, selectedOptionId, onSe
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen(true)}
-        className="inline-flex h-11 min-w-24 max-w-full items-center justify-center gap-2 rounded-md border border-teal-700 bg-white px-3 text-sm font-semibold text-teal-900"
+        className={`inline-flex max-w-full items-center justify-center gap-2 rounded-md border border-teal-700 bg-white text-sm font-semibold text-teal-900 ${compact ? "h-14 w-full min-w-0 px-1" : "h-11 min-w-24 px-3"}`}
       >
-        <Percent className="h-4 w-4 shrink-0" />
+        {!compact ? <Percent className="h-4 w-4 shrink-0" /> : null}
         <span className="truncate">{triggerLabel}</span>
       </button>
       {open && typeof document !== "undefined" ? createPortal(

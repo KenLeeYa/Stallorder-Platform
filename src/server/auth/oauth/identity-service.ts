@@ -53,6 +53,7 @@ export async function completeOAuthLogin(input: {
   authenticatedProfileId?: string;
   requestId: string;
   sessionEvidence: SessionEvidence;
+  miniAppContextFingerprint?: string;
 }) {
   return prisma.$transaction(async (transaction) => {
     await transaction.$queryRaw`
@@ -68,6 +69,13 @@ export async function completeOAuthLogin(input: {
       !oauthTransaction
       || oauthTransaction.status !== "PROCESSING"
       || oauthTransaction.provider !== input.claims.provider
+      || oauthTransaction.flow !== (input.miniAppContextFingerprint ? "LINE_MINIAPP" : "OAUTH")
+      || (input.miniAppContextFingerprint && (
+        oauthTransaction.contextFingerprint !== input.miniAppContextFingerprint
+        || oauthTransaction.linkMode
+        || input.claims.provider !== "LINE"
+        || !input.claims.subject.startsWith("miniapp:")
+      ))
       || oauthTransaction.expiresAt <= new Date()
     ) {
       throw new Error("OAUTH_TRANSACTION_NOT_PROCESSING");
@@ -87,6 +95,18 @@ export async function completeOAuthLogin(input: {
     let linkedIdentityId: string;
     let newProfile = false;
     let organizationId: string | null = null;
+
+    // Customer exchange must never become an operator login, even if an identity
+    // was linked or elevated through an administrative action after its creation.
+    if (input.miniAppContextFingerprint && existingIdentity) {
+      const memberships = await Promise.all([
+        transaction.organizationMembership.count({ where: { profileId: existingIdentity.profileId, isActive: true } }),
+        transaction.stallMembership.count({ where: { profileId: existingIdentity.profileId, isActive: true } }),
+      ]);
+      if (existingIdentity.profile.platformRole || memberships.some(count => count > 0)) {
+        throw new Error("LINE_MINIAPP_OPERATOR_IDENTITY_REJECTED");
+      }
+    }
 
     if (oauthTransaction.linkMode) {
       const invitation = oauthTransaction.invitationId

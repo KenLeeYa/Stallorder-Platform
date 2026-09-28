@@ -598,8 +598,22 @@ describe("Production workflow approval contract", () => {
     expect(drInitialization).not.toContain("DR_STORAGE_OBJECTS_PRESENT");
   });
 
-  it("disables Vercel Git auto-deploy only for main", () => {
-    expect(vercel.git.deploymentEnabled).toEqual({ main: false });
+  it("keeps main and the live LINE QA branch on controlled deployments", () => {
+    expect(vercel.git.deploymentEnabled).toEqual({ main: false, "codex/line-platform-oa-v2-20260927": false });
+  });
+
+  it("pairs privileged Supabase access and disables inherited paid providers for LINE QA", () => {
+    const configuration = ephemeralPreview.slice(ephemeralPreview.indexOf("name: Load and mask Preview Branch configuration"), ephemeralPreview.indexOf("name: Wait for Preview Branch database stability"));
+    expect(configuration).toContain(".SUPABASE_SERVICE_ROLE_KEY");
+    expect(configuration).toContain('"$service_role_key"');
+    for (const name of ["SUPABASE_SECRET_KEY", "PRIMARY_SUPABASE_SECRET_KEY", "PRIMARY_SUPABASE_URL"]) {
+      expect(configuration).toContain(`echo "${name}=`);
+      expect(ephemeralPreview).toContain(`--env "${name}=$${name}"`);
+    }
+    expect(ephemeralPreview).toContain('"$PREVIEW_GIT_BRANCH" = "codex/line-platform-oa-v2-20260927"');
+    expect(ephemeralPreview).toContain('"OPENAI_API_KEY="');
+    expect(ephemeralPreview).toContain('"AZURE_TRANSLATOR_KEY="');
+    expect(ephemeralPreview).toContain('"LINE_PLATFORM_ENABLED=false"');
   });
 
   it("waits for the hosted branch action and stable database before Preview migrations", () => {
@@ -631,7 +645,7 @@ describe("Production workflow approval contract", () => {
     expect(branchCreation).toBeGreaterThan(-1);
     expect(branchCreation).toBeLessThan(branchConfiguration);
     expect(branchCreationStep).toContain("--region ap-southeast-1");
-    expect(branchCreationStep).toContain("--size nano");
+    expect(branchCreationStep).toContain("--size micro");
     expect(branchCreationStep).toContain("for attempt in $(seq 1 60); do");
     expect(stability).toBeGreaterThan(-1);
     expect(stability).toBeLessThan(migrations);
@@ -751,6 +765,16 @@ describe("Production workflow approval contract", () => {
     expect(blocks[1]).toContain("raise exception 'LINE Preview OAuth feature flags are missing'");
     expect(blocks[1]).toContain("insert into public.resilience_feature_flag_overrides");
     expect(fixture).toContain("'OAUTH_IDENTITY_FOUNDATION_ENABLED', 'OAUTH_LINE_ENABLED'");
+  });
+
+  it("preserves the public LINE test fixture only for its exact labeled PR and branch", () => {
+    const validate = workflowJob(ephemeralPreview, "validate");
+    const gate = validate.slice(0, validate.indexOf("runs-on:"));
+    expect(gate).toContain("github.event.pull_request.number == 365 &&");
+    expect(gate).toContain("github.event.pull_request.head.ref == 'codex/line-platform-oa-v2-20260927' &&");
+    expect(gate).toContain("contains(github.event.pull_request.labels.*.name, 'line-preview-live')");
+    expect(gate).toMatch(/!\(\s+github.event.pull_request.number/u);
+    expect(workflowJob(ephemeralPreview, "cleanup")).not.toContain("line-preview-live");
   });
 
   it("deletes every metadata-matched Preview URL and verifies cleanup", () => {

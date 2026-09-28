@@ -28,6 +28,7 @@ import {
 } from "@/components/qr-lottery-dialogs";
 import { QrLanguageSelector } from "@/components/qr-language-selector";
 import { QrCustomerMembershipEntry } from "@/components/qr-customer-membership-entry";
+import { LinePlatformCartHandoff } from "@/components/line-platform-cart-handoff";
 import { QrSessionCountdown } from "@/components/qr-session-countdown";
 import { SessionExpiryDialog } from "@/components/qr-session-expiry-dialog";
 import { SpecialClosureNoticeDialog } from "@/components/special-closure-notice-dialog";
@@ -359,6 +360,7 @@ export function QrOrderFlowPresentation({
           </div>
         </div>
         <p className="mt-2 text-sm font-semibold text-stone-700">{session.stall.fulfillmentType === "DINE_IN" ? copy.dineIn(session.stall.table?.label ?? "") : session.stall.fulfillmentType === "DELIVERY" ? deliveryCopy.delivery : copy.takeout}</p>
+        <LinePlatformCartHandoff {...controller.platformCartHandoff} />
         {activeOrderingMode === "PREORDER" ? <p className="mt-2 rounded-md bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-900">{copy.preorderOnlyNotice}</p> : null}
         {session.specialClosure ? (
           <section

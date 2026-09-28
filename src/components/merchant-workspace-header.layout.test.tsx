@@ -5,6 +5,15 @@ import { MessageTestProvider } from "@/test/message-test-provider";
 import { MerchantWorkspaceHeader } from "@/components/merchant-workspace-header";
 import type { WorkspaceOrganization } from "@/lib/workspace";
 
+const captured = vi.hoisted(() => ({ items: [] as Array<{ href: string; label: string }> }));
+vi.mock("@/components/workspace-function-navigation", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/components/workspace-function-navigation")>();
+  return { ...actual, WorkspaceFunctionNavigation: (props: React.ComponentProps<typeof actual.WorkspaceFunctionNavigation>) => {
+    captured.items = [...props.items];
+    return <actual.WorkspaceFunctionNavigation {...props} />;
+  } };
+});
+
 vi.mock("next/navigation", () => ({
   usePathname: () => "/merchant/dashboard",
   useRouter: () => ({ push: vi.fn() }),
@@ -66,18 +75,17 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
 
     expect(html).not.toContain('id="merchant-mobile-options"');
     expect(html).toContain('data-testid="merchant-utility-toolbar"');
-    expect(html).toContain('data-testid="merchant-function-navigation-mobile"');
-    expect(html).toContain('data-testid="merchant-function-navigation-desktop"');
-    expect(html).toContain('data-persist-horizontal-scroll="merchant-function-navigation-mobile"');
-    expect(html).toContain('data-persist-horizontal-scroll="merchant-function-navigation-desktop"');
+    expect(html.match(/data-testid="merchant-function-navigation"/g)).toHaveLength(1);
+    expect(html).toContain('workspace-responsive-navigation');
+    expect(html).toContain('data-persist-horizontal-scroll="merchant-function-navigation"');
     expect(html).toContain('data-persist-horizontal-scroll="merchant-utility-toolbar"');
     const utilityToolbarClass = html.match(/data-testid="merchant-utility-toolbar"[^>]*class="([^"]+)"/)?.[1] ?? "";
     expect(utilityToolbarClass).toContain("flex-1");
     expect(utilityToolbarClass).not.toContain("shrink-0");
     const workspaceHeaderClass = html.match(/data-testid="merchant-workspace-header"[^>]*class="([^"]+)"/)?.[1] ?? "";
     expect(workspaceHeaderClass).toContain("overflow-x-clip");
-    expect(html).toContain("sticky top-0");
-    expect(html).toContain("overflow-x-hidden");
+    expect(html).toContain("md:sticky md:top-0");
+    expect(html).toContain("所有功能");
     expect(html).toContain("overflow-x-auto");
     expect(html).toContain("[&amp;_button]:h-11");
     expect(html).toContain("[&amp;_svg]:h-5");
@@ -161,7 +169,8 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
       </MessageTestProvider>,
     );
 
-    expect(html).toContain("/merchant/billing?");
+    expect(html).toContain("所有功能");
+    expect(captured.items.some(item => item.href.startsWith("/merchant/billing?"))).toBe(true);
   });
 
   it("shows payment navigation only after the platform module switch is enabled", () => {
@@ -177,7 +186,8 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
       </MessageTestProvider>,
     );
 
-    expect(html).toContain("/merchant/payments?");
+    expect(html).toContain("所有功能");
+    expect(captured.items.some(item => item.href.startsWith("/merchant/payments?"))).toBe(true);
   });
 
   it("shows only enabled competitive modules in merchant navigation", () => {
@@ -194,8 +204,11 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
       </MessageTestProvider>,
     );
 
-    expect(html).toContain("/merchant/supply?");
-    expect(html).toContain("/merchant/growth?");
-    expect(html).toContain("lucide-users-round");
+    expect(html).toContain("所有功能");
+    expect(captured.items.some(item => item.href.startsWith("/merchant/supply?"))).toBe(true);
+    expect(html).toContain("所有功能");
+    expect(captured.items.some(item => item.href.startsWith("/merchant/growth?"))).toBe(true);
+    expect(html).toContain("所有功能");
+    expect(captured.items.some(item => item.label === "會員與成長")).toBe(true);
   });
 });

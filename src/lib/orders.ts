@@ -11,6 +11,7 @@ export const staffOrderSelect = {
   id: true,
   orderNo: true,
   source: true,
+  origin: true,
   isTest: true,
   customerName: true,
   customerPhone: true,
@@ -66,6 +67,7 @@ export type StaffOrderDto = {
   id: string;
   orderNo: string;
   source: string;
+  origin?: string;
   isTest: boolean;
   customerName: string;
   customerPhone: string | null;

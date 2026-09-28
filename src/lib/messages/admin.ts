@@ -4,6 +4,8 @@ import { interpolateMessage, type MessageValues } from "@/lib/message-catalog";
 type AdminMessageRow = readonly [zhTW: string, ja: string, ko: string, vi: string, th: string];
 
 const rows = {
+  "Platform LINE notifications": ["平台 LINE 通知", "プラットフォーム LINE 通知", "플랫폼 LINE 알림", "Thông báo LINE nền tảng", "การแจ้งเตือน LINE ของแพลตฟอร์ม"],
+  "System settings": ["系統設定", "システム設定", "시스템 설정", "Cài đặt hệ thống", "การตั้งค่าระบบ"],
   "System health": ["系統健康", "システムの状態", "시스템 상태", "Tình trạng hệ thống", "สถานะระบบ"],
   "Cancel change": ["取消", "キャンセル", "취소", "Hủy", "ยกเลิก"],
   "Confirm change": ["確認變更", "変更を確定", "변경 확인", "Xác nhận thay đổi", "ยืนยันการเปลี่ยนแปลง"],

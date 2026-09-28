@@ -6,7 +6,7 @@ import type { StaffOrderDto } from "@/lib/orders";
 
 vi.mock("@/components/work-mode-switcher", () => ({ WorkModeSwitcher: () => null }));
 vi.mock("@/components/workspace-switcher", () => ({ WorkspaceSwitcher: () => null }));
-vi.mock("@/components/pwa-controls", () => ({ PwaControls: () => null }));
+vi.mock("@/components/pwa-controls", () => ({ PwaControls: () => null, PwaWakeControl: () => null }));
 vi.mock("@/components/offline-bootstrap-control", () => ({ OfflineBootstrapControl: () => null }));
 vi.mock("@/components/offline-queue-status", () => ({ OfflineQueueStatus: () => null }));
 vi.mock("@/components/logout-button", () => ({ LogoutButton: () => null }));
@@ -125,7 +125,7 @@ describe("StaffOrderBoard ticket presentation", () => {
     expect(html).toContain("sticky top-0");
     expect(html).toMatch(/<header[^>]*data-testid="staff-sticky-header"[^>]*overflow-x-clip[^>]*overflow-y-visible/);
     expect(html).toContain("overscroll-x-contain");
-    expect(html).toContain("min-[360px]:flex-nowrap");
+    expect(html).toContain('data-testid="staff-common-controls"');
     expect(html).not.toContain("backdrop-blur");
     expect(html).toContain("[&amp;_button]:box-border");
     expect(html).toContain("h-11 w-11");

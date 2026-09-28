@@ -419,7 +419,7 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
         preorderMaxDays: 5,
         preorderSlotMinutes: 60,
       });
-      await expect(page.getByRole("status")).toHaveText("模組開關已儲存。");
+      await expect(page.getByRole("dialog").getByRole("status")).toHaveText("模組開關已儲存。");
       await page.getByRole("dialog").getByRole("button", { name: "我知道了", exact: true }).click();
 
       await page.reload();
@@ -529,7 +529,7 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
           },
         ],
       });
-      await expect(page.getByRole("status")).toHaveText("模組開關已儲存。");
+      await expect(page.getByRole("dialog").getByRole("status")).toHaveText("模組開關已儲存。");
       await page.getByRole("dialog").getByRole("button", { name: "我知道了", exact: true }).click();
 
       await page.reload();
@@ -656,7 +656,7 @@ test.describe("預約與抽抽樂設定的公開點餐整合", () => {
       ));
       await page.getByRole("button", { name: "儲存營運狀態", exact: true }).click();
       expect((await closeResponsePromise).status()).toBe(200);
-      await expect(page.getByRole("status")).toHaveText("營運狀態已更新。");
+      await expect(page.getByRole("dialog").getByRole("status")).toHaveText("營運狀態已更新。");
       await page.getByRole("dialog").getByRole("button", { name: "我知道了", exact: true }).click();
 
       await verifyClosedPreorder(browser);
@@ -921,12 +921,12 @@ async function restoreThroughUi(page: Page) {
   ));
   await page.getByRole("button", { name: "儲存營運狀態", exact: true }).click();
   expect((await operationsResponsePromise).status()).toBe(200);
-  await expect(page.getByRole("status")).toHaveText("營運狀態已更新。");
+  await expect(page.getByRole("dialog").getByRole("status")).toHaveText("營運狀態已更新。");
   await page.getByRole("dialog").getByRole("button", { name: "我知道了", exact: true }).click();
 }
 
 async function acknowledgeModuleSave(page: Page, message: string) {
-  await expect(page.getByRole("status")).toHaveText(message);
+  await expect(page.getByRole("dialog").getByRole("status")).toHaveText(message);
   await page.getByRole("dialog").getByRole("button", { name: "我知道了", exact: true }).click();
   await expect(page.locator('[data-settings-scope="stall-modules"]')).toHaveAttribute("data-dirty", "false");
 }

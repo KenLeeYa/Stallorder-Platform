@@ -1,5 +1,9 @@
-import { Fragment, type RefObject } from "react";
+"use client";
+
+import { Fragment, useId, useState, type RefObject } from "react";
+import { useClientReady } from "@/components/use-client-ready";
 import { Flame, Minus, Plus, ShoppingCart, X } from "lucide-react";
+import { orderingExperienceMessage as experience } from "@/lib/messages/ordering-experience";
 import { ProductImage } from "@/components/product-image";
 import type { QrProductDraft } from "@/components/qr-order-product-controller";
 import { formatMoney } from "@/lib/money";
@@ -85,14 +89,22 @@ export function QrOrderMenu({
   onSelectBundleChoice,
   onAddProduct,
 }: QrOrderMenuProps) {
+  const searchId = useId();
+  const searchReady = useClientReady();
+  const [query, setQuery] = useState("");
+  const normalized = query.trim().toLocaleLowerCase(locale);
+  const matchingProducts = visibleProducts.filter(product => product.id === configuringProductId || `${localizedProduct(product).name} ${localizedProduct(product).description} ${localizedCategory(product.category)} ${localizedProductGroup(product)}`.toLocaleLowerCase(locale).includes(normalized));
   return (
     <>
+      <label htmlFor={searchId} className="mt-5 block text-sm font-semibold">{experience(locale, "search")}</label>
+      <input id={searchId} type="search" autoComplete="off" maxLength={160} disabled={!searchReady} value={query} onChange={event => setQuery(event.target.value)} className="mt-2 min-h-11 w-full rounded-lg border border-stone-300 bg-white px-3 disabled:opacity-50" />
+      {normalized && matchingProducts.length === 0 ? <p role="status" className="mt-3 rounded-lg border border-dashed border-stone-300 p-4 text-sm text-stone-600">{experience(locale, "empty")}</p> : null}
       {categories.length > 0 ? (
         <nav data-testid="qr-category-navigation" aria-label={copy.categoryNavigation} style={{ position: "sticky", top: "var(--storefront-mode-nav-height, 0px)" }} className="z-30 -mx-4 mt-5 flex gap-2 overflow-x-auto border-y border-stone-200 bg-stone-50/95 px-4 py-2 backdrop-blur sm:mx-0 sm:px-3">
           {categories.map((category, index) => (
-            <a key={category} href={`#qr-category-${index}`} className="inline-flex min-h-10 shrink-0 items-center rounded-md border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-700">
+            matchingProducts.some(product => product.category === category) ? <a key={category} href={`#qr-category-${index}`} className="inline-flex min-h-11 shrink-0 items-center rounded-md border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-700">
               {localizedCategory(category)}
-            </a>
+            </a> : null
           ))}
         </nav>
       ) : null}
@@ -108,10 +120,10 @@ export function QrOrderMenu({
           </p>
         ) : null}
         {categories.map((category, categoryIndex) => (
-          <section key={category} id={`qr-category-${categoryIndex}`} style={{ scrollMarginTop: "calc(var(--storefront-mode-nav-height, 0px) + 5rem)" }}>
+          <section hidden={!matchingProducts.some(product => product.category === category)} key={category} id={`qr-category-${categoryIndex}`} style={{ scrollMarginTop: "calc(var(--storefront-mode-nav-height, 0px) + 5rem)" }}>
             <h2 className="mb-2 text-sm font-semibold text-stone-500 sm:mb-3">{localizedCategory(category)}</h2>
             <div className="grid gap-2 sm:gap-3">
-              {visibleProducts.filter((product) => product.category === category).map((product, productIndex, categoryProducts) => {
+              {matchingProducts.filter((product) => product.category === category).map((product, productIndex, categoryProducts) => {
                 const configurable = product.noteGroups.length > 0 || product.bundleChoiceGroups.length > 0;
                 const soldOut = product.isSoldOut;
                 const showGroupHeading = Boolean(product.group)
@@ -212,7 +224,7 @@ export function QrOrderMenu({
                                 const maximumReached = group.maxSelections !== null && selectedCount >= group.maxSelections;
                                 const role = group.selectionMode === "SINGLE" ? "radio" : "checkbox";
                                 return (
-                                  <section key={group.id} aria-labelledby={`qr-configurator-note-${group.id}`}>
+                                  <section key={group.id} data-incomplete={selectedCount < group.minSelections || undefined} aria-labelledby={`qr-configurator-note-${group.id}`}>
                                     <div className="flex flex-wrap items-baseline justify-between gap-2">
                                       <h3 id={`qr-configurator-note-${group.id}`} className="text-base font-bold">{localizedGroupName(group)}{group.isRequired ? " *" : ""}</h3>
                                       <span className="text-xs font-semibold text-stone-500">{group.selectionMode === "SINGLE" ? copy.singleChoice : group.maxSelections ? copy.maxSelections(group.maxSelections) : copy.multipleChoice}</span>
@@ -238,7 +250,7 @@ export function QrOrderMenu({
                                 const maximumReached = selectedCount >= group.maxSelections;
                                 const role = group.maxSelections === 1 ? "radio" : "checkbox";
                                 return (
-                                  <section key={group.id} aria-labelledby={`qr-configurator-bundle-${group.id}`}>
+                                  <section key={group.id} data-incomplete={selectedCount < group.minSelections || undefined} aria-labelledby={`qr-configurator-bundle-${group.id}`}>
                                     <div className="flex flex-wrap items-baseline justify-between gap-2">
                                       <h3 id={`qr-configurator-bundle-${group.id}`} className="text-base font-bold"><span className="mr-2 rounded-full bg-teal-700 px-2 py-0.5 text-[11px] text-white">{copy.bundleGroup}</span>{group.name}{group.minSelections > 0 ? " *" : ""}</h3>
                                       <span className="text-xs font-semibold text-stone-500">{group.maxSelections === 1 ? copy.singleChoice : copy.selectionRange(group.minSelections, group.maxSelections)}</span>
@@ -262,7 +274,11 @@ export function QrOrderMenu({
                             ) : null}
                           </div>
                           <footer className="safe-area-bottom sticky bottom-0 shrink-0 border-t border-stone-200 bg-white px-4 py-3 shadow-[0_-8px_24px_rgba(0,0,0,0.08)] sm:px-6">
-                            {!configurationComplete ? <p role="status" className="mb-3 text-sm font-medium text-amber-800">{copy.requiredNotes(localizedProduct(product).name)}</p> : null}
+                            {!configurationComplete ? <div className="mb-3 text-sm font-medium text-amber-800"><p role="status">{copy.requiredNotes(localizedProduct(product).name)}</p><button type="button" className="mt-1 min-h-11 underline underline-offset-4" onClick={() => {
+                              const group = configurationRef.current?.querySelector<HTMLElement>("[data-incomplete='true']");
+                              group?.scrollIntoView({ block: "center" });
+                              group?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus({ preventScroll: true });
+                            }}>{experience(locale, "required")}</button></div> : null}
                             <div className="grid grid-cols-[56px_48px_56px_minmax(0,1fr)] items-center gap-2">
                               <button type="button" aria-label={copy.decrease(localizedProduct(product).name)} disabled={!orderingEnabled || draft.quantity <= 1} onClick={() => onUpdateQuantity(product.id, draft.quantity - 1)} className="grid h-14 w-14 place-items-center rounded-xl border border-stone-300 bg-white disabled:opacity-40"><Minus className="h-5 w-5" /></button>
                               <strong className="text-center text-lg">{draft.quantity}</strong>

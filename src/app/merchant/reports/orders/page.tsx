@@ -24,7 +24,7 @@ export default async function OrderHistoryReportPage({ searchParams }: PageProps
   );
 
   return <main data-testid="report-orders" className="mx-auto min-h-[calc(100vh-76px)] max-w-7xl px-4 py-7 md:px-8">
-    <div><p className="text-sm font-semibold text-teal-800">{t("reports.eyebrow")}</p><h1 className="mt-1 text-3xl font-semibold">{t("reports.orders.title")}</h1><p className="mt-2 text-sm text-stone-600">{t("reports.orders.description")}</p></div>
+    <div><p className="text-sm font-semibold text-teal-800">{t("reports.eyebrow")}</p><h1 className="mt-1 text-3xl font-semibold">{t("reports.orders.title")}</h1></div>
     <ReportNavigation organizationId={scope.workspace.id} active="orders" />
     <ReportFilters organizationId={scope.workspace.id} stalls={scope.availableStalls} selectedStallIds={scope.stalls.map((stall) => stall.id)} dateFrom={scope.dateFrom} dateTo={scope.dateTo} multiStallMode={scope.workspace.operatingMode === "MULTI_STALL"} pageSize={pagination.pageSize} />
     <section id="orders-list" className="py-7">

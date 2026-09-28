@@ -2,6 +2,16 @@
 
 2026-09-10 起依使用者要求執行。這是本機開發服務管理規則，不涉及正式環境。
 
+## 2026-09-27 LINE v2 本轮
+
+- `line-miniapp-pay/Stallorder-Platform` 的本輪 HTTPS QA 3024 已完成測試並停止，listener 讀回為空；最後補測一般 Web 會員入口後，只停止確認屬此服務的 24900／1652／23764 程序（前輪 19372／25732／8748 已停止）。建置前先停服務，未共用正在運行的 `.next`。
+- 原 UI/UX 工作樹 3023（讀回 PID 49312）依使用者人工 QA 要求保留；共用 `supabase_db_stallorder-catalog-ops-20260907` 的 55722 仍有依賴，沒有停止 Engine／刪容器／volume。
+- LINE 專用 DB `stallorder_line_miniapp_20260926` 與 3023 資料庫分離；保留合成測試資料。重啟本輪合成測試：在隔離工作樹按 [QA 手冊](integrations/line/TEST_REPORT.md) 執行 `node scripts/start-line-platform-qa.mjs`，不把假 Channel／自簽憑證當成真 LINE。
+
+## 2026-09-23 UI/UX 本輪停止紀錄
+
+只使用 catalog-ops DB 55722 及隔離候選／基準 Next 3023／3024。驗收後三者已停止；容器及 volume 保留，232 筆訂單重啟讀回一致，PostgreSQL shutdown 日誌及容器 exit 0 已確認。其他工作區運行容器清單未變更。重啟、測試入口與收據見 [UI/UX 驗收入口](ui-ux/README.md)。本次 `docker stop` 首次超時，不將單一 stop 成功當成正常資料庫關閉；後續以 pg_ctl fast stop 及容器／日誌雙重讀回確認。
+
 ## 固定作業規則
 
 1. 測試前先核對 Docker/Supabase project label、API/DB 連接埠、實際啟動的 worktree 與執行中的任務，僅啟用本次所需的環境。容器健康或低 CPU 不等於有使用者正在測試。

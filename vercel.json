@@ -2,11 +2,16 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "git": {
     "deploymentEnabled": {
-      "main": false
+      "main": false,
+      "codex/line-platform-oa-v2-20260927": false
     }
   },
   "regions": ["hnd1"],
   "crons": [
+    {
+      "path": "/api/cron/line-pay-recovery",
+      "schedule": "* * * * *"
+    },
     {
       "path": "/api/cron/staff-push",
       "schedule": "* * * * *"

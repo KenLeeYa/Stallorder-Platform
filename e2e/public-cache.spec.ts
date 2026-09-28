@@ -1,5 +1,28 @@
 import { expect, test } from "@playwright/test";
 
+test("QR search waits for hydration before accepting input", async ({ page }) => {
+  let releaseScripts!: () => void;
+  const scriptsReady = new Promise<void>((resolve) => { releaseScripts = resolve; });
+  await page.route(/\/_next\/static\/.*\.js(?:\?|$)/, async (route) => {
+    await scriptsReady;
+    await route.continue();
+  });
+
+  try {
+    await page.goto("/q/demo-aming-chicken-qr-2026-rotate-me", { waitUntil: "commit" });
+    const search = page.getByRole("searchbox", { name: "搜尋餐點或分類", exact: true });
+    await expect(search).toBeVisible();
+    await expect(search).toBeDisabled();
+    releaseScripts();
+    await expect(search).toBeEnabled();
+    await search.fill("no-product-xyz");
+    await expect(search).toHaveValue("no-product-xyz");
+    await expect(page.getByTestId("qr-category-navigation").getByRole("link")).toHaveCount(0);
+  } finally {
+    releaseScripts();
+  }
+});
+
 test("anonymous public menu uses short shared-cache headers", async ({ request }) => {
   const response = await request.get("/api/public/stalls/aming-chicken/menu");
 

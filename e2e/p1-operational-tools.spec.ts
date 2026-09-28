@@ -1,3 +1,4 @@
+import { searchStaffOrders } from "./helpers/staff-search";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -379,11 +380,8 @@ test.describe("P1 營運功能", () => {
 
     await page.goto(`/staff/${primaryStallSlug}`);
     await dismissStaffStartReminder(page);
-    const orderSearch = page
-      .getByRole("main")
-      .getByPlaceholder("搜尋桌號、訂單編號或顧客");
     for (const orderNo of [firstOrderNo, secondOrderNo]) {
-      await orderSearch.fill(orderNo);
+      await searchStaffOrders(page, orderNo);
       await page
         .getByTestId("staff-order-list-pane")
         .getByRole("button")
@@ -400,7 +398,7 @@ test.describe("P1 營運功能", () => {
       await expect(orderItems.getByText("已出餐", { exact: true })).toBeVisible();
     }
 
-    await orderSearch.fill("");
+    await searchStaffOrders(page, "");
     await page.getByRole("button", { name: "同桌合併" }).click();
     const tableGroup = page
       .getByRole("article")
@@ -415,7 +413,7 @@ test.describe("P1 營運功能", () => {
     await expect(checkout.getByText("此折扣超過店員免核准門檻")).toBeVisible();
     await checkout.getByLabel("折扣原因").fill("P1 E2E 等候補償");
     await checkout.getByLabel("管理授權碼").fill(managerAuthorizationCode);
-    await checkout.getByRole("button", { name: "$500" }).click();
+    await checkout.getByTestId("cash-quick-amounts").getByRole("button", { name: "500", exact: true }).click();
     await expect(checkout).toContainText("$106");
     await checkout
       .getByRole("button", { name: "完成訂單", exact: true })
@@ -551,9 +549,7 @@ test.describe("P1 營運功能", () => {
     await page.goto(`/staff/${primaryStallSlug}`);
     await dismissStaffStartReminder(page);
     const cancellationMain = page.getByRole("main");
-    await cancellationMain
-      .getByPlaceholder("搜尋桌號、訂單編號或顧客")
-      .fill(cancelledOrderNo);
+    await searchStaffOrders(page, cancelledOrderNo);
     const cancelledOrder = cancellationMain
       .getByTestId("staff-order-list-pane")
       .getByRole("button")
