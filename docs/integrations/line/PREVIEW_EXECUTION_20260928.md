@@ -271,3 +271,16 @@
 - 一筆 ORDER_PICKED_UP 通知工作為 SENT／PROVIDER_ACCEPTED，attempt_count=2、目前無錯誤碼；真手機卡片資料與訂單一致。工作唯一不等於網路請求只有一次，其他七筆卡片手機送達仍各自待核對。
 - 脫敏收據／原圖保留本機 artifacts/line-v2-device-pickup-receipt.json 與 line-v2-device-pickup-{customer,oa,staff}.png；首次唯讀診斷查錯 metadata 欄位的 P2010 已保留，修正為 metadata_json 後成功。
 - 補齊本次裝置與通知驗收文件、私密指南及草稿 PR 描述；執行版本仍85f441a，不新增部署。剩餘第二店 Sandbox／部分退款、其他實機邊界、認證及正式啟用未宣稱完成。US$3及9/29 06:24起、07:24最晚清理不變。
+
+### 2026-09-29 01:35 新版介面及原本機功能整合公開驗收
+
+- 後續使用者明確要求部署新版並整合原本機測試功能，本次維持 PR365／US$3／原24h期限。來源 `b8b468fcd0929f74fb0460e17cb299d16d1751c0`、tree `fffb2945710f79b62bcdabf72d8d00cd9601c578`。CI36451249419、安全36451249378 PASS；保留 fixture 的 paired Preview36451249374 SKIP，不重新 seed。
+- 只 child `gfoscoqwumwdtvkbfoiv` 套用20260925010000與20260926060000；原始購物車摘要 routine 穩定性修正及 staff delivery 選填 phone/address 已驗。`create-public-order` v42→v43，14檔讀回一致。parent、正式、DR、3023均無寫入。
+- 首次部署 `dpl_5pT8qXYsKHThv21SAkp5hfUuyytc` 在真實瀏覽器發現 merchant CSS 仍舊。上傳原始檔 SHA1 正確、公開及raw CSS同樣缺少新規則，獨立 production PostCSS成功。相同來源／設定以 `--force` 不保留 build cache 重建為 `dpl_hzn6qoRowvdZf8C496G9RJ11TNVV`；新版 CSS 檢查、候選6項、公開16項 PASS 後維持原alias。這是同一已授權更新的修復，不新增功能、期限或預算。manifest列出兩筆精確資源供到期清理。
+- Browser：B店現金測試單260929-001／$30，阻止實收$10、快捷$200→找零$170，保存及重新載入 PAID；A店外送260929-001省略電話地址成功、修改為2份$60、重新讀回UNPAID及廚房任务。兩單均為STAFF_POS／ONLINE_STAFF，notification jobs=0，無新OA訊息或真收款。
+- MINI 中文 Logo、手機底部／桌面頂部導覽、兩店菜單、未登入會員／訂單權限、FAQ展開已操作。店員44px QR圖示緊鄰取餐碼、dialog／Escape焦點返回、1024三欄；merchant768／1440完整11圖示、390主要功能＋所有功能及真實跳轉 PASS。詳細证據及限制見[介面驗收](UI_UX_REDESIGN_20260928.md)。
+- OA預先確認Manager/API均無選單，套用中文四入口default `richmenu-b107e7d9ef825a9fdf18f101fd15ba5b`，圖片与action bounds/links API讀回一致。**清理必須先核對目前default與manifest的newDefault，再還原原null default、刪除本次精確menu，最後才刪child Vault。** 若default被他人更新則停止該項。private plan／receipt路徑在manifest.oaUiRichMenu；原line-preview-24已納入此順序。
+- Primary讀回仍dpl_Cx8GfP12KuFHcCgtnZ7SXxzt4AYZ／5cc15c6、NORMAL_PRIMARY／PRIMARY／EDGE_PRIMARY，登入／店員登入／公開菜單200，匿名health401；未做正式訂單全流程。原3023 PID49312與catalog-ops55722繼續供人工QA；本次未啟動3024。
+- 最新用量參考01:20 project Infrastructure $2.03（含Build CPU $0.46）＋24hMicro估算$0.32256，含Primary且有最多1h延遲；不等同PR費用。06:24起清理、07:24前完成及US$3保持不變。
+- 新增可重跑的 `scripts/check-workspace-ui-assets.mjs`：舊CSS實測FAIL／新公開MINI實測PASS，防止SHA／READY被誤當樣式已更新。實際資料與OA讀回在 `artifacts/line-ui-live-orders-oa-readback.json`；新版手機LINE、相機、實機印表機／錢櫃、真Sandbox新交易及正式啟用未重驗。
+- 本節後的提交只有文件與部署回歸檢查，執行應用仍b8b468f；不再次建立Preview、不merge。remote writer完成後交回既有到期清理自動化。

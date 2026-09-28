@@ -1,6 +1,6 @@
 # LINE MINI / OA 介面改版候選
 
-2026-09-28，承接使用者實機驗證及八張 UI 參考圖。僅在 LINE 隔離 worktree 實作；原 3023、Production、DR、Supabase parent 均保留。PR #365 公開 Preview 仍是 85f441a，本文件不代表已部署。
+2026-09-29 更新：承接使用者實機驗證及八張 UI 參考圖，已將中文 Logo、MINI／OA 新介面及原 3023 的功能整合到 PR #365 隔離 Preview。執行來源為 `b8b468fcd0929f74fb0460e17cb299d16d1751c0`，部署 `dpl_hzn6qoRowvdZf8C496G9RJ11TNVV`。原 3023、Production、DR、Supabase parent 均保留。下方早期候選紀錄為歷史證據，現況以文末公開驗收為準；不代表 LINE 正式啟用。
 
 ## 介面決策
 
@@ -49,9 +49,9 @@
 
 ## 雲端更新界線
 
-目前 manifest 的 `authorizedRemainingDeployments=0`；先前 US$3 方案只核准最後一次 85f441a 修正版部署。本次程式候選先留本機，未 push 觸發新部署、未變更公開 alias、未套用 OA default Rich Menu。
+22:00 當時 manifest 的 `authorizedRemainingDeployments=0`；先前 US$3 方案只核准 85f441a 修正版部署，因此當時程式候選留本機，沒有變更公開 alias 或 OA 選單。
 
-若要公開實測新版，需補充核准一次 PR365 Preview 更新與 OA 測試選單套用的具體範圍，維持 US$3 管理預算及原到期時間，先重新核對用量。OA 套用前須確認 Manager／API 的管理來源及現有選單，保存可讀回的復原資料；任何新 OA 設定須加入到期清理收據。若用量不足，不自動擴充預算或延長期限。
+後續使用者「部署新版介面，並整合先前本機測試環境供我測試使用」授權本次隔離 Preview 更新及 OA 測試選單。維持 US$3 管理預算及原到期時間；Manager／API 原本均無選單，已保存復原計畫並納入原清理自動化。沒有擴充預算或延長期限。
 
 到期仍為 2026-09-29 06:24 Asia/Taipei 起清理、07:24 最晚完成。本次不合併 PR、不正式啟用 LINE、不進行真收退款。
 
@@ -62,6 +62,22 @@
 
 使用者授權部署新版介面並整合既有本機測試功能。本次以實際提供 3023 的 `Stallorder-Platform-ui-ux-redesign-20260923`（基底 766df1e）的工作樹差異進行三方合併，保留 LINE v2、中文 Logo 與 QR 交付工具列。整合單行結帳、即時總額、醒目找零、原生複選與功能按鈕、商戶響應式工具列及移除標題說明。原 3023 與資料保留，不複製商家資料到雲端。
 
-資料庫僅候選隔離環境新增原始購物車摘要綁定及店員外送選填聯絡資料兩項 migration；公開外送仍須電話與地址。摘要寫入抽成明確 stored routine，只在接單時執行，避免 migration-time DML，DR fencing 規則保持不變。部署前必須通過新 HEAD 的 CI、DB 與實際流程；目前尚未發布。原始本機專用 replay 測試保留獨立 opt-in，不將跳過視為通過。結帳與外送瀏覽器案例另可在 loopback CI fixtures 執行。
+隔離 child 已套用原始購物車摘要綁定及店員外送選填聯絡資料兩項 migration；公開外送仍須電話與地址。摘要寫入使用 stored routine，只在接單時執行，避免 migration-time DML，DR fencing 規則保持不變。`create-public-order` 已由 v42 更新至 v43，14 個部署檔案讀回一致；僅 index 與 shared contract 兩檔內容有變。原始本機專用 opt-in 測試的跳過不列 PASS，實際 CI DB replay 回歸及店員外送／結帳案例已通過。
 
 目標維持 PR365 Preview；US$3 管理預算與 9/29 06:24 起、07:24 前清理期限不變。Production、DR、parent、原本機資料不在此次更新範圍。
+
+## 2026-09-29 公開部署與驗收
+
+- 單一 MINI 入口：<https://stallorder-line-v2-pr365-20260928.vercel.app/mini>。店員使用同站 `/staff/login?next=%2Fstaff%2Fline-preview-store-b`；A 店為 `/staff/aming-chicken`。顧客 LINE 與店員 Chrome 分開使用，避免共用 session 角色。
+- b8b468f 的 CI `36451249419`、安全檢查 `36451249378` 成功。單元 3587 PASS／100 SKIP、瀏覽器 214 PASS／78 SKIP／0 FAIL、額外 production resilience 8 PASS；DB／pgTAP、replay、型別、lint、UI audit、build 通過。SKIP 不列成功。paired Preview 因保留真人 fixture 刻意跳過。
+- 第一次部署 `dpl_5pT8qXYsKHThv21SAkp5hfUuyytc` 通過 API，但平板商戶仍顯示舊工具列。源檔上傳 SHA1 與候選一致；raw／公開 hostname 的 CSS 都缺少 responsive rules，獨立 production PostCSS 會產生正確 rules。以相同 SHA／runtime、不沿用 build cache 重建後，CSS 由 `3_uu3x7b2o-c8.css` 變為 `3v2k82dugd_is.css`，公開瀏覽器回歸通過。沒有改應用程式或重做 migration／Edge。兩個精確部署都列入清理 manifest。
+- 防止此問題再次只靠 READY 結案，新增 `node scripts/check-workspace-ui-assets.mjs <公開測試網址>/mini`；對舊 immutable CSS 實際 exit 1，對新版實際 exit 0。仍須搭配已存在的 merchant responsive E2E 及公開瀏覽器驗證。
+- Chrome 實際操作：MINI 中文 Logo、店家卡片 → 菜單、我的訂單／會員登入界線、FAQ 展開；390px 底部導覽、1440px 頂部導覽。未重新登入真人 LINE 或代替手機驗收。
+- B 店外帶現金單 `260929-001`：1 份／$30，實收 $10 阻止送出，按 $200 顯示醒目找零 $170；建立後重新整理仍 PAID，資料庫 cashReceived=200、changeAmount=170。這是隔離測試記帳，沒有真實收款。
+- A 店外送單 `260929-001`：電話／地址皆空白，稍後結帳成功；修改餐點由 1 份／$30 至 2 份／$60，重新讀回仍 DELIVERY／UNPAID，廚房任務已同步。兩筆訂單 notification jobs 都為 0，未向顧客新增推播。
+- QR 按鈕 44×44，位於取餐碼右側且同列，開啟既有交付視窗，Escape 關閉後焦點返回。1024px 店員三欄、商戶 768／1440px 全部 11 個圖示且沒有「所有功能」、390px 主要功能＋目錄、目錄真實跳轉會員與成長均通過。
+- OA @028sijlm 新測試 rich menu `richmenu-b107e7d9ef825a9fdf18f101fd15ba5b` 已設定為 default；LINE API 讀回四個區域與連結一致、圖片 SHA256 `cd5fd2fe1f038833afff0b5fda70936f6d24a78212db879042c782892bf62b49` 一致。手機 LINE 選單及新版 Flex 實際顯示待使用者驗證；不沿用舊版實機截圖當新介面證據。
+- 正式站最後讀回仍 `dpl_Cx8GfP12KuFHcCgtnZ7SXxzt4AYZ`／5cc15c6、NORMAL_PRIMARY／PRIMARY／EDGE_PRIMARY；login、staff/login、公開店 200，匿名 health 401。未做正式站登入後下单全流程，不冒稱正式驗收完成。
+- 原 3023 PID49312、既有 catalog-ops DB 55722 因使用者人工 QA 需求保留，本次未啟動 3024。01:20 Vercel project 含 Primary 的 Infrastructure $2.03（含 Build CPU $0.46）＋24h Micro 估算 $0.32256，較廣範圍參考 $2.35256；最多一小時延遲，非 PR 專屬帳單或硬上限。
+
+主要證據：`artifacts/line-ui-b8b4-{candidate-qa,public-qa,final-primary-readback}.json`、`line-ui-live-orders-oa-readback.json`、`line-ui-cache-repair-css.json` 與 `line-ui-redesign/live-*.png`。瀏覽器紀錄含第三方訊息通道錯誤；已保存觀察，不將其誤報為零 console error。原 LINE 26.15.0／iPhone 16 Pro 掃碼及 Pay Sandbox 歷史驗收另見既有報告；本次未重作相機、iPad 列印／錢櫃、新付款／退款或正式認證。
