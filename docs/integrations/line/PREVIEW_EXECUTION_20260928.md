@@ -43,3 +43,9 @@
 - 原因：CI 的 Vitest 掃描 `.test.mjs`，但該檔以 `node:test` 註冊案例，造成 `No test suite found`。改為既有 Vitest 的 `test`／`onTestFinished`，保留12項案例及全部斷言。
 - 07:46–07:48台北，本機完整 `npm test -- --reporter=dot`：591檔／3,553項 PASS，12檔／97項 SKIP，exit 0，123.09秒。收據 `artifacts/line-v2-preview-full-unit.log`；SKIP不算通過，外部LINE／付款驗證仍未完成。
 - `c7fbb6f` 的 CodeQL `36359425295` SUCCESS。修正推送後仍需新HEAD雲端CI及配對Preview結果。
+
+## 範例設定與憑證掃描（08:03 台北）
+
+- `6be05f8` CI `36360109446`：unit、DB tests／lint通過，Production guardrails在`.env.example`的`PICKUP_TOKEN_GRACE_MINUTES="120"`失敗，原因是欄位名稱含TOKEN而被視為憑證。
+- 本機`npm run production:check`同樣重現。該欄位是選填時長，runtime本來就預設120分鐘，因此改為註解式範例，保留預設說明；未放寬憑證掃描，也未修改取餐期限行為。
+- 此次失敗後build及E2E未執行，不能算通過；修正後重新走同一gate。
