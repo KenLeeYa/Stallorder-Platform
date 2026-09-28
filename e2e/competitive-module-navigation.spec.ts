@@ -25,7 +25,7 @@ test("已啟用的庫存、成長與菜單版本可由商家介面開啟", async
     `/merchant/dashboard?organizationId=${organizationId}`,
   );
   const mobileNavigation = page.getByTestId(
-    "merchant-function-navigation-mobile",
+    "merchant-function-navigation",
   );
   await mobileNavigation.getByRole("button", { name: "所有功能", exact: true }).click();
   const functionDirectory = page.getByRole("dialog", { name: "所有功能", exact: true });

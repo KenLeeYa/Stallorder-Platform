@@ -251,6 +251,7 @@ export type StaffOrderBoardPresentationProps = {
 
 export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationProps) {
   const { locale, t } = useOperationsLocale();
+  const clientReady = useClientReady();
   const [printerState, setPrinterState] = useState<StaffAutoPrintState | null>(null);
   const {
     stall,
@@ -265,7 +266,7 @@ export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationPr
   const fullViewportBoard = account.role !== "KITCHEN" && viewMode === "TICKETS";
 
   return (
-    <main className={`mx-auto min-h-screen w-full px-4 py-3 ${fullViewportBoard ? "md:px-3" : "max-w-[1600px] md:px-6 md:py-5 xl:px-8"}`}>
+    <main inert={!clientReady} aria-busy={!clientReady} className={`mx-auto min-h-screen w-full px-4 py-3 ${fullViewportBoard ? "md:px-3" : "max-w-[1600px] md:px-6 md:py-5 xl:px-8"}`}>
       <div data-testid="staff-primary-workspace" className={fullViewportBoard ? "md:flex md:h-[calc(100dvh-1.5rem)] md:min-h-0 md:flex-col" : undefined}>
       <StaffOrderBoardToolbar
         queueRedesignEnabled={props.queueRedesignEnabled}
@@ -483,7 +484,7 @@ function StaffOrderBoardToolbar({
   return (
     <>
       <header data-testid="staff-sticky-header" data-compact-tools={compactTools || undefined} className="sticky top-0 z-50 -mx-4 min-w-0 overflow-x-clip overflow-y-visible border-b border-stone-200 bg-white px-4 pb-1 shadow-sm print:static print:border-0 print:bg-transparent print:px-0 print:shadow-none sm:mx-0 sm:px-0">
-        <div className="min-h-14 min-w-0 py-1 pr-60 md:min-h-0 md:pr-0 print:hidden">
+        <div data-testid="staff-toolbar-identity" className="min-h-14 min-w-0 py-1 pr-60 md:min-h-0 md:pr-0 print:hidden">
           <div className="min-w-0">
             <h1 className="truncate text-sm font-semibold sm:text-base">{stall.name}</h1>
             <p className="truncate text-xs font-medium text-teal-800">{account.displayName} · {roleLabel(role, t)}</p>

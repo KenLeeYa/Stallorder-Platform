@@ -6,6 +6,7 @@ import {
   buildPublicOrderSessionResponse,
   publicOrderItemsToRpc,
   publicOrderNeedsPickupCode,
+  publicOrderNeedsPickupCodeWrite,
   publicOrderSessionAbuseBehavior,
   publicOrderSubmissionAbuseBehavior,
   normalizeStoredOrderTimestamp,
@@ -86,6 +87,13 @@ describe("canonical public order pure contract", () => {
     expect(resolveStoredPickupCode({ pickup_code_display: null }, "817")).toBe("817");
     expect(resolveStoredPickupCode({ pickup_code_display: "invalid" }, "817")).toBe("817");
     expect(resolveStoredPickupCode({ pickup_code_display: "123456" }, "817")).toBe("123456");
+  });
+
+  it("does not rewrite an unchanged pickup code on replay, preserving the order revision", () => {
+    expect(publicOrderNeedsPickupCodeWrite({ ...storedOrder, pickup_code_display: "042" }, "042")).toBe(false);
+    expect(publicOrderNeedsPickupCodeWrite({ ...storedOrder, pickup_code_display: null }, "817")).toBe(true);
+    expect(publicOrderNeedsPickupCodeWrite({ ...storedOrder, pickup_code_display: "invalid" }, "817")).toBe(true);
+    expect(publicOrderNeedsPickupCodeWrite({ ...storedOrder, fulfillment_type: "DELIVERY", pickup_required: false }, "817")).toBe(false);
   });
 
   it("locks the abuse-behavior keys shared by both physical attempts", () => {

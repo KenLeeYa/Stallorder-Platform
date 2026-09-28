@@ -118,3 +118,5 @@ Do not rewrite an old row to make a later rollout look complete. Append a new ro
 ### LINE-MINIAPP-LOGIN-002 · 2026-09-26 · 隔離本機候選
 
 新增 LIFF 2.31.0 最小登入殼層與一次性 browser-bound challenge，沿用既有 Session 並區分 OAuth flow；新增 migration 僅在 `stallorder_line_miniapp_20260926` clone 套用。78 regression（含 8 DB/provider-fixture）、2 disabled-shell/既有登入 browser PASS，型別與 ESLint 通過。真實 LINE／Sandbox、私人訂單所有權及 durable payment workflow 尚未完成。逐步設定指南與不輸出 secret 的設定檢查 CLI 已備妥，無外部交易或部署。
+
+- 2026-09-28 LINE-LOCAL-UI-INTEGRATION：整合 3023 本機工作樹的結帳、商戶導覽、選擇控制與外送資料契約至 LINE v2 候選；保留新 QR／MINI，待本次 QA 與 PR365 Preview 部署讀回，參見 integrations/line/UI_UX_REDESIGN_20260928.md。

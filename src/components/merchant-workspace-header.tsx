@@ -188,8 +188,7 @@ export function MerchantWorkspaceHeader({
       </header>
       <div className="border-b border-stone-200 bg-white px-3 py-2 sm:px-4">
         <div className="mx-auto max-w-7xl">
-          <div className="hidden lg:block"><WorkspaceFunctionNavigation items={navigation} locale={locale} label={m("商戶功能")} testId="merchant-function-navigation-desktop" /></div>
-          <div className="lg:hidden"><WorkspaceFunctionNavigation items={navigation} locale={locale} label={m("商戶功能")} testId="merchant-function-navigation-mobile" /></div>
+          <WorkspaceFunctionNavigation items={navigation} locale={locale} label={m("商戶功能")} testId="merchant-function-navigation" responsive />
         </div>
       </div>
     </>

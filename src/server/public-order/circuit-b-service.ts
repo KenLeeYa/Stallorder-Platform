@@ -47,7 +47,7 @@ import {
   buildPublicOrderResumeResponse,
   buildPublicOrderSessionResponse,
   publicOrderItemsToRpc,
-  publicOrderNeedsPickupCode,
+  publicOrderNeedsPickupCodeWrite,
   publicOrderSessionAbuseBehavior,
   publicOrderSubmissionAbuseBehavior,
   resolveStoredPickupCode,
@@ -148,7 +148,7 @@ async function persistPickupCode(
   pickupCode: string,
   timing: Timing,
 ) {
-  if (!publicOrderNeedsPickupCode(order)) return;
+  if (!publicOrderNeedsPickupCodeWrite(order, pickupCode)) return;
   await timing.measureDb(() => persistPickupCodeDisplay(order.order_id, pickupCode));
 }
 

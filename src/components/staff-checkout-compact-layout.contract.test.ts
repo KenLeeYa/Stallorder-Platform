@@ -20,15 +20,13 @@ describe("staff checkout compact layout", () => {
     expect(selector).not.toContain('t("discount.manage")');
   });
 
-  it("places the discount button left of a constrained cash input", () => {
+  it("keeps compact discount and cash controls with a constrained cash input", () => {
     expect(composer).toContain('data-testid="staff-checkout-cash-row"');
     expect(lifecycle).toContain('data-testid="staff-checkout-cash-row"');
     expect(composer).toContain('data-testid="staff-cash-received-field"');
     expect(lifecycle).toContain('data-testid="staff-cash-received-field"');
-    expect(composer).toContain("grid-cols-[auto_minmax(0,1fr)]");
-    expect(lifecycle).toContain("grid-cols-[auto_minmax(0,1fr)]");
-    expect(composer).toContain("grid-cols-[auto_minmax(0,11rem)]");
-    expect(lifecycle).toContain("grid-cols-[auto_minmax(0,11rem)]");
+    expect(composer).toContain("grid-cols-[3rem_minmax(0,12rem)_4rem]");
+    expect(lifecycle).toContain("grid-cols-[3rem_minmax(0,12rem)_4rem]");
     expect(composer).not.toContain("max-w-[45vw]");
     expect(lifecycle).not.toContain("max-w-[45vw]");
   });

@@ -11,7 +11,7 @@ test.beforeAll(async () => {
 });
 
 for (const width of [320, 390, 768, 1440]) {
-  test(`compact ordering checkboxes and setting switches preserve forms and touch targets at ${width}px`, async ({ page }, testInfo) => {
+  test(`compact native checks preserve forms and label touch targets at ${width}px`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 1000 });
     await page.setContent(`<!doctype html><html lang="zh-TW"><body>
       <main class="mx-auto max-w-xl p-4"><h1 class="text-2xl font-bold">勾選餐點與功能開關</h1>
@@ -65,13 +65,16 @@ for (const width of [320, 390, 768, 1440]) {
         const controls = await page.locator('input[type="checkbox"]:not(.ordering-checkbox)').evaluateAll((inputs) => inputs.map((input) => {
           const box = input.getBoundingClientRect();
           const style = getComputedStyle(input);
-          return { width: box.width, height: box.height, appearance: style.appearance, background: style.backgroundImage };
+          const target = input.closest("label")!.getBoundingClientRect();
+          return { width: box.width, height: box.height, targetHeight: target.height, appearance: style.appearance, background: style.backgroundImage };
         }));
         for (const control of controls) {
-          expect(control.width).toBeGreaterThanOrEqual(44);
-          expect(control.height).toBeGreaterThanOrEqual(44);
-          expect(control.appearance).toBe("none");
-          expect(control.background).not.toBe("none");
+          expect(control.width).toBeGreaterThanOrEqual(20);
+          expect(control.width).toBeLessThanOrEqual(28);
+          expect(control.height).toBe(control.width);
+          expect(control.targetHeight).toBeGreaterThanOrEqual(mode === "senior" ? 56 : 44);
+          expect(control.appearance).toBe("auto");
+          expect(control.background).toBe("none");
         }
         const selections = await page.locator(".ordering-checkbox").evaluateAll((inputs) => inputs.map((input) => {
           const box = input.getBoundingClientRect();

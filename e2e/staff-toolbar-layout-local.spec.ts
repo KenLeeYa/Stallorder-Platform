@@ -1,7 +1,32 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
+import { loginLocalTestAccount } from "./local-navigation";
 
 test.skip(process.env.UI_UX_QA !== "true", "Retained local QA only");
+
+test("staff actions cannot accept input before hydration and work after loading", async ({ page }) => {
+  if (process.env.PLAYWRIGHT_APP_URL !== "http://127.0.0.1:3023") throw new Error("LOCAL_TARGET_REQUIRED");
+  await loginLocalTestAccount(page, "staff@stallorder.test", "StallOrderDemo!2026");
+  let resumeHydration!: () => void;
+  const hydrationGate = new Promise<void>(resolve => { resumeHydration = resolve; });
+  await page.route("**/_next/static/**/*.js", async route => {
+    await hydrationGate;
+    await route.continue();
+  });
+  try {
+    await page.goto("/staff/aming-chicken", { waitUntil: "commit" });
+    const search = page.getByTestId("staff-search-open");
+    await expect(search).toBeVisible();
+    await search.evaluate(node => (node as HTMLElement).focus());
+    await expect(search).not.toBeFocused();
+  } finally {
+    resumeHydration();
+    await page.unrouteAll({ behavior: "wait" });
+  }
+  await page.getByTestId("staff-search-open").click();
+  await expect(page.getByRole("dialog", { name: "搜尋桌號或訂單編號", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+});
 
 test("staff toolbar follows desktop and phone workflow without duplicate details", async ({ page }) => {
   test.setTimeout(150_000);
@@ -67,6 +92,23 @@ test("staff toolbar follows desktop and phone workflow without duplicate details
   await expect(header.getByTestId("theme-toggle")).toBeVisible();
   await header.getByTestId("theme-toggle").click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await header.getByTestId("accessibility-mode-toggle").click();
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    const common = page.getByTestId("staff-common-controls");
+    const roleControl = header.getByTestId("work-mode-icon-staff").locator("..");
+    await roleControl.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: test.info().outputPath(`staff-senior-${width}.png`), fullPage: true });
+    const roleBox = await roleControl.boundingBox();
+    const titleBox = await page.getByRole("heading", { name: "阿明鹽酥雞", exact: true }).boundingBox();
+    expect(roleBox!.x).toBeGreaterThanOrEqual(0);
+    expect(roleBox!.width).toBeGreaterThanOrEqual(56);
+    expect(roleBox!.y).toBeGreaterThanOrEqual(titleBox!.y + titleBox!.height);
+    await common.getByRole("status").scrollIntoViewIfNeeded();
+    await expect(common.getByRole("status")).toBeInViewport();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  }
+  await header.getByTestId("accessibility-mode-toggle").click();
   const accessibility = await new AxeBuilder({ page }).include('[data-testid="staff-sticky-header"]').withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
   expect(accessibility.violations.map(row => ({ id: row.id, nodes: row.nodes.map(node => node.target) }))).toEqual([]);
   await page.getByTestId("staff-tools-toggle").click();

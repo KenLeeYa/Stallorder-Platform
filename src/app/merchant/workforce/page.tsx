@@ -29,7 +29,7 @@ export default async function WorkforcePage({ searchParams }: PageProps) {
   });
 
   return <main className="mx-auto min-h-[calc(100vh-76px)] max-w-7xl px-4 py-5 md:px-8 md:py-7">
-    <header className="border-b border-stone-200 pb-5"><p className="text-sm font-semibold text-teal-800">{workspace.businessName}</p><h1 className="mt-1 flex items-center gap-3 text-3xl font-semibold"><BriefcaseBusiness className="h-7 w-7 text-teal-700" />員工排班與薪資</h1><p className="mt-2 max-w-3xl text-sm leading-6 text-stone-600">將核准打卡、時薪、休息時間、排休與假日倍率串成可覆核的薪資快照。</p></header>
+    <header className="border-b border-stone-200 pb-5"><p className="text-sm font-semibold text-teal-800">{workspace.businessName}</p><h1 className="mt-1 flex items-center gap-3 text-3xl font-semibold"><BriefcaseBusiness className="h-7 w-7 text-teal-700" />員工排班與薪資</h1></header>
     <div className="py-6"><WorkforceManager organizationId={workspace.id} initialDashboard={dashboard} /></div>
   </main>;
 }

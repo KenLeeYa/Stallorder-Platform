@@ -119,9 +119,9 @@ export function AdminBillingFeatureFlagControls({ flags }: { flags: Flag[] }) {
                   aria-label={m(control.label)}
                   disabled={Boolean(updating)}
                   onClick={() => void toggle(control.code)}
-                  className={`relative mt-0.5 h-8 w-14 shrink-0 rounded-full transition-colors disabled:cursor-wait disabled:opacity-60 ${enabled ? "bg-teal-700" : "bg-stone-300"}`}
+                  className="setting-state-button"
                 >
-                  <span className={`absolute left-1 top-1 h-6 w-6 rounded-full bg-white shadow-sm transition-transform ${enabled ? "translate-x-6" : "translate-x-0"}`} />
+                  {busy ? m("Updating...") : m(enabled ? "Enabled" : "Disabled")}
                 </button>
               </div>
               <p className={`mt-3 text-sm font-semibold ${enabled ? "text-teal-800" : "text-stone-500"}`}>

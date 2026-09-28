@@ -56,3 +56,12 @@
 到期仍為 2026-09-29 06:24 Asia/Taipei 起清理、07:24 最晚完成。本次不合併 PR、不正式啟用 LINE、不進行真收退款。
 
 官方格式查核經 AnySearch：<https://developers.line.biz/en/reference/messaging-api/#validate-message-objects-of-push-message>；官方 OpenAPI <https://github.com/line/line-openapi/blob/main/messaging-api.yml>。API 接受格式不等於 LINE 手機排版及收訊實測。
+
+
+## 2026-09-28 本機功能整合候選
+
+使用者授權部署新版介面並整合既有本機測試功能。本次以實際提供 3023 的 `Stallorder-Platform-ui-ux-redesign-20260923`（基底 766df1e）的工作樹差異進行三方合併，保留 LINE v2、中文 Logo 與 QR 交付工具列。整合單行結帳、即時總額、醒目找零、原生複選與功能按鈕、商戶響應式工具列及移除標題說明。原 3023 與資料保留，不複製商家資料到雲端。
+
+資料庫僅候選隔離環境新增原始購物車摘要綁定及店員外送選填聯絡資料兩項 migration；公開外送仍須電話與地址。摘要寫入抽成明確 stored routine，只在接單時執行，避免 migration-time DML，DR fencing 規則保持不變。部署前必須通過新 HEAD 的 CI、DB 與實際流程；目前尚未發布。原始本機專用 replay 測試保留獨立 opt-in，不將跳過視為通過。結帳與外送瀏覽器案例另可在 loopback CI fixtures 執行。
+
+目標維持 PR365 Preview；US$3 管理預算與 9/29 06:24 起、07:24 前清理期限不變。Production、DR、parent、原本機資料不在此次更新範圍。

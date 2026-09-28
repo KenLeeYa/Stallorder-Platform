@@ -319,7 +319,7 @@ export function MultiStallDashboard({
     <main aria-busy={loading} className="mx-auto min-h-[calc(100vh-76px)] max-w-7xl px-4 py-3 sm:py-4 md:px-8 md:py-7">
       <div className="border-b border-stone-200 pb-3 sm:pb-5">
         <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div><p className="text-sm font-semibold text-teal-800">{singleStallMode ? label("營運總覽") : label("多攤位營運總覽")}</p><h1 className="mt-1 text-3xl font-semibold">{organizationName}</h1><p className="mt-2 text-sm text-stone-600">{label("依攤位時區彙整的銷售、訂單與付款資料。")}</p></div>
+          <div><p className="text-sm font-semibold text-teal-800">{singleStallMode ? label("營運總覽") : label("多攤位營運總覽")}</p><h1 className="mt-1 text-3xl font-semibold">{organizationName}</h1></div>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <span className={`inline-flex min-h-10 items-center gap-2 text-xs font-medium ${realtimeState === "LIVE" ? "text-emerald-700" : "text-amber-700"}`} title={realtimeState === "LIVE" ? label("Supabase Realtime 已連線") : label("即時連線未就緒，使用 45 秒自動更新備援")}>
               {realtimeState === "LIVE" ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}

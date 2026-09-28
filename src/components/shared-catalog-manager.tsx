@@ -1006,9 +1006,6 @@ export function SharedCatalogManager({
         <div>
           <p className="text-sm font-semibold text-teal-800">{label("組織商品主檔")}</p>
           <h1 id="shared-catalog-heading" className="mt-1 text-3xl font-semibold">{label("共用商品")}</h1>
-          <p className="mt-2 text-sm text-stone-600">{singleStallMode
-            ? label("一次建立分類、群組與商品；新增商品會直接套用至目前攤位。")
-            : label("一次建立分類、群組與商品，再分派到一個或多個攤位。")}</p>
         </div>
         <div data-testid="shared-catalog-actions" className="w-full min-w-0 max-w-[calc(100vw-2rem)] overflow-x-hidden md:max-w-[calc(100vw-4rem)] xl:w-auto xl:max-w-none xl:overflow-visible">
           <div data-testid="shared-catalog-action-scroller" className="flex w-full min-w-0 flex-nowrap gap-2 overflow-x-auto pb-1 xl:w-auto xl:flex-col xl:overflow-visible xl:pb-0">
@@ -1065,7 +1062,6 @@ export function SharedCatalogManager({
           <span className="min-w-0 flex-1">
             <strong className="block text-xl text-teal-950">{label("商品目錄")}</strong>
             <span className="mt-1 block text-sm leading-6 text-teal-800">{catalog.categories.length} {label("分類")} · {catalog.products.length} {label("商品")}</span>
-            <span className="mt-1 block text-xs text-teal-700">{label("依分類、群組逐層管理，避免一次顯示過長清單。")}</span>
           </span>
           <ChevronRight className="h-7 w-7 shrink-0 text-teal-800" />
         </button>

@@ -75,10 +75,9 @@ describe("MerchantWorkspaceHeader mobile layout", () => {
 
     expect(html).not.toContain('id="merchant-mobile-options"');
     expect(html).toContain('data-testid="merchant-utility-toolbar"');
-    expect(html).toContain('data-testid="merchant-function-navigation-mobile"');
-    expect(html).toContain('data-testid="merchant-function-navigation-desktop"');
-    expect(html).toContain('data-persist-horizontal-scroll="merchant-function-navigation-mobile"');
-    expect(html).toContain('data-persist-horizontal-scroll="merchant-function-navigation-desktop"');
+    expect(html.match(/data-testid="merchant-function-navigation"/g)).toHaveLength(1);
+    expect(html).toContain('workspace-responsive-navigation');
+    expect(html).toContain('data-persist-horizontal-scroll="merchant-function-navigation"');
     expect(html).toContain('data-persist-horizontal-scroll="merchant-utility-toolbar"');
     const utilityToolbarClass = html.match(/data-testid="merchant-utility-toolbar"[^>]*class="([^"]+)"/)?.[1] ?? "";
     expect(utilityToolbarClass).toContain("flex-1");

@@ -2720,6 +2720,7 @@ model OrderSession {
   usedAt         DateTime?          @map("used_at")
   revokedAt      DateTime?          @map("revoked_at")
   orderId        String?            @unique @map("order_id") @db.Uuid
+  originalItemsDigest String?       @map("original_items_digest")
   orderingMode   String             @default("DEFAULT") @map("ordering_mode")
   requestedFulfillmentAt DateTime?  @map("requested_fulfillment_at")
   locationId     String?            @map("location_id") @db.Uuid

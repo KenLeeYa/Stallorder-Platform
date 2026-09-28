@@ -97,8 +97,8 @@ test("105-order queue: filters, pages, empty search, keyboard and mobile reflow"
 test("catalog: bounded pages, cross-page selection, real save/readback and failed save retains dialog", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await login(page, "商家", catalog);
-  await expect(page.getByTestId("merchant-function-navigation-desktop").getByRole("link", { name: "共用商品", exact: true })).toHaveAttribute("aria-current", "page");
-  expect(await page.getByTestId("merchant-function-navigation-desktop").getByRole("link", { name: "共用商品", exact: true }).locator("span").evaluate((element) => getComputedStyle(element).clipPath)).toBe("none");
+  await expect(page.getByTestId("merchant-function-navigation").getByRole("link", { name: "共用商品", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByTestId("merchant-function-navigation").getByRole("link", { name: "共用商品", exact: true }).locator("span")).toBeHidden();
   await expect(page.getByTestId("catalog-management-row")).toHaveCount(5);
   await page.getByRole("checkbox", { name: "全選本頁（5）", exact: true }).check();
   await page.getByTestId("catalog-pagination").getByRole("button", { name: "下一頁商品" }).click();

@@ -16,9 +16,12 @@ async function login(page: Page, role: string, url: string) {
 test("merchant directory: discover settings in two actions, search, keyboard return and mobile", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await login(page, "商家", `/merchant/catalog?organizationId=${org}`);
-  const nav = page.getByTestId("merchant-function-navigation-desktop");
-  expect(await nav.getByRole("link").count()).toBeLessThanOrEqual(5);
+  const nav = page.getByTestId("merchant-function-navigation");
+  expect(await nav.getByRole("link").count()).toBeGreaterThan(5);
   const trigger = nav.getByRole("button", { name: "所有功能" });
+  await expect(trigger).toBeHidden();
+  await page.setViewportSize({ width: 390, height: 800 });
+  expect(await nav.getByRole("link").count()).toBeLessThanOrEqual(5);
   await trigger.click();
   const dialog = page.getByRole("dialog", { name: "所有功能", exact: true });
   await dialog.getByRole("searchbox").fill("整合");
@@ -32,7 +35,7 @@ test("merchant directory: discover settings in two actions, search, keyboard ret
   await page.keyboard.press("Escape");
   await expect(trigger).toBeFocused();
   await page.setViewportSize({ width: 360, height: 800 });
-  await page.getByTestId("merchant-function-navigation-mobile").getByRole("button", { name: "所有功能" }).click();
+  await page.getByTestId("merchant-function-navigation").getByRole("button", { name: "所有功能" }).click();
   await dialog.getByRole("searchbox").fill("帳號");
   await dialog.getByRole("link", { name: "帳號與安全性" }).click();
   await page.waitForURL("**/merchant/account/security");
@@ -139,10 +142,10 @@ test("new management surfaces meet automated contrast and keyboard semantics in 
     for (const theme of ["light", "dark"]) {
       await page.setViewportSize({ width: theme === "light" ? 390 : 1440, height: 900 });
       await page.evaluate(value => { document.documentElement.dataset.theme = value; }, theme);
-      if (url.includes("catalog")) await page.getByTestId(theme === "light" ? "merchant-function-navigation-mobile" : "merchant-function-navigation-desktop").getByRole("button", { name: "所有功能" }).click();
+      if (url.includes("catalog") && theme === "light") await page.getByTestId("merchant-function-navigation").getByRole("button", { name: "所有功能" }).click();
       const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
       expect(results.violations.map(row => ({ id: row.id, nodes: row.nodes.map(node => node.target) }))).toEqual([]);
-      if (url.includes("catalog")) await page.keyboard.press("Escape");
+      if (url.includes("catalog") && theme === "light") await page.keyboard.press("Escape");
     }
   }
 });
