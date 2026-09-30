@@ -54,3 +54,19 @@ LINE runner `node scripts/run-line-platform-qa.mjs unit|database|browser` 的dat
 - 原始來源 `2f8de0b7ac5a03c3235125a1848f8d35efe6a71d`，獨立 app3026／Supabase API56821／DB56822，Next production build；`PLAYWRIGHT_PRODUCTION_SERVER=true npx playwright test -c playwright.responsive.config.ts e2e/responsive-order-roundtrip.spec.ts --reporter=list`：1 passed。瀏覽器實際 Edge Circuit A 建 session 201、送單 201；顧客 UI 客製兩份共 130 → Staff 接單 → KDS 製作、READY → 桌機 Staff 現金收款 → 顧客 UI 3 位取餐碼於 Staff UI 核驗 → 同一 orderId `COMPLETED`，顧客追蹤同步完成。無 `page.route().fulfill()`；fixture 只在本 lab 建立。
 - 固定 Circuit A 收據、四端 before 截圖與完成追蹤：`artifacts/ux-responsive-20260930/a1-baseline/`；較早的真實 Circuit B 備援同單收據另存 `same-order-receipt-circuit-b.json`。收據記錄 orderId、事件、時間、數量及金額；個別 UI/DB 驗證範圍是本機合成資料，非實機、Staging 或 Production。Production 唯讀可用性收據另在同層 `production-execution-baseline.json`，不等同交易驗證。
 - A1 尚未覆蓋同鍵重送、100+單、各種 viewport/zoom、撤權、故障注入、LINE provider、紙本/錢櫃及真實裝置。這些案例保持 NOT_RUN，依 A2–B3 任務驗收；不可把 A1 的單筆閉環擴大稱為新版功能完成。
+
+## 2026-09-30 A6.1 本機整合與恢復交接
+
+本批僅是 A6.1，完整 A6 與新版功能驗收仍未完成；完整逐案收據及服務生命週期見 `.superpowers/sdd/2026-09-30-responsive-order-workflows/task-6-report.md`。產品修正 build 對應 `1ac0e652222efb4aced1267758c303e37ecc3d32`／`ABxOGK-8EcN18y72uJ5aM`，其後只改測試與文件。本機目標嚴格限定 app3026、API56821、DB56822，未發布遠端。
+
+| 項目 | A6.1 結果 |
+|---|---|
+| 五個精確 LINE integration | 58/58 PASS，0 skip；原 55722 guard 保留，響應式模式限 A1 精確 target 且 LINE DB URL 等於 DATABASE_URL；遠端／55722／不一致 URL 拒絕 |
+| 三個 pgTAP 檔 | 標準 Supabase CLI 在本輪 lab 63/63 PASS；首次 0 discovered 不算 PASS |
+| A6 冪等 Q01 | Edge 201、同鍵重送 200，公開訂單號與追蹤 token 一致，DB 僅一個 order ID，payment／usage count 不變，PASS |
+| A6 跨端 Q02 | Edge 建單自讀 200、Node 讀 404、DB device HMAC 與 Node 計算不一致，FAILED；反向 Node 建單自讀 200、Edge 讀 404 亦重現。原因仍待獨立審查 |
+| 既有 browser 回歸 | catalog 7/7、multi-stall 5/5、KDS／列印 4/5、customer functional 2/7、roundtrip 1/1；前兩套及 roundtrip 通過，後兩套相關跨端追蹤案保留 FAILED。最初六檔合跑 2 PASS／4 FAIL／20 NOT_RUN，無整體 PASS |
+| 手機明細→結帳 | 原生明細覆蓋現金操作 RED，狹義關閉明細後 GREEN；取消結帳返回原單、重開與現金完成已驗證；失敗列印僅重印本機案例通過 |
+| 同 KitchenBoard instance 切店 | **NOT_RUN**。已通過的 Merchant→角色路由切換不能證明已掛載 instance 的舊任務／選取／station 清除 |
+
+A6.2 仍需新增 PAID 回應遺失查原 attempt、售罄舊車 422 保留有效項、401/403 撤權換人、409 新快照、429 Retry-After／HTML500／timeout 安全恢復，以及同 KitchenBoard instance 切店。Google OAuth、實體紙本／錢櫃、LINE／Pay 真供應商與正式站訂單均非 A6.1 PASS。`LOCAL_VERIFIED` 整體標記維持否。
