@@ -558,7 +558,7 @@ function KitchenOrderWorkspace({ orders, selectedOrderId, onSelectOrder, now, wa
         </div>
         <div className="p-4">
           <ul data-testid="kitchen-order-item-list" className="divide-y divide-stone-100">
-            {selectedOrder.tasks.map((task) => <li key={task.id}><TaskRow task={task} busy={busyId === task.id} locked={selectedOrder.status === "READY"} onTask={onTask} /></li>)}
+            {selectedOrder.tasks.map((task) => <li key={task.id}><TaskRow task={task} busy={busyId === "unauthorized" || busyId === task.id} locked={selectedOrder.status === "READY"} onTask={onTask} /></li>)}
           </ul>
           {selectedOrder.note ? <div className="mt-3 flex gap-2 rounded-md bg-amber-50 p-3 text-sm text-amber-900"><MessageSquareText className="mt-0.5 h-4 w-4 shrink-0" /><span>{selectedOrder.externalProvider ? t("kitchen.order.platformNote") : ""}{selectedOrder.note}</span></div> : null}
         </div>

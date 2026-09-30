@@ -40,9 +40,9 @@ test("pickup fixture refuses a wrong database before creating a client or making
 
 
 test("portable entry enforces strict responsive mode before login, query, or client creation", () => {
-  const login = vi.fn(), query = vi.fn(), factory = vi.fn(() => ({ query }));
-  const entry = environment => { assertResponsiveQaMode(environment); const client = factory(); login(); client.query(); };
+  const login = vi.fn(), query = vi.fn(), request = vi.fn(), factory = vi.fn(() => ({ query }));
+  const entry = environment => { assertResponsiveQaMode(environment); const client = factory(); login(); client.query(); request(); };
   expect(() => entry({ ...exactLocalLab, DATABASE_URL: "postgresql://synthetic:synthetic@localhost:55722/postgres" })).toThrow();
-  expect(factory).not.toHaveBeenCalled(); expect(login).not.toHaveBeenCalled(); expect(query).not.toHaveBeenCalled();
+  expect(factory).not.toHaveBeenCalled(); expect(login).not.toHaveBeenCalled(); expect(query).not.toHaveBeenCalled(); expect(request).not.toHaveBeenCalled();
   expect(() => assertResponsiveQaMode({ RESPONSIVE_QA_RUN: undefined })).not.toThrow();
 });

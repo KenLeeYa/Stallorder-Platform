@@ -1108,7 +1108,7 @@ function StaffPosComposerAndDialogs({ stall, account, modules, paymentOptions, d
   const publicAmendment = Boolean(orderEditor.editingOrder && isPublicStaffAmendment(orderEditor.editingOrder));
   return (
     <>
-      {composerOpen && orderCatalog ? <StaffOrderComposer stall={stall} catalog={orderCatalog} account={account} modules={modules} paymentOptions={paymentOptions} discountOptions={discountOptions} onCreated={actions.onCreated} onClose={actions.onCloseComposer} /> : null}
+      {composerOpen && orderCatalog ? <StaffOrderComposer key={`${stall.organizationId}:${stall.id}:${account.profileId}`} stall={stall} catalog={orderCatalog} account={account} modules={modules} paymentOptions={paymentOptions} discountOptions={discountOptions} onCreated={actions.onCreated} onClose={actions.onCloseComposer} /> : null}
       {orderEditor.editingOrder && orderCatalog ? (
         <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/45 p-4 print:hidden">
           <section role="dialog" aria-modal="true" aria-labelledby="order-edit-title" className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto overscroll-contain rounded-lg bg-white p-5 shadow-xl">

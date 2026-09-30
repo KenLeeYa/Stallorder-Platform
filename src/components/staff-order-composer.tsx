@@ -78,6 +78,11 @@ export function StaffOrderComposer({
   const { locale, t } = useOperationsLocale();
   const optionSeparator = locale === "zh-TW" || locale === "ja" ? "、" : ", ";
   const idempotencyKeyRef = useRef(createWebUuid());
+  const activeRef = useRef(true);
+  useEffect(() => {
+    activeRef.current = true;
+    return () => { activeRef.current = false; };
+  }, []);
   const [uncertainRequest, setUncertainRequest] = useState<StaffOrderRecovery | null>(null);
   const [recoveryReady, setRecoveryReady] = useState(false);
   const [recoveryError, setRecoveryError] = useState("");
@@ -802,6 +807,12 @@ export function StaffOrderComposer({
     const marker: StaffOrderRecovery = { version: 1, organizationId: stall.organizationId, stallId: stall.id,
       actorProfileId: account.profileId ?? "", idempotencyKey, paymentTiming, cash: originalRequest.cash, draftId: activeDraftId };
     try {
+      // Re-read before either intake path; a different mounted tab may have
+      // saved an online attempt since this composer's last storage event.
+      try {
+        const pending = readStaffOrderRecovery(window.localStorage, stall.organizationId, stall.id);
+        if (pending) { setUncertainRequest(pending); return; }
+      } catch { setRecoveryError(t("composer.recoveryStorageUnavailable")); return; }
       // Only a request that has not been dispatched may become an offline order.
       if (!navigator.onLine) {
         await createOfflineFallback(new TypeError("OFFLINE_BEFORE_DISPATCH"));
@@ -812,9 +823,11 @@ export function StaffOrderComposer({
       try {
         if (!marker.actorProfileId || !navigator.locks) throw new Error("RECOVERY_STORAGE_UNAVAILABLE");
         const claimed = await navigator.locks.request(staffOrderRecoveryKey(stall.organizationId, stall.id), () => {
+          if (!activeRef.current) throw new Error("COMPOSER_CLOSED");
           const pending = readStaffOrderRecovery(window.localStorage, stall.organizationId, stall.id);
           return pending ? { marker: pending, fresh: false } : { marker: claimStaffOrderRecovery(window.localStorage, marker), fresh: true };
         });
+        if (!activeRef.current) return;
         if (!claimed.fresh) {
           setUncertainRequest(claimed.marker);
           return;
@@ -826,12 +839,13 @@ export function StaffOrderComposer({
       let response: Response;
       try {
         response = await fetch(`/api/stalls/${stall.slug}/orders`, {
-          method: "POST", headers: csrfHeaders(), body: originalRequest.body,
+          method: "POST", headers: { ...csrfHeaders(), "x-stallorder-actor-id": marker.actorProfileId }, body: originalRequest.body,
         });
       } catch {
         setUncertainRequest(marker);
         return;
       }
+      if (!activeRef.current) return;
       let payload: { order?: StaffOrderDto; code?: string };
       try {
         payload = (await response.json() ?? {}) as { order?: StaffOrderDto; code?: string };
@@ -839,12 +853,21 @@ export function StaffOrderComposer({
         setUncertainRequest(marker);
         return;
       }
+      if (!activeRef.current) return;
       if (!response.ok) {
         if (isTemporaryOrderFailure(response.status)) {
           setUncertainRequest(marker);
           return;
         }
-        clearStaffOrderRecovery(window.localStorage, marker);
+        await navigator.locks.request(staffOrderRecoveryKey(marker.organizationId, marker.stallId), () => {
+          if (activeRef.current) clearStaffOrderRecovery(window.localStorage, marker);
+        });
+        if (!activeRef.current) return;
+        if (payload.code === "STAFF_ORDER_ACTOR_CHANGED") {
+          setRecoveryReady(false);
+          setRecoveryError(t("composer.recoveryLogin"));
+          return;
+        }
         throw new Error(t(getOperationsErrorMessageKey(payload.code, "composer.createFailed")));
       }
       if (!payload.order) {
@@ -852,10 +875,7 @@ export function StaffOrderComposer({
         return;
       }
       setUncertainRequest(marker);
-      completeRecoveredOrder(payload.order, marker);
-      if (paymentTiming === "PAY_NOW" && usesCash) {
-        window.dispatchEvent(new Event("stallorder:cash-payment-completed"));
-      }
+      await completeRecoveredOrder(payload.order, marker);
     } catch (error) {
       setMessage(error instanceof Error
         ? t(getOperationsErrorMessageKey(error.message, "composer.createFailed"))
@@ -889,6 +909,7 @@ export function StaffOrderComposer({
         import("@/offline/offline-operations"),
         import("@/offline/offline-staff-order"),
       ]);
+      if (!activeRef.current) return;
       const created = await createOfflineOrder({
         organizationId: stall.organizationId,
         stallId: stall.id,
@@ -902,6 +923,7 @@ export function StaffOrderComposer({
         queuePrint: modules.print,
         items: requestBody.items,
       });
+      if (!activeRef.current) return;
       idempotencyKeyRef.current = createWebUuid();
       consumeActiveDraft();
       onCreated(offlineOrderToStaffOrder(created.order));
@@ -916,20 +938,26 @@ export function StaffOrderComposer({
     onClose();
   }
 
-  function completeRecoveredOrder(order: StaffOrderDto, marker: StaffOrderRecovery) {
-    // Consume only the original draft, using current storage rather than a stale
-    // render's selected draft. If cleanup fails, keep recovery locked and retryable.
-    if (marker.draftId) {
-      const drafts = parseStaffOrderDrafts(window.localStorage.getItem(draftStorageKey));
-      const remaining = drafts.filter(draft => draft.id !== marker.draftId);
-      window.localStorage.setItem(draftStorageKey, JSON.stringify(remaining));
-      setSavedDrafts(remaining);
-      setActiveDraftId(null);
-    }
-    clearStaffOrderRecovery(window.localStorage, marker);
-    idempotencyKeyRef.current = createWebUuid();
-    setUncertainRequest(null);
-    onCreated(order);
+  async function completeRecoveredOrder(order: StaffOrderDto, marker: StaffOrderRecovery) {
+    // Claim and cleanup share a lock, so another tab cannot replace the marker
+    // between its identity check and removal. A retired actor/stall cannot finish.
+    await navigator.locks.request(staffOrderRecoveryKey(marker.organizationId, marker.stallId), () => {
+      if (!activeRef.current) return;
+      // Consume only the original draft, using current storage rather than a
+      // stale render's selection. Storage failure leaves recovery retryable.
+      if (marker.draftId) {
+        const drafts = parseStaffOrderDrafts(window.localStorage.getItem(draftStorageKey));
+        const remaining = drafts.filter(draft => draft.id !== marker.draftId);
+        window.localStorage.setItem(draftStorageKey, JSON.stringify(remaining));
+        setSavedDrafts(remaining);
+        setActiveDraftId(null);
+      }
+      clearStaffOrderRecovery(window.localStorage, marker);
+      idempotencyKeyRef.current = createWebUuid();
+      setUncertainRequest(null);
+      if (marker.cash) window.dispatchEvent(new Event("stallorder:cash-payment-completed"));
+      onCreated(order);
+    });
   }
 
   async function recoverUncertainRequest() {
@@ -943,21 +971,22 @@ export function StaffOrderComposer({
     try {
       const query = new URLSearchParams({ actorProfileId: uncertainRequest.actorProfileId, idempotencyKey: uncertainRequest.idempotencyKey });
       const response = await fetch(`/api/stalls/${stall.slug}/orders/recovery?${query}`, { cache: "no-store" });
+      if (!activeRef.current) return;
       if (response.status === 401) { setRecoveryError(t("composer.recoveryLogin")); return; }
       if (response.status === 403 || response.status === 404) { setRecoveryError(t("composer.recoveryActorMismatch")); return; }
       const payload = await response.json() as { status?: string; order?: StaffOrderDto };
+      if (!activeRef.current) return;
       if (!response.ok || payload.status !== "FOUND" || !payload.order) {
         setRecoveryError(t("composer.recoveryUnknown"));
         return;
       }
-      completeRecoveredOrder(payload.order, uncertainRequest);
-      if (uncertainRequest.cash) window.dispatchEvent(new Event("stallorder:cash-payment-completed"));
+      await completeRecoveredOrder(payload.order, uncertainRequest);
     } catch { setRecoveryError(t("composer.recoveryUnknown")); }
     finally { setBusy(false); }
   }
 
   return (
-    <dialog ref={posDialogRef} aria-labelledby="staff-order-title"
+    <dialog ref={posDialogRef} aria-labelledby={uncertainRequest ? "staff-order-recovery-title" : "staff-order-title"}
       onCancel={(event) => {
         event.preventDefault();
         if (busy || productDialogRef.current?.open || noteDialogRef.current?.open || draftDialogRef.current?.open) return;
@@ -965,8 +994,8 @@ export function StaffOrderComposer({
       }}
       onKeyDown={keepTabInsideDialog}
       className="m-auto h-[100dvh] max-h-[100dvh] w-full max-w-none overflow-hidden border-0 bg-transparent p-0 text-stone-950 backdrop:bg-black/45 print:hidden sm:h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-1.5rem)] sm:w-[calc(100%-1.5rem)] lg:h-[calc(100dvh-3rem)] lg:max-h-[calc(100dvh-3rem)] lg:w-[calc(100%-3rem)]">
-      {uncertainRequest ? <section className="mx-auto grid h-full max-w-xl content-center gap-4 bg-white p-6">
-        <h2 id="staff-order-title" className="text-xl font-semibold">{t("composer.title")}</h2>
+      {uncertainRequest ? <section className="mx-auto grid h-full max-w-xl content-start gap-4 overflow-y-auto bg-white p-6">
+        <h2 id="staff-order-recovery-title" className="text-xl font-semibold">{t("composer.title")}</h2>
         <p role="alert" className="text-base font-semibold">{t(uncertainRequest.paymentTiming === "PAY_NOW" ? "composer.paymentUncertain" : "composer.orderUncertain")}</p>
         {recoveryError ? <p role="alert">{recoveryError}</p> : null}
         {uncertainRequest.actorProfileId === account.profileId ? <p className="break-all text-sm">{t("composer.recoveryReference", { key: uncertainRequest.idempotencyKey })}</p> : <p role="alert">{t("composer.recoveryActorMismatch")}</p>}

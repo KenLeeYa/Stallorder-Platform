@@ -247,7 +247,7 @@ test("所有已授權的 Staff 工具列動作在手機、平板與桌機皆可�
 });
 
 for (const redesignEnabled of [false, true]) {
-  test(`手機訂單明細可返回原卡片，旋轉後仍可操作（新工作台 ${redesignEnabled ? "開" : "關"}）`, async ({ page }) => {
+  test(`手機訂單明細可返回原卡片，旋轉後仍可操作（新工作台 ${redesignEnabled ? "開" : "關"}）`, async ({ page }, testInfo) => {
     test.setTimeout(120_000);
     const existingFlag = await responsivePrisma.resilienceFeatureFlag.findUnique({
       where: { code: "STAFF_WORKSPACE_REDESIGN_ENABLED" }, select: { id: true },
@@ -344,6 +344,7 @@ for (const redesignEnabled of [false, true]) {
             await mobileCard.getByRole("button", { name: "查看明細", exact: true }).click();
             const summary = page.getByTestId("staff-mobile-detail-summary");
             await expect(summary.getByText("測試訂單", { exact: true })).toHaveCount(isTest ? 1 : 0);
+            if (isTest && width === 320) await page.screenshot({ path: testInfo.outputPath(`test-order-label-${redesignEnabled}-320.png`) });
             await expect(page.getByTestId("staff-order-mobile-detail").getByTestId("staff-order-actions-pane")).toBeVisible();
             await page.getByRole("dialog", { name: `訂單 ${responsiveOrderNo}` }).getByRole("button", { name: "關閉", exact: true }).click();
           } else {
