@@ -117,10 +117,40 @@ for (const viewport of [
     test.setTimeout(120_000);
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
 
+    const navigation: Array<{ at: string; event: string; path: string; requestId?: number; kind?: string; rsc?: boolean; status?: number; detail?: string }> = [];
+    const requestIds = new WeakMap<object, number>();
+    let nextRequestId = 1;
+    const safePath = (url: string) => {
+      const parsed = new URL(url);
+      if (parsed.pathname.startsWith("/q/")) return "/q/<owned-qr>";
+      return parsed.pathname.startsWith("/store/") ? `${parsed.pathname}?view=${parsed.searchParams.get("view") ?? "menu"}` : parsed.pathname;
+    };
+    page.on("request", request => {
+      const requestId = nextRequestId++;
+      requestIds.set(request, requestId);
+      navigation.push({ at: new Date().toISOString(), event: "request", path: safePath(request.url()), requestId, kind: request.resourceType(), rsc: request.headers()["rsc"] === "1" });
+    });
+    page.on("response", response => navigation.push({ at: new Date().toISOString(), event: "response", path: safePath(response.url()), requestId: requestIds.get(response.request()), status: response.status() }));
+    page.on("requestfailed", request => navigation.push({ at: new Date().toISOString(), event: "requestfailed", path: safePath(request.url()), requestId: requestIds.get(request), detail: request.failure()?.errorText }));
+    page.on("pageerror", error => navigation.push({ at: new Date().toISOString(), event: "pageerror", path: safePath(page.url()), detail: error.message }));
+
     for (const route of [...publicRoutes, `/q/${fixture.qrToken}`]) {
-      await gotoLocalPath(page, route, canonicalRoutePaths[route] ?? route);
+      navigation.push({ at: new Date().toISOString(), event: "transition-start", path: safePath(new URL(route, "http://127.0.0.1:3026").href) });
+      const response = await gotoLocalPath(page, route, canonicalRoutePaths[route] ?? route);
+      expect(response).not.toBeNull();
+      const body = await response!.body();
+      expect(body.length, `Incomplete document stream at ${safePath(page.url())}`).toBeGreaterThan(0);
       await expect(page.locator("body")).toBeVisible();
       await expect(page.locator("[data-nextjs-dialog]")).toHaveCount(0);
+      if (route.startsWith("/store/")) {
+        await expect(page.getByTestId("storefront-mode-nav")).toBeVisible();
+        await expect(page.getByTestId("storefront-menu-view")
+          .or(page.getByTestId("qr-display-controls"))
+          .or(page.getByTestId("storefront-mode-unavailable")).first()).toBeVisible();
+      } else {
+        await expect(page.getByTestId("qr-display-controls")).toBeVisible();
+      }
+      navigation.push({ at: new Date().toISOString(), event: "ready", path: safePath(page.url()), detail: `bodyBytes=${body.length}` });
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
@@ -129,6 +159,7 @@ for (const viewport of [
       ).toBe(true);
       await expect(page.getByRole("main")).toBeVisible();
     }
+    writeFileSync(`${acceptanceDirectory}/storefront-navigation-${viewport.name}.json`, JSON.stringify({ viewport, navigation }, null, 2));
   });
 }
 
