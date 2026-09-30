@@ -736,10 +736,12 @@ function StaffTicketList(props: StaffTicketListProps) {
     </div>
     <ExperienceDialog open={Boolean(focusedOrder)} onClose={() => setFocusedOrderId(null)} title={focusedOrder ? props.t("staff.order.number", { number: focusedOrder.orderNo }) : ""} closeLabel={props.t("common.close")} size="workspace">
       {focusedOrder ? <div data-testid="staff-order-mobile-detail" className="grid gap-3">
-        <div className="flex flex-wrap gap-2 text-sm font-semibold text-stone-700">
+        <div data-testid="staff-mobile-detail-summary" className="flex flex-wrap gap-2 text-sm font-semibold text-stone-700">
           <span>{focusedOrder.customerName}</span>
+          <span>{staffQueueSource(focusedOrder) ? props.t(sourceLabels[staffQueueSource(focusedOrder)!]) : workspaceNavigationMessage(props.locale, "otherSource")}</span>
           <span>{contextualOrderStatusLabel(focusedOrder, props.t)}</span>
           <span>{paymentStatusLabel(focusedOrder.paymentStatus, props.t)}</span>
+          <span>{formatMoney(focusedOrder.total, props.currency, props.locale)}</span>
         </div>
         <StaffOrderTicket {...props} order={focusedOrder} desktopWorkspace mobileWorkspace />
       </div> : null}
