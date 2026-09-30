@@ -238,17 +238,30 @@ test("sold-out scope survives refresh and rejects stale customer cart", async ({
   }
 });
 
-test("pure Staff cannot mutate Merchant availability", async ({ page }) => {
+test("pure Staff cannot mutate Merchant availability or stall operations", async ({ page }) => {
+  const staffFixture = await prisma.profile.findUniqueOrThrow({
+    where: { email: "staff@stallorder.test" },
+    select: { id: true, platformRole: true,
+      organizationMemberships: { where: { organizationId, isActive: true }, select: { role: true } },
+      stallMemberships: { where: { stallId, isActive: true }, select: { role: true } },
+    },
+  });
+  expect(staffFixture.platformRole).toBeNull();
+  expect(staffFixture.organizationMemberships).toEqual([]);
+  expect(staffFixture.stallMemberships.map((membership) => membership.role)).toEqual(["STAFF"]);
+  const stallBefore = await prisma.stall.findUniqueOrThrow({ where: { id: stallId },
+    select: { businessStatus: true, orderingEnabled: true, isActive: true, updatedAt: true } });
   await page.context().clearCookies();
   await loginLocalTestAccount(page, "staff@stallorder.test", password);
   await gotoLocalPath(page, "/staff/aming-chicken");
   await expect(page.getByTestId("merchant-function-navigation")).toHaveCount(0);
   const identity = await page.evaluate(async () => {
     const response = await fetch("/api/auth/me", { credentials: "include", cache: "no-store" });
-    return { status: response.status, body: await response.json() as { user?: { email?: string } } };
+    return { status: response.status, body: await response.json() as { user?: { id?: string; email?: string } } };
   });
   expect(identity.status).toBe(200);
   expect(identity.body.user?.email).toBe("staff@stallorder.test");
+  expect(identity.body.user?.id).toBe(staffFixture.id);
   const csrf = (await page.context().cookies()).find(cookie => cookie.name === "stallorder_csrf")?.value;
   expect(csrf).toBeTruthy();
   const denied = await page.evaluate(async ({ stallId, fixtureProductId, csrf }) => {
@@ -259,6 +272,27 @@ test("pure Staff cannot mutate Merchant availability", async ({ page }) => {
     return { status: response.status, body: await response.json() as { error?: string } };
   }, { stallId, fixtureProductId, csrf: csrf! });
   expect(denied.status, denied.body.error).toBe(403);
+  expect(denied.body.error).toBe("您的角色沒有執行此操作的權限。");
+
+  const stallDenied = await page.evaluate(async ({ stallId, csrf, current }) => {
+    const response = await fetch(`/api/merchant/stalls/${stallId}`, {
+      method: "PATCH", credentials: "include", headers: { "content-type": "application/json", "x-csrf-token": csrf },
+      body: JSON.stringify({ operation: "UPDATE_OPERATIONS", businessStatus: current.businessStatus,
+        orderingEnabled: current.orderingEnabled, isActive: current.isActive }),
+    });
+    return { status: response.status, requestId: response.headers.get("x-request-id"),
+      body: await response.json() as { error?: string } };
+  }, { stallId, csrf: csrf!, current: stallBefore });
+  expect(stallDenied.status).toBe(403);
+  expect(stallDenied.body.error).toBe("您的角色沒有執行此操作的權限。");
+  expect(stallDenied.requestId).toMatch(/^[0-9a-f-]{36}$/);
+  const audit = await prisma.auditLog.findFirstOrThrow({ where: { requestId: stallDenied.requestId! },
+    select: { action: true, outcome: true, actorProfileId: true, organizationId: true, stallId: true, metadata: true } });
+  expect(audit).toMatchObject({ action: "AUTHORIZATION_DENIED", outcome: "DENIED",
+    actorProfileId: staffFixture.id, organizationId, stallId });
+  expect(JSON.parse(audit.metadata ?? "{}")).toMatchObject({ permission: "MANAGE_STALL", role: "STAFF" });
+  expect(await prisma.stall.findUniqueOrThrow({ where: { id: stallId },
+    select: { businessStatus: true, orderingEnabled: true, isActive: true, updatedAt: true } })).toEqual(stallBefore);
 });
 
 test("CSV import preview exposes row errors and reachable submit on phone", async ({ page }) => {
