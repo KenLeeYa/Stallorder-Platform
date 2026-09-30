@@ -706,8 +706,8 @@ function StaffTicketList(props: StaffTicketListProps) {
   }, []);
   useEffect(() => {
     if (!focusedOrderId || focusedOrder) return;
-    setFocusedOrderId(null);
     window.requestAnimationFrame(() => {
+      setFocusedOrderId(null);
       const fallback = Array.from(document.querySelectorAll<HTMLElement>(
         '#main-content [data-testid="staff-order-mobile-list"] article button, #main-content [data-testid="staff-queue-toggle"], #main-content [data-testid="staff-search-open"]',
       )).find((element) => element.getClientRects().length > 0);
