@@ -133,7 +133,11 @@ function KitchenBoardSession({ stall, canManage, workModeDestinations, initialDa
     authorizedRef.current = true;
     setAuthorized(true);
     const newOrderCount = recovered ? 0 : reconcileKitchenOrderAlerts(knownOrderIdsRef.current, payload.alertOrderIds);
-    if (recovered) knownOrderIdsRef.current = new Set(payload.alertOrderIds);
+    if (recovered) {
+      knownOrderIdsRef.current = new Set(payload.alertOrderIds);
+      setStationId(payload.stations[0]?.id ?? "");
+      setSelectedOrderId(preferredKitchenOrderId(payload.tasks));
+    }
     setData(payload);
     setNow(Date.parse(payload.serverNow));
     setMessage("");
@@ -144,8 +148,12 @@ function KitchenBoardSession({ stall, canManage, workModeDestinations, initialDa
     if (error instanceof KitchenBoardAuthorizationError) {
       authorizedRef.current = false;
       setAuthorized(false);
-      setData((current) => ({ ...current, tasks: [], futureReservations: [], alertOrderIds: [] }));
+      setData((current) => ({ ...current, stations: [], tasks: [], futureReservations: [], alertOrderIds: [] }));
+      knownOrderIdsRef.current.clear();
+      setStationId("");
+      setSelectedOrderId(null);
       setPendingCancellation(null);
+      setCancellationErrors({});
     }
     setMessage(error instanceof Error ? error.message : t("kitchen.board.reloadFailed"));
   });
@@ -317,8 +325,8 @@ function KitchenBoardSession({ stall, canManage, workModeDestinations, initialDa
       <KitchenNavigation
         active="BOARD"
         stall={stall}
-        canManage={canManage}
-        workModeDestinations={workModeDestinations}
+        canManage={canManage && authorized}
+        workModeDestinations={authorized ? workModeDestinations : []}
         boardControls={{
           mode,
           onModeChange: setMode,
