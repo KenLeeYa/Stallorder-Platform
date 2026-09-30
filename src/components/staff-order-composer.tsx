@@ -118,7 +118,7 @@ export function StaffOrderComposer({
   const [draftManagerOpen, setDraftManagerOpen] = useState(false);
   const [draftNotice, setDraftNotice] = useState("");
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
-  useStaffModal(posDialogRef, true);
+  useStaffModal(posDialogRef, true, t("staff.action.createOrder"));
   useStaffModal(productDialogRef, configuringProductId !== null);
   useStaffModal(noteDialogRef, noteDialogOpen);
   useStaffModal(draftDialogRef, draftManagerOpen);
@@ -876,7 +876,12 @@ export function StaffOrderComposer({
 
   return (
     <dialog ref={posDialogRef} aria-labelledby="staff-order-title"
-      onCancel={(event) => { event.preventDefault(); if (!busy) onClose(); }}
+      onCancel={(event) => {
+        event.preventDefault();
+        if (busy || productDialogRef.current?.open || noteDialogRef.current?.open || draftDialogRef.current?.open) return;
+        onClose();
+      }}
+      onKeyDown={keepTabInsideDialog}
       className="m-auto h-[100dvh] max-h-[100dvh] w-full max-w-none overflow-hidden border-0 bg-transparent p-0 text-stone-950 backdrop:bg-black/45 print:hidden sm:h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-1.5rem)] sm:w-[calc(100%-1.5rem)] lg:h-[calc(100dvh-3rem)] lg:max-h-[calc(100dvh-3rem)] lg:w-[calc(100%-3rem)]">
       <section className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col overflow-hidden bg-white shadow-xl sm:rounded-lg">
         <header className="z-20 flex shrink-0 flex-wrap items-start justify-between gap-2 border-b border-stone-200 bg-white px-4 py-3 sm:rounded-t-lg sm:px-6 md:gap-4 lg:py-4">
@@ -1167,9 +1172,8 @@ export function StaffOrderComposer({
         </div>
       </section>
       {actionPrompt ? <div className="pointer-events-none fixed inset-0 z-[80] grid place-items-center p-6" aria-live="assertive"><p data-testid="staff-action-prompt" role="alert" className="max-w-md rounded-xl border-2 border-red-600 bg-white px-5 py-4 text-center text-base font-bold text-red-800 shadow-2xl">{actionPrompt}</p></div> : null}
-      {configuringProduct ? <dialog ref={productDialogRef} onCancel={(event) => { event.preventDefault(); dismissProductConfigurator(); }} aria-labelledby="staff-product-configurator-title" className="m-auto max-h-[100dvh] w-full max-w-2xl overflow-hidden border-0 bg-transparent p-0 text-stone-950 backdrop:bg-black/60 sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)]">
+      {configuringProduct ? <dialog ref={productDialogRef} data-testid="staff-product-configurator" onCancel={(event) => { event.preventDefault(); dismissProductConfigurator(); }} onKeyDown={keepTabInsideDialog} aria-labelledby="staff-product-configurator-title" className="m-auto max-h-[100dvh] w-full max-w-2xl overflow-hidden border-0 bg-transparent p-0 text-stone-950 backdrop:bg-black/60 sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)]">
         <section
-          data-testid="staff-product-configurator"
           className="flex max-h-[100dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl"
         >
           <header className="flex shrink-0 items-start justify-between gap-4 border-b border-stone-200 px-4 py-4 sm:px-6">
@@ -1280,7 +1284,7 @@ export function StaffOrderComposer({
   );
 }
 
-function useStaffModal(ref: React.RefObject<HTMLDialogElement | null>, open: boolean) {
+function useStaffModal(ref: React.RefObject<HTMLDialogElement | null>, open: boolean, returnLabel?: string) {
   useEffect(() => {
     const dialog = ref.current;
     if (!open || !dialog) return;
@@ -1288,9 +1292,24 @@ function useStaffModal(ref: React.RefObject<HTMLDialogElement | null>, open: boo
     dialog.showModal();
     return () => {
       dialog.close();
-      if (trigger instanceof HTMLElement && trigger.isConnected) trigger.focus();
+      const returnTarget = returnLabel
+        ? Array.from(document.querySelectorAll<HTMLButtonElement>("button[title]")).find((button) => button.title === returnLabel)
+        : null;
+      if (returnTarget) returnTarget.focus();
+      else if (trigger instanceof HTMLElement && trigger.isConnected) trigger.focus();
     };
-  }, [open, ref]);
+  }, [open, ref, returnLabel]);
+}
+
+function keepTabInsideDialog(event: React.KeyboardEvent<HTMLDialogElement>) {
+  if (event.key !== "Tab" || (event.target instanceof Element && event.target.closest("dialog") !== event.currentTarget)) return;
+  const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>(
+    "button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex='-1'])",
+  )).filter((element) => element.getClientRects().length > 0 && element.tabIndex >= 0);
+  const first = controls[0], last = controls.at(-1);
+  if (!first || !last) return;
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
 }
 
 function staffOrderDraftStorageKey(organizationId: string, stallId: string) {

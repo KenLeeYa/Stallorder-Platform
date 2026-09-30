@@ -60,6 +60,7 @@ test("pending submission rejects Escape and close", async ({ page }) => {
   await modifier.getByRole("radio", { name: /QA 必選加料/ }).click();
   await modifier.getByRole("button", { name: "加入購物車", exact: true }).click();
   await dialog.getByTestId("staff-order-cart-tab").click();
+  await dialog.getByTestId("staff-tablet-confirm-order").click();
   await dialog.getByRole("button", { name: "稍後結帳", exact: true }).click();
 
   let submitRequests = 0;
