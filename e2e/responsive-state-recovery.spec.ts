@@ -131,7 +131,7 @@ test("RSP-Q05: real session revocation 401 and shared-device finance identity 40
   }
 });
 
-for (const lostResponses of [1, 2, "recovery-500"] as const) test(`RSP-Q03: ${lostResponses} accepted cash response losses resume original order before synthetic print retry`, async ({ page }, testInfo) => {
+for (const lostResponses of [1, 2, "recovery-500", "first-corrupt"] as const) test(`RSP-Q03: ${lostResponses} accepted cash response losses resume original order before synthetic print retry`, async ({ page }, testInfo) => {
   test.setTimeout(90_000);
   const prisma = new PrismaClient();
   let orderId = "";
@@ -164,6 +164,7 @@ for (const lostResponses of [1, 2, "recovery-500"] as const) test(`RSP-Q03: ${lo
         const payment = await prisma.payment.findFirstOrThrow({ where: { orderId } });
         accepted = { paymentId: payment.id, orderNo: payload.order.orderNo, usage: await prisma.usageEvent.count({ where: { referenceId: orderId } }) };
         expect(payment.status).toBe("PAID");
+        if (lostResponses === "first-corrupt") return route.fulfill({ status: 201, contentType: "application/json", body: '{"order":' });
         await route.abort("connectionfailed");
       } else {
         expect(response.status()).toBe(200);
@@ -185,7 +186,7 @@ for (const lostResponses of [1, 2, "recovery-500"] as const) test(`RSP-Q03: ${lo
       await page.setViewportSize({ width: 1024, height: 768 });
       await expect(pos).toBeVisible();
       await expect(pos.getByRole("button", { name: "建立訂單並收款", exact: true })).toHaveCount(0);
-      expect(identities).toHaveLength(2);
+      expect(identities).toHaveLength(lostResponses === "first-corrupt" ? 1 : 2);
       await pos.getByRole("button", { name: "查回原訂單結果", exact: true }).click();
     }
     await expect(pos).toBeHidden({ timeout: 15_000 });

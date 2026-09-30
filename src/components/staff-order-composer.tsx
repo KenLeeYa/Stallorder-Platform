@@ -781,6 +781,7 @@ export function StaffOrderComposer({
         bundleChoiceIds,
       })),
     };
+    const originalRequest = { body: JSON.stringify(requestBody), cash: paymentTiming === "PAY_NOW" && usesCash };
     try {
       let response: Response;
       let recoveringUnknown = false;
@@ -788,7 +789,7 @@ export function StaffOrderComposer({
         response = await fetch(`/api/stalls/${stall.slug}/orders`, {
           method: "POST",
           headers: csrfHeaders(),
-          body: JSON.stringify(requestBody),
+          body: originalRequest.body,
         });
       } catch (error) {
         if (!navigator.onLine) {
@@ -802,10 +803,10 @@ export function StaffOrderComposer({
           response = await fetch(`/api/stalls/${stall.slug}/orders`, {
             method: "POST",
             headers: csrfHeaders(),
-            body: JSON.stringify(requestBody),
+            body: originalRequest.body,
           });
         } catch {
-          setUncertainRequest({ body: JSON.stringify(requestBody), cash: paymentTiming === "PAY_NOW" && usesCash });
+          setUncertainRequest(originalRequest);
           return;
         }
       }
@@ -813,29 +814,25 @@ export function StaffOrderComposer({
       try {
         payload = await response.json() as { order?: StaffOrderDto; code?: string };
       } catch (error) {
-        if (recoveringUnknown) {
-          setUncertainRequest({ body: JSON.stringify(requestBody), cash: paymentTiming === "PAY_NOW" && usesCash });
-          return;
-        }
-        if (response.ok || isTemporaryOrderFailure(response.status)) {
-          await createOfflineFallback(error);
+        if (recoveringUnknown || response.ok || isTemporaryOrderFailure(response.status)) {
+          setUncertainRequest(originalRequest);
           return;
         }
         throw new Error(t("composer.createFailed"));
       }
       if (recoveringUnknown && (!response.ok || !payload.order)) {
-        setUncertainRequest({ body: JSON.stringify(requestBody), cash: paymentTiming === "PAY_NOW" && usesCash });
+        setUncertainRequest(originalRequest);
         return;
       }
       if (!response.ok) {
         if (isTemporaryOrderFailure(response.status)) {
-          await createOfflineFallback(new Error("ORDER_INTAKE_TEMPORARILY_UNAVAILABLE"));
+          setUncertainRequest(originalRequest);
           return;
         }
         throw new Error(t(getOperationsErrorMessageKey(payload.code, "composer.createFailed")));
       }
       if (!payload.order) {
-        await createOfflineFallback(new Error("ORDER_RESPONSE_MISSING"));
+        setUncertainRequest(originalRequest);
         return;
       }
       idempotencyKeyRef.current = createWebUuid();
@@ -1455,7 +1452,7 @@ function isPaymentTiming(value: unknown): value is StaffOrderDraft["paymentTimin
 }
 
 function isTemporaryOrderFailure(status: number) {
-  return status === 502 || status === 503 || status === 504;
+  return status >= 500 && status < 600;
 }
 
 type StaffCatalogProduct = StaffOrderCatalog["products"][number];
