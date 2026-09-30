@@ -475,7 +475,8 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       const ticket = staffPage
         .getByRole("article")
         .filter({ hasText: order.customerName });
-      const finishAndNotify = ticket.getByRole("button", {
+      await ticket.getByRole("button", { name: "查看明細", exact: true }).click();
+      const finishAndNotify = staffPage.getByRole("dialog", { name: `訂單 ${order.orderNo}` }).getByRole("button", {
         name: "餐點完成・通知可取餐",
         exact: true,
       });

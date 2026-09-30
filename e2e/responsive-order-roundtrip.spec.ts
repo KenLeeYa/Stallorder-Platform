@@ -32,7 +32,7 @@ async function rolePage(browser: Browser, width: number) {
   return { context, page: await context.newPage() };
 }
 
-test("RSP-Q01: one real order moves from customer phone through staff tablet, KDS and desktop", async ({ browser }, testInfo) => {
+for (const printing of [false, true]) test(`RSP-Q01: one real order moves through customer, staff, KDS and desktop with printing=${printing}`, async ({ browser }, testInfo) => {
   test.setTimeout(300_000);
   const build = readResponsiveBuildProvenance();
   const prisma = new PrismaClient();
@@ -45,6 +45,8 @@ test("RSP-Q01: one real order moves from customer phone through staff tablet, KD
   let orderId = "";
   let orderNo = "";
   let orderSubmissionStatus = 0;
+  let printerId = "", ruleId = "";
+  const disabledPrinterIds: string[] = [];
   const observed: Array<{ step: string; status: string; at: string }> = [];
   const edgeSessionStatuses: number[] = [];
   customer.page.on("response", (response) => {
@@ -54,6 +56,15 @@ test("RSP-Q01: one real order moves from customer phone through staff tablet, KD
   const observe = (step: string, status: string) => observed.push({ step, status, at: new Date().toISOString() });
   try {
     fixture = await createResponsiveOrderFixture(prisma);
+    if (printing) {
+      disabledPrinterIds.push(...(await prisma.printer.findMany({ where: { stallId: fixture.stallId, isEnabled: true }, select: { id: true } })).map((row) => row.id));
+      await prisma.printer.updateMany({ where: { id: { in: disabledPrinterIds } }, data: { isEnabled: false } });
+      printerId = (await prisma.printer.create({ data: { organizationId: fixture.organizationId, stallId: fixture.stallId, name: `A6 both modules ${fixture.runId}`, isEnabled: true, lastSeenAt: new Date() } })).id;
+      ruleId = (await prisma.printRule.create({ data: { organizationId: fixture.organizationId, stallId: fixture.stallId, printerId, name: `A6 both modules ${fixture.runId}`, trigger: "ORDER_CONFIRMED", autoPrint: false } })).id;
+      await prisma.stallOrderingSettings.update({ where: { stallId: fixture.stallId }, data: { printModuleEnabled: true } });
+      // Synthetic hardware boundary only; real print commands and DB transitions below.
+      await desktop.page.addInitScript(() => { window.print = () => { window.sessionStorage.setItem("a6-both-print", "called"); }; });
+    }
     const productName = `跨裝置 QA 餐 ${fixture.runId.slice(0, 8)}`;
     await customer.page.goto(`/q/${fixture.qrToken}`);
     const product = customer.page.getByRole("article").filter({
@@ -120,6 +131,8 @@ test("RSP-Q01: one real order moves from customer phone through staff tablet, KD
     expect((await confirmed).status()).toBe(200);
     await expect.poll(async () => (await prisma.order.findUniqueOrThrow({ where: { id: orderId } })).status).toBe("CONFIRMED");
     observe("staff confirmed", "CONFIRMED");
+    expect(await prisma.printJob.count({ where: { orderId } })).toBe(printing ? 1 : 0);
+    if (printing) expect(await prisma.printJob.findFirstOrThrow({ where: { orderId }, select: { status: true, printerId: true } })).toEqual({ status: "PENDING", printerId });
 
     await login(kitchen.page, "kitchen@stallorder.test");
     await kitchen.page.goto(`/kitchen?stall=${fixture.stallSlug}`);
@@ -148,6 +161,25 @@ test("RSP-Q01: one real order moves from customer phone through staff tablet, KD
     expect(pickupCode).toMatch(/^\d{3}$/);
 
     await login(desktop.page, "staff@stallorder.test");
+    if (printing) {
+      await desktop.page.goto(`/staff/${fixture.stallSlug}/print`);
+      const printer = desktop.page.getByRole("article").filter({ hasText: `A6 both modules ${fixture.runId}`, has: desktop.page.getByRole("button", { name: "本機接手", exact: true }) });
+      await printer.getByRole("button", { name: "本機接手", exact: true }).click();
+      const feedback = desktop.page.getByRole("dialog", { name: "操作已完成", exact: true });
+      await expect(feedback).toBeVisible();
+      await feedback.getByRole("button", { name: "我知道了", exact: true }).click();
+      const job = desktop.page.getByRole("article").filter({ hasText: orderNo });
+      const claim = desktop.page.waitForResponse((response) => response.url().endsWith("/print-jobs") && response.request().postDataJSON()?.operation === "CLAIM");
+      await job.getByRole("button", { name: "開始列印", exact: true }).click();
+      expect((await claim).status()).toBe(200);
+      await expect.poll(() => desktop.page.evaluate(() => sessionStorage.getItem("a6-both-print"))).toBe("called");
+      const success = desktop.page.waitForResponse((response) => response.url().endsWith("/print-jobs") && response.request().postDataJSON()?.operation === "SUCCESS");
+      await job.getByRole("button", { name: "成功", exact: true }).click();
+      expect((await success).status()).toBe(200);
+      expect((await prisma.printJob.findFirstOrThrow({ where: { orderId } })).status).toBe("SUCCEEDED");
+      // With KDS enabled, printing cannot auto-complete payment or pickup.
+      expect((await prisma.order.findUniqueOrThrow({ where: { id: orderId } })).status).toBe("READY");
+    }
     await desktop.page.goto(`/staff/${fixture.stallSlug}`);
     const desktopOrder = desktop.page.getByTestId("staff-order-list-pane")
       .getByRole("button").filter({ hasText: orderNo });
@@ -188,6 +220,8 @@ test("RSP-Q01: one real order moves from customer phone through staff tablet, KD
     expect(final.status).toBe("COMPLETED");
     expect(final.total).toBe(130);
     expect(await prisma.order.count({ where: { id: orderId } })).toBe(1);
+    expect(await prisma.payment.count({ where: { orderId } })).toBe(1);
+    expect(await prisma.printJob.count({ where: { orderId } })).toBe(printing ? 1 : 0);
     const events = await prisma.orderEvent.findMany({
       where: { orderId }, orderBy: { createdAt: "asc" }, select: { eventType: true, createdAt: true },
     });
@@ -202,6 +236,12 @@ test("RSP-Q01: one real order moves from customer phone through staff tablet, KD
     await testInfo.attach("same-order-receipt", { contentType: "application/json", body: receipt });
   } finally {
     await Promise.allSettled([customer.context.close(), staff.context.close(), kitchen.context.close(), desktop.context.close()]);
+    if (printing && fixture) {
+      await prisma.stallOrderingSettings.update({ where: { stallId: fixture.stallId }, data: { printModuleEnabled: false } });
+      if (ruleId) await prisma.printRule.delete({ where: { id: ruleId } });
+      if (printerId) await prisma.printer.update({ where: { id: printerId }, data: { isEnabled: false } });
+      await prisma.printer.updateMany({ where: { id: { in: disabledPrinterIds } }, data: { isEnabled: true } });
+    }
     await prisma.$disconnect();
   }
 });

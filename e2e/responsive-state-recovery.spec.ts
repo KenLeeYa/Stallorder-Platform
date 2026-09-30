@@ -136,6 +136,8 @@ for (const lostResponses of [1, 2, "recovery-500"] as const) test(`RSP-Q03: ${lo
 });
 
 async function configuredCart(page: Page, fixture: Awaited<ReturnType<typeof createResponsiveOrderFixture>>) {
+  const ip = `198.18.${Number.parseInt(fixture.runId.slice(0, 2), 16)}.${Number.parseInt(fixture.runId.slice(2, 4), 16)}`;
+  await page.setExtraHTTPHeaders({ "cf-connecting-ip": ip, "x-vercel-forwarded-for": ip });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/q/${fixture.qrToken}`);
   const name = `跨裝置 QA 餐 ${fixture.runId.slice(0, 8)}`;

@@ -77,7 +77,7 @@ test.afterAll(async () => {
   } finally { await staff?.dispose(); await prisma.$disconnect(); }
 });
 
-async function createOrder(request: APIRequestContext) {
+async function createOrder(request: APIRequestContext, verifyTracking = true) {
   const headers = publicHeaders(), deviceId = randomUUID(), id = randomUUID();
   orderIds.push(id);
   const issued = await request.post("/api/public/order-session", { headers, data: {
@@ -95,12 +95,12 @@ async function createOrder(request: APIRequestContext) {
   } });
   expect(created.status(), (await created.json()).code).toBe(201);
   const trackingToken = (await created.json()).trackingToken as string;
-  if (process.env.RESPONSIVE_QA_RUN === "true") {
+  if (process.env.RESPONSIVE_QA_RUN === "true" && verifyTracking) {
     const stored = await prisma.order.findUniqueOrThrow({
       where: { trackingTokenHash: createHash("sha256").update(trackingToken).digest("hex") },
       select: { deviceHash: true },
     });
-    expect(stored.deviceHash).toBe(createHmac("sha256", process.env.ABUSE_HASH_SECRET!)
+    expect(stored.deviceHash).toBe(createHmac("sha256", process.env.ABUSE_HASH_SECRET!.trim())
       .update(`device:${deviceId}`).digest("hex"));
     const nodeRead = await request.get(`/api/public/orders/${trackingToken}`, {
       headers: { ...headers, "x-stallorder-device-id": deviceId },
@@ -297,7 +297,8 @@ test("expiry, response loss, duplicate commands and a cancelled order keep autho
 
 test("Node and Edge share one tracking budget without starving other orders or mutations on shared Wi-Fi", async ({ request }) => {
   test.setTimeout(120_000);
-  const first = await createOrder(request), second = await createOrder(request), third = await createOrder(request);
+  // The readback diagnostic itself consumes the shared tracking budget.
+  const first = await createOrder(request, false), second = await createOrder(request, false), third = await createOrder(request, false);
   await propose(first, 1);
   const headers = publicHeaders();
   const edge = process.env.NEXT_PUBLIC_SUPABASE_URL + "/functions/v1/get-public-order";
