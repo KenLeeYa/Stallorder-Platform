@@ -1,10 +1,6 @@
+import "./e2e/helpers/responsive-env";
 import { defineConfig } from "@playwright/test";
-import { loadEnvFile } from "node:process";
-import { assertResponsiveQaTarget } from "./scripts/responsive-qa-target.mjs";
 import baseline from "./playwright.config";
-
-loadEnvFile(".env.local");
-assertResponsiveQaTarget(process.env);
 
 export default defineConfig({
   ...baseline,
