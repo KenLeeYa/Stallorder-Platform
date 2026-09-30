@@ -163,16 +163,20 @@ test("RSP-Q07: Node fallback 429 Retry-After keeps cart and original retry ident
     await configuredCart(page, fixture);
     await openCustomerCheckout(page);
     const identities: string[] = [];
+    const fallbackIdentities: string[] = [];
     await page.clock.install();
     await page.route("**/functions/v1/create-public-order", async (route) => {
       identities.push(route.request().postDataJSON().idempotencyKey);
       if (identities.length === 1) return route.fulfill({ status: 500, contentType: "text/html", body: "<html>Owned timing fault</html>" });
       await route.continue();
     });
-    await page.route("**/api/public/orders", (route) => route.fulfill({ status: 429, headers: { "retry-after": "30" }, contentType: "application/json", body: JSON.stringify({ code: "RATE_LIMITED" }) }));
+    await page.route("**/api/public/orders", (route) => {
+      fallbackIdentities.push(route.request().postDataJSON().idempotencyKey);
+      return route.fulfill({ status: 429, headers: { "retry-after": "30" }, contentType: "application/json", body: JSON.stringify({ code: "RATE_LIMITED" }) });
+    });
     const rejected = page.waitForResponse((r) => r.url().endsWith("/api/public/orders") && r.status() === 429);
     await page.getByRole("button", { name: "送出訂單", exact: true }).click();
-    await rejected;
+    expect((await rejected).headers()["retry-after"]).toBe("30");
     await expect(page.getByRole("alertdialog")).toBeVisible();
     await page.getByRole("alertdialog").getByRole("button", { name: "關閉", exact: true }).click();
     const submit = page.getByTestId("qr-checkout-panel").locator("button").last();
@@ -180,12 +184,14 @@ test("RSP-Q07: Node fallback 429 Retry-After keeps cart and original retry ident
     await page.clock.fastForward(29_000);
     await expect(submit).toBeDisabled();
     expect(identities).toHaveLength(1);
+    expect(fallbackIdentities).toEqual(identities);
     await expect(page.getByTestId("qr-cart-panel")).toContainText("65");
     await page.clock.fastForward(1_100);
     await expect(submit).toBeEnabled();
     await submit.click();
     await expect(page).toHaveURL(/\/order\/[^/]+$/);
     expect(identities).toHaveLength(2);
+    expect(fallbackIdentities).toHaveLength(1);
     expect(new Set(identities).size).toBe(1);
     const orders = await prisma.order.findMany({ where: { idempotencyKey: identities[0] }, include: { payment: true } });
     expect(orders).toHaveLength(1);
