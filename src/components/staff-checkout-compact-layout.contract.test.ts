@@ -25,7 +25,8 @@ describe("staff checkout compact layout", () => {
     expect(lifecycle).toContain('data-testid="staff-checkout-cash-row"');
     expect(composer).toContain('data-testid="staff-cash-received-field"');
     expect(lifecycle).toContain('data-testid="staff-cash-received-field"');
-    expect(composer).toContain("grid-cols-[3rem_minmax(0,12rem)_4rem]");
+    expect(composer).toContain("grid-cols-[3rem_minmax(0,1fr)]");
+    expect(composer).toContain("sm:grid-cols-[3rem_minmax(0,12rem)_6rem]");
     expect(lifecycle).toContain("grid-cols-[3rem_minmax(0,12rem)_4rem]");
     expect(composer).not.toContain("max-w-[45vw]");
     expect(lifecycle).not.toContain("max-w-[45vw]");
@@ -44,7 +45,8 @@ describe("staff checkout compact layout", () => {
     expect(controls).toContain("overscroll-contain");
     expect(controls).not.toContain("overflow-hidden");
     expect(composer).toContain("sticky bottom-0");
-    expect(composer).toContain("sm:p-3 lg:p-6");
+    expect(composer).toContain("sm:h-[calc(100dvh-1.5rem)]");
+    expect(composer).toContain("lg:h-[calc(100dvh-3rem)]");
     expect(composer).toContain('className="mt-1 hidden text-sm text-stone-600 lg:block"');
   });
 });

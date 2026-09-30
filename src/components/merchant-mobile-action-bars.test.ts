@@ -34,7 +34,8 @@ describe("merchant mobile action bars", () => {
     const products = source("./merchant-products.tsx");
 
     expect(products).toContain('aria-haspopup="dialog"');
-    expect(products).toContain('role={catalogDialogOpen ? "dialog" : undefined}');
+    expect(products).toContain('role={catalogDialogOpen && compactCatalog ? "dialog" : undefined}');
+    expect(products).toContain('aria-modal={catalogDialogOpen && compactCatalog ? true : undefined}');
     expect(products).toContain("md:h-full md:overflow-y-auto md:overscroll-contain");
     expect(products).toContain("min-h-0 flex-1 overflow-y-auto overscroll-contain");
     expect(products).toContain('data-testid="merchant-ordering-qr"');
