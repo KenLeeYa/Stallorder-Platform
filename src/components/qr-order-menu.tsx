@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useId, useState, type RefObject } from "react";
+import { Fragment, useEffect, useId, useRef, useState, type RefObject } from "react";
 import { useClientReady } from "@/components/use-client-ready";
 import { Flame, Minus, Plus, ShoppingCart, X } from "lucide-react";
 import { orderingExperienceMessage as experience } from "@/lib/messages/ordering-experience";
@@ -92,6 +92,18 @@ export function QrOrderMenu({
   const searchId = useId();
   const searchReady = useClientReady();
   const [query, setQuery] = useState("");
+  const previousConfiguratorId = useRef(configuringProductId);
+  useEffect(() => {
+    const previousId = previousConfiguratorId.current;
+    previousConfiguratorId.current = configuringProductId;
+    if (configuringProductId || !previousId) return;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(`qr-product-${previousId}`)
+        ?.querySelector<HTMLButtonElement>('[data-testid="qr-open-product-configurator"]')
+        ?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [configuringProductId]);
   const normalized = query.trim().toLocaleLowerCase(locale);
   const matchingProducts = visibleProducts.filter(product => product.id === configuringProductId || `${localizedProduct(product).name} ${localizedProduct(product).description} ${localizedCategory(product.category)} ${localizedProductGroup(product)}`.toLocaleLowerCase(locale).includes(normalized));
   return (
