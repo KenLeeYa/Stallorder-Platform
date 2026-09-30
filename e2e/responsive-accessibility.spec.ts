@@ -87,7 +87,7 @@ for (const channel of ["chrome", "msedge"] as const) {
           try {
             const shot = await cdp.send("Page.captureScreenshot", { format: "png", fromSurface: true, captureBeyondViewport: false });
             writeFileSync(`${acceptanceDirectory}/${channel}-${mode}-${surface}.png`, Buffer.from(shot.data, "base64"));
-          } finally { await mask?.evaluate(element => element.remove()); }
+          } finally { await mask?.evaluate(element => element.parentNode?.removeChild(element)); }
         };
         const receipts: unknown[] = [];
         const saveReceipt = (status: string) => writeFileSync(`${acceptanceDirectory}/${channel}-${mode}.json`, JSON.stringify({ source, status, channel, version: browser.browser()?.version(), mode, method: "Native browser settings UI; no viewport, deviceScaleFactor or page-scale override. Text size uses owned profile default_font_size. Full-frame CDP capture; Merchant QR block masked.", baseline, settingReadback, receipts }, null, 2));
