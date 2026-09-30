@@ -125,6 +125,23 @@ test("Staff search and all functions keep one accessible entry", async ({ page }
   await expect(allFunctions).toHaveAttribute("aria-expanded", "false");
 });
 
+test("workspace all functions closes once and restores its trigger", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/login");
+  await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
+  await page.getByLabel("電子郵件").fill("owner@stallorder.test");
+  await page.getByLabel("密碼").fill("StallOrderDemo!2026");
+  await page.getByRole("button", { name: "登入", exact: true }).click();
+  await expect(page).toHaveURL(/\/merchant\/dashboard\?organizationId=/);
+  const trigger = page.getByRole("button", { name: "所有功能", exact: true });
+  await trigger.click();
+  const dialog = page.getByRole("dialog", { name: "所有功能", exact: true });
+  await expect(dialog.getByRole("heading", { name: "所有功能", exact: true })).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(trigger).toBeFocused();
+});
+
 test("QR customization keeps its heading and returns focus", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/q/${qrToken}`);
