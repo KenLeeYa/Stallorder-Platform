@@ -1,17 +1,19 @@
 import { expect, test, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
-import { dismissStaffStartReminder } from "./local-navigation";
+import { dismissStaffStartReminder, qrProductSelectionControl } from "./local-navigation";
 import { createResponsiveOrderFixture } from "./helpers/responsive-order-fixture";
 
 test.use({ serviceWorkers: "block" });
 
 let productName: string;
+let qrToken: string;
 
 test.beforeAll(async () => {
   const prisma = new PrismaClient();
   try {
     const fixture = await createResponsiveOrderFixture(prisma);
     productName = `跨裝置 QA 餐 ${fixture.runId.slice(0, 8)}`;
+    qrToken = fixture.qrToken;
   } finally {
     await prisma.$disconnect();
   }
@@ -101,4 +103,40 @@ test("Tab never leaves active dialog", async ({ page }) => {
     await page.keyboard.press("Tab");
     expect(await modifier.evaluate((element) => element.contains(document.activeElement))).toBe(true);
   }
+});
+
+test("Staff search and all functions keep one accessible entry", async ({ page }) => {
+  const { dialog } = await openPos(page);
+  await dialog.getByRole("button", { name: "關閉店員點餐", exact: true }).click();
+  await expect(dialog).toBeHidden();
+  const searchTrigger = page.getByTestId("staff-search-open");
+  await searchTrigger.click();
+  const search = page.getByRole("dialog", { name: "搜尋桌號或訂單編號", exact: true });
+  await expect(search).toBeVisible();
+  await expect(search.getByRole("heading", { name: "搜尋桌號或訂單編號" })).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await expect(search).toBeHidden();
+  await expect(searchTrigger).toBeFocused();
+  const allFunctions = page.getByTestId("staff-tools-toggle");
+  await allFunctions.click();
+  await expect(allFunctions).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByTestId("staff-function-grid")).toBeVisible();
+  await allFunctions.click();
+  await expect(allFunctions).toHaveAttribute("aria-expanded", "false");
+});
+
+test("QR customization keeps its heading and returns focus", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/q/${qrToken}`);
+  const product = page.getByRole("article").filter({
+    has: page.getByRole("heading", { name: productName, exact: true }),
+  });
+  const trigger = qrProductSelectionControl(product, productName);
+  await trigger.click();
+  const customization = page.getByTestId("qr-product-configuration");
+  await expect(customization).toBeVisible();
+  await expect(customization.getByRole("heading", { name: productName, exact: true })).toHaveCount(1);
+  await customization.getByRole("button", { name: "關閉", exact: true }).click();
+  await expect(customization).toBeHidden();
+  await expect(trigger).toBeFocused();
 });
