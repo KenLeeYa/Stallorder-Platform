@@ -115,6 +115,46 @@ test("mobile editor traps focus and restores trigger while rotation preserves un
   await expect(catalogTrigger).toBeFocused();
 });
 
+test("switching to an authorized stall clears the prior catalog draft and hint", async ({ page }) => {
+  const activeStalls = await prisma.stall.findMany({
+    where: { organizationId, isActive: true },
+    select: { id: true, name: true, slug: true, stallProducts: { take: 1, select: { product: { select: { name: true } } } } },
+  });
+  const other = activeStalls.find((stall) => stall.id !== stallId
+    && stall.stallProducts.length > 0
+    && activeStalls.filter((candidate) => candidate.name === stall.name).length === 1);
+  expect(other, "The owned lab needs another uniquely named authorized active stall with a product").toBeDefined();
+  const before = await prisma.stallProduct.findMany({ where: { stallId: other!.id }, orderBy: { id: "asc" },
+    select: { id: true, isEnabled: true, isSoldOut: true, stockRemaining: true, stockVersion: true } });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await gotoLocalPath(page, "/merchant/aming-chicken");
+  const trigger = page.getByRole("button", { name: "攤位商品設定", exact: true });
+  await trigger.click();
+  const draft = page.getByRole("checkbox", { name: `選取 ${fixtureName}` });
+  await draft.check();
+  await expect(draft).toBeChecked();
+  await page.keyboard.press("Escape");
+  await expect(trigger).toBeFocused();
+  page.on("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "複製連結", exact: true }).click();
+  const priorHint = page.getByRole("status").filter({ hasText: /統一公開連結已複製|請在提示視窗中複製公開菜單連結/ });
+  await expect(priorHint).toBeVisible();
+  const picker = page.getByRole("button", { name: "選擇攤位：阿明鹽酥雞", exact: true });
+  await picker.click();
+  await page.getByRole("dialog", { name: "選擇攤位" }).getByRole("button", { name: other!.name, exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/merchant/${other!.slug}$`));
+  await expect(page.getByRole("heading", { name: other!.name, exact: true })).toBeVisible();
+  await expect(priorHint).toHaveCount(0);
+  await page.getByRole("button", { name: "攤位商品設定", exact: true }).click();
+  const otherCatalog = page.getByRole("dialog", { name: "攤位商品設定" });
+  await expect(otherCatalog.getByRole("heading", { name: other!.stallProducts[0].product.name, exact: true }).first()).toBeVisible();
+  await expect(otherCatalog.getByRole("checkbox", { name: `選取 ${fixtureName}` })).toHaveCount(0);
+  await expect(otherCatalog.getByRole("checkbox", { name: `選取 ${other!.stallProducts[0].product.name}` }).first()).not.toBeChecked();
+  expect(await prisma.stallProduct.findMany({ where: { stallId: other!.id }, orderBy: { id: "asc" },
+    select: { id: true, isEnabled: true, isSoldOut: true, stockRemaining: true, stockVersion: true } })).toEqual(before);
+});
+
 test("report filters and export preserve scope", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await gotoLocalPath(page, `/merchant/reports/overview?organizationId=${organizationId}&stallId=${stallId}`);
