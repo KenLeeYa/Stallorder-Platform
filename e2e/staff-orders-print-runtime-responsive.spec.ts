@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import {
+  addFirstStaffCatalogProduct,
   dismissStaffStartReminder,
   gotoLocalPath,
   loginLocalTestAccount,
@@ -169,34 +170,76 @@ test("店員訂單在手機採單欄，平板與桌機採清單、品項、操�
 
 test("所有已授權的 Staff 工具列動作在手機、平板與桌機皆可觸及", async ({ page }) => {
   test.setTimeout(120_000);
-  await loginLocalTestAccount(page, "staff@stallorder.test", password);
-  await gotoLocalPath(page, `/staff/${stallSlug}`);
-  await dismissStaffStartReminder(page);
-  const toolbar = page.getByTestId("staff-function-grid");
-  for (const width of [320, 390, 768, 1024, 1440]) {
-    await page.setViewportSize({ width, height: 900 });
-    if (width < 768) {
-      const toggle = page.getByTestId("staff-tools-toggle");
-      if (await toggle.getAttribute("aria-expanded") === "false") await toggle.click();
+  const settings = await responsivePrisma.stallOrderingSettings.findUniqueOrThrow({ where: { stallId }, select: { printModuleEnabled: true } });
+  await responsivePrisma.stallOrderingSettings.update({ where: { stallId }, data: { printModuleEnabled: true } });
+  try {
+    await loginLocalTestAccount(page, "staff@stallorder.test", password);
+    await gotoLocalPath(page, `/staff/${stallSlug}`);
+    await dismissStaffStartReminder(page);
+    const toolbar = page.getByTestId("staff-function-grid");
+    const role = toolbar.locator('button:has([data-testid="work-mode-icon-staff"])');
+    const sound = toolbar.getByRole("switch", { name: /新單提示音/ });
+    const wake = toolbar.getByTestId("pwa-wake-control").first();
+    const print = toolbar.getByRole("link", { name: "列印佇列" });
+    const live = toolbar.getByTestId("staff-common-controls").getByRole("status");
+    const pickup = toolbar.getByTestId("staff-pickup-code-lookup");
+    const qr = toolbar.getByTestId("staff-platform-qr-pickup");
+    await expect(role).toHaveCount(0); // The isolated Staff account has no authorized mode switch.
+    await expect(qr).toHaveCount(0); // LINE Platform pickup capability is disabled in this lab.
+    for (const width of [320, 390, 768, 1024, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      if (width < 768) {
+        const toggle = page.getByTestId("staff-tools-toggle");
+        if (await toggle.getAttribute("aria-expanded") === "true") await toggle.click();
+        await expect(toolbar.getByRole("button", { name: "切換為暗黑模式" })).toBeHidden();
+        await expect(toolbar.getByTestId("staff-push-controls")).toBeHidden();
+        await expect(sound).toBeVisible();
+        await expect(print).toBeVisible();
+        await toggle.click();
+      }
+      const expected = [
+        sound, print,
+        toolbar.getByRole("link", { name: "員工定位打卡" }),
+        toolbar.getByRole("button", { name: "店員點餐", exact: true }), pickup,
+        toolbar.getByRole("link", { name: "桌位平面圖" }),
+        toolbar.getByRole("link", { name: "現金交班" }),
+        toolbar.getByTestId("staff-capacity-compact").locator("summary"),
+        toolbar.getByTestId("staff-search-open"),
+        toolbar.getByRole("combobox", { name: "語言" }),
+        toolbar.getByRole("button", { name: "切換為暗黑模式" }),
+        toolbar.getByRole("button", { name: "切換為年長者模式" }),
+        toolbar.getByTestId("staff-push-controls").getByRole("button", { name: "鎖屏通知" }),
+        toolbar.getByTestId("staff-function-offline").locator("button").first(),
+        toolbar.getByRole("button", { name: "重新整理" }),
+        toolbar.getByTestId("staff-function-logout").locator("button"),
+        toolbar.getByRole("button", { name: "逐筆訂單" }),
+        toolbar.getByRole("button", { name: "同桌合併" }),
+      ];
+      if (await wake.count()) expected.push(wake);
+      for (const control of expected) {
+        await expect(control).toBeVisible();
+        await control.scrollIntoViewIfNeeded();
+        const box = await control.boundingBox();
+        expect(box).not.toBeNull();
+        const label = await control.getAttribute("aria-label") ?? await control.getAttribute("title") ?? await control.textContent();
+        expect(box!.width, `${width}px ${label}`).toBeGreaterThanOrEqual(44);
+        expect(box!.height, `${width}px ${label}`).toBeGreaterThanOrEqual(44);
+        expect(box!.x).toBeGreaterThanOrEqual(0);
+        expect(box!.x + box!.width).toBeLessThanOrEqual(width + 1);
+      }
+      if (width < 768) {
+        const sse = (await live.boundingBox())!;
+        for (const control of [sound, print, ...(await wake.count() ? [wake] : [])]) {
+          const box = (await control.boundingBox())!;
+          expect(box.x + box.width).toBeLessThanOrEqual(sse.x + 1);
+        }
+      }
+      const capacityBox = (await toolbar.getByTestId("staff-capacity-compact").boundingBox())!;
+      const searchBox = (await toolbar.getByTestId("staff-search-open").boundingBox())!;
+      expect(searchBox.x).toBeGreaterThanOrEqual(capacityBox.x + capacityBox.width);
     }
-    const controls = toolbar.locator("a, button").filter({ visible: true });
-    expect(await controls.count()).toBeGreaterThan(8);
-    for (const control of await controls.all()) {
-      await control.scrollIntoViewIfNeeded();
-      const box = await control.boundingBox();
-      expect(box).not.toBeNull();
-      expect(box!.width).toBeGreaterThanOrEqual(44);
-      expect(box!.height).toBeGreaterThanOrEqual(44);
-      expect(box!.x).toBeGreaterThanOrEqual(0);
-      expect(box!.x + box!.width).toBeLessThanOrEqual(width + 1);
-    }
-    await expect(page.getByTestId("staff-search-open")).toBeVisible();
-    const capacity = page.getByTestId("staff-capacity-tool");
-    if (await capacity.count()) {
-      const capacityBox = await capacity.boundingBox();
-      const searchBox = await page.getByTestId("staff-search-open").boundingBox();
-      expect(searchBox!.x).toBeGreaterThanOrEqual(capacityBox!.x + capacityBox!.width);
-    }
+  } finally {
+    await responsivePrisma.stallOrderingSettings.update({ where: { stallId }, data: { printModuleEnabled: settings.printModuleEnabled } });
   }
 });
 
@@ -230,6 +273,8 @@ for (const redesignEnabled of [false, true]) {
       await searchStaffOrders(page, responsiveOrderNo);
       const mobileList = page.getByTestId("staff-order-mobile-list");
       const card = mobileList.locator("article").filter({ hasText: responsiveOrderNo });
+      await expect(card.locator(":scope > p").first()).toHaveCSS("font-size", "16px");
+      await expect(card.locator(":scope > p").last()).toHaveCSS("font-size", "16px");
       const open = card.getByRole("button", { name: "查看明細" });
       await open.scrollIntoViewIfNeeded();
       const before = await card.boundingBox();
@@ -255,6 +300,34 @@ for (const redesignEnabled of [false, true]) {
       await page.setViewportSize({ width: 390, height: 844 });
       await expect(card).toBeVisible();
       await expect(page.getByTestId("staff-search-open")).toHaveAttribute("class", /border-teal-700/);
+      await page.setViewportSize({ width: 768, height: 900 });
+      const waiting = page.getByTestId("staff-queue-filters").locator("button").filter({ hasText: "待接單" });
+      const source = page.getByTestId("staff-queue-source").locator("select");
+      if (redesignEnabled) {
+        await waiting.click();
+        await source.selectOption("STAFF_POS");
+      }
+      const selected = page.getByTestId("staff-order-list-pane").locator("button").filter({ hasText: responsiveOrderNo });
+      await selected.click();
+      await page.getByRole("button", { name: "店員點餐", exact: true }).click();
+      const pos = page.getByRole("dialog", { name: "店員點餐", exact: true });
+      await addFirstStaffCatalogProduct(page, pos);
+      for (const width of [1024, 390, 768]) {
+        await page.setViewportSize({ width, height: 900 });
+        if (width === 390) await pos.getByTestId("staff-order-cart-tab").click();
+        await expect(pos.getByTestId("staff-cart-live-total")).toContainText("1 份");
+        await expect(pos.getByTestId("staff-cart-live-total").locator("strong")).toContainText("$");
+        await expect(page.getByTestId("staff-search-open")).toHaveAttribute("class", /border-teal-700/);
+        await expect(selected).toHaveAttribute("aria-current", "true");
+        if (redesignEnabled) {
+          await expect(waiting).toHaveAttribute("aria-pressed", "true");
+          await expect(source).toHaveValue("STAFF_POS");
+        }
+      }
+      page.once("dialog", (dialog) => dialog.accept());
+      await pos.getByRole("button", { name: "關閉店員點餐", exact: true }).click();
+      await expect(pos).toBeHidden();
+      await expect(selected).toBeVisible();
     } finally {
       if (existing) await responsivePrisma.resilienceFeatureFlagOverride.update({ where: { id: override.id }, data: { enabled: existing.enabled } });
       else await responsivePrisma.resilienceFeatureFlagOverride.delete({ where: { id: override.id } });
@@ -262,6 +335,43 @@ for (const redesignEnabled of [false, true]) {
     }
   });
 }
+
+test("KDS 開啟時手機訂單明細三個整批動作皆有 44px 命中區", async ({ page }) => {
+  test.setTimeout(120_000);
+  const settings = await responsivePrisma.stallOrderingSettings.findUniqueOrThrow({ where: { stallId }, select: { kdsModuleEnabled: true } });
+  const items = await responsivePrisma.orderItem.findMany({ where: { orderId: responsiveOrderId }, select: { id: true, status: true }, orderBy: { createdAt: "asc" } });
+  await responsivePrisma.stallOrderingSettings.update({ where: { stallId }, data: { kdsModuleEnabled: true } });
+  await responsivePrisma.order.update({ where: { id: responsiveOrderId }, data: { status: "CONFIRMED" } });
+  await responsivePrisma.orderItem.update({ where: { id: items[1].id }, data: { status: "PREPARING" } });
+  await responsivePrisma.orderItem.update({ where: { id: items[2].id }, data: { status: "READY" } });
+  try {
+    await loginLocalTestAccount(page, "staff@stallorder.test", password);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await gotoLocalPath(page, `/staff/${stallSlug}`);
+    await dismissStaffStartReminder(page);
+    await searchStaffOrders(page, responsiveOrderNo);
+    const card = page.getByTestId("staff-order-mobile-list").locator("article").filter({ hasText: responsiveOrderNo });
+    await card.getByRole("button", { name: "查看明細" }).click();
+    const detail = page.getByRole("dialog", { name: `訂單 ${responsiveOrderNo}` });
+    const bulk = detail.getByTestId("staff-order-items-pane").getByRole("button", { name: /^全部/ });
+    await expect(bulk).toHaveCount(3);
+    for (const width of [390, 600]) {
+      await page.setViewportSize({ width, height: 844 });
+      for (const button of await bulk.all()) {
+        await expect(button).toBeVisible();
+        const box = await button.boundingBox();
+        expect(box!.width).toBeGreaterThanOrEqual(44);
+        expect(box!.height).toBeGreaterThanOrEqual(44);
+      }
+    }
+    for (const button of await bulk.all()) await expect(button).toHaveCSS("min-height", "44px");
+  } finally {
+    await responsivePrisma.orderItem.update({ where: { id: items[1].id }, data: { status: items[1].status } });
+    await responsivePrisma.orderItem.update({ where: { id: items[2].id }, data: { status: items[2].status } });
+    await responsivePrisma.order.update({ where: { id: responsiveOrderId }, data: { status: "WAITING_CONFIRMATION" } });
+    await responsivePrisma.stallOrderingSettings.update({ where: { stallId }, data: { kdsModuleEnabled: settings.kdsModuleEnabled } });
+  }
+});
 
 test("手機明細的訂單消失後回到仍可操作的列表", async ({ page }) => {
   test.setTimeout(120_000);
