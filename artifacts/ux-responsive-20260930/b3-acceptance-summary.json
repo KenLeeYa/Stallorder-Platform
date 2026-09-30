@@ -1,23 +1,23 @@
 {
-  "scope": "B3.1 local browser acceptance; independent review/B3.2/B3.3 pending",
+  "scope": "B3.1 fix1 local browser acceptance; independent re-review/B3.2/B3.3 pending",
   "source": {
-    "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
-    "tree": "f97666a191563d56650b78812298d12080fa7b03",
-    "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
-    "runtimePatch": "1a6b8c8e6e15f2bef615b8bcaeaf5cfe12df5e60b4956c625557f482f562974d"
+    "head": "484bf0267f856ec50d56ed21674e2968c0f1d075",
+    "tree": "617ee8bbb6deadd30487f788cd3cfd4779eb0523",
+    "buildId": "GL_yj-pqLi9A49Ltu1gqU",
+    "runtimePatch": "a4c0505180bc78441880f2210a62867a49e884b7340718b8d2e6fc3083ae0f98"
   },
   "roles": [
     {
       "surface": "customer",
       "locale": "zh-TW",
       "source": {
-        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
-        "tree": "f97666a191563d56650b78812298d12080fa7b03",
-        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
-        "runtimePatch": "1a6b8c8e6e15f2bef615b8bcaeaf5cfe12df5e60b4956c625557f482f562974d"
+        "head": "484bf0267f856ec50d56ed21674e2968c0f1d075",
+        "tree": "617ee8bbb6deadd30487f788cd3cfd4779eb0523",
+        "buildId": "GL_yj-pqLi9A49Ltu1gqU",
+        "runtimePatch": "a4c0505180bc78441880f2210a62867a49e884b7340718b8d2e6fc3083ae0f98"
       },
       "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/customer-zh-TW.json",
-      "rawSha256": "651b115453309be780c7df97f596beb38351c9d009001505e9631969a7356670",
+      "rawSha256": "ad6579342b93bc88f6696fca14b179eb25d98756d053275635cb0c75772fe575",
       "pageErrors": [],
       "theme": "light",
       "focusExample": {
@@ -44,16 +44,43 @@
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 2,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
           "seriousCritical": [],
           "contrast": {
             "checkedTextNodes": 859,
             "minNormalTextRatio": 4.58,
             "minLargeTextRatio": 16.74
           },
-          "axeScanPerformed": true
+          "axeScanPerformed": true,
+          "operatedIcons": [
+            {
+              "name": "關閉",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "減少 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "增加 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 360,
@@ -70,16 +97,43 @@
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 2,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
           "seriousCritical": null,
           "contrast": {
             "checkedTextNodes": 0,
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "關閉",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "減少 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "增加 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 390,
@@ -96,16 +150,43 @@
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 2,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
           "seriousCritical": null,
           "contrast": {
             "checkedTextNodes": 0,
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "關閉",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "減少 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "增加 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 768,
@@ -122,16 +203,43 @@
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 2,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
           "seriousCritical": null,
           "contrast": {
             "checkedTextNodes": 0,
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "關閉",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "減少 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "增加 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 820,
@@ -148,16 +256,43 @@
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 2,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
           "seriousCritical": null,
           "contrast": {
             "checkedTextNodes": 0,
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "關閉",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "減少 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "增加 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 1024,
@@ -174,16 +309,43 @@
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 2,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
           "seriousCritical": null,
           "contrast": {
             "checkedTextNodes": 0,
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "關閉",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "減少 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "增加 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 1280,
@@ -200,16 +362,43 @@
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 2,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
           "seriousCritical": null,
           "contrast": {
             "checkedTextNodes": 0,
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "關閉",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "減少 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "增加 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 1440,
@@ -226,16 +415,43 @@
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 2,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
           "seriousCritical": [],
           "contrast": {
             "checkedTextNodes": 874,
             "minNormalTextRatio": 4.58,
             "minLargeTextRatio": 16.74
           },
-          "axeScanPerformed": true
+          "axeScanPerformed": true,
+          "operatedIcons": [
+            {
+              "name": "關閉",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "減少 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "增加 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         }
       ]
     },
@@ -243,477 +459,13 @@
       "surface": "customer",
       "locale": "en",
       "source": {
-        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
-        "tree": "f97666a191563d56650b78812298d12080fa7b03",
-        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
-        "runtimePatch": "76cac5329936ffc728a333eadb1431ceb680dc303f07829a1a414be93108ce8b"
+        "head": "484bf0267f856ec50d56ed21674e2968c0f1d075",
+        "tree": "617ee8bbb6deadd30487f788cd3cfd4779eb0523",
+        "buildId": "GL_yj-pqLi9A49Ltu1gqU",
+        "runtimePatch": "5ee7d7b4be3e9cfcad33f0d0e2b200ef8c1b1a61c226718ba022613dfe80ed18"
       },
       "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/customer-en.json",
-      "rawSha256": "8ae97d60a795f7f6c114638c9176561bf914b365c50ba4748295a8954895d7e3",
-      "pageErrors": [],
-      "theme": "dark",
-      "focusExample": {
-        "outline": "color(srgb 0.368627 0.917647 0.831372 / 0.72) solid 3px",
-        "shadow": "none"
-      },
-      "motionExample": {
-        "transition": "1e-05s",
-        "animation": "1e-05s"
-      },
-      "widths": [
-        {
-          "width": 320,
-          "layout": {
-            "clientWidth": 320,
-            "scrollWidth": 320,
-            "reducedMotion": true
-          },
-          "target": {
-            "width": 104,
-            "height": 56,
-            "left": 200,
-            "right": 304,
-            "uncovered": true
-          },
-          "focusVisible": true,
-          "iconCount": 2,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
-          "seriousCritical": [],
-          "contrast": {
-            "checkedTextNodes": 24,
-            "minNormalTextRatio": 6.93,
-            "minLargeTextRatio": 18.91
-          },
-          "axeScanPerformed": true
-        },
-        {
-          "width": 360,
-          "layout": {
-            "clientWidth": 360,
-            "scrollWidth": 360,
-            "reducedMotion": true
-          },
-          "target": {
-            "width": 144,
-            "height": 56,
-            "left": 200,
-            "right": 344,
-            "uncovered": true
-          },
-          "focusVisible": true,
-          "iconCount": 2,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
-          "seriousCritical": null,
-          "contrast": {
-            "checkedTextNodes": 0,
-            "minNormalTextRatio": null,
-            "minLargeTextRatio": null
-          },
-          "axeScanPerformed": false
-        },
-        {
-          "width": 390,
-          "layout": {
-            "clientWidth": 390,
-            "scrollWidth": 390,
-            "reducedMotion": true
-          },
-          "target": {
-            "width": 174,
-            "height": 56,
-            "left": 200,
-            "right": 374,
-            "uncovered": true
-          },
-          "focusVisible": true,
-          "iconCount": 2,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
-          "seriousCritical": null,
-          "contrast": {
-            "checkedTextNodes": 0,
-            "minNormalTextRatio": null,
-            "minLargeTextRatio": null
-          },
-          "axeScanPerformed": false
-        },
-        {
-          "width": 768,
-          "layout": {
-            "clientWidth": 768,
-            "scrollWidth": 768,
-            "reducedMotion": true
-          },
-          "target": {
-            "width": 440,
-            "height": 56,
-            "left": 256,
-            "right": 696,
-            "uncovered": true
-          },
-          "focusVisible": true,
-          "iconCount": 2,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
-          "seriousCritical": null,
-          "contrast": {
-            "checkedTextNodes": 0,
-            "minNormalTextRatio": null,
-            "minLargeTextRatio": null
-          },
-          "axeScanPerformed": false
-        },
-        {
-          "width": 820,
-          "layout": {
-            "clientWidth": 820,
-            "scrollWidth": 820,
-            "reducedMotion": true
-          },
-          "target": {
-            "width": 440,
-            "height": 56,
-            "left": 282,
-            "right": 722,
-            "uncovered": true
-          },
-          "focusVisible": true,
-          "iconCount": 2,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
-          "seriousCritical": null,
-          "contrast": {
-            "checkedTextNodes": 0,
-            "minNormalTextRatio": null,
-            "minLargeTextRatio": null
-          },
-          "axeScanPerformed": false
-        },
-        {
-          "width": 1024,
-          "layout": {
-            "clientWidth": 1024,
-            "scrollWidth": 1024,
-            "reducedMotion": true
-          },
-          "target": {
-            "width": 440,
-            "height": 56,
-            "left": 384,
-            "right": 824,
-            "uncovered": true
-          },
-          "focusVisible": true,
-          "iconCount": 2,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
-          "seriousCritical": null,
-          "contrast": {
-            "checkedTextNodes": 0,
-            "minNormalTextRatio": null,
-            "minLargeTextRatio": null
-          },
-          "axeScanPerformed": false
-        },
-        {
-          "width": 1280,
-          "layout": {
-            "clientWidth": 1280,
-            "scrollWidth": 1280,
-            "reducedMotion": true
-          },
-          "target": {
-            "width": 440,
-            "height": 56,
-            "left": 512,
-            "right": 952,
-            "uncovered": true
-          },
-          "focusVisible": true,
-          "iconCount": 2,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
-          "seriousCritical": null,
-          "contrast": {
-            "checkedTextNodes": 0,
-            "minNormalTextRatio": null,
-            "minLargeTextRatio": null
-          },
-          "axeScanPerformed": false
-        },
-        {
-          "width": 1440,
-          "layout": {
-            "clientWidth": 1440,
-            "scrollWidth": 1440,
-            "reducedMotion": true
-          },
-          "target": {
-            "width": 440,
-            "height": 56,
-            "left": 592,
-            "right": 1032,
-            "uncovered": true
-          },
-          "focusVisible": true,
-          "iconCount": 2,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
-          "seriousCritical": [],
-          "contrast": {
-            "checkedTextNodes": 36,
-            "minNormalTextRatio": 6.93,
-            "minLargeTextRatio": 18.91
-          },
-          "axeScanPerformed": true
-        }
-      ]
-    },
-    {
-      "surface": "staff",
-      "locale": "zh-TW",
-      "source": {
-        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
-        "tree": "f97666a191563d56650b78812298d12080fa7b03",
-        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
-        "runtimePatch": "3290b2000c2e00d6977632ee97f0e1be85087d5e72239447a60c960276aa51db"
-      },
-      "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/staff-zh-TW.json",
-      "rawSha256": "69cbd7a6b9c99062aa128f5dbe69f2022872e650ea28421f71e1b2769dd59225",
-      "pageErrors": [],
-      "theme": "light",
-      "focusExample": {
-        "outline": "color(srgb 0.0588235 0.462745 0.431373 / 0.72) solid 3px",
-        "shadow": "none"
-      },
-      "motionExample": {
-        "transition": "1e-05s",
-        "animation": "1e-05s"
-      },
-      "widths": [
-        {
-          "width": 320,
-          "layout": {
-            "clientWidth": 320,
-            "scrollWidth": 320,
-            "reducedMotion": true
-          },
-          "target": {
-            "width": 228,
-            "height": 48,
-            "left": 46,
-            "right": 274,
-            "uncovered": true
-          },
-          "focusVisible": true,
-          "iconCount": 2,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
-          "seriousCritical": [],
-          "contrast": {
-            "checkedTextNodes": 13,
-            "minNormalTextRatio": 5.03,
-            "minLargeTextRatio": 18.91
-          },
-          "axeScanPerformed": true
-        },
-        {
-          "width": 360,
-          "layout": {
-            "clientWidth": 360,
-            "scrollWidth": 360,
-            "reducedMotion": true
-          },
-          "target": {
-            "width": 268,
-            "height": 48,
-            "left": 46,
-            "right": 314,
-            "uncovered": true
-          },
-          "focusVisible": true,
-          "iconCount": 2,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
-          "seriousCritical": null,
-          "contrast": {
-            "checkedTextNodes": 0,
-            "minNormalTextRatio": null,
-            "minLargeTextRatio": null
-          },
-          "axeScanPerformed": false
-        },
-        {
-          "width": 390,
-          "layout": {
-            "clientWidth": 390,
-            "scrollWidth": 390,
-            "reducedMotion": true
-          },
-          "target": {
-            "width": 298,
-            "height": 48,
-            "left": 46,
-            "right": 344,
-            "uncovered": true
-          },
-          "focusVisible": true,
-          "iconCount": 2,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
-          "seriousCritical": null,
-          "contrast": {
-            "checkedTextNodes": 0,
-            "minNormalTextRatio": null,
-            "minLargeTextRatio": null
-          },
-          "axeScanPerformed": false
-        },
-        {
-          "width": 768,
-          "layout": {
-            "clientWidth": 768,
-            "scrollWidth": 768,
-            "reducedMotion": true
-          },
-          "target": {
-            "width": 170,
-            "height": 48,
-            "left": 569,
-            "right": 739,
-            "uncovered": true
-          },
-          "focusVisible": null,
-          "iconCount": 3,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
-          "seriousCritical": null,
-          "contrast": {
-            "checkedTextNodes": 0,
-            "minNormalTextRatio": null,
-            "minLargeTextRatio": null
-          },
-          "axeScanPerformed": false
-        },
-        {
-          "width": 820,
-          "layout": {
-            "clientWidth": 820,
-            "scrollWidth": 820,
-            "reducedMotion": true
-          },
-          "target": {
-            "width": 184.734375,
-            "height": 48,
-            "left": 606.265625,
-            "right": 791,
-            "uncovered": true
-          },
-          "focusVisible": null,
-          "iconCount": 4,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
-          "seriousCritical": null,
-          "contrast": {
-            "checkedTextNodes": 0,
-            "minNormalTextRatio": null,
-            "minLargeTextRatio": null
-          },
-          "axeScanPerformed": false
-        },
-        {
-          "width": 1024,
-          "layout": {
-            "clientWidth": 1024,
-            "scrollWidth": 1024,
-            "reducedMotion": true
-          },
-          "target": {
-            "width": 242.546875,
-            "height": 48,
-            "left": 752.453125,
-            "right": 995,
-            "uncovered": true
-          },
-          "focusVisible": null,
-          "iconCount": 5,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
-          "seriousCritical": null,
-          "contrast": {
-            "checkedTextNodes": 0,
-            "minNormalTextRatio": null,
-            "minLargeTextRatio": null
-          },
-          "axeScanPerformed": false
-        },
-        {
-          "width": 1280,
-          "layout": {
-            "clientWidth": 1280,
-            "scrollWidth": 1280,
-            "reducedMotion": true
-          },
-          "target": {
-            "width": 312.8125,
-            "height": 48,
-            "left": 938.1875,
-            "right": 1251,
-            "uncovered": true
-          },
-          "focusVisible": null,
-          "iconCount": 6,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
-          "seriousCritical": null,
-          "contrast": {
-            "checkedTextNodes": 0,
-            "minNormalTextRatio": null,
-            "minLargeTextRatio": null
-          },
-          "axeScanPerformed": false
-        },
-        {
-          "width": 1440,
-          "layout": {
-            "clientWidth": 1440,
-            "scrollWidth": 1440,
-            "reducedMotion": true
-          },
-          "target": {
-            "width": 358.140625,
-            "height": 48,
-            "left": 1052.859375,
-            "right": 1411,
-            "uncovered": true
-          },
-          "focusVisible": null,
-          "iconCount": 6,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
-          "seriousCritical": [],
-          "contrast": {
-            "checkedTextNodes": 24,
-            "minNormalTextRatio": 5.03,
-            "minLargeTextRatio": 16.74
-          },
-          "axeScanPerformed": true
-        }
-      ]
-    },
-    {
-      "surface": "staff",
-      "locale": "en",
-      "source": {
-        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
-        "tree": "f97666a191563d56650b78812298d12080fa7b03",
-        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
-        "runtimePatch": "4faab9324993abf4b08596f429dccf45d8f6169879f0780c5cc8e368d582be7f"
-      },
-      "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/staff-en.json",
-      "rawSha256": "6d484067e8c5b3addd100ccdbdf5a3bc08856ef41e6fbfeb3e5727421fc8a010",
+      "rawSha256": "f33ff33a6f31a74de7eee195ee3b7f1affebf2b19f5238dd1a9773b430b94e9d",
       "pageErrors": [],
       "theme": "dark",
       "focusExample": {
@@ -733,6 +485,454 @@
             "reducedMotion": true
           },
           "target": {
+            "width": 104,
+            "height": 56,
+            "left": 200,
+            "right": 304,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 24,
+            "minNormalTextRatio": 6.93,
+            "minLargeTextRatio": 18.91
+          },
+          "axeScanPerformed": true,
+          "operatedIcons": [
+            {
+              "name": "Close",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Decrease B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Increase B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
+        },
+        {
+          "width": 360,
+          "layout": {
+            "clientWidth": 360,
+            "scrollWidth": 360,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 144,
+            "height": 56,
+            "left": 200,
+            "right": 344,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Close",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Decrease B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Increase B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
+        },
+        {
+          "width": 390,
+          "layout": {
+            "clientWidth": 390,
+            "scrollWidth": 390,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 174,
+            "height": 56,
+            "left": 200,
+            "right": 374,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Close",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Decrease B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Increase B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
+        },
+        {
+          "width": 768,
+          "layout": {
+            "clientWidth": 768,
+            "scrollWidth": 768,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 440,
+            "height": 56,
+            "left": 256,
+            "right": 696,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Close",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Decrease B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Increase B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
+        },
+        {
+          "width": 820,
+          "layout": {
+            "clientWidth": 820,
+            "scrollWidth": 820,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 440,
+            "height": 56,
+            "left": 282,
+            "right": 722,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Close",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Decrease B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Increase B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
+        },
+        {
+          "width": 1024,
+          "layout": {
+            "clientWidth": 1024,
+            "scrollWidth": 1024,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 440,
+            "height": 56,
+            "left": 384,
+            "right": 824,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Close",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Decrease B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Increase B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
+        },
+        {
+          "width": 1280,
+          "layout": {
+            "clientWidth": 1280,
+            "scrollWidth": 1280,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 440,
+            "height": 56,
+            "left": 512,
+            "right": 952,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Close",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Decrease B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Increase B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
+        },
+        {
+          "width": 1440,
+          "layout": {
+            "clientWidth": 1440,
+            "scrollWidth": 1440,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 440,
+            "height": 56,
+            "left": 592,
+            "right": 1032,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 36,
+            "minNormalTextRatio": 6.93,
+            "minLargeTextRatio": 18.91
+          },
+          "axeScanPerformed": true,
+          "operatedIcons": [
+            {
+              "name": "Close",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Decrease B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Increase B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
+        }
+      ]
+    },
+    {
+      "surface": "staff",
+      "locale": "zh-TW",
+      "source": {
+        "head": "484bf0267f856ec50d56ed21674e2968c0f1d075",
+        "tree": "617ee8bbb6deadd30487f788cd3cfd4779eb0523",
+        "buildId": "GL_yj-pqLi9A49Ltu1gqU",
+        "runtimePatch": "07e97bf5b9c8bdcacbaa8054fd8e872daaa34fc34514288c3920afc4edfecf82"
+      },
+      "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/staff-zh-TW.json",
+      "rawSha256": "da548cbc7158f9db0558ed3174dc01343d6e91ff78275376c1c250e69d3f1804",
+      "pageErrors": [],
+      "theme": "light",
+      "focusExample": {
+        "outline": "color(srgb 0.0588235 0.462745 0.431373 / 0.72) solid 3px",
+        "shadow": "none"
+      },
+      "motionExample": {
+        "transition": "1e-05s",
+        "animation": "1e-05s"
+      },
+      "widths": [
+        {
+          "width": 320,
+          "layout": {
+            "clientWidth": 320,
+            "scrollWidth": 320,
+            "reducedMotion": true
+          },
+          "target": {
             "width": 228,
             "height": 48,
             "left": 46,
@@ -740,16 +940,27 @@
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 2,
+          "iconCount": 1,
           "minIconWidth": 44,
           "minIconHeight": 44,
           "seriousCritical": [],
           "contrast": {
             "checkedTextNodes": 13,
             "minNormalTextRatio": 5.03,
-            "minLargeTextRatio": 19.75
+            "minLargeTextRatio": 18.91
           },
-          "axeScanPerformed": true
+          "axeScanPerformed": true,
+          "operatedIcons": [
+            {
+              "name": "關閉",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": false,
+              "initialCenterCovered": true,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 360,
@@ -766,7 +977,7 @@
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 2,
+          "iconCount": 1,
           "minIconWidth": 44,
           "minIconHeight": 44,
           "seriousCritical": null,
@@ -775,7 +986,18 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "關閉",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": false,
+              "initialCenterCovered": true,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 390,
@@ -792,7 +1014,7 @@
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 2,
+          "iconCount": 1,
           "minIconWidth": 44,
           "minIconHeight": 44,
           "seriousCritical": null,
@@ -801,7 +1023,18 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "關閉",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": false,
+              "initialCenterCovered": true,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 768,
@@ -817,8 +1050,8 @@
             "right": 739,
             "uncovered": true
           },
-          "focusVisible": null,
-          "iconCount": 3,
+          "focusVisible": true,
+          "iconCount": 6,
           "minIconWidth": 44,
           "minIconHeight": 44,
           "seriousCritical": null,
@@ -827,7 +1060,66 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "搜尋桌號或訂單編號",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "切換為暗黑模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "切換為年長者模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "鎖屏通知",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "逐筆訂單",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": false,
+              "initialCenterCovered": true,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "同桌合併",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.0588235 0.462745 0.431373 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "開始製作"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 820,
@@ -843,8 +1135,8 @@
             "right": 791,
             "uncovered": true
           },
-          "focusVisible": null,
-          "iconCount": 4,
+          "focusVisible": true,
+          "iconCount": 6,
           "minIconWidth": 44,
           "minIconHeight": 44,
           "seriousCritical": null,
@@ -853,7 +1145,66 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "搜尋桌號或訂單編號",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "切換為暗黑模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "切換為年長者模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "鎖屏通知",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "逐筆訂單",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "同桌合併",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "oklab(0.510931 -0.0854972 -0.00957102) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "開始製作"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 1024,
@@ -869,8 +1220,8 @@
             "right": 995,
             "uncovered": true
           },
-          "focusVisible": null,
-          "iconCount": 5,
+          "focusVisible": true,
+          "iconCount": 6,
           "minIconWidth": 44,
           "minIconHeight": 44,
           "seriousCritical": null,
@@ -879,7 +1230,66 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "搜尋桌號或訂單編號",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "切換為暗黑模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "切換為年長者模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "鎖屏通知",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "逐筆訂單",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "同桌合併",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.0588235 0.462745 0.431373 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "開始製作"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 1280,
@@ -895,7 +1305,7 @@
             "right": 1251,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 6,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -905,7 +1315,66 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "搜尋桌號或訂單編號",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "切換為暗黑模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "切換為年長者模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "鎖屏通知",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "逐筆訂單",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "同桌合併",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "oklab(0.510931 -0.0854972 -0.00957102) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "開始製作"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 1440,
@@ -921,7 +1390,567 @@
             "right": 1411,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
+          "iconCount": 6,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 24,
+            "minNormalTextRatio": 5.03,
+            "minLargeTextRatio": 16.74
+          },
+          "axeScanPerformed": true,
+          "operatedIcons": [
+            {
+              "name": "搜尋桌號或訂單編號",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "切換為暗黑模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "切換為年長者模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "鎖屏通知",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "逐筆訂單",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "同桌合併",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "oklab(0.510931 -0.0854972 -0.00957102) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "開始製作"
+            },
+            "reverseRestored": true
+          }
+        }
+      ]
+    },
+    {
+      "surface": "staff",
+      "locale": "en",
+      "source": {
+        "head": "484bf0267f856ec50d56ed21674e2968c0f1d075",
+        "tree": "617ee8bbb6deadd30487f788cd3cfd4779eb0523",
+        "buildId": "GL_yj-pqLi9A49Ltu1gqU",
+        "runtimePatch": "93641bf963345ef79655b0558bd36bd4b1c435af2d64a4e89f2d4878934ff993"
+      },
+      "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/staff-en.json",
+      "rawSha256": "7198bff368bc02a2755ac20f0eefa256c4ce14d5e5fcda6b055f8d1ce23d5bf8",
+      "pageErrors": [],
+      "theme": "dark",
+      "focusExample": {
+        "outline": "color(srgb 0.368627 0.917647 0.831372 / 0.72) solid 3px",
+        "shadow": "none"
+      },
+      "motionExample": {
+        "transition": "1e-05s",
+        "animation": "1e-05s"
+      },
+      "widths": [
+        {
+          "width": 320,
+          "layout": {
+            "clientWidth": 320,
+            "scrollWidth": 320,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 228,
+            "height": 48,
+            "left": 46,
+            "right": 274,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 1,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 13,
+            "minNormalTextRatio": 5.03,
+            "minLargeTextRatio": 19.75
+          },
+          "axeScanPerformed": true,
+          "operatedIcons": [
+            {
+              "name": "Close",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": false,
+              "initialCenterCovered": true,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
+        },
+        {
+          "width": 360,
+          "layout": {
+            "clientWidth": 360,
+            "scrollWidth": 360,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 268,
+            "height": 48,
+            "left": 46,
+            "right": 314,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 1,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Close",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": false,
+              "initialCenterCovered": true,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
+        },
+        {
+          "width": 390,
+          "layout": {
+            "clientWidth": 390,
+            "scrollWidth": 390,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 298,
+            "height": 48,
+            "left": 46,
+            "right": 344,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 1,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Close",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": false,
+              "initialCenterCovered": true,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
+        },
+        {
+          "width": 768,
+          "layout": {
+            "clientWidth": 768,
+            "scrollWidth": 768,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 170,
+            "height": 48,
+            "left": 569,
+            "right": 739,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 6,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Search table or order number",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Switch to light mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Switch to senior mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "鎖屏通知",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Individual orders",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": false,
+              "initialCenterCovered": true,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Group by table",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "oklab(0.854872 -0.125014 -0.00232285) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "Start preparing"
+            },
+            "reverseRestored": true
+          }
+        },
+        {
+          "width": 820,
+          "layout": {
+            "clientWidth": 820,
+            "scrollWidth": 820,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 184.734375,
+            "height": 48,
+            "left": 606.265625,
+            "right": 791,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 6,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Search table or order number",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Switch to light mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Switch to senior mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "鎖屏通知",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Individual orders",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Group by table",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "oklab(0.854872 -0.125014 -0.00232285) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "Start preparing"
+            },
+            "reverseRestored": true
+          }
+        },
+        {
+          "width": 1024,
+          "layout": {
+            "clientWidth": 1024,
+            "scrollWidth": 1024,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 242.546875,
+            "height": 48,
+            "left": 752.453125,
+            "right": 995,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 6,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Search table or order number",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Switch to light mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Switch to senior mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "鎖屏通知",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Individual orders",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Group by table",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.368627 0.917647 0.831372 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "Start preparing"
+            },
+            "reverseRestored": true
+          }
+        },
+        {
+          "width": 1280,
+          "layout": {
+            "clientWidth": 1280,
+            "scrollWidth": 1280,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 312.8125,
+            "height": 48,
+            "left": 938.1875,
+            "right": 1251,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 6,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Search table or order number",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Switch to light mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Switch to senior mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "鎖屏通知",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Individual orders",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Group by table",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "oklab(0.854872 -0.125014 -0.00232285) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "Start preparing"
+            },
+            "reverseRestored": true
+          }
+        },
+        {
+          "width": 1440,
+          "layout": {
+            "clientWidth": 1440,
+            "scrollWidth": 1440,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 358.140625,
+            "height": 48,
+            "left": 1052.859375,
+            "right": 1411,
+            "uncovered": true
+          },
+          "focusVisible": true,
           "iconCount": 6,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -931,7 +1960,66 @@
             "minNormalTextRatio": 5.03,
             "minLargeTextRatio": 18.91
           },
-          "axeScanPerformed": true
+          "axeScanPerformed": true,
+          "operatedIcons": [
+            {
+              "name": "Search table or order number",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Switch to light mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Switch to senior mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "鎖屏通知",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Individual orders",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Group by table",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "oklab(0.854872 -0.125014 -0.00232285) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "Start preparing"
+            },
+            "reverseRestored": true
+          }
         }
       ]
     },
@@ -939,13 +2027,13 @@
       "surface": "pos",
       "locale": "zh-TW",
       "source": {
-        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
-        "tree": "f97666a191563d56650b78812298d12080fa7b03",
-        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
-        "runtimePatch": "b49d77041219722c609e9c2e6fdaa8528c43c17f2c64481c1567a983482bc12e"
+        "head": "484bf0267f856ec50d56ed21674e2968c0f1d075",
+        "tree": "617ee8bbb6deadd30487f788cd3cfd4779eb0523",
+        "buildId": "GL_yj-pqLi9A49Ltu1gqU",
+        "runtimePatch": "d3d64564e39f5a1617094dc0f622f2c4e73eb2afbc03dbf6a86e542ee463ab93"
       },
       "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/pos-zh-TW.json",
-      "rawSha256": "4fb679ab8d8c0f6b2539b939e6b26e3ebbeb89f4e1938ac8b251a3653f13e48b",
+      "rawSha256": "a52da8cdadf2d79a7f418cc095b3a9c9c2b4b8c00db5dbacba781d2dcd9eddcd",
       "pageErrors": [],
       "theme": "light",
       "focusExample": {
@@ -965,23 +2053,50 @@
             "reducedMotion": true
           },
           "target": {
-            "width": 132,
+            "width": 104,
             "height": 56,
-            "left": 172,
+            "left": 200,
             "right": 304,
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 2,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
           "seriousCritical": [],
           "contrast": {
-            "checkedTextNodes": 32,
+            "checkedTextNodes": 12,
             "minNormalTextRatio": 4.78,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": true
+          "axeScanPerformed": true,
+          "operatedIcons": [
+            {
+              "name": "取消",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "減少 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "增加 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 360,
@@ -991,23 +2106,50 @@
             "reducedMotion": true
           },
           "target": {
-            "width": 132,
+            "width": 144,
             "height": 56,
-            "left": 212,
+            "left": 200,
             "right": 344,
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 2,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
           "seriousCritical": null,
           "contrast": {
             "checkedTextNodes": 0,
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "取消",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "減少 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "增加 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 390,
@@ -1017,23 +2159,50 @@
             "reducedMotion": true
           },
           "target": {
-            "width": 132,
+            "width": 174,
             "height": 56,
-            "left": 242,
+            "left": 200,
             "right": 374,
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 2,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
           "seriousCritical": null,
           "contrast": {
             "checkedTextNodes": 0,
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "取消",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "減少 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "增加 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 768,
@@ -1043,23 +2212,50 @@
             "reducedMotion": true
           },
           "target": {
-            "width": 132,
+            "width": 440,
             "height": 56,
-            "left": 240,
-            "right": 372,
+            "left": 256,
+            "right": 696,
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 4,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
           "seriousCritical": null,
           "contrast": {
             "checkedTextNodes": 0,
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "取消",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "減少 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "增加 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 820,
@@ -1069,23 +2265,50 @@
             "reducedMotion": true
           },
           "target": {
-            "width": 132,
+            "width": 440,
             "height": 56,
-            "left": 292,
-            "right": 424,
+            "left": 282,
+            "right": 722,
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 4,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
           "seriousCritical": null,
           "contrast": {
             "checkedTextNodes": 0,
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "取消",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "減少 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "增加 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 1024,
@@ -1095,23 +2318,50 @@
             "reducedMotion": true
           },
           "target": {
-            "width": 132,
+            "width": 440,
             "height": 56,
-            "left": 484,
-            "right": 616,
+            "left": 384,
+            "right": 824,
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 5,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
           "seriousCritical": null,
           "contrast": {
             "checkedTextNodes": 0,
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "取消",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "減少 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "增加 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 1280,
@@ -1121,23 +2371,50 @@
             "reducedMotion": true
           },
           "target": {
-            "width": 132,
+            "width": 440,
             "height": 56,
-            "left": 700,
-            "right": 832,
+            "left": 512,
+            "right": 952,
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 6,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
           "seriousCritical": null,
           "contrast": {
             "checkedTextNodes": 0,
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "取消",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "減少 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "增加 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 1440,
@@ -1147,23 +2424,50 @@
             "reducedMotion": true
           },
           "target": {
-            "width": 132,
+            "width": 440,
             "height": 56,
-            "left": 780,
-            "right": 912,
+            "left": 592,
+            "right": 1032,
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 6,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
           "seriousCritical": [],
           "contrast": {
-            "checkedTextNodes": 47,
-            "minNormalTextRatio": 4.58,
-            "minLargeTextRatio": 7.22
+            "checkedTextNodes": 12,
+            "minNormalTextRatio": 4.78,
+            "minLargeTextRatio": null
           },
-          "axeScanPerformed": true
+          "axeScanPerformed": true,
+          "operatedIcons": [
+            {
+              "name": "取消",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "減少 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "增加 B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         }
       ]
     },
@@ -1171,13 +2475,13 @@
       "surface": "pos",
       "locale": "en",
       "source": {
-        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
-        "tree": "f97666a191563d56650b78812298d12080fa7b03",
-        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
-        "runtimePatch": "52b222a20a4815d24c86b33f39ad17b3d99c02e8f062f38a3ff2e36a25f46841"
+        "head": "484bf0267f856ec50d56ed21674e2968c0f1d075",
+        "tree": "617ee8bbb6deadd30487f788cd3cfd4779eb0523",
+        "buildId": "GL_yj-pqLi9A49Ltu1gqU",
+        "runtimePatch": "8fa3e3e83bf9cb3215b44d3a9773bb92f2274ec94b4b8d476f6f3b941faec268"
       },
       "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/pos-en.json",
-      "rawSha256": "2773706cc098f544bfe4e40d4a9a7c4ecb9909b97d1608c9976c20e63e414119",
+      "rawSha256": "f3b944956a20bf754856d75bbb4d600b07a4397428d5856e647cc4c5afe42b7f",
       "pageErrors": [],
       "theme": "dark",
       "focusExample": {
@@ -1197,23 +2501,50 @@
             "reducedMotion": true
           },
           "target": {
-            "width": 149.78125,
+            "width": 104,
             "height": 56,
-            "left": 154.21875,
+            "left": 200,
             "right": 304,
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 2,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
           "seriousCritical": [],
           "contrast": {
-            "checkedTextNodes": 31,
+            "checkedTextNodes": 11,
             "minNormalTextRatio": 6.93,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": true
+          "axeScanPerformed": true,
+          "operatedIcons": [
+            {
+              "name": "Cancel",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Decrease B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Increase B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 360,
@@ -1223,23 +2554,50 @@
             "reducedMotion": true
           },
           "target": {
-            "width": 149.78125,
+            "width": 144,
             "height": 56,
-            "left": 194.21875,
+            "left": 200,
             "right": 344,
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 2,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
           "seriousCritical": null,
           "contrast": {
             "checkedTextNodes": 0,
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Cancel",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Decrease B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Increase B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 390,
@@ -1249,23 +2607,50 @@
             "reducedMotion": true
           },
           "target": {
-            "width": 149.78125,
+            "width": 174,
             "height": 56,
-            "left": 224.21875,
+            "left": 200,
             "right": 374,
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 2,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
           "seriousCritical": null,
           "contrast": {
             "checkedTextNodes": 0,
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Cancel",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Decrease B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Increase B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 768,
@@ -1275,23 +2660,50 @@
             "reducedMotion": true
           },
           "target": {
-            "width": 149.78125,
+            "width": 440,
             "height": 56,
-            "left": 222.21875,
-            "right": 372,
+            "left": 256,
+            "right": 696,
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 4,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
           "seriousCritical": null,
           "contrast": {
             "checkedTextNodes": 0,
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Cancel",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Decrease B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Increase B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 820,
@@ -1301,23 +2713,50 @@
             "reducedMotion": true
           },
           "target": {
-            "width": 149.78125,
+            "width": 440,
             "height": 56,
-            "left": 274.21875,
-            "right": 424,
+            "left": 282,
+            "right": 722,
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 4,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
           "seriousCritical": null,
           "contrast": {
             "checkedTextNodes": 0,
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Cancel",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Decrease B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Increase B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 1024,
@@ -1327,23 +2766,50 @@
             "reducedMotion": true
           },
           "target": {
-            "width": 149.78125,
+            "width": 440,
             "height": 56,
-            "left": 466.21875,
-            "right": 616,
+            "left": 384,
+            "right": 824,
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 5,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
           "seriousCritical": null,
           "contrast": {
             "checkedTextNodes": 0,
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Cancel",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Decrease B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Increase B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 1280,
@@ -1353,23 +2819,50 @@
             "reducedMotion": true
           },
           "target": {
-            "width": 149.78125,
+            "width": 440,
             "height": 56,
-            "left": 682.21875,
-            "right": 832,
+            "left": 512,
+            "right": 952,
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 6,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
           "seriousCritical": null,
           "contrast": {
             "checkedTextNodes": 0,
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Cancel",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Decrease B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Increase B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 1440,
@@ -1379,23 +2872,50 @@
             "reducedMotion": true
           },
           "target": {
-            "width": 149.78125,
+            "width": 440,
             "height": 56,
-            "left": 762.21875,
-            "right": 912,
+            "left": 592,
+            "right": 1032,
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 6,
-          "minIconWidth": 44,
-          "minIconHeight": 44,
+          "iconCount": 3,
+          "minIconWidth": 48,
+          "minIconHeight": 48,
           "seriousCritical": [],
           "contrast": {
-            "checkedTextNodes": 46,
+            "checkedTextNodes": 12,
             "minNormalTextRatio": 6.93,
-            "minLargeTextRatio": 13.35
+            "minLargeTextRatio": null
           },
-          "axeScanPerformed": true
+          "axeScanPerformed": true,
+          "operatedIcons": [
+            {
+              "name": "Cancel",
+              "width": 48,
+              "height": 48,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Decrease B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Increase B3 Crispy chicken with fragrant herbs and seasonal vegetables with a long configuration name",
+              "width": 56,
+              "height": 56,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         }
       ]
     },
@@ -1403,16 +2923,24 @@
       "surface": "kds",
       "locale": "zh-TW",
       "source": {
-        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
-        "tree": "f97666a191563d56650b78812298d12080fa7b03",
-        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
-        "runtimePatch": "44cc103c6b63b4f2da87584752495036f3045713e7d882d06f7b63f96851c63e"
+        "head": "484bf0267f856ec50d56ed21674e2968c0f1d075",
+        "tree": "617ee8bbb6deadd30487f788cd3cfd4779eb0523",
+        "buildId": "GL_yj-pqLi9A49Ltu1gqU",
+        "runtimePatch": "22da98e741b6a3564f1a4605b5fabecb231193c0f2ce52878f1418ce7216578d"
       },
       "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/kds-zh-TW.json",
-      "rawSha256": "e39f4be98c566e14bead3df647324956fef6eff31f06a8e86fda9fe7a76fdb4c",
+      "rawSha256": "75f29bff39946fd2eabba68dfbf9fbabcc8f7d5a16a74c227b04358715d97340",
       "pageErrors": [],
       "theme": "light",
-      "focusExample": null,
+      "focusExample": {
+        "outline": "color(srgb 0.0588235 0.462745 0.431373 / 0.72) solid 3px",
+        "shadow": "none",
+        "next": {
+          "tag": "BUTTON",
+          "name": "#B3-003已等待 85 分外帶自取 · 1 個品項"
+        },
+        "reverseRestored": true
+      },
       "motionExample": {
         "transition": "1e-05s",
         "animation": "1e-05s"
@@ -1432,17 +2960,44 @@
             "right": 291,
             "uncovered": true
           },
-          "focusVisible": null,
-          "iconCount": 0,
-          "minIconWidth": null,
-          "minIconHeight": null,
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
           "seriousCritical": [],
           "contrast": {
-            "checkedTextNodes": 402,
+            "checkedTextNodes": 399,
             "minNormalTextRatio": 4.58,
             "minLargeTextRatio": 9.13
           },
-          "axeScanPerformed": true
+          "axeScanPerformed": true,
+          "operatedIcons": [
+            {
+              "name": "切換為暗黑模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "切換為年長者模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": true,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.0588235 0.462745 0.431373 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "#B3-003已等待 85 分外帶自取 · 1 個品項"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 360,
@@ -1458,7 +3013,7 @@
             "right": 331,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 2,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -1468,7 +3023,34 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "切換為暗黑模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "切換為年長者模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "oklab(0.510931 -0.0854972 -0.00957102) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "#B3-003已等待 85 分外帶自取 · 1 個品項"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 390,
@@ -1484,7 +3066,7 @@
             "right": 361,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 2,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -1494,7 +3076,34 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "切換為暗黑模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "切換為年長者模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.0588235 0.462745 0.431373 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "#B3-003已等待 85 分外帶自取 · 1 個品項"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 768,
@@ -1510,7 +3119,7 @@
             "right": 727,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 2,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -1520,7 +3129,34 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "切換為暗黑模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "切換為年長者模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.0588235 0.462745 0.431373 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "#B3-003已等待 85 分外帶自取 · 1 個品項"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 820,
@@ -1536,7 +3172,7 @@
             "right": 778.984375,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 2,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -1546,7 +3182,34 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "切換為暗黑模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "切換為年長者模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "oklab(0.510931 -0.0854972 -0.00957102) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "#B3-003已等待 85 分外帶自取 · 1 個品項"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 1024,
@@ -1562,7 +3225,7 @@
             "right": 983,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 2,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -1572,7 +3235,34 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "切換為暗黑模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "切換為年長者模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.0588235 0.462745 0.431373 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "#B3-003已等待 85 分外帶自取 · 1 個品項"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 1280,
@@ -1588,7 +3278,7 @@
             "right": 1238.984375,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 2,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -1598,7 +3288,34 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "切換為暗黑模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "切換為年長者模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "oklab(0.510931 -0.0854972 -0.00957102) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "#B3-003已等待 85 分外帶自取 · 1 個品項"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 1440,
@@ -1614,17 +3331,44 @@
             "right": 1399,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 2,
           "minIconWidth": 44,
           "minIconHeight": 44,
           "seriousCritical": [],
           "contrast": {
-            "checkedTextNodes": 402,
+            "checkedTextNodes": 400,
             "minNormalTextRatio": 4.58,
             "minLargeTextRatio": 9.13
           },
-          "axeScanPerformed": true
+          "axeScanPerformed": true,
+          "operatedIcons": [
+            {
+              "name": "切換為暗黑模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "切換為年長者模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.0588235 0.462745 0.431373 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "#B3-003已等待 85 分外帶自取 · 1 個品項"
+            },
+            "reverseRestored": true
+          }
         }
       ]
     },
@@ -1632,16 +3376,24 @@
       "surface": "kds",
       "locale": "en",
       "source": {
-        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
-        "tree": "f97666a191563d56650b78812298d12080fa7b03",
-        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
-        "runtimePatch": "20c66745b1b4f52c61ad024755524505abf3d96dda40fa85144ea2a2b907679f"
+        "head": "484bf0267f856ec50d56ed21674e2968c0f1d075",
+        "tree": "617ee8bbb6deadd30487f788cd3cfd4779eb0523",
+        "buildId": "GL_yj-pqLi9A49Ltu1gqU",
+        "runtimePatch": "8edb3b4ae2c6e088b166b98dafeb68983050d712e96f60ed3f37039692044a3e"
       },
       "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/kds-en.json",
-      "rawSha256": "a9ae2a22452878bee38d93503fdbef594cdc60f5c57e1dbdd13411e7789b9a5e",
+      "rawSha256": "e8942476765439d3e5d9d06fb7faa732756f6fb8a88fbd1dc7eab981d1fdbb7c",
       "pageErrors": [],
       "theme": "dark",
-      "focusExample": null,
+      "focusExample": {
+        "outline": "color(srgb 0.368627 0.917647 0.831372 / 0.72) solid 3px",
+        "shadow": "none",
+        "next": {
+          "tag": "BUTTON",
+          "name": "#B3-003Waiting 85 minPickup · 1 item(s)"
+        },
+        "reverseRestored": true
+      },
       "motionExample": {
         "transition": "1e-05s",
         "animation": "1e-05s"
@@ -1661,17 +3413,44 @@
             "right": 291,
             "uncovered": true
           },
-          "focusVisible": null,
-          "iconCount": 0,
-          "minIconWidth": null,
-          "minIconHeight": null,
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
           "seriousCritical": [],
           "contrast": {
-            "checkedTextNodes": 402,
+            "checkedTextNodes": 399,
             "minNormalTextRatio": 5.47,
             "minLargeTextRatio": 9.94
           },
-          "axeScanPerformed": true
+          "axeScanPerformed": true,
+          "operatedIcons": [
+            {
+              "name": "Switch to light mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Switch to senior mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": true,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.368627 0.917647 0.831372 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "#B3-003Waiting 85 minPickup · 1 item(s)"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 360,
@@ -1687,7 +3466,7 @@
             "right": 331,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 2,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -1697,7 +3476,34 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Switch to light mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Switch to senior mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.368627 0.917647 0.831372 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "#B3-003Waiting 85 minPickup · 1 item(s)"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 390,
@@ -1713,7 +3519,7 @@
             "right": 361,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 2,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -1723,7 +3529,34 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Switch to light mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Switch to senior mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.368627 0.917647 0.831372 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "#B3-003Waiting 85 minPickup · 1 item(s)"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 768,
@@ -1739,7 +3572,7 @@
             "right": 727,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 2,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -1749,7 +3582,34 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Switch to light mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Switch to senior mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "oklab(0.854872 -0.125014 -0.00232285) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "#B3-003Waiting 85 minPickup · 1 item(s)"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 820,
@@ -1765,7 +3625,7 @@
             "right": 778.984375,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 2,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -1775,7 +3635,34 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Switch to light mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Switch to senior mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.368627 0.917647 0.831372 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "#B3-003Waiting 85 minPickup · 1 item(s)"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 1024,
@@ -1791,7 +3678,7 @@
             "right": 983,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 2,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -1801,7 +3688,34 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Switch to light mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Switch to senior mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.368627 0.917647 0.831372 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "#B3-003Waiting 85 minPickup · 1 item(s)"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 1280,
@@ -1817,7 +3731,7 @@
             "right": 1238.984375,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 2,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -1827,7 +3741,34 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Switch to light mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Switch to senior mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "oklab(0.854872 -0.125014 -0.00232285) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "#B3-003Waiting 85 minPickup · 1 item(s)"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 1440,
@@ -1843,17 +3784,44 @@
             "right": 1399,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 2,
           "minIconWidth": 44,
           "minIconHeight": 44,
           "seriousCritical": [],
           "contrast": {
-            "checkedTextNodes": 402,
+            "checkedTextNodes": 400,
             "minNormalTextRatio": 5.47,
             "minLargeTextRatio": 9.94
           },
-          "axeScanPerformed": true
+          "axeScanPerformed": true,
+          "operatedIcons": [
+            {
+              "name": "Switch to light mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Switch to senior mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.368627 0.917647 0.831372 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "#B3-003Waiting 85 minPickup · 1 item(s)"
+            },
+            "reverseRestored": true
+          }
         }
       ]
     },
@@ -1861,13 +3829,13 @@
       "surface": "merchant",
       "locale": "zh-TW",
       "source": {
-        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
-        "tree": "f97666a191563d56650b78812298d12080fa7b03",
-        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
-        "runtimePatch": "1dae807fffebc158ac497a90067725981b0500fe7440fb2c51939af67b05869e"
+        "head": "484bf0267f856ec50d56ed21674e2968c0f1d075",
+        "tree": "617ee8bbb6deadd30487f788cd3cfd4779eb0523",
+        "buildId": "GL_yj-pqLi9A49Ltu1gqU",
+        "runtimePatch": "56b4f8238420f40c7a33c2cee67ee712115a6d55881eeefdfd1a7189329d573c"
       },
       "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/merchant-zh-TW.json",
-      "rawSha256": "c0a42c6e66b1ef72f0bb64fdb0af257712e751661c6677ab6ee1a8ba041b3def",
+      "rawSha256": "57593ea3aaab6717f2b383f43c2f1797b224b4838097d5301cb780413ffd56a1",
       "pageErrors": [],
       "theme": "light",
       "focusExample": {
@@ -1894,7 +3862,7 @@
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 10,
+          "iconCount": 1,
           "minIconWidth": 44,
           "minIconHeight": 44,
           "seriousCritical": [],
@@ -1903,7 +3871,18 @@
             "minNormalTextRatio": 4.78,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": true
+          "axeScanPerformed": true,
+          "operatedIcons": [
+            {
+              "name": "關閉",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 360,
@@ -1920,7 +3899,7 @@
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 11,
+          "iconCount": 1,
           "minIconWidth": 44,
           "minIconHeight": 44,
           "seriousCritical": null,
@@ -1929,7 +3908,18 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "關閉",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 390,
@@ -1946,7 +3936,7 @@
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 11,
+          "iconCount": 1,
           "minIconWidth": 44,
           "minIconHeight": 44,
           "seriousCritical": null,
@@ -1955,7 +3945,18 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "關閉",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 768,
@@ -1971,8 +3972,8 @@
             "right": 444,
             "uncovered": true
           },
-          "focusVisible": null,
-          "iconCount": 16,
+          "focusVisible": true,
+          "iconCount": 5,
           "minIconWidth": 44,
           "minIconHeight": 44,
           "seriousCritical": null,
@@ -1981,7 +3982,58 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "商家管理",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "選擇攤位：阿明鹽酥雞",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "切換為暗黑模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "切換為年長者模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "商家系統導覽",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.0588235 0.462745 0.431373 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "庫存：96 份"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 820,
@@ -1997,8 +4049,8 @@
             "right": 444,
             "uncovered": true
           },
-          "focusVisible": null,
-          "iconCount": 16,
+          "focusVisible": true,
+          "iconCount": 5,
           "minIconWidth": 44,
           "minIconHeight": 44,
           "seriousCritical": null,
@@ -2007,7 +4059,58 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "商家管理",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "選擇攤位：阿明鹽酥雞",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "切換為暗黑模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "切換為年長者模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "商家系統導覽",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.0588235 0.462745 0.431373 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "庫存：96 份"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 1024,
@@ -2023,8 +4126,8 @@
             "right": 444,
             "uncovered": true
           },
-          "focusVisible": null,
-          "iconCount": 16,
+          "focusVisible": true,
+          "iconCount": 5,
           "minIconWidth": 44,
           "minIconHeight": 44,
           "seriousCritical": null,
@@ -2033,7 +4136,58 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "商家管理",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "選擇攤位：阿明鹽酥雞",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "切換為暗黑模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "切換為年長者模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "商家系統導覽",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.0588235 0.462745 0.431373 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "庫存：96 份"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 1280,
@@ -2049,8 +4203,8 @@
             "right": 444,
             "uncovered": true
           },
-          "focusVisible": null,
-          "iconCount": 16,
+          "focusVisible": true,
+          "iconCount": 5,
           "minIconWidth": 44,
           "minIconHeight": 44,
           "seriousCritical": null,
@@ -2059,7 +4213,58 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "商家管理",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "選擇攤位：阿明鹽酥雞",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "切換為暗黑模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "切換為年長者模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "商家系統導覽",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.0588235 0.462745 0.431373 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "庫存：96 份"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 1440,
@@ -2075,8 +4280,8 @@
             "right": 524,
             "uncovered": true
           },
-          "focusVisible": null,
-          "iconCount": 16,
+          "focusVisible": true,
+          "iconCount": 5,
           "minIconWidth": 44,
           "minIconHeight": 44,
           "seriousCritical": [],
@@ -2085,7 +4290,58 @@
             "minNormalTextRatio": 4.58,
             "minLargeTextRatio": 16.74
           },
-          "axeScanPerformed": true
+          "axeScanPerformed": true,
+          "operatedIcons": [
+            {
+              "name": "商家管理",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "選擇攤位：阿明鹽酥雞",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "切換為暗黑模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "切換為年長者模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "商家系統導覽",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.0588235 0.462745 0.431373 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "庫存：96 份"
+            },
+            "reverseRestored": true
+          }
         }
       ]
     },
@@ -2093,13 +4349,13 @@
       "surface": "merchant",
       "locale": "en",
       "source": {
-        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
-        "tree": "f97666a191563d56650b78812298d12080fa7b03",
-        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
-        "runtimePatch": "3b2ea51c06e0db7cc1a00e1f922f9f4ecb0e8368fe9d4c02e506f5de30fdbab1"
+        "head": "484bf0267f856ec50d56ed21674e2968c0f1d075",
+        "tree": "617ee8bbb6deadd30487f788cd3cfd4779eb0523",
+        "buildId": "GL_yj-pqLi9A49Ltu1gqU",
+        "runtimePatch": "1b8f20e9ab33a3500a2ec92c3cbff06f07beeecd71da1ccd1a57838b5c56f1c4"
       },
       "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/merchant-en.json",
-      "rawSha256": "3664abdeb5966637c42de2311da3abccd458fbe8fb8afca5166068619534f15a",
+      "rawSha256": "0a184268cff20d4c0d9f7d0895b96a4daf8091e3645faae60ec894c8beb036d9",
       "pageErrors": [],
       "theme": "dark",
       "focusExample": {
@@ -2126,7 +4382,7 @@
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 10,
+          "iconCount": 1,
           "minIconWidth": 44,
           "minIconHeight": 44,
           "seriousCritical": [],
@@ -2135,7 +4391,18 @@
             "minNormalTextRatio": 6.93,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": true
+          "axeScanPerformed": true,
+          "operatedIcons": [
+            {
+              "name": "Off",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 360,
@@ -2152,7 +4419,7 @@
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 11,
+          "iconCount": 1,
           "minIconWidth": 44,
           "minIconHeight": 44,
           "seriousCritical": null,
@@ -2161,7 +4428,18 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Off",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 390,
@@ -2178,7 +4456,7 @@
             "uncovered": true
           },
           "focusVisible": true,
-          "iconCount": 11,
+          "iconCount": 1,
           "minIconWidth": 44,
           "minIconHeight": 44,
           "seriousCritical": null,
@@ -2187,7 +4465,18 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Off",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": null
         },
         {
           "width": 768,
@@ -2203,8 +4492,8 @@
             "right": 444,
             "uncovered": true
           },
-          "focusVisible": null,
-          "iconCount": 16,
+          "focusVisible": true,
+          "iconCount": 5,
           "minIconWidth": 44,
           "minIconHeight": 44,
           "seriousCritical": null,
@@ -2213,7 +4502,58 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "商家管理",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Select stall：阿明鹽酥雞",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Switch to light mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Switch to senior mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Merchant guide",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.368627 0.917647 0.831372 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "庫存：96 份"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 820,
@@ -2229,8 +4569,8 @@
             "right": 444,
             "uncovered": true
           },
-          "focusVisible": null,
-          "iconCount": 16,
+          "focusVisible": true,
+          "iconCount": 5,
           "minIconWidth": 44,
           "minIconHeight": 44,
           "seriousCritical": null,
@@ -2239,7 +4579,58 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "商家管理",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Select stall：阿明鹽酥雞",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Switch to light mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Switch to senior mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Merchant guide",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.368627 0.917647 0.831372 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "庫存：96 份"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 1024,
@@ -2255,8 +4646,8 @@
             "right": 444,
             "uncovered": true
           },
-          "focusVisible": null,
-          "iconCount": 16,
+          "focusVisible": true,
+          "iconCount": 5,
           "minIconWidth": 44,
           "minIconHeight": 44,
           "seriousCritical": null,
@@ -2265,7 +4656,58 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "商家管理",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Select stall：阿明鹽酥雞",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Switch to light mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Switch to senior mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Merchant guide",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.368627 0.917647 0.831372 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "庫存：96 份"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 1280,
@@ -2281,8 +4723,8 @@
             "right": 444,
             "uncovered": true
           },
-          "focusVisible": null,
-          "iconCount": 16,
+          "focusVisible": true,
+          "iconCount": 5,
           "minIconWidth": 44,
           "minIconHeight": 44,
           "seriousCritical": null,
@@ -2291,7 +4733,58 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "商家管理",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Select stall：阿明鹽酥雞",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Switch to light mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Switch to senior mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Merchant guide",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.368627 0.917647 0.831372 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "庫存：96 份"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 1440,
@@ -2307,8 +4800,8 @@
             "right": 524,
             "uncovered": true
           },
-          "focusVisible": null,
-          "iconCount": 16,
+          "focusVisible": true,
+          "iconCount": 5,
           "minIconWidth": 44,
           "minIconHeight": 44,
           "seriousCritical": [],
@@ -2317,7 +4810,58 @@
             "minNormalTextRatio": 6.93,
             "minLargeTextRatio": 18.91
           },
-          "axeScanPerformed": true
+          "axeScanPerformed": true,
+          "operatedIcons": [
+            {
+              "name": "商家管理",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Select stall：阿明鹽酥雞",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Switch to light mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Switch to senior mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            },
+            {
+              "name": "Merchant guide",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.368627 0.917647 0.831372 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "BUTTON",
+              "name": "庫存：96 份"
+            },
+            "reverseRestored": true
+          }
         }
       ]
     },
@@ -2325,16 +4869,24 @@
       "surface": "admin",
       "locale": "zh-TW",
       "source": {
-        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
-        "tree": "f97666a191563d56650b78812298d12080fa7b03",
-        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
-        "runtimePatch": "496b79fb186dcf3101695aee2432805d8a043d08d83253bc50cf198bcfaf5856"
+        "head": "484bf0267f856ec50d56ed21674e2968c0f1d075",
+        "tree": "617ee8bbb6deadd30487f788cd3cfd4779eb0523",
+        "buildId": "GL_yj-pqLi9A49Ltu1gqU",
+        "runtimePatch": "349125227c73981362877fa9e6e6a47e3c27ae4049773a199b89f4abc889dc84"
       },
       "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/admin-zh-TW.json",
-      "rawSha256": "254f88ff6c4dfa33de52f16055c9c8216d02303961ca0fc185a1381a51c2d335",
+      "rawSha256": "4acd00d0ad183fb3a1a1d566c14306c2ecc4a6f3c1bed6db3e545f10e0c3c5fd",
       "pageErrors": [],
       "theme": "light",
-      "focusExample": null,
+      "focusExample": {
+        "outline": "oklab(0.436997 -0.0771984 -0.0111369) solid 3px",
+        "shadow": "none",
+        "next": {
+          "tag": "SUMMARY",
+          "name": "完整資料"
+        },
+        "reverseRestored": true
+      },
       "motionExample": {
         "transition": "1e-05s",
         "animation": "1e-05s"
@@ -2354,7 +4906,7 @@
             "right": 287,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 1,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -2364,7 +4916,26 @@
             "minNormalTextRatio": 4.78,
             "minLargeTextRatio": 16.74
           },
-          "axeScanPerformed": true
+          "axeScanPerformed": true,
+          "operatedIcons": [
+            {
+              "name": "切換為暗黑模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "oklab(0.436997 -0.0771984 -0.0111369) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "SUMMARY",
+              "name": "完整資料"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 360,
@@ -2380,7 +4951,7 @@
             "right": 327,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 1,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -2390,7 +4961,26 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "切換為暗黑模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.0588235 0.462745 0.431373 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "SUMMARY",
+              "name": "完整資料"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 390,
@@ -2406,7 +4996,7 @@
             "right": 357,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 1,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -2416,7 +5006,26 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "切換為暗黑模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.0588235 0.462745 0.431373 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "SUMMARY",
+              "name": "完整資料"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 768,
@@ -2432,7 +5041,7 @@
             "right": 719,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 1,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -2442,7 +5051,26 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "切換為暗黑模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.0588235 0.462745 0.431373 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "SUMMARY",
+              "name": "完整資料"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 820,
@@ -2458,7 +5086,7 @@
             "right": 771,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 1,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -2468,7 +5096,26 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "切換為暗黑模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.0588235 0.462745 0.431373 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "SUMMARY",
+              "name": "完整資料"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 1024,
@@ -2484,7 +5131,7 @@
             "right": 975,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 1,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -2494,7 +5141,26 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "切換為暗黑模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.0588235 0.462745 0.431373 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "SUMMARY",
+              "name": "完整資料"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 1280,
@@ -2510,7 +5176,7 @@
             "right": 1231,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 1,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -2520,7 +5186,26 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "切換為暗黑模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.0588235 0.462745 0.431373 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "SUMMARY",
+              "name": "完整資料"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 1440,
@@ -2536,7 +5221,7 @@
             "right": 1391,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 1,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -2546,7 +5231,26 @@
             "minNormalTextRatio": 4.78,
             "minLargeTextRatio": 16.74
           },
-          "axeScanPerformed": true
+          "axeScanPerformed": true,
+          "operatedIcons": [
+            {
+              "name": "切換為暗黑模式",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.0588235 0.462745 0.431373 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "SUMMARY",
+              "name": "完整資料"
+            },
+            "reverseRestored": true
+          }
         }
       ]
     },
@@ -2554,16 +5258,24 @@
       "surface": "admin",
       "locale": "en",
       "source": {
-        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
-        "tree": "f97666a191563d56650b78812298d12080fa7b03",
-        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
-        "runtimePatch": "d38f195cf064a49f16fb148244ac43fdbeff0a98724d5456f32a383a0477af58"
+        "head": "484bf0267f856ec50d56ed21674e2968c0f1d075",
+        "tree": "617ee8bbb6deadd30487f788cd3cfd4779eb0523",
+        "buildId": "GL_yj-pqLi9A49Ltu1gqU",
+        "runtimePatch": "2b8bcf98b08bdf5b6bef973c7a83611763a5089100782e4bb979c5aa8f7668e0"
       },
       "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/admin-en.json",
-      "rawSha256": "340f325fea550942a0ef1c5f065e6055fce9d4e1081d4cd53c460fa36ccec5d5",
+      "rawSha256": "b192ed464ce693dfbccf0536b2f3f9fa9c2213a439ae0ccdda416464c35dea64",
       "pageErrors": [],
       "theme": "dark",
-      "focusExample": null,
+      "focusExample": {
+        "outline": "oklab(0.854872 -0.125014 -0.00232285) solid 3px",
+        "shadow": "none",
+        "next": {
+          "tag": "SUMMARY",
+          "name": "Full record details"
+        },
+        "reverseRestored": true
+      },
       "motionExample": {
         "transition": "1e-05s",
         "animation": "1e-05s"
@@ -2583,7 +5295,7 @@
             "right": 287,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 1,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -2593,7 +5305,26 @@
             "minNormalTextRatio": 6.93,
             "minLargeTextRatio": 18.91
           },
-          "axeScanPerformed": true
+          "axeScanPerformed": true,
+          "operatedIcons": [
+            {
+              "name": "Switch to light mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "oklab(0.854872 -0.125014 -0.00232285) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "SUMMARY",
+              "name": "Full record details"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 360,
@@ -2609,7 +5340,7 @@
             "right": 327,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 1,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -2619,7 +5350,26 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Switch to light mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.368627 0.917647 0.831372 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "SUMMARY",
+              "name": "Full record details"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 390,
@@ -2635,7 +5385,7 @@
             "right": 357,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 1,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -2645,7 +5395,26 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Switch to light mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.368627 0.917647 0.831372 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "SUMMARY",
+              "name": "Full record details"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 768,
@@ -2661,7 +5430,7 @@
             "right": 719,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 1,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -2671,7 +5440,26 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Switch to light mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.368627 0.917647 0.831372 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "SUMMARY",
+              "name": "Full record details"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 820,
@@ -2687,7 +5475,7 @@
             "right": 771,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 1,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -2697,7 +5485,26 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Switch to light mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.368627 0.917647 0.831372 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "SUMMARY",
+              "name": "Full record details"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 1024,
@@ -2713,7 +5520,7 @@
             "right": 975,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 1,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -2723,7 +5530,26 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Switch to light mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.368627 0.917647 0.831372 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "SUMMARY",
+              "name": "Full record details"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 1280,
@@ -2739,7 +5565,7 @@
             "right": 1231,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 1,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -2749,7 +5575,26 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [
+            {
+              "name": "Switch to light mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.368627 0.917647 0.831372 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "SUMMARY",
+              "name": "Full record details"
+            },
+            "reverseRestored": true
+          }
         },
         {
           "width": 1440,
@@ -2765,7 +5610,7 @@
             "right": 1391,
             "uncovered": true
           },
-          "focusVisible": null,
+          "focusVisible": true,
           "iconCount": 1,
           "minIconWidth": 44,
           "minIconHeight": 44,
@@ -2775,7 +5620,26 @@
             "minNormalTextRatio": 6.93,
             "minLargeTextRatio": 18.91
           },
-          "axeScanPerformed": true
+          "axeScanPerformed": true,
+          "operatedIcons": [
+            {
+              "name": "Switch to light mode",
+              "width": 44,
+              "height": 44,
+              "centerInitiallyInViewport": true,
+              "initialCenterCovered": false,
+              "uncoveredAfterScroll": true
+            }
+          ],
+          "keyboard": {
+            "outline": "color(srgb 0.368627 0.917647 0.831372 / 0.72) solid 3px",
+            "shadow": "none",
+            "next": {
+              "tag": "SUMMARY",
+              "name": "Full record details"
+            },
+            "reverseRestored": true
+          }
         }
       ]
     },
@@ -2783,13 +5647,13 @@
       "surface": "mini",
       "locale": "zh-TW",
       "source": {
-        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
-        "tree": "f97666a191563d56650b78812298d12080fa7b03",
-        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
-        "runtimePatch": "d527493f9ac6f3d33e7fc5bad827f61066bc020733c809806d43509e4bedf37c"
+        "head": "484bf0267f856ec50d56ed21674e2968c0f1d075",
+        "tree": "617ee8bbb6deadd30487f788cd3cfd4779eb0523",
+        "buildId": "GL_yj-pqLi9A49Ltu1gqU",
+        "runtimePatch": "c6fdfdd511d45aa37824e4db130cc5eb8b47524009bfb15c4233a15e1a8b2b45"
       },
       "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/mini-zh-TW.json",
-      "rawSha256": "eb6588d62619892a48d32d14665924b05a9ed951a00ed489efd8a0a2ab27798f",
+      "rawSha256": "061eef1021ed0f465604989f5687f84e9895186433a2f28288fa5c3ad4ef0244",
       "pageErrors": [],
       "theme": "light",
       "focusExample": null,
@@ -2816,7 +5680,9 @@
             "minNormalTextRatio": 16.74,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": true
+          "axeScanPerformed": true,
+          "operatedIcons": [],
+          "keyboard": null
         },
         {
           "width": 360,
@@ -2836,7 +5702,9 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [],
+          "keyboard": null
         },
         {
           "width": 390,
@@ -2856,7 +5724,9 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [],
+          "keyboard": null
         },
         {
           "width": 768,
@@ -2876,7 +5746,9 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [],
+          "keyboard": null
         },
         {
           "width": 820,
@@ -2896,7 +5768,9 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [],
+          "keyboard": null
         },
         {
           "width": 1024,
@@ -2916,7 +5790,9 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [],
+          "keyboard": null
         },
         {
           "width": 1280,
@@ -2936,7 +5812,9 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [],
+          "keyboard": null
         },
         {
           "width": 1440,
@@ -2956,7 +5834,9 @@
             "minNormalTextRatio": 16.74,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": true
+          "axeScanPerformed": true,
+          "operatedIcons": [],
+          "keyboard": null
         }
       ]
     },
@@ -2964,13 +5844,13 @@
       "surface": "mini",
       "locale": "en",
       "source": {
-        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
-        "tree": "f97666a191563d56650b78812298d12080fa7b03",
-        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
-        "runtimePatch": "ba838951a193a43cbccd09e0c38d12a8eac3f00853ffc83957fa6b5eae3bc6e3"
+        "head": "484bf0267f856ec50d56ed21674e2968c0f1d075",
+        "tree": "617ee8bbb6deadd30487f788cd3cfd4779eb0523",
+        "buildId": "GL_yj-pqLi9A49Ltu1gqU",
+        "runtimePatch": "2bc74060843bf8d550e7355df826529e94214aebea86fe61a3adfda18327d330"
       },
       "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/mini-en.json",
-      "rawSha256": "f99d9908c8c16c29c8a6c48897c226aed92b49ca008efa756f96c69ad793c7a1",
+      "rawSha256": "cb7c834a730e2c01564253126582dbe3c0fa58f68b928c1e7428550b661f333c",
       "pageErrors": [],
       "theme": "dark",
       "focusExample": null,
@@ -2997,7 +5877,9 @@
             "minNormalTextRatio": 18.91,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": true
+          "axeScanPerformed": true,
+          "operatedIcons": [],
+          "keyboard": null
         },
         {
           "width": 360,
@@ -3017,7 +5899,9 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [],
+          "keyboard": null
         },
         {
           "width": 390,
@@ -3037,7 +5921,9 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [],
+          "keyboard": null
         },
         {
           "width": 768,
@@ -3057,7 +5943,9 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [],
+          "keyboard": null
         },
         {
           "width": 820,
@@ -3077,7 +5965,9 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [],
+          "keyboard": null
         },
         {
           "width": 1024,
@@ -3097,7 +5987,9 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [],
+          "keyboard": null
         },
         {
           "width": 1280,
@@ -3117,7 +6009,9 @@
             "minNormalTextRatio": null,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": false
+          "axeScanPerformed": false,
+          "operatedIcons": [],
+          "keyboard": null
         },
         {
           "width": 1440,
@@ -3137,7 +6031,9 @@
             "minNormalTextRatio": 18.91,
             "minLargeTextRatio": null
           },
-          "axeScanPerformed": true
+          "axeScanPerformed": true,
+          "operatedIcons": [],
+          "keyboard": null
         }
       ]
     }
@@ -3973,7 +6869,7 @@
     "orderDigest": "10b7242ec9d9fb274e5cd38e78fcb937089a6c35e72e5601df0d01410301d255",
     "fullDatasetDigest": "0e6c590475502b69070d0a00da43c2bf08ca911441f705f9e86dacc3abf6c447",
     "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/frozen-dataset.json",
-    "rawSha256": "91b4e36d64752792cc62f52f0d1173352013699ec030cc5e8ad066e5ab88f525",
+    "rawSha256": "53eab03c700cc355c5d64c379b067a3b36d51414e59e451f3f235d6bdfaece66",
     "orderIds": [
       "56e2cc1c-b772-4146-9a55-1f19a0e83f7c",
       "546bc958-f3f4-401a-8d66-3a271ca2873d",
@@ -4254,7 +7150,7 @@
     "B3.3 combined suite"
   ],
   "visualInspection": "Representative phone/tablet/desktop and native full-frame captures recorded in task-3a-report.md; raw screenshots retained locally; Merchant QR masked; earlier cropped captures excluded.",
-  "validation": {
+  "historicalValidation": {
     "rawFinal27": {
       "pass": 23,
       "fail": 4,
@@ -4284,5 +7180,65 @@
     "Three SERVER_UNEXPECTED_ERROR / destination stream closed early during public route loops; correlation with rapid navigation, no proven abort causality. Routes assertions passed; no clean-console/network claim.",
     "Staff frozen order CTA receives unforced actionability trial after real search/selection, then bounds/hit/focus measurement. This proves reachability, not business action completion.",
     "Earlier native screenshot clipping/white captures invalid for visual PASS; final CDP full-frame screenshots used."
-  ]
+  ],
+  "fix1": {
+    "base": "484bf0267f856ec50d56ed21674e2968c0f1d075",
+    "productChange": false,
+    "red": {
+      "pass": 0,
+      "fail": 1,
+      "log": "artifacts/ux-responsive-20260930/b3-fix1-fixture-red.log",
+      "reason": "Original label-only predicate resolves both ACTIVE QRs"
+    },
+    "interrupted": {
+      "pass": 5,
+      "remainingNotRun": 10,
+      "log": "artifacts/ux-responsive-20260930/b3-fix1-coverage-red.log",
+      "reason": "Bound POS collection to its genuinely opened B3 configurator"
+    },
+    "green": {
+      "pass": 15,
+      "fail": 0,
+      "notRun": 0,
+      "log": "artifacts/ux-responsive-20260930/b3-fix1-coverage.log",
+      "command": "PLAYWRIGHT_PRODUCTION_SERVER=true npx playwright test -c playwright.responsive.config.ts e2e/responsive-accessibility.spec.ts e2e/responsive-route-matrix.spec.ts --grep \"eight widths|fixed fixture reuses\" --reporter=list"
+    },
+    "fixture": {
+      "source": {
+        "head": "484bf0267f856ec50d56ed21674e2968c0f1d075",
+        "tree": "617ee8bbb6deadd30487f788cd3cfd4779eb0523",
+        "productSourceClean": true,
+        "worktreeDirty": true,
+        "workingTreePatchSha256": "c987dcac133b4a4385b7bb4eb7cb2b91e01209989b70493b0c7bd7f97fc4072c",
+        "buildId": "GL_yj-pqLi9A49Ltu1gqU",
+        "builtAt": "2026-09-30T13:13:37.172Z",
+        "runtimeWorktreeDirty": true,
+        "runtimeWorkingTreePatchSha256": "1cbc656c75d6be51528e1551feca7206bbcc97cad41496b38d57c24f91efabb0"
+      },
+      "candidates": [
+        {
+          "id": "9c0b848b-4aa5-4c81-9f41-291ee5c55da4",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": "22222222-2222-4222-8222-222222222222"
+        },
+        {
+          "id": "b37ed550-db50-4dce-ad49-98c8bb9b9e5b",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": "71e3fd06-3c22-43df-a9c9-8144888114ff"
+        }
+      ],
+      "selected": [
+        {
+          "id": "9c0b848b-4aa5-4c81-9f41-291ee5c55da4",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": "22222222-2222-4222-8222-222222222222"
+        }
+      ],
+      "count": 120,
+      "orderDigest": "10b7242ec9d9fb274e5cd38e78fcb937089a6c35e72e5601df0d01410301d255",
+      "sameIdsOnRetry": true
+    },
+    "native": "Six unchanged native cases retained from prior receipts, not rerun",
+    "keyboard": "Staff/Merchant selection Space toggle and restore; KDS Space alternate order selection and restore; Admin Enter collapse/expand; each with real Tab/ShiftTab focus round trip. No order completion/payment."
+  }
 }

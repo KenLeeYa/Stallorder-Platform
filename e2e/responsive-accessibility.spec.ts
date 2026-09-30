@@ -160,6 +160,34 @@ async function keyboardDialog(page: Page, dialog: Locator) {
   return focus;
 }
 
+
+// Keep the check within the operated workspace: dialog icons, or named page/header actions.
+// Hidden controls are absent; offscreen controls are scrolled into reach, never discarded for a failed hit.
+async function operatedIcons(page: Page, dialog?: Locator) {
+  const candidates = dialog ? dialog.locator("button, a[href]") : page.locator('header button, header a[href], [data-testid="theme-toggle"], [data-testid="staff-search-open"]');
+  const receipts = [];
+  for (const control of await candidates.all()) {
+    const icon = await control.evaluate(element => element instanceof HTMLElement && element.checkVisibility() && !!element.querySelector("svg") && !element.innerText.trim());
+    if (!icon) continue;
+    const before = await control.evaluate(element => { const r = element.getBoundingClientRect(); const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return { name: element.getAttribute("aria-label") ?? element.getAttribute("title"), centerInViewport: r.x + r.width / 2 >= 0 && r.x + r.width / 2 <= innerWidth && r.y + r.height / 2 >= 0 && r.y + r.height / 2 <= innerHeight, covered: !(hit === element || element.contains(hit)) }; });
+    receipts.push({ ...before, ...await reachable(control) });
+  }
+  return receipts;
+}
+
+async function keyboardRoundTrip(page: Page, control: Locator) {
+  await control.focus();
+  await page.keyboard.press("Tab");
+  await expect(control).not.toBeFocused();
+  const next = await page.locator(":focus").evaluate(element => ({ tag: element.tagName, name: element.getAttribute("aria-label") ?? element.getAttribute("title") ?? element.textContent?.trim().slice(0, 100) }));
+  expect(next.tag).not.toBe("BODY");
+  await page.keyboard.press("Shift+Tab");
+  await expect(control).toBeFocused();
+  const focus = await control.evaluate(element => ({ outline: getComputedStyle(element).outline, shadow: getComputedStyle(element).boxShadow }));
+  expect.soft((focus.outline.includes("none") || focus.outline.includes("0px")) && focus.shadow === "none", "non-dialog keyboard focus visibly styled").toBe(false);
+  return { ...focus, next, reverseRestored: true };
+}
+
 for (const surface of ["customer", "staff", "pos", "kds", "merchant", "admin", "mini"] as const) {
   for (const appearance of [{ locale: "zh-TW", theme: "light" }, { locale: "en", theme: "dark" }] as const) {
     test(`${surface} eight widths ${appearance.locale} ${appearance.theme}`, async ({ page, context }, testInfo) => {
@@ -199,17 +227,11 @@ for (const surface of ["customer", "staff", "pos", "kds", "merchant", "admin", "
       const receipt: unknown[] = [];
       for (const width of acceptanceWidths) {
         await page.setViewportSize({ width, height: 900 });
-        const iconTargets = await page.locator("button, a[href]").evaluateAll(elements => elements.flatMap(element => {
-          if (!(element instanceof HTMLElement) || !element.checkVisibility() || !element.querySelector("svg") || element.innerText.trim()) return [];
-          const rect = element.getBoundingClientRect();
-          const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
-          if (!(hit === element || element.contains(hit))) return [];
-          return [{ name: element.getAttribute("aria-label") ?? element.getAttribute("title") ?? element.textContent?.trim(), width: rect.width, height: rect.height }];
-        }));
-        expect.soft(iconTargets.filter(target => target.width < 44 || target.height < 44), "uncovered icon targets").toEqual([]);
         let target: Locator | undefined;
         let dialog: Locator | undefined;
         let opener: Locator | undefined;
+        let parentDialog: Locator | undefined;
+        let parentOpener: Locator | undefined;
         if (surface === "customer") {
           const name = appearance.locale === "en" ? longProductNameEnglish : longProductName;
           const product = page.getByRole("article").filter({ has: page.getByRole("heading", { name, exact: true }) });
@@ -232,8 +254,13 @@ for (const surface of ["customer", "staff", "pos", "kds", "merchant", "admin", "
         } else if (surface === "pos") {
           opener = page.getByRole("button", { name: /店員點餐|Take order/i, exact: true });
           await opener.click();
-          dialog = page.getByRole("dialog").filter({ has: page.getByTestId("staff-product-card") });
-          target = dialog.getByTestId("staff-open-product-configurator").first();
+          parentOpener = opener;
+          parentDialog = page.getByRole("dialog").filter({ has: page.getByTestId("staff-product-card") });
+          opener = page.locator(`#staff-product-${fixture.productId}`).getByTestId("staff-open-product-configurator");
+          await opener.click();
+          dialog = page.getByTestId("staff-product-configurator");
+          await dialog.getByRole("radio").first().check();
+          target = dialog.getByRole("button", { name: /加入購物車|Add to cart/i, exact: true });
         } else if (surface === "kds") {
           target = page.getByTestId("kitchen-order-queue-button").filter({ hasText: "B3-001" });
           await target.click();
@@ -258,8 +285,28 @@ for (const surface of ["customer", "staff", "pos", "kds", "merchant", "admin", "
           await expect(page.getByRole("status")).toBeVisible();
           await expect(page.getByRole("button", { name: /LINE.*登入|LINE.*login/i })).toHaveCount(0);
         }
+        let keyboard = null;
+        if (!dialog && ["staff", "merchant"].includes(surface)) {
+          const choice = surface === "staff" ? page.getByTestId("staff-order-items-pane").getByRole("checkbox").first() : page.locator("[data-stall-product-list]").getByRole("checkbox").first();
+          keyboard = await keyboardRoundTrip(page, choice);
+          await page.keyboard.press("Space"); await expect(choice).toBeChecked();
+          await page.keyboard.press("Space"); await expect(choice).not.toBeChecked();
+        } else if (!dialog && surface === "kds") {
+          const other = page.getByTestId("kitchen-order-queue-button").filter({ hasText: "B3-002" });
+          keyboard = await keyboardRoundTrip(page, other);
+          await page.keyboard.press("Space"); await expect(other).toHaveAttribute("aria-pressed", "true");
+          await expect(page.getByTestId("kitchen-order-items-pane")).toContainText("B3-002");
+          const original = page.getByTestId("kitchen-order-queue-button").filter({ hasText: "B3-001" });
+          await original.focus(); await page.keyboard.press("Space"); await expect(original).toHaveAttribute("aria-pressed", "true");
+        } else if (!dialog && surface === "admin") {
+          keyboard = await keyboardRoundTrip(page, target!);
+          await page.keyboard.press("Enter"); await expect(page.getByTestId("admin-plan-version-record").first().locator("details")).not.toHaveAttribute("open", "");
+          await page.keyboard.press("Enter"); await expect(page.getByTestId("admin-plan-version-record").first().locator("details")).toHaveAttribute("open", "");
+        }
+        const iconTargets = await operatedIcons(page, dialog);
+        if (surface === "staff") await target!.click({ trial: true });
         const targetBounds = target ? await reachable(target, ["customer", "staff", "kds"].includes(surface) ? 48 : 44) : null;
-        const focus = dialog ? await keyboardDialog(page, dialog) : null;
+        const focus = dialog ? await keyboardDialog(page, dialog) : keyboard;
         const layout = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth, theme: document.documentElement.dataset.theme, locale: document.documentElement.lang, reduced: matchMedia("(prefers-reduced-motion: reduce)").matches, transition: getComputedStyle(document.body).transitionDuration, animation: getComputedStyle(document.body).animationDuration }));
         expect.soft(layout.scrollWidth).toBeLessThanOrEqual(layout.width + 1);
         expect.soft(layout.theme).toBe(appearance.theme);
@@ -277,6 +324,11 @@ for (const surface of ["customer", "staff", "pos", "kds", "merchant", "admin", "
           await page.keyboard.press("Escape");
           await expect(dialog).toBeHidden();
           if (opener) await expect(opener).toBeFocused();
+        }
+        if (parentDialog) {
+          await page.keyboard.press("Escape");
+          await expect(parentDialog).toBeHidden();
+          await expect(parentOpener!).toBeFocused();
         }
         if (surface === "admin") await target!.click();
       }

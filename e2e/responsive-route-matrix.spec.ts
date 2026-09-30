@@ -1,6 +1,8 @@
+import { readFileSync, writeFileSync } from "node:fs";
+import { PrismaClient } from "@prisma/client";
 import { expect, test, type Page } from "@playwright/test";
 import { dismissStaffStartReminder, gotoLocalPath } from "./local-navigation";
-import { acceptanceWidths, fixedAcceptanceFixture } from "./helpers/responsive-acceptance-fixture";
+import { acceptanceDirectory, acceptanceQrWhere, acceptanceWidths, fixedAcceptanceFixture, fixedDataset } from "./helpers/responsive-acceptance-fixture";
 import { readResponsiveBuildProvenance } from "../scripts/responsive-build-provenance.mjs";
 
 test.use({ actionTimeout: 15_000, serviceWorkers: "block", trace: "off", video: "off" });
@@ -193,4 +195,32 @@ test("stations redirect after kitchen layout retains usable validation without R
   await expect(code).toHaveAttribute("aria-invalid", "true");
   await expect(code).toBeFocused();
   expect(errors).toEqual([]);
+});
+
+test("fixed fixture reuses exact main QR with both same-label QRs present", async () => {
+  const prisma = new PrismaClient();
+  try {
+    const before = JSON.parse(readFileSync(acceptanceDirectory + "/fixed-dataset.json", "utf8"));
+    const main = await prisma.stall.findUniqueOrThrow({ where: { slug: "aming-chicken" } });
+    const candidates = await prisma.qrCode.findMany({ where: { label: fixedDataset, state: "ACTIVE" }, select: { id: true, organizationId: true, stallId: true } });
+    expect(candidates).toHaveLength(2);
+    expect(new Set(candidates.map(qr => qr.stallId)).size).toBe(2);
+    const selected = await prisma.qrCode.findMany({ where: acceptanceQrWhere(main.organizationId, main.id), select: { id: true, organizationId: true, stallId: true } });
+    expect(selected).toEqual([{ id: before.qrId, organizationId: main.organizationId, stallId: main.id }]);
+    const first = await fixedAcceptanceFixture();
+    const second = await fixedAcceptanceFixture();
+    expect(first.stallId).toBe(main.id);
+    expect(second.stallId).toBe(main.id);
+    expect(second.qrToken).toBe(first.qrToken);
+    expect(second.localeQrToken).toBe(first.localeQrToken);
+    expect(second.qrToken).not.toBe(second.localeQrToken);
+    expect(JSON.stringify(second.orders)).toBe(JSON.stringify(first.orders));
+    const after = JSON.parse(readFileSync(acceptanceDirectory + "/fixed-dataset.json", "utf8"));
+    expect(after.orderDigest).toBe(before.orderDigest);
+    expect(after.qrId).toBe(before.qrId);
+    expect(after.localeQrId).toBe(before.localeQrId);
+    const mismatched = await prisma.order.count({ where: { id: { in: second.orders.map(order => order.id) }, OR: [{ stallId: { not: main.id } }, { organizationId: { not: main.organizationId } }] } });
+    expect(mismatched).toBe(0);
+    writeFileSync(acceptanceDirectory + "/fixture-reuse.json", JSON.stringify({ source: readResponsiveBuildProvenance(), candidates, selected, count: second.orders.length, orderDigest: after.orderDigest, sameIdsOnRetry: true }, null, 2));
+  } finally { await prisma.$disconnect(); }
 });

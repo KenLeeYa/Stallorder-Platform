@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { PrismaClient } from "@prisma/client";
 import { assertResponsiveQaTarget } from "../../scripts/responsive-qa-target.mjs";
 import { createResponsiveOrderFixture } from "./responsive-order-fixture";
@@ -17,13 +17,18 @@ const orderKey = (index: number) => {
   return `${value.slice(0, 8)}-${value.slice(8, 12)}-4${value.slice(13, 16)}-8${value.slice(17, 20)}-${value.slice(20, 32)}`;
 };
 
+export const acceptanceQrWhere = (organizationId: string, stallId: string) => ({ organizationId, stallId, label: fixedDataset, state: "ACTIVE" as const });
+
 // Reuse without updating timestamps/status: B3.2 must measure the exact same data.
 // Never delete/reset an existing order or regenerate this fixture on a retry.
 export async function fixedAcceptanceFixture() {
   assertResponsiveQaTarget(process.env);
   const prisma = new PrismaClient();
   try {
-    let product = await prisma.product.findFirst({ where: { description: fixedDataset } });
+    const organization = await prisma.organization.findUniqueOrThrow({ where: { email: "owner@stallorder.test" } });
+    const mainStall = await prisma.stall.findUniqueOrThrow({ where: { slug: "aming-chicken" } });
+    if (mainStall.organizationId !== organization.id) throw new Error("B3_FIXED_STALL_IDENTITY_DRIFT");
+    let product = await prisma.product.findFirst({ where: { organizationId: organization.id, description: fixedDataset } });
     if (!product) {
       const created = await createResponsiveOrderFixture(prisma);
       product = await prisma.product.update({ where: { id: created.productId }, data: {
@@ -31,7 +36,14 @@ export async function fixedAcceptanceFixture() {
       } });
       await prisma.qrCode.update({ where: { token: created.qrToken }, data: { label: fixedDataset } });
     }
-    const qr = await prisma.qrCode.findFirstOrThrow({ where: { label: fixedDataset, state: "ACTIVE" } });
+    const qrs = await prisma.qrCode.findMany({ where: acceptanceQrWhere(organization.id, mainStall.id) });
+    if (qrs.length !== 1) throw new Error("B3_FIXED_QR_IDENTITY_AMBIGUOUS");
+    const qr = qrs[0];
+    const receiptPath = `${acceptanceDirectory}/fixed-dataset.json`;
+    if (existsSync(receiptPath)) {
+      const previous = JSON.parse(readFileSync(receiptPath, "utf8"));
+      if (previous.organizationId !== organization.id || previous.stallId !== mainStall.id || previous.qrId !== qr.id || previous.productId !== product.id) throw new Error("B3_FIXED_RECEIPT_IDENTITY_DRIFT");
+    }
     mkdirSync(acceptanceDirectory, { recursive: true });
     const localeSettings = await prisma.stallOrderingSettings.findUniqueOrThrow({ where: { stallId: qr.stallId }, select: { enabledLocales: true } });
     if (!existsSync(`${acceptanceDirectory}/locale-fixture-before.json`)) writeFileSync(`${acceptanceDirectory}/locale-fixture-before.json`, JSON.stringify({ stallId: qr.stallId, ...localeSettings }));
@@ -53,7 +65,10 @@ export async function fixedAcceptanceFixture() {
       orderingSettings: { create: { organizationId: qr.organizationId, enabledLocales: ["zh-TW", "en"] } },
       stallProducts: { create: { organizationId: qr.organizationId, productId: product.id, isEnabled: true, stockRemaining: null } },
     } });
-    let localeQr = await prisma.qrCode.findFirst({ where: { stallId: localeStall.id, label: fixedDataset } });
+    if (localeStall.organizationId !== organization.id) throw new Error("B3_LOCALE_STALL_IDENTITY_DRIFT");
+    const localeQrs = await prisma.qrCode.findMany({ where: acceptanceQrWhere(organization.id, localeStall.id) });
+    if (localeQrs.length > 1) throw new Error("B3_LOCALE_QR_IDENTITY_AMBIGUOUS");
+    let localeQr = localeQrs[0];
     if (!localeQr) localeQr = await prisma.qrCode.create({ data: { organizationId: qr.organizationId, stallId: localeStall.id, label: fixedDataset, token: generateResponsiveQrToken() } });
     let importProduct = await prisma.product.findFirst({ where: { organizationId: qr.organizationId, name: "B3 partial import fixture" } });
     if (!importProduct) importProduct = await prisma.product.create({ data: { organizationId: qr.organizationId, categoryId: category.id, name: "B3 partial import fixture", description: "", defaultPrice: 50, isActive: false } });
@@ -61,6 +76,7 @@ export async function fixedAcceptanceFixture() {
     if (await prisma.order.count({ where: { idempotencyKey: { in: keys } } }) < 120) {
       await prisma.stallProduct.updateMany({ where: { productId: product.id, stallId: qr.stallId }, data: { stockRemaining: null } });
     }
+    if (await prisma.order.count({ where: { idempotencyKey: { in: keys }, OR: [{ organizationId: { not: organization.id } }, { stallId: { not: mainStall.id } }] } })) throw new Error("B3_FIXED_ORDER_IDENTITY_DRIFT");
     const createdAt = (await prisma.order.findFirst({ where: { idempotencyKey: keys[0] } }))?.createdAt ?? new Date();
     for (let index = 0; index < 120; index += 1) {
       const key = keys[index];
