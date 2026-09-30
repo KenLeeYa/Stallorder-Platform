@@ -789,8 +789,22 @@ export function StaffOrderComposer({
           body: JSON.stringify(requestBody),
         });
       } catch (error) {
-        await createOfflineFallback(error);
-        return;
+        if (!navigator.onLine) {
+          await createOfflineFallback(error);
+          return;
+        }
+        try {
+          // The response may be lost after payment. The unchanged key returns
+          // the original order before the server performs another checkout.
+          response = await fetch(`/api/stalls/${stall.slug}/orders`, {
+            method: "POST",
+            headers: csrfHeaders(),
+            body: JSON.stringify(requestBody),
+          });
+        } catch (retryError) {
+          await createOfflineFallback(retryError);
+          return;
+        }
       }
       let payload: { order?: StaffOrderDto; code?: string };
       try {
