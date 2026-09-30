@@ -14,5 +14,9 @@ export default defineConfig({
     "**/responsive-*.spec.ts",
     "**/staff-orders-print-runtime-responsive.spec.ts",
     "**/kds-production-board.spec.ts",
+    "**/customer-order-functional-qa-local.spec.ts",
+    "**/catalog-operations-local.spec.ts",
+    "**/staff-kds-print-closure-flow.spec.ts",
+    "**/multi-stall.spec.ts",
   ],
 });

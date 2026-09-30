@@ -10,8 +10,9 @@ import { platformPayloadHash } from "./messaging";
 import { getLinePlatformRuntime,type LinePlatformRuntime } from "./runtime";
 import { ensurePickupMediaForOrder,managePlatformPickup,renderPickupMedia } from "./pickup-service";
 import { refreshPlatformFriendship } from "./friendship";
+import { assertResponsiveQaTarget } from "../../../scripts/responsive-qa-target.mjs";
 const url = process.env.LINE_PLATFORM_TEST_DATABASE_URL;
-if (url) { const db = new URL(url); if (!['localhost','127.0.0.1'].includes(db.hostname) || db.port!=='55722' || db.pathname!=='/stallorder_line_miniapp_20260926') throw new Error("NOTIFICATION_TEST_DATABASE_REJECTED"); }
+if (url) { const db = new URL(url); if (process.env.RESPONSIVE_QA_RUN === "true") { assertResponsiveQaTarget(process.env); if (url !== process.env.DATABASE_URL) throw new Error("NOTIFICATION_TEST_DATABASE_REJECTED"); } else if (!['localhost','127.0.0.1'].includes(db.hostname) || db.port!=='55722' || db.pathname!=='/stallorder_line_miniapp_20260926') throw new Error("NOTIFICATION_TEST_DATABASE_REJECTED"); }
 const org = "11111111-1111-4111-8111-111111111111";
 const profile = randomUUID(),stallA = randomUUID(),stallB = randomUUID(),subject = `U${randomUUID().replaceAll('-','')}`;
 const secret = "synthetic-notification-webhook-secret";

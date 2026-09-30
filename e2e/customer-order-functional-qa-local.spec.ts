@@ -2,6 +2,7 @@ import { randomInt, randomUUID } from "node:crypto";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { dismissStaffStartReminder, gotoLocalPath } from "./local-navigation";
+import { assertResponsiveQaTarget } from "../scripts/responsive-qa-target.mjs";
 
 const prisma = new PrismaClient();
 const stallId = "22222222-2222-4222-8222-222222222222";
@@ -22,7 +23,8 @@ function publicHeaders(ip = `198.18.${randomInt(0, 256)}.${randomInt(1, 255)}`) 
 }
 
 test.beforeAll(async ({ playwright }) => {
-  for (const [value, port] of [[process.env.DATABASE_URL, process.env.CI ? "54322" : "55722"], [process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.CI ? "54321" : "55721"]]) {
+  if (process.env.RESPONSIVE_QA_RUN === "true") assertResponsiveQaTarget(process.env);
+  else for (const [value, port] of [[process.env.DATABASE_URL, process.env.CI ? "54322" : "55722"], [process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.CI ? "54321" : "55721"]]) {
     const url = new URL(value ?? "");
     if (!["localhost", "127.0.0.1"].includes(url.hostname) || url.port !== port) throw new Error("DEDICATED_FUNCTIONAL_QA_LAB_REQUIRED");
   }

@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { expect, test, type Page, type Response } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { derivePublicOrderTokens } from "../supabase/functions/_shared/crypto";
+import { assertResponsiveQaTarget } from "../scripts/responsive-qa-target.mjs";
 import {
   dismissStaffStartReminder,
   gotoLocalPath,
@@ -1175,6 +1176,10 @@ function taipeiDate() {
 }
 
 function assertLocalDatabase() {
+  if (process.env.RESPONSIVE_QA_RUN === "true") {
+    assertResponsiveQaTarget(process.env);
+    return;
+  }
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("E2E 測試需要設定 DATABASE_URL。");
   const hostname = new URL(databaseUrl).hostname;

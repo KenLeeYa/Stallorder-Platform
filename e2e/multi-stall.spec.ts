@@ -8,22 +8,26 @@ import {
   gotoLocalPath,
   openSharedCatalogProductActions,
 } from "./local-navigation";
+import { assertResponsiveQaTarget } from "../scripts/responsive-qa-target.mjs";
 
 loadLocalEnv();
 assertLocalDatabase();
 
 const prisma = new PrismaClient();
+const responsiveMode = process.env.RESPONSIVE_QA_RUN === "true";
+const responsiveSuffix = responsiveMode ? `-${randomUUID().slice(0, 8)}` : "";
 const ownerEmail = "owner@stallorder.test";
 const staffEmail = "staff@stallorder.test";
 const kitchenEmail = "kitchen@stallorder.test";
-const financeEmail = "finance.e2e@stallorder.test";
+const financeEmail = `finance.e2e${responsiveSuffix}@stallorder.test`;
 const password = "StallOrderDemo!2026";
 const googleAuthUserId = "11111111-1111-4111-8111-111111111111";
-const secondStallSlug = "e2e-night-market-two";
-const authorizedOrganizationSlug = "e2e-authorized-organization-two";
-const authorizedOrganizationEmail = "authorized-two.e2e@stallorder.test";
-const authorizedStallSlug = "e2e-authorized-stall-two";
-const otherOrganizationSlug = "e2e-isolated-organization";
+const secondStallSlug = `e2e-night-market-two${responsiveSuffix}`;
+const authorizedOrganizationSlug = `e2e-authorized-organization-two${responsiveSuffix}`;
+const authorizedOrganizationEmail = `authorized-two.e2e${responsiveSuffix}@stallorder.test`;
+const authorizedStallSlug = `e2e-authorized-stall-two${responsiveSuffix}`;
+const otherOrganizationSlug = `e2e-isolated-organization${responsiveSuffix}`;
+const isolatedOrganizationEmail = `isolated.e2e${responsiveSuffix}@stallorder.test`;
 const sharedProductName = "香酥雞排";
 
 let organization: { id: string; businessName: string; operatingMode: string };
@@ -33,6 +37,8 @@ let authorizedOrganization: { id: string; businessName: string };
 let authorizedStall: { id: string; name: string; slug: string };
 let otherStall: { id: string; name: string; slug: string };
 let businessDate: Date;
+let originalOwnerIdentity: { authUserId: string | null; avatarUrl: string | null };
+let createdGoogleAuthUser = false;
 
 test.describe("多攤位商戶關鍵流程", () => {
   test.describe.configure({ mode: "serial" });
@@ -47,6 +53,7 @@ test.describe("多攤位商戶關鍵流程", () => {
       select: { id: true, name: true, slug: true },
     });
 
+    if (!responsiveMode) {
     await prisma.authSession.deleteMany({
       where: {
         profile: {
@@ -64,33 +71,39 @@ test.describe("多攤位商戶關鍵流程", () => {
     await prisma.publicRateLimitBucket.deleteMany({
       where: { organizationId: organization.id },
     });
-    await prisma.stall.deleteMany({ where: { slug: secondStallSlug } });
+    }
+    if (!responsiveMode) await prisma.stall.deleteMany({ where: { slug: secondStallSlug } });
     await prisma.organization.update({
       where: { id: organization.id },
       data: { operatingMode: "MULTI_STALL" },
     });
-    await deleteTestOrganizations({
+    if (!responsiveMode) await deleteTestOrganizations({
       where: {
         OR: [
           { slug: authorizedOrganizationSlug },
           { email: authorizedOrganizationEmail },
           { slug: otherOrganizationSlug },
-          { email: "isolated.e2e@stallorder.test" },
+          { email: isolatedOrganizationEmail },
         ],
       },
     });
-    await prisma.profile.deleteMany({ where: { email: financeEmail } });
+    if (!responsiveMode) await prisma.profile.deleteMany({ where: { email: financeEmail } });
 
     const owner = await prisma.profile.findUniqueOrThrow({
       where: { email: ownerEmail },
     });
     if (!owner.passwordHash) throw new Error("示範 owner 缺少密碼雜湊");
+    originalOwnerIdentity = { authUserId: owner.authUserId, avatarUrl: owner.avatarUrl };
+    if (responsiveMode) {
+      const existing = await prisma.$queryRaw<Array<{ count: bigint }>>`select count(*)::bigint as count from auth.users where email = ${ownerEmail} or id = ${googleAuthUserId}::uuid`;
+      if (owner.authUserId || existing[0].count !== BigInt(0)) throw new Error("RESPONSIVE_MULTI_STALL_AUTH_FIXTURE_ALREADY_IN_USE");
+    }
 
     await prisma.profile.update({
       where: { id: owner.id },
       data: { authUserId: null },
     });
-    await prisma.$executeRaw`delete from auth.users where email = ${ownerEmail}`;
+    if (!responsiveMode) await prisma.$executeRaw`delete from auth.users where email = ${ownerEmail}`;
     await prisma.$executeRaw`
       insert into auth.users (
         instance_id, id, aud, role, email, email_confirmed_at,
@@ -108,6 +121,7 @@ test.describe("多攤位商戶關鍵流程", () => {
         now()
       )
     `;
+    createdGoogleAuthUser = true;
     await prisma.profile.update({
       where: { id: owner.id },
       data: { authUserId: googleAuthUserId },
@@ -135,7 +149,7 @@ test.describe("多攤位商戶關鍵流程", () => {
         businessName: "E2E 隔離組織",
         slug: otherOrganizationSlug,
         status: "ACTIVE",
-        email: "isolated.e2e@stallorder.test",
+        email: isolatedOrganizationEmail,
         phone: "0900-000-099",
       },
     });
@@ -164,7 +178,7 @@ test.describe("多攤位商戶關鍵流程", () => {
       data: {
         organizationId: isolatedOrganization.id,
         name: "隔離測試攤位",
-        slug: "e2e-isolated-stall",
+        slug: `e2e-isolated-stall${responsiveSuffix}`,
         code: "E2E-ISO",
         address: "隔離測試地址",
         location: "隔離測試地址",
@@ -180,6 +194,7 @@ test.describe("多攤位商戶關鍵流程", () => {
         select: { id: true },
       });
       if (currentOrganization) {
+        if (!responsiveMode) {
         await prisma.publicOrderAttempt.deleteMany({
           where: { organizationId: currentOrganization.id },
         });
@@ -189,7 +204,8 @@ test.describe("多攤位商戶關鍵流程", () => {
         await prisma.publicRateLimitBucket.deleteMany({
           where: { organizationId: currentOrganization.id },
         });
-        if (businessDate) {
+        }
+        if (businessDate && !responsiveMode) {
           await prisma.dailyStallSummary.deleteMany({
             where: { organizationId: currentOrganization.id, businessDate },
           });
@@ -211,22 +227,22 @@ test.describe("多攤位商戶關鍵流程", () => {
             { slug: authorizedOrganizationSlug },
             { email: authorizedOrganizationEmail },
             { slug: otherOrganizationSlug },
-            { email: "isolated.e2e@stallorder.test" },
+            { email: isolatedOrganizationEmail },
           ],
         },
       });
       await prisma.profile.deleteMany({ where: { email: financeEmail } });
-      await prisma.authSession.deleteMany({
+      if (!responsiveMode) await prisma.authSession.deleteMany({
         where: {
           profile: { email: { in: [ownerEmail, staffEmail, kitchenEmail] } },
         },
       });
-      await prisma.profile.updateMany({
+      if (!responsiveMode || originalOwnerIdentity) await prisma.profile.updateMany({
         where: { email: ownerEmail },
-        data: { authUserId: null, avatarUrl: null },
+        data: responsiveMode ? originalOwnerIdentity : { authUserId: null, avatarUrl: null },
       });
-      await prisma.$executeRaw`delete from auth.users where id = ${googleAuthUserId}::uuid`;
-      await prisma.rateLimitBucket.deleteMany();
+      if (!responsiveMode || createdGoogleAuthUser) await prisma.$executeRaw`delete from auth.users where id = ${googleAuthUserId}::uuid`;
+      if (!responsiveMode) await prisma.rateLimitBucket.deleteMany();
     } finally {
       await prisma.$disconnect();
     }
@@ -932,7 +948,7 @@ test.describe("多攤位商戶關鍵流程", () => {
 });
 
 async function createAuthorizedSecondaryWorkspace() {
-  await deleteTestOrganizations({
+  if (!responsiveMode) await deleteTestOrganizations({
     where: {
       OR: [
         { slug: authorizedOrganizationSlug },
@@ -1218,6 +1234,10 @@ function taipeiToday() {
 }
 
 function assertLocalDatabase() {
+  if (process.env.RESPONSIVE_QA_RUN === "true") {
+    assertResponsiveQaTarget(process.env);
+    return;
+  }
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("E2E 必須設定 DATABASE_URL");
   const hostname = new URL(databaseUrl).hostname;

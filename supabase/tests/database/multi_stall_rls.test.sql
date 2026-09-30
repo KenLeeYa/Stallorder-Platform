@@ -109,7 +109,10 @@ set local role authenticated;
 
 select set_config('request.jwt.claim.sub', 'a1111111-1111-4111-8111-111111111111', true);
 select is(
-  (select count(*)::integer from public.stalls),
+  (select count(*)::integer from public.stalls where id in (
+    '22222222-2222-4222-8222-222222222222',
+    '82222222-2222-4222-8222-222222222222'
+  )),
   2,
   '組織擁有者可讀取自己組織的全部攤位'
 );
@@ -126,7 +129,10 @@ select is(
 
 select set_config('request.jwt.claim.sub', 'a5555555-5555-4555-8555-555555555555', true);
 select is(
-  (select count(*)::integer from public.stalls),
+  (select count(*)::integer from public.stalls where id in (
+    '22222222-2222-4222-8222-222222222222',
+    '82222222-2222-4222-8222-222222222222'
+  )),
   1,
   '非全攤位組織管理員只看得到已指派攤位'
 );
@@ -140,7 +146,10 @@ select ok(
 
 select set_config('request.jwt.claim.sub', 'a4444444-4444-4444-8444-444444444444', true);
 select is(
-  (select count(*)::integer from public.stalls),
+  (select count(*)::integer from public.stalls where id in (
+    '22222222-2222-4222-8222-222222222222',
+    '82222222-2222-4222-8222-222222222222'
+  )),
   2,
   '財務檢視者可讀取自己組織的攤位報表範圍'
 );

@@ -6,11 +6,15 @@ import { acceptPlatformMembership, bindPlatformOrderOwner, getPlatformMember, li
 import { encryptPlatformValue, hashPlatformSubject } from "./crypto";
 import { getLinePlatformRuntime } from "./runtime";
 import { claimGuestPlatformOrder, issueGuestClaimProof } from "./guest-claim";
+import { assertResponsiveQaTarget } from "../../../scripts/responsive-qa-target.mjs";
 
 const testUrl = process.env.LINE_PLATFORM_TEST_DATABASE_URL;
 if (testUrl) {
   const url = new URL(testUrl);
-  if (!["127.0.0.1","localhost"].includes(url.hostname) || url.port!=="55722" || url.pathname!=="/stallorder_line_miniapp_20260926") throw new Error("MEMBER_TEST_DATABASE_REJECTED");
+  if (process.env.RESPONSIVE_QA_RUN === "true") {
+    assertResponsiveQaTarget(process.env);
+    if (testUrl !== process.env.DATABASE_URL) throw new Error("MEMBER_TEST_DATABASE_REJECTED");
+  } else if (!["127.0.0.1","localhost"].includes(url.hostname) || url.port!=="55722" || url.pathname!=="/stallorder_line_miniapp_20260926") throw new Error("MEMBER_TEST_DATABASE_REJECTED");
 }
 const config = { environment: "local", providerId: "1234567", channelId: "1234568", liffId: "1234568-fixture", internalChannel: "developing", endpointUrl: "https://pickup.local.test/mini", oaDestination: `U${"a".repeat(32)}`, oaChannelId: "1234569", oaAccessTokenReference: randomUUID(), oaSecretReference: randomUUID(), termsVersion: "test-v1" };
 const org = "11111111-1111-4111-8111-111111111111";
@@ -31,7 +35,7 @@ describe.skipIf(!testUrl)("platform member real database authorization", () => {
     vi.stubEnv("LINE_PLATFORM_PICKUP_ENABLED","true");
     vi.stubEnv("LINE_PLATFORM_DATA_KEY",Buffer.alloc(32,47).toString("base64"));
     vi.stubEnv("LINE_PLATFORM_BINDING_JSON",JSON.stringify(config));
-    expect((await prisma.$queryRaw<Array<{db:string}>>`select current_database() as db`)[0].db).toBe("stallorder_line_miniapp_20260926");
+    expect((await prisma.$queryRaw<Array<{db:string}>>`select current_database() as db`)[0].db).toBe(process.env.RESPONSIVE_QA_RUN === "true" ? "postgres" : "stallorder_line_miniapp_20260926");
     for (const stallId of stalls) {
       await prisma.stall.create({ data:{id:stallId,organizationId:org,name:`平台會員測試 ${stallId.slice(0,6)}`,code:`v2-${stallId}`,slug:`v2-member-${stallId}`,address:"合成測試地址",location:"合成測試地點"} });
       await prisma.$executeRaw`insert into public.line_platform_stalls(stall_id,environment,enabled,cutover_at) values(${stallId}::uuid,'local',true,now()-interval '1 hour')`;

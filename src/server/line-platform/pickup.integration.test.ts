@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { encryptPlatformValue } from "./crypto";
 import { handlePickupStaffCommand } from "./pickup-http";
 import { GET as pickupCapability } from "@/app/api/line-platform/pickup/[stallSlug]/capability/route";
+import { assertResponsiveQaTarget } from "../../../scripts/responsive-qa-target.mjs";
 import {
   ensurePickupMediaForOrder, previewPlatformPickup, redeemPlatformPickup, renderPickupMedia,
   managePlatformPickup, getPlatformPickupManagement,
@@ -15,7 +16,10 @@ import {
 const testUrl = process.env.LINE_PLATFORM_TEST_DATABASE_URL;
 if (testUrl) {
   const url = new URL(testUrl);
-  if (!["localhost", "127.0.0.1"].includes(url.hostname) || url.port !== "55722"
+  if (process.env.RESPONSIVE_QA_RUN === "true") {
+    assertResponsiveQaTarget(process.env);
+    if (testUrl !== process.env.DATABASE_URL) throw new Error("PICKUP_TEST_DATABASE_REJECTED");
+  } else if (!["localhost", "127.0.0.1"].includes(url.hostname) || url.port !== "55722"
     || url.pathname !== "/stallorder_line_miniapp_20260926") throw new Error("PICKUP_TEST_DATABASE_REJECTED");
 }
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -50,7 +54,7 @@ describe.skipIf(!testUrl)("platform pickup real database lifecycle", () => {
       oaDestination: `U${"a".repeat(32)}`, oaChannelId: "1234569", oaAccessTokenReference: randomUUID(),
       oaSecretReference: randomUUID(), termsVersion: "test-v1" }));
     const db = await prisma.$queryRaw<Array<{ name: string }>>`select current_database() as name`;
-    expect(db[0].name).toBe("stallorder_line_miniapp_20260926");
+    expect(db[0].name).toBe(process.env.RESPONSIVE_QA_RUN === "true" ? "postgres" : "stallorder_line_miniapp_20260926");
     await prisma.profile.createMany({ data: [{ id: profileId, displayName: "Pickup synthetic customer" },
       { id: actorId, displayName: "Pickup synthetic staff" }] });
     const identity = await prisma.authIdentity.create({ data: { profileId, provider: "LINE", providerSubject: `pickup-test-${randomUUID()}` } });

@@ -5,9 +5,10 @@ import { LinePayV4SandboxClient } from "./line-pay-v4";
 import { platformPaymentRepository,paymentHash } from "./line-platform-payment-repository";
 import { createPlatformPaymentWorkflow } from "./line-platform-payment-workflow";
 import { createPlatformPaymentRecoveryWorker } from "./line-platform-payment-worker";
+import { assertResponsiveQaTarget } from "../../../scripts/responsive-qa-target.mjs";
 
 const testUrl=process.env.LINE_PLATFORM_TEST_DATABASE_URL;
-if(testUrl){const url=new URL(testUrl);if(!["localhost","127.0.0.1"].includes(url.hostname)||url.port!=="55722"||url.pathname!=="/stallorder_line_miniapp_20260926")throw new Error("PAYMENT_TEST_DATABASE_REJECTED");}
+if(testUrl){const url=new URL(testUrl);if(process.env.RESPONSIVE_QA_RUN==="true"){assertResponsiveQaTarget(process.env);if(testUrl!==process.env.DATABASE_URL)throw new Error("PAYMENT_TEST_DATABASE_REJECTED");}else if(!["localhost","127.0.0.1"].includes(url.hostname)||url.port!=="55722"||url.pathname!=="/stallorder_line_miniapp_20260926")throw new Error("PAYMENT_TEST_DATABASE_REJECTED");}
 const organizationId="11111111-1111-4111-8111-111111111111";
 const profileId=randomUUID();const stallId=randomUUID();const actorId=randomUUID();
 const runtime={environment:"local" as const,stateSecret:"synthetic-payment-data-key-32-characters-long",callbackOrigin:"https://payment.local.test"};
@@ -16,7 +17,7 @@ describe.skipIf(!testUrl)("LINE Pay isolated DB workflow with provider HTTP fixt
   beforeAll(async()=>{
     vi.stubEnv("DATABASE_URL",testUrl!);vi.stubEnv("NODE_ENV","test");
     vi.stubEnv("LINE_PAY_TEST_V1",JSON.stringify({channelId:"1234567",channelSecret:"synthetic-payment-secret",merchantReference:"fixture-merchant-a",version:"v1",environment:"SANDBOX"}));
-    const [db]=await prisma.$queryRaw<Array<{name:string}>>`select current_database() as name`;expect(db.name).toBe("stallorder_line_miniapp_20260926");
+    const [db]=await prisma.$queryRaw<Array<{name:string}>>`select current_database() as name`;expect(db.name).toBe(process.env.RESPONSIVE_QA_RUN==="true"?"postgres":"stallorder_line_miniapp_20260926");
     await prisma.profile.createMany({data:[{id:profileId,displayName:"Synthetic payment customer"},{id:actorId,displayName:"Synthetic payment operator"}]});
     const identity=await prisma.authIdentity.create({data:{profileId,provider:"LINE",providerSubject:`U${profileId.replaceAll("-","")}`}});
     await prisma.$executeRaw`insert into public.line_platform_members(profile_id,auth_identity_id,environment,provider_id,subject_hash,subject_ciphertext,terms_version,terms_accepted_at,terms_source)

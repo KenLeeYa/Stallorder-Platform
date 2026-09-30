@@ -8,6 +8,7 @@ import type {LinePlatformRuntime} from "./runtime";
 import {PATCH as patchOrder} from "@/app/api/stalls/[stallSlug]/orders/[orderId]/route";
 import {PATCH as patchItem} from "@/app/api/stalls/[stallSlug]/orders/[orderId]/items/[itemId]/route";
 import {PATCH as amendOrder} from "@/app/api/stalls/[stallSlug]/orders/[orderId]/content/route";
+import {assertResponsiveQaTarget} from "../../../scripts/responsive-qa-target.mjs";
 
 // Only the authenticated identity boundary is synthetic. CSRF, routes, core commands,
 // transaction fencing, database triggers, and resulting records are real.
@@ -15,7 +16,7 @@ const auth=vi.hoisted(()=>({authorize:vi.fn()}));
 vi.mock("@/lib/authorization",()=>({authorizeApiRequest:auth.authorize}));
 
 const url=process.env.LINE_PLATFORM_TEST_DATABASE_URL;
-if(url){const target=new URL(url);if(!["localhost","127.0.0.1"].includes(target.hostname)||target.port!=="55722"||target.pathname!=="/stallorder_line_miniapp_20260926")throw new Error("FULFILLMENT_TEST_DATABASE_REJECTED");}
+if(url){const target=new URL(url);if(process.env.RESPONSIVE_QA_RUN==="true"){assertResponsiveQaTarget(process.env);if(url!==process.env.DATABASE_URL)throw new Error("FULFILLMENT_TEST_DATABASE_REJECTED");}else if(!["localhost","127.0.0.1"].includes(target.hostname)||target.port!=="55722"||target.pathname!=="/stallorder_line_miniapp_20260926")throw new Error("FULFILLMENT_TEST_DATABASE_REJECTED");}
 const org="11111111-1111-4111-8111-111111111111",stall=randomUUID(),profile=randomUUID();
 const subject=`U${randomUUID().replaceAll("-","")}`;const digest=(value:string)=>createHash("sha256").update(value).digest("hex");
 const csrf=randomUUID(),base="https://fulfillment.local.test";
@@ -24,7 +25,7 @@ describe.skipIf(!url)("actual KDS commands atomically create platform READY even
   beforeAll(async()=>{
     vi.stubEnv("DATABASE_URL",url!);vi.stubEnv("NODE_ENV","test");vi.stubEnv("LINE_PLATFORM_DATA_KEY",Buffer.alloc(32,47).toString("base64"));vi.stubEnv("APP_BASE_URL",base);
     vi.stubGlobal("fetch",vi.fn(async()=>{throw new Error("PROVIDER_IO_FORBIDDEN");}));
-    const [db]=await prisma.$queryRaw<Array<{name:string}>>`select current_database() as name`;expect(db.name).toBe("stallorder_line_miniapp_20260926");
+    const [db]=await prisma.$queryRaw<Array<{name:string}>>`select current_database() as name`;expect(db.name).toBe(process.env.RESPONSIVE_QA_RUN==="true"?"postgres":"stallorder_line_miniapp_20260926");
     const sender=await prisma.$queryRaw`select id from public.notification_integrations where sender_scope='PLATFORM_OA' and environment='local' and provider_id=${runtime.providerId} and oa_destination=${runtime.oaDestination} and status='ACTIVE'`;
     expect(sender).toHaveLength(1); // Reuse the existing synthetic sender; never rotate its tokens.
     await prisma.profile.create({data:{id:profile,displayName:"Synthetic fulfillment operator/customer"}});

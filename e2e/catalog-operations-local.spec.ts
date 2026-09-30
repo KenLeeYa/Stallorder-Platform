@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { establishLocalTestSession, gotoLocalPath } from "./local-navigation";
+import { assertResponsiveQaTarget } from "../scripts/responsive-qa-target.mjs";
 
 const prisma = new PrismaClient();
 const organizationId = "11111111-1111-4111-8111-111111111111";
@@ -14,7 +15,8 @@ test.use({ serviceWorkers: "block" });
 test.describe.configure({ mode: "serial" });
 test.beforeAll(async () => {
   const db = new URL(process.env.DATABASE_URL ?? "");
-  if (!["127.0.0.1","localhost"].includes(db.hostname) || db.port !== (process.env.CI ? "54322" : "55722")) throw new Error("DEDICATED_CATALOG_LOCAL_LAB_REQUIRED");
+  if (process.env.RESPONSIVE_QA_RUN === "true") assertResponsiveQaTarget(process.env);
+  else if (!["127.0.0.1","localhost"].includes(db.hostname) || db.port !== (process.env.CI ? "54322" : "55722")) throw new Error("DEDICATED_CATALOG_LOCAL_LAB_REQUIRED");
   const flag = await prisma.resilienceFeatureFlag.findUniqueOrThrow({ where: { code: "DUAL_ORDER_INTAKE_ENABLED" }, select: { id: true } });
   circuitFlagOverrideId = (await prisma.resilienceFeatureFlagOverride.create({ data: {
     flagId: flag.id, scopeType: "GLOBAL", enabled: true,
@@ -22,8 +24,10 @@ test.beforeAll(async () => {
     expiresAt: new Date(Date.now() + 15 * 60_000),
   } })).id;
   // Reset this dedicated lab's request counters between reruns; production policies stay enabled.
-  await prisma.publicRateLimitBucket.deleteMany({});
-  await prisma.rateLimitBucket.deleteMany({});
+  if (process.env.RESPONSIVE_QA_RUN !== "true") {
+    await prisma.publicRateLimitBucket.deleteMany({});
+    await prisma.rateLimitBucket.deleteMany({});
+  }
   ownerId = (await prisma.profile.findUniqueOrThrow({ where: { email:"owner@stallorder.test" } })).id;
   originalHours = await prisma.stallBusinessHour.findMany({ where: { stallId } });
   await prisma.stallBusinessHour.updateMany({ where:{stallId}, data:{ opensAt:"00:00",closesAt:"23:59",lastOrderAt:null,isClosed:false } });
@@ -166,7 +170,12 @@ test("printed table QR survives enabling dine-in, main QR rotation and pause-clo
     await prisma.orderSession.deleteMany({where:{qrCodeId:qr.id}});
     await prisma.qrCode.delete({where:{id:qr.id}});
     await prisma.diningTable.delete({where:{id:table.id}});
-    await prisma.qrCode.deleteMany({where:{stallId,id:{notIn:previousQr.map((row)=>row.id)}}});
+    if (process.env.RESPONSIVE_QA_RUN === "true") {
+      const createdQr = await prisma.qrCode.findMany({where:{stallId,id:{notIn:previousQr.map((row)=>row.id)}},select:{id:true}});
+      await prisma.qrCode.deleteMany({where:{id:{in:createdQr.map((row)=>row.id)}}});
+    } else {
+      await prisma.qrCode.deleteMany({where:{stallId,id:{notIn:previousQr.map((row)=>row.id)}}});
+    }
     for(const row of previousQr)await prisma.qrCode.update({where:{id:row.id},data:{state:row.state}});
     await prisma.stall.update({where:{id:stallId},data:{orderingState:stall.orderingState,isSoldOut:stall.isSoldOut}});
     await prisma.stallOrderingSettings.update({where:{stallId},data:{dineInEnabled:settings.dineInEnabled}});
