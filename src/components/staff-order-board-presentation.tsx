@@ -706,13 +706,14 @@ function StaffTicketList(props: StaffTicketListProps) {
   }, []);
   useEffect(() => {
     if (!focusedOrderId || focusedOrder) return;
-    window.requestAnimationFrame(() => {
-      setFocusedOrderId(null);
+    const frame = window.requestAnimationFrame(() => {
+      setFocusedOrderId(current => current === focusedOrderId ? null : current);
       const fallback = Array.from(document.querySelectorAll<HTMLElement>(
         '#main-content [data-testid="staff-order-mobile-list"] article button, #main-content [data-testid="staff-queue-toggle"], #main-content [data-testid="staff-search-open"]',
       )).find((element) => element.getClientRects().length > 0);
       fallback?.focus();
     });
+    return () => window.cancelAnimationFrame(frame);
   }, [focusedOrderId, focusedOrder]);
 
   function focusOrder(orderId: string) {

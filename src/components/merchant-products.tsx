@@ -169,8 +169,8 @@ export function MerchantProducts({ stall, products, sourceStalls, sharedCatalogU
         <div data-testid="merchant-ordering-management">
           {orderUrl ? (
           <div data-testid="merchant-ordering-qr" className="mx-auto mt-5 w-full max-w-sm md:mx-0">
-            <div className="mx-auto max-w-sm rounded-lg border border-stone-200 bg-white p-4"><QRCodeSVG data-testid="merchant-ordering-qr-code" value={orderUrl} size={240} className="h-auto w-full" /></div>
-            <p className="mt-3 text-sm font-medium">{label("顧客點餐 QR Code · v")}{ordering.qrCode?.tokenVersion}</p>
+            <div className="mx-auto max-w-sm rounded-lg border border-stone-200 bg-white p-4"><QRCodeSVG aria-labelledby="merchant-ordering-qr-caption" data-testid="merchant-ordering-qr-code" value={orderUrl} size={240} className="h-auto w-full" /></div>
+            <p id="merchant-ordering-qr-caption" className="mt-3 text-sm font-medium">{label("顧客點餐 QR Code · v")}{ordering.qrCode?.tokenVersion}</p>
             <p className="mt-1 break-all text-xs text-stone-500">{orderUrl}</p>
             <div className="mt-3 grid grid-cols-3 gap-2">
               <Link aria-label={label("A4 印刷版")} href={`/merchant/stalls/${stall.id}/qr-print?target=stall&paper=A4`} className="inline-flex min-h-14 items-center justify-center gap-2 rounded-md border border-teal-300 bg-white px-3 text-sm font-semibold text-teal-900"><FileDown className="h-4 w-4 shrink-0" /><span className="text-center leading-tight"><span className="block">A4</span><span className="block">{label("印刷版")}</span></span></Link>

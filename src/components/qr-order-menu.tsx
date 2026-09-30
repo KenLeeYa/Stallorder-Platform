@@ -198,7 +198,7 @@ export function QrOrderMenu({
                           aria-labelledby={`qr-product-configuration-${product.id}`}
                           tabIndex={-1}
                           data-testid="qr-product-configuration"
-                          className="flex max-h-[100dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white text-stone-900 shadow-2xl outline-none sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl"
+                          className="flex max-h-[100dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white text-stone-900 shadow-2xl outline-none sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl [@media(max-height:30rem)]:block [@media(max-height:30rem)]:overflow-y-auto"
                         >
                           <header className="flex shrink-0 items-start justify-between gap-4 border-b border-stone-200 px-4 py-4 sm:px-6">
                             <div className="min-w-0">
@@ -215,7 +215,7 @@ export function QrOrderMenu({
                               <X className="h-5 w-5" />
                             </button>
                           </header>
-                          <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6">
+                          <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6 [@media(max-height:30rem)]:overflow-visible">
                             {draft.quantity > 0 && product.noteGroups.length > 0 ? (
                             <div className="space-y-6">
                               {product.noteGroups.map((group) => {
@@ -273,7 +273,7 @@ export function QrOrderMenu({
                             </div>
                             ) : null}
                           </div>
-                          <footer className="safe-area-bottom sticky bottom-0 shrink-0 border-t border-stone-200 bg-white px-4 py-3 shadow-[0_-8px_24px_rgba(0,0,0,0.08)] sm:px-6">
+                          <footer className="safe-area-bottom sticky bottom-0 shrink-0 border-t border-stone-200 bg-white px-4 py-3 shadow-[0_-8px_24px_rgba(0,0,0,0.08)] sm:px-6 [@media(max-height:30rem)]:static">
                             {!configurationComplete ? <div className="mb-3 text-sm font-medium text-amber-800"><p role="status">{copy.requiredNotes(localizedProduct(product).name)}</p><button type="button" className="mt-1 min-h-11 underline underline-offset-4" onClick={() => {
                               const group = configurationRef.current?.querySelector<HTMLElement>("[data-incomplete='true']");
                               group?.scrollIntoView({ block: "center" });

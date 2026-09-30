@@ -1,5 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
-import { gotoLocalPath } from "./local-navigation";
+import { dismissStaffStartReminder, gotoLocalPath } from "./local-navigation";
+import { acceptanceWidths, fixedAcceptanceFixture } from "./helpers/responsive-acceptance-fixture";
+import { readResponsiveBuildProvenance } from "../scripts/responsive-build-provenance.mjs";
+
+test.use({ actionTimeout: 15_000, serviceWorkers: "block", trace: "off", video: "off" });
+let fixture: Awaited<ReturnType<typeof fixedAcceptanceFixture>>;
+test.beforeAll(async () => { readResponsiveBuildProvenance(); fixture = await fixedAcceptanceFixture(); });
 
 const routes = [
   "/merchant/dashboard",
@@ -28,7 +34,6 @@ const routes = [
 
 const publicRoutes = [
   "/store/aming-01?view=menu",
-  "/q/demo-aming-chicken-qr-2026-rotate-me",
   "/store/aming-01?view=pickup",
   "/store/aming-01?view=delivery",
 ];
@@ -47,13 +52,8 @@ async function login(page: Page) {
 }
 
 test("核心營運頁面在手機、平板與桌面不產生全頁水平溢位", async ({ page }) => {
-  test.setTimeout(240_000);
-  const viewports = [
-    { name: "compact-mobile", width: 320, height: 568 },
-    { name: "mobile", width: 390, height: 844 },
-    { name: "tablet", width: 768, height: 1024 },
-    { name: "desktop", width: 1440, height: 900 },
-  ];
+  test.setTimeout(600_000);
+  const viewports = acceptanceWidths.map(width => ({ name: `${width}px`, width, height: 900 }));
 
   await page.setViewportSize(viewports[0]);
   await login(page);
@@ -115,7 +115,7 @@ for (const viewport of [
     test.setTimeout(120_000);
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
 
-    for (const route of publicRoutes) {
+    for (const route of [...publicRoutes, `/q/${fixture.qrToken}`]) {
       await gotoLocalPath(page, route, canonicalRoutePaths[route] ?? route);
       await expect(page.locator("body")).toBeVisible();
       await expect(page.locator("[data-nextjs-dialog]")).toHaveCount(0);
@@ -129,3 +129,68 @@ for (const viewport of [
     }
   });
 }
+
+test("missing selected order cannot close the next detail after a delayed animation frame", async ({ page }) => {
+  await page.addInitScript(() => {
+    const NativeEventSource = window.EventSource;
+    const sources: EventSource[] = [];
+    window.EventSource = class extends NativeEventSource { constructor(url: string | URL, options?: EventSourceInit) { super(url, options); sources.push(this); } };
+    (window as Window & { b3Sources?: EventSource[] }).b3Sources = sources;
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page);
+  await page.goto("/staff/aming-chicken");
+  await dismissStaffStartReminder(page);
+  const first = page.getByTestId("staff-order-mobile-list").getByRole("article").first();
+  const heading = await first.innerText();
+  await first.getByRole("button", { name: "查看明細", exact: true }).click();
+  await page.evaluate(() => {
+    const originalRequest = window.requestAnimationFrame.bind(window);
+    const originalCancel = window.cancelAnimationFrame.bind(window);
+    const held = new Map<number, FrameRequestCallback>();
+    let next = 1_000_000;
+    const state = window as Window & { b3Frames?: { count: () => number; release: () => void } };
+    // Fault injection: postpone the missing-record focus effect, preserving all other frames.
+    window.requestAnimationFrame = callback => {
+      if (String(callback).includes("staff-order-mobile-list")) { const id = next++; held.set(id, callback); return id; }
+      return originalRequest(callback);
+    };
+    window.cancelAnimationFrame = id => { held.delete(id); originalCancel(id); };
+    state.b3Frames = { count: () => held.size, release: () => { const callbacks = [...held.values()]; held.clear(); callbacks.forEach(callback => callback(performance.now())); } };
+  });
+  await page.route("**/api/stalls/aming-chicken/orders", async route => {
+    if (route.request().method() !== "GET") return route.continue();
+    const response = await route.fetch();
+    const body = await response.json();
+    await route.fulfill({ response, json: { ...body, orders: body.orders.filter((order: { orderNo: string }) => !heading.includes(order.orderNo)) } });
+  });
+  // Genuine stream invalidation triggers the normal authorized snapshot request.
+  await page.evaluate(() => (window as Window & { b3Sources?: EventSource[] }).b3Sources?.forEach(source => source.dispatchEvent(new MessageEvent("orders", { data: "{}" }))));
+  await expect(page.getByTestId("staff-order-mobile-detail")).toBeHidden({ timeout: 20_000 });
+  expect(await page.evaluate(() => (window as Window & { b3Frames?: { count: () => number } }).b3Frames?.count())).toBeGreaterThan(0);
+  const next = page.getByTestId("staff-order-mobile-list").getByRole("button", { name: "查看明細", exact: true }).first();
+  await next.click();
+  await expect(page.getByTestId("staff-order-mobile-detail")).toBeVisible();
+  await page.evaluate(() => (window as Window & { b3Frames?: { release: () => void } }).b3Frames?.release());
+  await expect(page.getByTestId("staff-order-mobile-detail")).toBeVisible();
+});
+
+test("stations redirect after kitchen layout retains usable validation without React fallback", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await login(page);
+  for (const width of [320, 390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/kitchen?stall=aming-chicken");
+    await page.getByTestId("kitchen-order-queue-button").filter({ hasText: "B3-001" }).click();
+  }
+  await page.goto("/kitchen/stations?stall=aming-chicken");
+  await expect(page).toHaveURL(new RegExp(`/merchant/stalls/${fixture.stallId}/kitchen/stations\\?source=kitchen$`));
+  await page.getByLabel("名稱", { exact: true }).first().fill("B3 無效代碼，不建立資料");
+  const code = page.getByLabel("代碼", { exact: true }).first();
+  await code.fill("中文代碼");
+  await page.getByRole("button", { name: "新增工作站", exact: true }).click();
+  await expect(code).toHaveAttribute("aria-invalid", "true");
+  await expect(code).toBeFocused();
+  expect(errors).toEqual([]);
+});
