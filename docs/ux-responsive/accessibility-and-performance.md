@@ -52,3 +52,13 @@ B3 必須在同一隔離 lab 建立固定 100+ 單、長名稱/備註資料，�
 - 手機／平板44×44 min，忙碌主動作48–56；父層clip／sticky遮擋／相鄰危險動作都需視覺檢查。
 - iOS/iPadOSSafari、AndroidChrome實機旋轉、鍵盤、safe-area；桌機Chrome/Edge；不存在裝置不可宣稱通過。
 - prefers-reduced-motion、少量aria-live、loading尺寸穩定、圖表文字摘要、繁中＋至少一個非中文。
+
+## B3.1 local accessibility acceptance
+
+B3.1 uses `e2e/responsive-accessibility.spec.ts` and the route matrix on the isolated production build at 3026. The matrix operates customer configuration, Staff detail, POS catalog, KDS selection, Merchant catalog selection, Admin record disclosure and the existing MINI capability-gated entry at eight widths, zh-TW/light and en/dark. It records uncovered targets, keyboard focus/trap/restore, reduced-motion preference and actual axe contrast data. This is not a WCAG certification or a physical-device claim. Exact commands, source/build identifiers, failed attempts and final results are in `.superpowers/sdd/2026-09-30-responsive-management-verification/task-3a-report.md`.
+
+Reproduced fixes are limited to cancellation of an obsolete missing-order focus frame, a 48px KDS completion action, a named Merchant QR SVG, a44px theme toggle, and a scrolling QR configuration dialog at short viewport heights. Native Chrome/Edge browser settings tests distinguish page zoom from default text size; screenshots and geometric readbacks are retained separately from viewport emulation. Windows Chrome native window rounding is recorded using its actual baseline rather than claiming an exact 1280px baseline; Edge covers the requested exact reflow geometry.
+
+The retained `responsive-b3-fixed-120-v1` dataset has 120 deterministic synthetic CONFIRMED orders with long names/notes; `b3-accessibility/fixed-dataset.json` records every order ID, creation time, hash, settings and flags. B3.2 must freeze and read this same dataset on both revisions, without reseeding, resetting, completing orders or changing flags between samples. The dedicated `b3-fixed-locale` menu and inactive CSV import product are separate UI fixtures; do not use their creation as a performance comparison.
+
+Physical iPhone/iPad Safari and Android Chrome, NVDA/VoiceOver, and five human task timings per role remain NOT_RUN. On the retained lab, operators must exercise portrait/landscape, keyboard opening, safe-area bottom actions and real touch; run screen-reader heading/control/error/status traversal and dialog return; record five real humans' elapsed task times per role with the same task/fixture. Automation durations are not those measurements. Paired performance and the full combined suite belong to B3.2/B3.3.

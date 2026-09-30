@@ -24,7 +24,8 @@ async function reachable(control: Locator, height = 44) {
     const style = getComputedStyle(element);
     return { width: rect.width, height: rect.height, left: rect.left, right: rect.right,
       clientWidth: document.documentElement.clientWidth, uncovered: hit === element || element.contains(hit),
-      color: style.color, background: style.backgroundColor, outline: style.outline, shadow: style.boxShadow };
+      color: style.color, background: style.backgroundColor, outline: style.outline, shadow: style.boxShadow,
+      top: rect.top, bottom: rect.bottom, viewportHeight: innerHeight, hitTag: hit?.tagName, hitClass: hit?.getAttribute("class") };
   });
   expect.soft(box.height, `target height ${JSON.stringify(box)}`).toBeGreaterThanOrEqual(height);
   expect.soft(box.width, "target width").toBeGreaterThanOrEqual(44);
@@ -38,6 +39,7 @@ for (const channel of ["chrome", "msedge"] as const) {
   for (const mode of ["zoom200", "zoom400", "text200"] as const) {
     test(`${channel} native ${mode} uses owned browser profile`, async () => {
       test.setTimeout(180_000);
+      const source = readResponsiveBuildProvenance();
       const profile = mkdtempSync(join(tmpdir(), "stallorder-b3-browser-"));
       mkdirSync(join(profile, "Default"));
       writeFileSync(join(profile, "Default", "Preferences"), JSON.stringify({ webkit: { webprefs: { default_font_size: mode === "text200" ? 32 : 16 } } }));
@@ -79,8 +81,16 @@ for (const channel of ["chrome", "msedge"] as const) {
         }
         await settings.screenshot({ path: `${acceptanceDirectory}/${channel}-${mode}-browser-setting.png` });
         await settings.close();
+        await page.bringToFront();
+        const capture = async (surface: string) => {
+          const mask = surface === "merchant" ? await page.addStyleTag({ content: '[data-testid="merchant-ordering-qr"] { visibility: hidden !important; }' }) : null;
+          try {
+            const shot = await cdp.send("Page.captureScreenshot", { format: "png", fromSurface: true, captureBeyondViewport: false });
+            writeFileSync(`${acceptanceDirectory}/${channel}-${mode}-${surface}.png`, Buffer.from(shot.data, "base64"));
+          } finally { await mask?.evaluate(element => element.remove()); }
+        };
         const receipts: unknown[] = [];
-        const saveReceipt = (status: string) => writeFileSync(`${acceptanceDirectory}/${channel}-${mode}.json`, JSON.stringify({ source: readResponsiveBuildProvenance(), status, channel, version: browser.browser()?.version(), mode, method: "Native browser settings UI; no viewport, deviceScaleFactor or page-scale override. Text size uses owned profile default_font_size.", baseline, settingReadback, receipts }, null, 2));
+        const saveReceipt = (status: string) => writeFileSync(`${acceptanceDirectory}/${channel}-${mode}.json`, JSON.stringify({ source, status, channel, version: browser.browser()?.version(), mode, method: "Native browser settings UI; no viewport, deviceScaleFactor or page-scale override. Text size uses owned profile default_font_size. Full-frame CDP capture; Merchant QR block masked.", baseline, settingReadback, receipts }, null, 2));
         saveReceipt("STARTED");
         for (const surface of ["customer", "staff", "pos", "kds", "merchant", "admin"] as const) {
           if (surface !== "customer") await loginLocalTestAccount(page,
@@ -97,7 +107,12 @@ for (const channel of ["chrome", "msedge"] as const) {
             await dismissStaffStartReminder(page);
             if (surface === "pos") {
               await page.getByRole("button", { name: "店員點餐", exact: true }).click();
-              target = page.getByRole("dialog", { name: "店員點餐", exact: true }).getByTestId("staff-open-product-configurator").first();
+              target = page.getByTestId("staff-product-card").filter({ hasText: longProductName }).getByTestId("staff-open-product-configurator");
+              await target.scrollIntoViewIfNeeded();
+              await capture("pos-catalog");
+              await target.click();
+              await page.getByTestId("staff-product-configurator").getByRole("radio").first().check();
+              target = page.getByTestId("staff-product-configurator").getByRole("button", { name: "加入購物車", exact: true });
             } else {
               target = page.getByTestId("staff-search-open");
               await target.click();
@@ -123,7 +138,7 @@ for (const channel of ["chrome", "msedge"] as const) {
           expect.soft(readback.rootFont).toBe(mode === "text200" ? "32px" : "16px");
           expect.soft(readback.scrollWidth).toBeLessThanOrEqual(readback.clientWidth + 1);
           receipts.push({ surface, readback, targetBounds });
-          await page.screenshot({ path: `${acceptanceDirectory}/${channel}-${mode}-${surface}.png`, mask: surface === "merchant" ? [page.getByTestId("merchant-ordering-qr")] : [] });
+          await capture(surface);
         }
         saveReceipt(test.info().errors.length ? "FAIL" : "PASS");
       } finally { await browser.close(); }
@@ -161,18 +176,23 @@ for (const surface of ["customer", "staff", "pos", "kds", "merchant", "admin", "
       await page.setViewportSize({ width: 320, height: 900 });
       await page.goto(route);
       if (surface === "customer" && appearance.locale === "en") {
-        await page.locator("[data-current-locale]").click();
-        await page.getByRole("option", { name: "English", exact: true }).click();
-        await expect(page.locator("[data-current-locale]")).toHaveAttribute("data-current-locale", "en");
+        const selector = page.locator("[data-current-locale]");
+        await expect(selector).toHaveCount(1);
+        await expect(selector).toHaveAttribute("data-current-locale", "en");
       }
       if (surface === "customer") {
         const search = page.getByRole("searchbox");
         await search.fill("b3-no-matching-product-000");
         await expect(page.getByRole("article")).toHaveCount(0);
-        await expect(page.getByRole("status").filter({ hasText: /找不到|No products|No matching/i }).first()).toBeVisible();
+        await expect(page.getByRole("status").filter({ hasText: /找不到|No products|No food|No matching/i }).first()).toBeVisible();
         await search.clear();
       }
       if (["staff", "pos"].includes(surface)) await dismissStaffStartReminder(page);
+      if (surface === "staff") {
+        await page.getByTestId("staff-search-open").click();
+        await page.getByRole("dialog").getByRole("searchbox").fill("B3-001");
+        await page.keyboard.press("Escape");
+      }
       const receipt: unknown[] = [];
       for (const width of acceptanceWidths) {
         await page.setViewportSize({ width, height: 900 });
@@ -235,11 +255,13 @@ for (const surface of ["customer", "staff", "pos", "kds", "merchant", "admin", "
         }
         const targetBounds = target ? await reachable(target, ["customer", "staff", "kds"].includes(surface) ? 48 : 44) : null;
         const focus = dialog ? await keyboardDialog(page, dialog) : null;
-        const layout = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth, theme: document.documentElement.dataset.theme, locale: document.documentElement.lang, reduced: matchMedia("(prefers-reduced-motion: reduce)").matches }));
+        const layout = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth, theme: document.documentElement.dataset.theme, locale: document.documentElement.lang, reduced: matchMedia("(prefers-reduced-motion: reduce)").matches, transition: getComputedStyle(document.body).transitionDuration, animation: getComputedStyle(document.body).animationDuration }));
         expect.soft(layout.scrollWidth).toBeLessThanOrEqual(layout.width + 1);
         expect.soft(layout.theme).toBe(appearance.theme);
         expect.soft(layout.locale).toBe(appearance.locale);
         expect.soft(layout.reduced).toBe(true);
+        expect.soft(parseFloat(layout.transition)).toBeLessThanOrEqual(0.00001);
+        expect.soft(parseFloat(layout.animation)).toBeLessThanOrEqual(0.00001);
         const scan = (width === 320 || width === 1440) ? await new AxeBuilder({ page }).analyze() : null;
         const violations = scan?.violations.filter(violation => ["critical", "serious"].includes(violation.impact ?? "")) ?? [];
         expect.soft(violations.map(v => ({ id: v.id, impact: v.impact, nodes: v.nodes.map(n => n.target) })), "axe critical/serious").toEqual([]);
@@ -265,6 +287,7 @@ test("phone partial CSV success preserves row errors and reachable apply", async
   await page.goto(`/merchant/catalog?organizationId=${fixture.organizationId}`);
   const row = (id: string, price: string) => [id, "responsive-b3-fixed-120-v1", "", "B3 partial import fixture", "", price, "", "0", "false", "", ...Array(10).fill(""), "true", "true"].join(",");
   const csv = `${catalogCsvHeaders.join(",")}\n${row(fixture.importProductId, "50")}\n${row("", "=100")}`;
+  await expect(page.getByLabel("匯入 CSV")).toHaveCount(1);
   await page.getByLabel("匯入 CSV").setInputFiles({ name: "b3-partial.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
   const dialog = page.getByRole("dialog", { name: "CSV 匯入預覽" });
   await expect(dialog.getByRole("list", { name: "錯誤資料" })).toContainText("CSV 第 3 列");

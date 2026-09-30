@@ -92,3 +92,7 @@ A6.1 的 reciprocal404 已定位為 responsive Playwright 靜態 import 順序�
 仍非 Preview/Staging/Production 發布證據；紙本/錢櫃、真 LINE/Pay/OAuth、真手機裝置及整體跨任務QA由後續核驗，`LOCAL_VERIFIED` 整體維持否。
 
 A6.2 收斂結果：指定六檔 distinct aggregate **42 PASS**（catalog7、functional7、multi-stall5、roundtrip2、recovery15、KDS/print6），另獨立422 fixture1 PASS。這是保留未受影響18例＋修正後22例＋新增品項修改2例的分輪證據，非單次42例同HEAD全跑；原39例的4FAIL/4NOT_RUN保留於報告。外帶QR_MENU與外送LINE_DELIVERY確認前改品項，真手機修改200／顧客調整通知190→80／庫存釋回／只確認新項目均通過；外送原單為授權DB fixture，不代表LINE供應商建單驗證。完整候選整批驗證仍由B3負責。
+
+## B3.1 current accessibility acceptance
+
+The isolated acceptance suite adds eight-width actions across the six core roles plus the existing MINI entry, native Chrome/Edge zoom and text-size readbacks, bilingual long content, fixed 120-order data, empty search and partial CSV import states. Target/focus/axe checks are scoped to the actual operated state; historical failures remain in the B3.1 report and artifacts. The A4 missing-order/new-detail race has a targeted delayed-frame regression; A5 layout-to-stations navigation is diagnosed separately without filtering React errors. Exact source/build and verdicts: `.superpowers/sdd/2026-09-30-responsive-management-verification/task-3a-report.md`. Physical devices, real assistive technology, human timing, paired performance and final combined QA remain distinct open gates; no release claim follows.
