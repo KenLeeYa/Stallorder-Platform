@@ -81,6 +81,7 @@ export default async function AdminPlanVersionsPage() {
         ))}
       </div>
       <div data-testid="admin-plan-versions-desktop-table" className="mt-6 hidden overflow-x-auto border-y border-stone-200 2xl:block">
+        <h2 className="px-3 py-3 text-sm font-semibold">{m("Full comparison table")}</h2>
         <table className="w-full min-w-[1740px] text-left text-sm">
           <thead className="bg-stone-50"><tr><th className="px-3 py-3">{m("Plan")}</th><th className="px-3 py-3">{m("Plan version")}</th><th className="px-3 py-3">{m("Interval")}</th><th className="px-3 py-3">{m("Pricing mode")}</th><th className="px-3 py-3 text-right">{m("Monthly fee")}</th><th className="px-3 py-3 text-right">{m("Annual fee")}</th><th className="px-3 py-3 text-right">{m("Usage unit price")}</th><th className="px-3 py-3 text-right">{m("Per-stall monthly cap")}</th><th className="px-3 py-3 text-right">{m("Order allowance")}</th><th className="px-3 py-3 text-right">{m("Stalls")}</th><th className="px-3 py-3">{m("Contract status")}</th><th className="px-3 py-3">{m("Billing timezone")}</th><th className="px-3 py-3">{m("Tax treatment")}</th><th className="px-3 py-3">{m("Contract hash")}</th><th className="px-3 py-3">{m("Effective from")}</th><th className="px-3 py-3 text-right">{m("Subscriptions")}</th></tr></thead>
           <tbody className="divide-y divide-stone-200">

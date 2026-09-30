@@ -104,6 +104,45 @@ test.beforeEach(async ({ page }, testInfo) => {
   await loginLocalTestAccount(page, email, password);
 });
 
+test("full comparison tables stay labeled and locally scrollable at 2xl", async ({ page }) => {
+  await page.setViewportSize({ width: 1536, height: 900 });
+  await gotoLocalPath(page, "/admin/merchant-applications?status=PENDING_REVIEW");
+  const applicationCard = page.getByTestId("merchant-application-record").filter({ hasText: applicationNumber });
+  await expect(applicationCard).toBeVisible();
+  const review = applicationCard.getByRole("link", { name: "審核" });
+  await expect(review).toBeVisible();
+  const actionBounds = await review.boundingBox();
+  const mainBounds = await page.locator("main").boundingBox();
+  expect(actionBounds!.x + actionBounds!.width).toBeLessThanOrEqual(mainBounds!.x + mainBounds!.width + 1);
+  const applicationTable = page.getByTestId("merchant-applications-desktop-table");
+  await expect(applicationTable.getByRole("heading", { name: "完整比較表" })).toBeVisible();
+  await expect(applicationTable.locator("table")).toBeVisible();
+  const applicationScroll = await applicationTable.evaluate((element) => {
+    const max = element.scrollWidth - element.clientWidth;
+    element.scrollLeft = max;
+    return { max, actual: element.scrollLeft };
+  });
+  expect(applicationScroll.max).toBeGreaterThan(0);
+  expect(applicationScroll.actual).toBeGreaterThan(0);
+  await review.click();
+  await expect(page).toHaveURL(new RegExp(`/admin/merchant-applications/${applicationId}$`));
+  await page.getByRole("button", { name: "返回申請列表" }).click();
+  await expect(page).toHaveURL(/status=PENDING_REVIEW/);
+
+  await gotoLocalPath(page, "/admin/plan-versions");
+  await expect(page.getByTestId("admin-plan-version-record").first()).toBeVisible();
+  const planTable = page.getByTestId("admin-plan-versions-desktop-table");
+  await expect(planTable.getByRole("heading", { name: "完整比較表" })).toBeVisible();
+  await expect(planTable.locator("table")).toBeVisible();
+  const planScroll = await planTable.evaluate((element) => {
+    const max = element.scrollWidth - element.clientWidth;
+    element.scrollLeft = max;
+    return { max, actual: element.scrollLeft };
+  });
+  expect(planScroll.max).toBeGreaterThan(0);
+  expect(planScroll.actual).toBeGreaterThan(0);
+});
+
 test("application review action stays visible at tablet width", async ({ page }) => {
   await gotoLocalPath(page, "/admin/merchant-applications?status=PENDING_REVIEW");
   await expect(page.getByRole("heading", { name: "商家申請審核" })).toBeVisible();
