@@ -1,0 +1,83 @@
+{
+  "revision": "2f8de0b7ac5a03c3235125a1848f8d35efe6a71d",
+  "startedAt": "2026-09-30T01:14:04.828Z",
+  "finishedAt": "2026-09-30T01:14:25.673Z",
+  "runId": "c4600ee8-8873-4c93-ab39-bdde94c20433",
+  "edgeSessionStatuses": [
+    201
+  ],
+  "edgeOrderStatus": 201,
+  "orderId": "c66ceac6-3a1f-4364-944e-c290e03da6f5",
+  "orderNo": "260930-010",
+  "total": 130,
+  "quantity": 2,
+  "observed": [
+    {
+      "step": "customer checkout",
+      "status": "WAITING_CONFIRMATION",
+      "at": "2026-09-30T01:14:07.122Z"
+    },
+    {
+      "step": "staff confirmed",
+      "status": "CONFIRMED",
+      "at": "2026-09-30T01:14:18.489Z"
+    },
+    {
+      "step": "KDS started",
+      "status": "PREPARING",
+      "at": "2026-09-30T01:14:19.782Z"
+    },
+    {
+      "step": "KDS ready",
+      "status": "READY",
+      "at": "2026-09-30T01:14:20.048Z"
+    },
+    {
+      "step": "desktop staff handoff",
+      "status": "COMPLETED",
+      "at": "2026-09-30T01:14:24.236Z"
+    }
+  ],
+  "events": [
+    {
+      "type": "PUBLIC_ORDER_CREATED",
+      "at": "2026-09-30T01:14:06.934Z"
+    },
+    {
+      "type": "PRODUCTION_TASK_CREATED",
+      "at": "2026-09-30T01:14:18.420Z"
+    },
+    {
+      "type": "STAFF_STATUS_CHANGED",
+      "at": "2026-09-30T01:14:18.449Z"
+    },
+    {
+      "type": "PRODUCTION_TASK_UPDATED",
+      "at": "2026-09-30T01:14:19.696Z"
+    },
+    {
+      "type": "PRODUCTION_TASK_UPDATED",
+      "at": "2026-09-30T01:14:19.764Z"
+    },
+    {
+      "type": "PRODUCTION_TASK_UPDATED",
+      "at": "2026-09-30T01:14:19.942Z"
+    },
+    {
+      "type": "PRODUCTION_TASK_UPDATED",
+      "at": "2026-09-30T01:14:20.023Z"
+    },
+    {
+      "type": "QR_PAYMENT_COMPLETED_PENDING_FULFILLMENT",
+      "at": "2026-09-30T01:14:23.965Z"
+    },
+    {
+      "type": "PICKUP_CODE_VERIFIED",
+      "at": "2026-09-30T01:14:24.097Z"
+    },
+    {
+      "type": "ORDER_COMPLETED_AFTER_PREPAYMENT",
+      "at": "2026-09-30T01:14:24.166Z"
+    }
+  ]
+}

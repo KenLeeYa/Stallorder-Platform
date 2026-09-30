@@ -1,6 +1,6 @@
 # 驗收矩陣與證據狀態
 
-本輪未改產品程式。以下「已存在」是找到測試原始碼，**不等於本次執行通過**。設計已核准；[實作與測試計畫](../superpowers/plans/2026-09-30-responsive-cross-device.md)已完成自審，待計畫審閱與執行方式選擇。
+本輪 A1 未改產品程式。下列早期「已存在」只表示找到測試原始碼；新增 A1 實測收據見本頁末段。設計與[實作測試計畫](../superpowers/plans/2026-09-30-responsive-cross-device.md)已核准。
 
 ## 本輪已做
 
@@ -17,7 +17,7 @@
 
 | ID／優先 | 案例 | 既有可復用入口 | 本次狀態 |
 |---|---|---|---|
-| RSP-Q01 P1 | 顧客390下單→Staff1024接單→KDS→顧客追蹤→desktop同單；同鍵重送唯一 | `e2e/customer-order-functional-qa-local.spec.ts`、`e2e/catalog-operations-local.spec.ts`、`e2e/kds-production-board.spec.ts` | NOT_RUN；須補完整四端閉環 |
+| RSP-Q01 P1 | 顧客390下單→Staff1024接單→KDS→顧客追蹤→desktop同單；同鍵重送唯一 | `e2e/customer-order-functional-qa-local.spec.ts`、`e2e/catalog-operations-local.spec.ts`、`e2e/kds-production-board.spec.ts` | A1 既有功能單筆同單閉環 LOCAL_BASELINE_PASS；同鍵重送唯一尚未在 A1 測，留後續回歸 |
 | RSP-Q02 P1 | 8寬度、直橫、200%zoom、長字與非中文；主要CTA無橫滑/遮擋 | `e2e/staff-orders-print-runtime-responsive.spec.ts`、`e2e/line-platform-v2.spec.ts` | 部分before；候選NOT_RUN |
 | RSP-Q03 P1 | POS／商品／QR dialog Tab trap、Escape、focus restore、巢狀、dirty close | QR lifecycle單測；新增POS/商品keyboard regression | POS before已觀察缺陷，修正NOT_RUN |
 | RSP-Q04 P1 | KDS慢舊回應／重複invalidation／切店／卸載／offline重連；snapshot與stream ready之間更新仍讀到最新 | `src/lib/use-live-resource.test.ts`、`src/components/staff-order-board-live.test.ts` | KDS新增失敗例NOT_RUN |
@@ -48,3 +48,9 @@ LINE runner `node scripts/run-line-platform-qa.mjs unit|database|browser` 的dat
 | STAGING_VERIFIED | 否；未部署 |
 | PRODUCTION_APPROVED | 否；本輪未請求發布 |
 | PRODUCTION_OBSERVED（新版功能） | 否；僅既有正式站唯讀基線 |
+
+## 2026-09-30 A1 候選真實本機閉環
+
+- 原始來源 `2f8de0b7ac5a03c3235125a1848f8d35efe6a71d`，獨立 app3026／Supabase API56821／DB56822，Next production build；`PLAYWRIGHT_PRODUCTION_SERVER=true npx playwright test -c playwright.responsive.config.ts e2e/responsive-order-roundtrip.spec.ts --reporter=list`：1 passed。瀏覽器實際 Edge Circuit A 建 session 201、送單 201；顧客 UI 客製兩份共 130 → Staff 接單 → KDS 製作、READY → 桌機 Staff 現金收款 → 顧客 UI 3 位取餐碼於 Staff UI 核驗 → 同一 orderId `COMPLETED`，顧客追蹤同步完成。無 `page.route().fulfill()`；fixture 只在本 lab 建立。
+- 固定 Circuit A 收據、四端 before 截圖與完成追蹤：`artifacts/ux-responsive-20260930/a1-baseline/`；較早的真實 Circuit B 備援同單收據另存 `same-order-receipt-circuit-b.json`。收據記錄 orderId、事件、時間、數量及金額；個別 UI/DB 驗證範圍是本機合成資料，非實機、Staging 或 Production。Production 唯讀可用性收據另在同層 `production-execution-baseline.json`，不等同交易驗證。
+- A1 尚未覆蓋同鍵重送、100+單、各種 viewport/zoom、撤權、故障注入、LINE provider、紙本/錢櫃及真實裝置。這些案例保持 NOT_RUN，依 A2–B3 任務驗收；不可把 A1 的單筆閉環擴大稱為新版功能完成。
