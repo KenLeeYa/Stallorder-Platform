@@ -218,6 +218,7 @@ test("direct admin URL and sensitive action reject lower roles", async ({ page }
   expect(identity.status).toBe(200);
   expect(identity.body.user?.email).toBe("owner@stallorder.test");
   const applicationBefore = await prisma.merchantApplication.findUniqueOrThrow({ where: { id: applicationId }, select: { status: true, riskLevel: true, reviewedAt: true } });
+  const businessAuditBefore = await prisma.auditLog.count({ where: { entityType: "MERCHANT_APPLICATION", entityId: applicationId, outcome: "SUCCESS" } });
   const denied = await page.evaluate(async (applicationId) => {
     const response = await fetch(`/api/admin/merchant-applications/${applicationId}`, {
       method: "PATCH", credentials: "include", headers: { "content-type": "application/json" },
@@ -228,6 +229,7 @@ test("direct admin URL and sensitive action reject lower roles", async ({ page }
   expect(denied.status).toBe(404);
   expect(denied.requestId).toBeTruthy();
   expect(await prisma.merchantApplication.findUniqueOrThrow({ where: { id: applicationId }, select: { status: true, riskLevel: true, reviewedAt: true } })).toEqual(applicationBefore);
+  expect(await prisma.auditLog.count({ where: { entityType: "MERCHANT_APPLICATION", entityId: applicationId, outcome: "SUCCESS" } })).toBe(businessAuditBefore);
   expect(await prisma.auditLog.count({ where: { requestId: denied.requestId!, action: "AUTHORIZATION_DENIED", outcome: "DENIED" } })).toBe(1);
   for (const path of ["/admin/merchant-applications", "/admin/plan-versions", "/admin/e-invoice"]) {
     const response = await page.evaluate(async (path) => (await fetch(path, { credentials: "include", cache: "no-store" })).status, path);
