@@ -33,6 +33,7 @@ export type QrOrderCheckoutTransport = (
   ok: boolean;
   status: number;
   payload: Record<string, unknown>;
+  retryAfterMs?: number;
 }>;
 
 type QrOrderCheckoutInput = {
@@ -146,10 +147,15 @@ const defaultRequestOrder: QrOrderCheckoutTransport = async (body, operationId) 
       { operationId, timeoutMs: 10_000 },
     );
   }
+  const retryAfter = response.headers.get("retry-after");
+  const retryAfterMs = retryAfter === null ? 0 : Number.isFinite(Number(retryAfter))
+    ? Math.max(0, Number(retryAfter) * 1_000)
+    : Math.max(0, Date.parse(retryAfter) - Date.now());
   return {
     ok: response.ok,
     status: response.status,
     payload: await parseEdgeResponse(response),
+    retryAfterMs: Number.isFinite(retryAfterMs) ? retryAfterMs : 0,
   };
 };
 
@@ -161,6 +167,11 @@ export async function submitQrOrderCheckout(input: QrOrderCheckoutInput) {
     const response = await requestOrder(input.body, input.operationId);
     if (!response.ok) {
       const code = String(response.payload.code ?? "");
+      if (response.status === 429 && response.retryAfterMs && response.retryAfterMs > 0) {
+        input.onMessage(input.localizeError(code));
+        await new Promise((resolve) => setTimeout(resolve, response.retryAfterMs));
+        return;
+      }
       if (code === "WAIT_ACKNOWLEDGMENT_REQUIRED") {
         const capacity = response.payload.capacity
           && typeof response.payload.capacity === "object"
