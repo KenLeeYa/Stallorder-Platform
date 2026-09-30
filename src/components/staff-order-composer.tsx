@@ -817,7 +817,7 @@ export function StaffOrderComposer({
       }
       let payload: { order?: StaffOrderDto; code?: string };
       try {
-        payload = await response.json() as { order?: StaffOrderDto; code?: string };
+        payload = (await response.json() ?? {}) as { order?: StaffOrderDto; code?: string };
       } catch {
         if (recoveringUnknown || response.ok || isTemporaryOrderFailure(response.status)) {
           setUncertainRequest(originalRequest);

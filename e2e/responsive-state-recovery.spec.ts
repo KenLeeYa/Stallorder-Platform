@@ -131,7 +131,7 @@ test("RSP-Q05: real session revocation 401 and shared-device finance identity 40
   }
 });
 
-for (const lostResponses of [1, 2, "recovery-500", "first-corrupt", "first-offline", "first-body-read", "first-503"] as const) test(`RSP-Q03: ${lostResponses} accepted cash response losses resume original order before synthetic print retry`, async ({ page }, testInfo) => {
+for (const lostResponses of [1, 2, "recovery-500", "first-corrupt", "first-offline", "first-body-read", "first-503", "first-null"] as const) test(`RSP-Q03: ${lostResponses} accepted cash response losses resume original order before synthetic print retry`, async ({ page }, testInfo) => {
   test.setTimeout(90_000);
   const prisma = new PrismaClient();
   let orderId = "";
@@ -178,6 +178,7 @@ for (const lostResponses of [1, 2, "recovery-500", "first-corrupt", "first-offli
         expect(payment.status).toBe("PAID");
         if (lostResponses === "first-corrupt") return route.fulfill({ status: 201, contentType: "application/json", body: '{"order":' });
         if (lostResponses === "first-body-read") return route.fulfill({ response });
+        if (lostResponses === "first-null") return route.fulfill({ status: 201, contentType: "application/json", body: "null" });
         if (lostResponses === "first-503") return route.fulfill({ status: 503, contentType: "text/html", body: "<html>Gateway response unavailable</html>" });
         if (lostResponses === "first-offline") await page.context().setOffline(true);
         await route.abort("connectionfailed");
