@@ -76,7 +76,11 @@ type CancellationErrors = {
 
 class KitchenBoardAuthorizationError extends Error {}
 
-export function KitchenBoard({ stall, canManage, workModeDestinations, initialData, role }: Props) {
+export function KitchenBoard(props: Props) {
+  return <KitchenBoardSession key={`${props.stall.organizationId}:${props.stall.id}:${props.stall.slug}:${props.role}`} {...props} />;
+}
+
+function KitchenBoardSession({ stall, canManage, workModeDestinations, initialData, role }: Props) {
   const { locale, t } = useOperationsLocale();
   const knownOrderIdsRef = useRef(new Set(initialData.alertOrderIds));
   const alertsEnabledRef = useRef(false);
