@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useId, useRef, useState, type RefObject } from "react";
+import { Fragment, useId, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { useClientReady } from "@/components/use-client-ready";
 import { Flame, Minus, Plus, ShoppingCart, X } from "lucide-react";
 import { orderingExperienceMessage as experience } from "@/lib/messages/ordering-experience";
@@ -93,10 +93,14 @@ export function QrOrderMenu({
   const searchReady = useClientReady();
   const [query, setQuery] = useState("");
   const previousConfiguratorId = useRef(configuringProductId);
-  useEffect(() => {
+  useLayoutEffect(() => {
+    if (configuringProductId) {
+      previousConfiguratorId.current = configuringProductId;
+      return;
+    }
+    if (!previousConfiguratorId.current) return;
     const previousId = previousConfiguratorId.current;
-    previousConfiguratorId.current = configuringProductId;
-    if (configuringProductId || !previousId) return;
+    previousConfiguratorId.current = null;
     const frame = window.requestAnimationFrame(() => {
       document.getElementById(`qr-product-${previousId}`)
         ?.querySelector<HTMLButtonElement>('[data-testid="qr-open-product-configurator"]')
