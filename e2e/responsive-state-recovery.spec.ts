@@ -1,4 +1,4 @@
-import { createHash, createHmac, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { createResponsiveOrderFixture } from "./helpers/responsive-order-fixture";
@@ -7,6 +7,85 @@ import { kitchenProps, mountKitchenBoard, updateKitchenBoard } from "./helpers/m
 import { addFirstStaffCatalogProduct, dismissStaffStartReminder, continueQrCheckout, qrProductSelectionControl, loginLocalTestAccount } from "./local-navigation";
 
 test.use({ serviceWorkers: "block" });
+
+for (const fulfillmentType of ["TAKEOUT", "DELIVERY"] as const) test(`RSP-Q09: mobile staff edits ${fulfillmentType} items before confirmation and customer sees same-order adjustment`, async ({ page, browser }) => {
+  test.setTimeout(120_000);
+  const prisma = new PrismaClient();
+  const customer = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
+  try {
+    const fixture = await createResponsiveOrderFixture(prisma);
+    const category = await prisma.product.findUniqueOrThrow({ where: { id: fixture.productId }, select: { categoryId: true } });
+    const products = [];
+    for (const [label, price] of [["主餐", 80], ["配菜", 30]] as const) products.push(await prisma.product.create({ data: {
+      organizationId: fixture.organizationId, categoryId: category.categoryId, name: `A6 ${label} ${fixture.runId.slice(0, 8)}`, description: "Owned amendment fixture", defaultPrice: price,
+      stallProducts: { create: { organizationId: fixture.organizationId, stallId: fixture.stallId, isEnabled: true, stockRemaining: 97 } },
+    } }));
+    const initialStock = await prisma.stallProduct.findMany({ where: { stallId: fixture.stallId, productId: { in: products.map((product) => product.id) } } });
+    expect(initialStock.map((row) => row.stockRemaining)).toEqual([97, 97]);
+    const deviceId = randomUUID(), trackingToken = `sto_${randomBytes(32).toString("base64url")}`;
+    // Authorized order fixture, not evidence of a LINE/provider delivery intake.
+    const order = await prisma.order.create({ data: {
+      organizationId: fixture.organizationId, stallId: fixture.stallId, orderNo: `A6-${fixture.runId.slice(0, 8)}`, idempotencyKey: randomUUID(),
+      trackingTokenHash: createHash("sha256").update(trackingToken).digest("hex"), deviceHash: createHmac("sha256", process.env.ABUSE_HASH_SECRET!.trim()).update(`device:${deviceId}`).digest("hex"),
+      source: fulfillmentType === "DELIVERY" ? "LINE_DELIVERY" : "QR_MENU", fulfillmentType, origin: "ONLINE_QR", isTest: true,
+      customerName: `A6 ${fulfillmentType} amendment`, customerPhone: "0912345678", deliveryAddress: fulfillmentType === "DELIVERY" ? "本機測試地址，請勿外送" : null,
+      status: "WAITING_CONFIRMATION", subtotal: 190, total: 190, confirmationExpiresAt: new Date(Date.now() + 86_400_000),
+      items: { create: products.map((product, index) => ({ organizationId: fixture.organizationId, stallId: fixture.stallId, productId: product.id, sourceLineIndex: index + 1, name: product.name, quantity: index === 0 ? 2 : 1, baseUnitPrice: product.defaultPrice, unitPrice: product.defaultPrice, status: "PENDING" })) },
+    } });
+    const reservedStock = await prisma.stallProduct.findMany({ where: { stallId: fixture.stallId, productId: { in: products.map((product) => product.id) } } });
+    // Deferred reconcile_order_stock reserves the inserted item quantities.
+    for (const [index, product] of products.entries()) expect(reservedStock.find((row) => row.productId === product.id)?.stockRemaining)
+      .toBe(initialStock.find((row) => row.productId === product.id)!.stockRemaining! - (index === 0 ? 2 : 1));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await loginLocalTestAccount(page, "staff@stallorder.test", "StallOrderDemo!2026");
+    await page.goto(`/staff/${fixture.stallSlug}`);
+    await dismissStaffStartReminder(page);
+    await page.getByTestId("staff-search-open").click();
+    const search = page.getByRole("dialog", { name: "搜尋桌號或訂單編號", exact: true });
+    await search.getByRole("searchbox").fill(order.orderNo);
+    await search.getByRole("button", { name: "確認", exact: true }).click();
+    const ticket = page.getByRole("article").filter({ hasText: order.orderNo });
+    await ticket.getByRole("button", { name: "查看明細", exact: true }).click();
+    await page.getByRole("dialog", { name: `訂單 ${order.orderNo}` }).getByRole("button", { name: "修改訂單內容", exact: true }).click();
+    const editor = page.getByRole("dialog").filter({ has: page.locator("#order-edit-title") });
+    await editor.getByRole("button", { name: `減少 ${products[0].name} 數量`, exact: true }).click();
+    await editor.locator(".divide-y > div").filter({ hasText: products[1].name }).getByRole("button", { name: "移除", exact: true }).click();
+    const notice = `配菜售完，主餐保留一份 ${fixture.runId.slice(0, 8)}`;
+    await editor.getByRole("textbox").fill("");
+    await expect(editor.getByRole("button", { name: "儲存並同步廚房", exact: true })).toBeDisabled();
+    await editor.getByRole("textbox").fill(notice);
+    const saving = page.waitForResponse((response) => response.url().endsWith(`/${order.id}/content`) && response.request().method() === "PATCH");
+    await editor.getByRole("button", { name: "儲存並同步廚房", exact: true }).click();
+    expect((await saving).status()).toBe(200);
+    await expect(editor).toBeHidden();
+    const adjusted = await prisma.order.findUniqueOrThrow({ where: { id: order.id }, include: { items: true, events: true } });
+    expect(adjusted).toMatchObject({ orderNo: order.orderNo, total: 80, status: "WAITING_CONFIRMATION", paymentStatus: "UNPAID" });
+    expect(adjusted.items).toHaveLength(1);
+    expect(adjusted.items[0]).toMatchObject({ productId: products[0].id, quantity: 1, unitPrice: 80 });
+    expect(adjusted.events.filter((event) => event.eventType === "PUBLIC_ORDER_ITEMS_ADJUSTED")).toHaveLength(1);
+    for (const before of reservedStock) expect((await prisma.stallProduct.findUniqueOrThrow({ where: { id: before.id } })).stockRemaining).toBe(before.stockRemaining! + 1);
+    expect(await prisma.payment.count({ where: { orderId: order.id } })).toBe(0);
+    await customer.addCookies([{ name: "stallorder_device", value: deviceId, url: process.env.PLAYWRIGHT_APP_URL! }]);
+    const tracker = await customer.newPage();
+    await tracker.goto(`/order/${trackingToken}`);
+    await expect(tracker.getByText(notice, { exact: true })).toBeVisible();
+    const adjustment = tracker.getByRole("dialog", { name: "訂單內容已由店家調整", exact: true });
+    await expect(adjustment).toContainText("$190");
+    await expect(adjustment).toContainText("$80");
+    await adjustment.getByRole("button", { name: "我知道了", exact: true }).last().click();
+    await expect(tracker.getByRole("main")).toContainText(`1 × ${products[0].name}`);
+    await expect(tracker.getByRole("main")).not.toContainText(products[1].name);
+    await ticket.getByRole("button", { name: "查看明細", exact: true }).click();
+    const confirmed = page.waitForResponse((response) => response.url().endsWith(`/orders/${order.id}`) && response.request().method() === "PATCH");
+    await page.getByRole("dialog", { name: `訂單 ${order.orderNo}` }).getByRole("button", { name: "確認接單", exact: true }).click();
+    expect((await confirmed).status()).toBe(200);
+    const final = await prisma.order.findUniqueOrThrow({ where: { id: order.id }, include: { items: { include: { productionTask: true } } } });
+    expect(final).toMatchObject({ orderNo: order.orderNo, total: 80, status: "CONFIRMED", paymentStatus: "UNPAID" });
+    expect(final.items).toHaveLength(1);
+    expect(final.items[0].productionTask).toMatchObject({ quantity: 1, status: "PENDING" });
+    expect(await prisma.order.count({ where: { idempotencyKey: order.idempotencyKey } })).toBe(1);
+  } finally { await customer.close(); await prisma.$disconnect(); }
+});
 
 test("RSP-Q05: real session revocation 401 and shared-device finance identity 403 clear old kitchen data", async ({ page, request }) => {
   test.setTimeout(90_000);

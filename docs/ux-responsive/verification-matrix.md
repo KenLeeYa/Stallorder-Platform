@@ -72,3 +72,23 @@ LINE runner `node scripts/run-line-platform-qa.mjs unit|database|browser` 的dat
 A6.2 仍需新增 PAID 回應遺失查原 attempt、售罄舊車 422 保留有效項、401/403 撤權換人、409 新快照、429 Retry-After／HTML500／timeout 安全恢復，以及同 KitchenBoard instance 切店。Google OAuth、實體紙本／錢櫃、LINE／Pay 真供應商與正式站訂單均非 A6.1 PASS。`LOCAL_VERIFIED` 整體標記維持否。
 
 A6.1 獨立審查修正：手機 QR 外帶「顧客已到店，直接結帳」原本在 PATCH 200 後仍留原生明細（RED 1 FAILED）；`d134b49` 關閉明細再交回原 controller，build `pMdRk0EiqgzXvjuFVx-RQ` 上新 UI 案例 1/1 PASS，涵蓋取消、回原單、重開及現金選項可操作，尚未在該案例提交付款。測試 commit `2e38cd6`；KDS／列印既有跨端追蹤失敗仍在，整體狀態不變。
+
+## 2026-09-30 A6.2 恢復與跨端整合
+
+A6.1 的 reciprocal404 已定位為 responsive Playwright 靜態 import 順序：baseline 先載入共用 defaults，導致測試程序及 Next 子程序繼承另一組 runtime identity。`4632aca` 讓專用 env helper 先執行；私有 env、Deno、JWT、秘密原值皆未更動。新程序環境回歸與真實 Node/Edge 雙向建單查回已通過；先前失敗仍保留在 A6.1 歷史。
+
+| 恢復要求 | 實際驗證及邊界 |
+| --- | --- |
+| PAID 回應遺失 | 真 cash201/PAID 後丟棄回應，以完全相同 serialized payload/key 回收200/idempotent:true；單一 payment ID、usage 不增。一次自動回收仍不明（再掉線或 HTML500）則鎖定原單、禁止再收款提示；Escape/resize 不換 key；之後只查回原單 |
+| 列印失敗 | 實際 RETRY200 僅將合成 FAILED job 排回 PENDING，不重建訂單/付款。此案例預期 CONFIRMED+PAID，不宣稱紙本或整單已完成 |
+| 售罄舊購物車 | 真 desktop PATCH200/DB sold-out → phone400/PRODUCT_UNAVAILABLE；有效商品/備註保留可編輯、零訂單。400 為既有契約；獨立422合成拒絕保留另測 |
+| 401/403 共用裝置 | 真 session 撤銷401清除舊 task/station/selection，原 browser 改財務身份後403且直接API不回傳舊訂單資料 |
+| 409 版本衝突 | 真 PATCH409/STOCK_CHANGED 後重讀 authority17，捨棄 stale15、保留未變商品draft25；再次儲存成功且不假顯成功 |
+| 429/HTML500/timeout | 429 使用 Edge故障→既有same-origin Node fallback Header 的時間fixture；29秒禁送、30秒後原鍵恢復。不能推論真Edge會提供Retry-After。HTML500及實際AbortSignal逾時兩路失敗保留車/草稿，原鍵重送只建一單 |
+| 同 mounted KDS 切店 | 同 React root 的真 KitchenBoard prop 更新，舊task/station/selection/knownIDs消失，新snapshot出現、晚到舊回應無法還原。navigation/locale/fetch為modulefixture；實際路由切換另外由multi-stall覆蓋 |
+
+最終詳細指令、逐案計數、build、初始 FAIL/NOT_RUN 與後續解決收據見 `.superpowers/sdd/2026-09-30-responsive-order-workflows/task-6b-report.md`。完整39例第一輪為31PASS/4FAIL/4NOT_RUN；後續僅修測試前置預讀/訪客IP隔離及手機入口，新增KDS=true/print=true，保留原失敗歷史。四組案例：false/false與false/true在staff-kds-print-closure-flow，true/false與true/true在responsive-order-roundtrip。true/true須印單SUCCESS後仍READY，現金及實際取餐碼交付才COMPLETED；print UI/API/DB為真本機，window.print硬體边界為合成。
+
+仍非 Preview/Staging/Production 發布證據；紙本/錢櫃、真 LINE/Pay/OAuth、真手機裝置及整體跨任務QA由後續核驗，`LOCAL_VERIFIED` 整體維持否。
+
+A6.2 收斂結果：指定六檔 distinct aggregate **42 PASS**（catalog7、functional7、multi-stall5、roundtrip2、recovery15、KDS/print6），另獨立422 fixture1 PASS。這是保留未受影響18例＋修正後22例＋新增品項修改2例的分輪證據，非單次42例同HEAD全跑；原39例的4FAIL/4NOT_RUN保留於報告。外帶QR_MENU與外送LINE_DELIVERY確認前改品項，真手機修改200／顧客調整通知190→80／庫存釋回／只確認新項目均通過；外送原單為授權DB fixture，不代表LINE供應商建單驗證。完整候選整批驗證仍由B3負責。
