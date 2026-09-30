@@ -30,7 +30,11 @@ test.beforeAll(async ({ playwright }) => {
   }
   originalHours = await prisma.stallBusinessHour.findMany({ where: { stallId } });
   const flag = await prisma.resilienceFeatureFlag.findUniqueOrThrow({ where: { code: "DUAL_ORDER_INTAKE_ENABLED" }, select: { id: true } });
-  circuitFlagOverrideId = (await prisma.resilienceFeatureFlagOverride.create({ data: {
+  const existingOverride = process.env.RESPONSIVE_QA_RUN === "true"
+    ? await prisma.resilienceFeatureFlagOverride.findFirst({ where: { flagId: flag.id, scopeType: "GLOBAL" }, select: { enabled: true, expiresAt: true } })
+    : null;
+  if (existingOverride && (!existingOverride.enabled || (existingOverride.expiresAt && existingOverride.expiresAt <= new Date()))) throw new Error("RESPONSIVE_CIRCUIT_OVERRIDE_UNAVAILABLE");
+  if (!existingOverride) circuitFlagOverrideId = (await prisma.resilienceFeatureFlagOverride.create({ data: {
     flagId: flag.id, scopeType: "GLOBAL", enabled: true,
     reason: "Isolated functional Circuit B regression",
     expiresAt: new Date(Date.now() + 15 * 60_000),

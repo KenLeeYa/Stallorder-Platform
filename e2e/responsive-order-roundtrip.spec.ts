@@ -123,7 +123,8 @@ test("RSP-Q01: one real order moves from customer phone through staff tablet, KD
 
     await login(kitchen.page, "kitchen@stallorder.test");
     await kitchen.page.goto(`/kitchen?stall=${fixture.stallSlug}`);
-    const kitchenOrder = kitchen.page.getByRole("article").filter({ hasText: `#${orderNo}` });
+    await kitchen.page.getByRole("button", { name: new RegExp(`#${orderNo}\\b`) }).click();
+    const kitchenOrder = kitchen.page.getByRole("article", { name: `#${orderNo}` });
     await expect(kitchenOrder).toBeVisible();
     await kitchen.page.screenshot({ path: testInfo.outputPath("before-kitchen-1024.png"), fullPage: true });
     const taskPath = `/api/stalls/${fixture.stallSlug}/kitchen/tasks`;

@@ -366,9 +366,21 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       await expect(
         ticket.getByRole("button", { name: /開始製作|餐點完成/u }),
       ).toHaveCount(0);
-      await ticket.getByRole("button", { name: "代結帳", exact: true }).click();
+      await ticket.getByRole("button", { name: "查看明細", exact: true }).click();
+      await staffPage.getByRole("dialog", { name: `訂單 ${order.orderNo}` })
+        .getByRole("button", { name: "代結帳", exact: true }).click();
+      await expect(staffPage.getByRole("dialog", { name: `訂單 ${order.orderNo}` }))
+        .toBeHidden({ timeout: 5_000 });
 
       const checkout = staffPage.getByRole("dialog", { name: "完成訂單" });
+      await checkout.getByRole("button", { name: "關閉結帳視窗" }).click();
+      await expect(checkout).toBeHidden();
+      await expect(ticket).toBeVisible();
+      await ticket.getByRole("button", { name: "查看明細", exact: true }).click();
+      await staffPage.getByRole("dialog", { name: `訂單 ${order.orderNo}` })
+        .getByRole("button", { name: "代結帳", exact: true }).click();
+      await expect(staffPage.getByRole("dialog", { name: `訂單 ${order.orderNo}` }))
+        .toBeHidden({ timeout: 5_000 });
       await checkout.getByRole("button", { name: "現金", exact: true }).click();
       const responsePromise = waitForOrderPatch(staffPage, order.id);
       await checkout
@@ -580,7 +592,11 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
         .getByRole("article")
         .filter({ hasText: order.customerName });
       await expect(ticket).toBeVisible();
-      await ticket.getByRole("button", { name: "代結帳", exact: true }).click();
+      await ticket.getByRole("button", { name: "查看明細", exact: true }).click();
+      await staffPage.getByRole("dialog", { name: `訂單 ${order.orderNo}` })
+        .getByRole("button", { name: "代結帳", exact: true }).click();
+      await expect(staffPage.getByRole("dialog", { name: `訂單 ${order.orderNo}` }))
+        .toBeHidden({ timeout: 5_000 });
       const checkout = staffPage.getByRole("dialog", { name: "完成訂單" });
       await checkout.getByRole("button", { name: "現金", exact: true }).click();
       const checkoutResponsePromise = waitForOrderPatch(staffPage, order.id);

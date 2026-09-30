@@ -37,7 +37,6 @@ let authorizedOrganization: { id: string; businessName: string };
 let authorizedStall: { id: string; name: string; slug: string };
 let otherStall: { id: string; name: string; slug: string };
 let businessDate: Date;
-let originalOwnerIdentity: { authUserId: string | null; avatarUrl: string | null };
 let createdGoogleAuthUser = false;
 
 test.describe("多攤位商戶關鍵流程", () => {
@@ -93,12 +92,7 @@ test.describe("多攤位商戶關鍵流程", () => {
       where: { email: ownerEmail },
     });
     if (!owner.passwordHash) throw new Error("示範 owner 缺少密碼雜湊");
-    originalOwnerIdentity = { authUserId: owner.authUserId, avatarUrl: owner.avatarUrl };
-    if (responsiveMode) {
-      const existing = await prisma.$queryRaw<Array<{ count: bigint }>>`select count(*)::bigint as count from auth.users where email = ${ownerEmail} or id = ${googleAuthUserId}::uuid`;
-      if (owner.authUserId || existing[0].count !== BigInt(0)) throw new Error("RESPONSIVE_MULTI_STALL_AUTH_FIXTURE_ALREADY_IN_USE");
-    }
-
+    if (!responsiveMode) {
     await prisma.profile.update({
       where: { id: owner.id },
       data: { authUserId: null },
@@ -126,6 +120,7 @@ test.describe("多攤位商戶關鍵流程", () => {
       where: { id: owner.id },
       data: { authUserId: googleAuthUserId },
     });
+    }
 
     const finance = await prisma.profile.create({
       data: {
@@ -237,9 +232,9 @@ test.describe("多攤位商戶關鍵流程", () => {
           profile: { email: { in: [ownerEmail, staffEmail, kitchenEmail] } },
         },
       });
-      if (!responsiveMode || originalOwnerIdentity) await prisma.profile.updateMany({
+      if (!responsiveMode) await prisma.profile.updateMany({
         where: { email: ownerEmail },
-        data: responsiveMode ? originalOwnerIdentity : { authUserId: null, avatarUrl: null },
+        data: { authUserId: null, avatarUrl: null },
       });
       if (!responsiveMode || createdGoogleAuthUser) await prisma.$executeRaw`delete from auth.users where id = ${googleAuthUserId}::uuid`;
       if (!responsiveMode) await prisma.rateLimitBucket.deleteMany();
@@ -248,9 +243,10 @@ test.describe("多攤位商戶關鍵流程", () => {
     }
   });
 
-  test("Google 登入 owner 並建立第二攤位", async ({ page }) => {
+  test(responsiveMode ? "本機 owner 登入並建立第二攤位" : "Google 登入 owner 並建立第二攤位", async ({ page }) => {
     const next = `/merchant/dashboard?organizationId=${organization.id}`;
-    await page.goto(`/auth/google?next=${encodeURIComponent(next)}`);
+    if (responsiveMode) await loginWithPassword(page, ownerEmail, next);
+    else await page.goto(`/auth/google?next=${encodeURIComponent(next)}`);
     await expect(page).toHaveURL(/\/merchant\/dashboard/, { timeout: 20_000 });
     await expect(
       page.getByRole("heading", {

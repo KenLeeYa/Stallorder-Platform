@@ -753,7 +753,37 @@ function StaffTicketList(props: StaffTicketListProps) {
           <span>{paymentStatusLabel(focusedOrder.paymentStatus, props.t)}</span>
           <span>{formatMoney(focusedOrder.total, props.currency, props.locale)}</span>
         </div>
-        <StaffOrderTicket {...props} order={focusedOrder} desktopWorkspace mobileWorkspace />
+        <StaffOrderTicket
+          {...props}
+          order={focusedOrder}
+          desktopWorkspace
+          mobileWorkspace
+          actions={{
+            ...props.actions,
+            onOpenCheckout: (orders) => {
+              setFocusedOrderId(null);
+              return props.actions.onOpenCheckout(orders);
+            },
+            onOpenOrderEditor: (order) => {
+              setFocusedOrderId(null);
+              props.actions.onOpenOrderEditor(order);
+            },
+          }}
+          cancellation={{
+            ...props.cancellation,
+            open: (order) => {
+              setFocusedOrderId(null);
+              props.cancellation.open(order);
+            },
+          }}
+          timeProposal={{
+            ...props.timeProposal,
+            open: (order) => {
+              setFocusedOrderId(null);
+              props.timeProposal.open(order);
+            },
+          }}
+        />
       </div> : null}
     </ExperienceDialog>
     {selectedOrder ? <div data-testid="staff-order-master-detail" className={`mt-4 hidden min-w-0 gap-3 md:grid md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.25fr)_minmax(0,0.85fr)] xl:gap-4 print:hidden ${props.fullViewport ? "md:min-h-0 md:flex-1" : "min-h-[32rem] md:h-[calc(100dvh-14rem)]"}`}>

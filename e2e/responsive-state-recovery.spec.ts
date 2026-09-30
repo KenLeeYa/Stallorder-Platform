@@ -31,12 +31,18 @@ test("RSP-Q01: a real Edge retry keeps one order, payment and usage identity", a
     const session = await issued.json() as { orderSessionToken?: string; code?: string };
     expect(issued.status(), session.code).toBe(201);
     expect(session.orderSessionToken).toBeTruthy();
+    const noteGroups = await prisma.productNoteGroupAssignment.findMany({
+      where: { productId: fixture.productId },
+      include: { noteGroup: { include: { options: true } } },
+    });
+    const noteOptionIds = noteGroups.map((assignment) => assignment.noteGroup.options[0].id);
+    expect(noteOptionIds).toHaveLength(2);
     const data = {
       qrToken: fixture.qrToken, deviceId, orderingMode: "DEFAULT",
       orderSessionToken: session.orderSessionToken, clientOrderId, idempotencyKey,
       turnstileIdempotencyKey: randomUUID(), turnstileToken: "XXXX.DUMMY.TOKEN.XXXX",
       customerName: "同鍵恢復 QA", customerPhone: "0912345678", waitAcknowledged: true,
-      items: [{ productId: fixture.productId, quantity: 1 }],
+      items: [{ productId: fixture.productId, quantity: 1, noteOptionIds }],
     };
     const created = await request.post(edge + "/create-public-order", { headers, data });
     const createdPayload = await created.json() as { orderId?: string; code?: string };

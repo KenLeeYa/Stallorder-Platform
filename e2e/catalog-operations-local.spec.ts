@@ -18,7 +18,11 @@ test.beforeAll(async () => {
   if (process.env.RESPONSIVE_QA_RUN === "true") assertResponsiveQaTarget(process.env);
   else if (!["127.0.0.1","localhost"].includes(db.hostname) || db.port !== (process.env.CI ? "54322" : "55722")) throw new Error("DEDICATED_CATALOG_LOCAL_LAB_REQUIRED");
   const flag = await prisma.resilienceFeatureFlag.findUniqueOrThrow({ where: { code: "DUAL_ORDER_INTAKE_ENABLED" }, select: { id: true } });
-  circuitFlagOverrideId = (await prisma.resilienceFeatureFlagOverride.create({ data: {
+  const existingOverride = process.env.RESPONSIVE_QA_RUN === "true"
+    ? await prisma.resilienceFeatureFlagOverride.findFirst({ where: { flagId: flag.id, scopeType: "GLOBAL" }, select: { enabled: true, expiresAt: true } })
+    : null;
+  if (existingOverride && (!existingOverride.enabled || (existingOverride.expiresAt && existingOverride.expiresAt <= new Date()))) throw new Error("RESPONSIVE_CIRCUIT_OVERRIDE_UNAVAILABLE");
+  if (!existingOverride) circuitFlagOverrideId = (await prisma.resilienceFeatureFlagOverride.create({ data: {
     flagId: flag.id, scopeType: "GLOBAL", enabled: true,
     reason: "Isolated catalog Circuit B regression",
     expiresAt: new Date(Date.now() + 15 * 60_000),
