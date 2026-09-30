@@ -18,14 +18,14 @@ export default async function AdminPlanVersionsPage() {
         <AdminCatalogNavigation />
       </header>
       <AdminPaygContractForm sourceVersions={versions.filter((version) => version.plan.code === "PAYG" && version.pricingMode === "USAGE_PER_STALL_CAPPED").map((version) => ({ id: version.id, label: `${planLabel(version.plan.code, version.displayName)} v${version.version}` }))} />
-      <div data-testid="admin-plan-versions-mobile-list" className="mt-6 grid gap-3 md:hidden">
+      <div data-testid="admin-plan-versions-mobile-list" className="mt-6 grid gap-3">
         {versions.map((version) => (
-          <article key={version.id} className="min-w-0 rounded-md border border-stone-200 bg-white p-4">
-            <div className="flex min-w-0 items-start justify-between gap-3">
+          <article key={version.id} data-testid="admin-plan-version-record" className="min-w-0 rounded-md border border-stone-200 bg-white p-4">
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
               <h2 className="min-w-0 break-words text-lg font-semibold">{planLabel(version.plan.code, version.displayName)}</h2>
               <span className="shrink-0 rounded-md bg-stone-100 px-2 py-1 text-xs font-semibold text-stone-700">v{formatAppNumber(locale, version.version)}</span>
             </div>
-            <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+            <dl className="mt-4 grid grid-cols-1 gap-x-4 gap-y-3 text-sm sm:grid-cols-2">
               <MobileDetail label={m("Interval")} value={getAdminCodeLabel(locale, version.billingInterval)} />
               <MobileDetail label={m("Pricing mode")} value={version.pricingMode === "USAGE_PER_STALL_CAPPED" ? m("PAYG per completed order") : version.pricingMode === "FIXED" ? m("Fixed monthly price") : getAdminCodeLabel(locale, version.pricingMode)} />
               {version.pricingMode === "USAGE_PER_STALL_CAPPED" ? (
@@ -54,10 +54,33 @@ export default async function AdminPlanVersionsPage() {
                 </>
               ) : null}
             </dl>
+            <details className="mt-4 border-t border-stone-200 pt-2">
+              <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-teal-800">{m("Full record details")}</summary>
+              <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-3 text-sm sm:grid-cols-2">
+                <MobileDetail label={m("Plan")} value={planLabel(version.plan.code, version.displayName)} />
+                <MobileDetail label={m("Plan version")} value={`v${formatAppNumber(locale, version.version)}`} />
+                <MobileDetail label={m("Interval")} value={getAdminCodeLabel(locale, version.billingInterval)} />
+                <MobileDetail label={m("Pricing mode")} value={version.pricingMode === "USAGE_PER_STALL_CAPPED" ? m("PAYG per completed order") : version.pricingMode === "FIXED" ? m("Fixed monthly price") : getAdminCodeLabel(locale, version.pricingMode)} />
+                <MobileDetail label={m("Monthly fee")} value={version.pricingMode === "USAGE_PER_STALL_CAPPED" ? "-" : formatAppCurrency(locale, version.basePrice, version.currency)} />
+                <MobileDetail label={m("Annual fee")} value={version.pricingMode === "USAGE_PER_STALL_CAPPED" || version.annualPrice === null ? "-" : formatAppCurrency(locale, version.annualPrice, version.currency)} />
+                <MobileDetail label={m("Usage unit price")} value={version.pricingMode === "USAGE_PER_STALL_CAPPED" ? formatAppCurrency(locale, version.usageUnitPrice, version.currency) : "-"} />
+                <MobileDetail label={m("Per-stall monthly cap")} value={version.pricingMode === "USAGE_PER_STALL_CAPPED" ? version.monthlyCapAmount === null ? m("Per contract") : formatAppCurrency(locale, version.monthlyCapAmount, version.currency) : "-"} />
+                <MobileDetail label={m("Order allowance")} value={version.includedOrders === null ? m("Per contract") : formatAppNumber(locale, version.includedOrders)} />
+                <MobileDetail label={m("Stalls")} value={`${formatAppNumber(locale, version.includedStalls)} / ${version.maxStalls === null ? m("Per contract") : formatAppNumber(locale, version.maxStalls)}`} />
+                <MobileDetail label={m("Contract status")} value={version.pricingMode === "USAGE_PER_STALL_CAPPED" ? version.sealedAt ? m("Sealed") : m("Unsealed") : "—"} />
+                <MobileDetail label={m("Billing timezone")} value={version.pricingMode === "USAGE_PER_STALL_CAPPED" ? version.billingTimezone : "—"} />
+                <MobileDetail label={m("Tax treatment")} value={version.pricingMode === "USAGE_PER_STALL_CAPPED" ? version.taxTreatment : "—"} />
+                <MobileDetail label={m("Tax rate (basis points)")} value={version.taxRateBps === null ? "—" : formatAppNumber(locale, version.taxRateBps)} />
+                <MobileDetail label={m("Automatic close delay")} value={version.invoiceCloseDelayHours === null ? "—" : m("{hours} hours", { hours: formatAppNumber(locale, version.invoiceCloseDelayHours) })} />
+                <MobileDetail label={m("Contract hash")} value={version.pricingMode === "USAGE_PER_STALL_CAPPED" && version.contractHash ? version.contractHash.slice(0, 12) : "—"} />
+                <MobileDetail label={m("Effective from")} value={formatAppDate(locale, version.effectiveFrom)} />
+                <MobileDetail label={m("Subscriptions")} value={formatAppNumber(locale, version._count.subscriptions)} />
+              </dl>
+            </details>
           </article>
         ))}
       </div>
-      <div data-testid="admin-plan-versions-desktop-table" className="mt-6 hidden overflow-x-auto border-y border-stone-200 md:block">
+      <div data-testid="admin-plan-versions-desktop-table" className="mt-6 hidden overflow-x-auto border-y border-stone-200 2xl:block">
         <table className="w-full min-w-[1740px] text-left text-sm">
           <thead className="bg-stone-50"><tr><th className="px-3 py-3">{m("Plan")}</th><th className="px-3 py-3">{m("Plan version")}</th><th className="px-3 py-3">{m("Interval")}</th><th className="px-3 py-3">{m("Pricing mode")}</th><th className="px-3 py-3 text-right">{m("Monthly fee")}</th><th className="px-3 py-3 text-right">{m("Annual fee")}</th><th className="px-3 py-3 text-right">{m("Usage unit price")}</th><th className="px-3 py-3 text-right">{m("Per-stall monthly cap")}</th><th className="px-3 py-3 text-right">{m("Order allowance")}</th><th className="px-3 py-3 text-right">{m("Stalls")}</th><th className="px-3 py-3">{m("Contract status")}</th><th className="px-3 py-3">{m("Billing timezone")}</th><th className="px-3 py-3">{m("Tax treatment")}</th><th className="px-3 py-3">{m("Contract hash")}</th><th className="px-3 py-3">{m("Effective from")}</th><th className="px-3 py-3 text-right">{m("Subscriptions")}</th></tr></thead>
           <tbody className="divide-y divide-stone-200">

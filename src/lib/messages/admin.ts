@@ -14,6 +14,7 @@ const rows = {
   "Platform catalog administration": ["平台目錄管理", "プラットフォームカタログ管理", "플랫폼 카탈로그 관리", "Quản lý danh mục nền tảng", "การจัดการแค็ตตาล็อกแพลตฟอร์ม"],
   "Platform administrators only": ["僅限平台管理員", "プラットフォーム管理者限定", "플랫폼 관리자 전용", "Chỉ dành cho quản trị viên nền tảng", "สำหรับผู้ดูแลแพลตฟอร์มเท่านั้น"],
   "Merchant applications": ["商家申請", "事業者申請", "상점 신청", "Hồ sơ cửa hàng", "ใบสมัครร้าน"],
+  "Full record details": ["完整資料", "すべての詳細", "전체 상세 정보", "Chi tiết đầy đủ", "รายละเอียดทั้งหมด"],
   "Billing overview": ["帳務總覽", "請求概要", "청구 개요", "Tổng quan thanh toán", "ภาพรวมการเรียกเก็บเงิน"],
   "Subscriptions": ["訂閱", "サブスクリプション", "구독", "Đăng ký", "การสมัคร"],
   "Invoices": ["帳單", "請求書", "청구서", "Hóa đơn", "ใบแจ้งหนี้"],
