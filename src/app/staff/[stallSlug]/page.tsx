@@ -99,7 +99,7 @@ async function StaffOrderContent({ stall, principal, role, roles, timing }: Staf
         }}
         initialOrders={orders.map(serializeStaffOrder)}
         initialNow={serverNow}
-        account={{ displayName: principal.user.displayName, role }}
+        account={{ displayName: principal.user.displayName, role, profileId: principal.user.id }}
         modules={configuration.modules}
         paymentOptions={paymentOptions}
         discountOptions={discountOptions}

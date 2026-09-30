@@ -11,12 +11,14 @@ import {
   loginLocalTestAccount,
 } from "./local-navigation";
 
+import { assertResponsiveQaMode } from "../scripts/responsive-qa-target.mjs";
+
 const password = "StallOrderDemo!2026";
 const stallSlug = "aming-chicken";
 
 test.use({ serviceWorkers: "block" });
 
-const responsivePrisma = new PrismaClient();
+let responsivePrisma: PrismaClient;
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
 let responsiveOrderId = "";
@@ -25,6 +27,7 @@ let responsiveOrderNo = "";
 test.beforeAll(async () => {
   loadLocalEnv();
   assertLocalDatabase();
+  responsivePrisma = new PrismaClient();
   const unique = randomUUID();
   const product = await responsivePrisma.product.findFirstOrThrow({
     where: {
@@ -77,7 +80,7 @@ test.afterAll(async () => {
   if (responsiveOrderId) {
     await responsivePrisma.order.deleteMany({ where: { id: responsiveOrderId } });
   }
-  await responsivePrisma.$disconnect();
+  await responsivePrisma?.$disconnect();
 });
 
 test("店員訂單在手機採單欄，平板與桌機採清單、品項、操作三欄版面", async ({ page }) => {
@@ -273,6 +276,7 @@ for (const redesignEnabled of [false, true]) {
       await searchStaffOrders(page, responsiveOrderNo);
       const mobileList = page.getByTestId("staff-order-mobile-list");
       const card = mobileList.locator("article").filter({ hasText: responsiveOrderNo });
+      await expect(card).toContainText("測試訂單");
       await expect(card.locator(":scope > p").first()).toHaveCSS("font-size", "16px");
       await expect(card.locator(":scope > p").last()).toHaveCSS("font-size", "16px");
       const open = card.getByRole("button", { name: "查看明細" });
@@ -282,6 +286,7 @@ for (const redesignEnabled of [false, true]) {
       const detail = page.getByRole("dialog", { name: `訂單 ${responsiveOrderNo}` });
       await expect(detail).toBeVisible();
       await expect(detail.getByTestId("staff-mobile-detail-summary")).toContainText("店員點餐");
+      await expect(detail.getByTestId("staff-mobile-detail-summary")).toContainText("測試訂單");
       await expect(detail.getByTestId("staff-mobile-detail-summary")).toContainText("$2,375");
       await expect(detail.getByTestId("staff-order-item-list").locator("li")).toHaveCount(25);
       await expect(detail.getByTestId("staff-order-actions-pane")).toBeVisible();
@@ -328,7 +333,28 @@ for (const redesignEnabled of [false, true]) {
       await pos.getByRole("button", { name: "關閉店員點餐", exact: true }).click();
       await expect(pos).toBeHidden();
       await expect(selected).toBeVisible();
+      for (const isTest of [false, true]) {
+        await responsivePrisma.order.update({ where: { id: responsiveOrderId }, data: { isTest } });
+        await page.reload(); await dismissStaffStartReminder(page); await searchStaffOrders(page, responsiveOrderNo);
+        for (const width of [320, 390, 768, 390]) {
+          await page.setViewportSize({ width, height: 900 });
+          if (width < 768) {
+            const mobileCard = page.getByTestId("staff-order-mobile-list").getByRole("article").filter({ hasText: responsiveOrderNo });
+            await expect(mobileCard.getByText("測試訂單", { exact: true })).toHaveCount(isTest ? 1 : 0);
+            await mobileCard.getByRole("button", { name: "查看明細", exact: true }).click();
+            const summary = page.getByTestId("staff-mobile-detail-summary");
+            await expect(summary.getByText("測試訂單", { exact: true })).toHaveCount(isTest ? 1 : 0);
+            await expect(page.getByTestId("staff-order-mobile-detail").getByTestId("staff-order-actions-pane")).toBeVisible();
+            await page.getByRole("dialog", { name: `訂單 ${responsiveOrderNo}` }).getByRole("button", { name: "關閉", exact: true }).click();
+          } else {
+            const desktopCard = page.getByTestId("staff-order-list-pane").getByRole("button").filter({ hasText: responsiveOrderNo });
+            await expect(desktopCard.getByText("測試訂單", { exact: true })).toHaveCount(isTest ? 1 : 0);
+          }
+          expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+        }
+      }
     } finally {
+      await responsivePrisma.order.update({ where: { id: responsiveOrderId }, data: { isTest: true } });
       if (existing) await responsivePrisma.resilienceFeatureFlagOverride.update({ where: { id: override.id }, data: { enabled: existing.enabled } });
       else await responsivePrisma.resilienceFeatureFlagOverride.delete({ where: { id: override.id } });
       if (!existingFlag) await responsivePrisma.resilienceFeatureFlag.delete({ where: { id: flag.id } });
@@ -494,6 +520,7 @@ test("修改既有自動出單規則只送出嚴格 command 欄位", async ({ pa
 });
 
 function assertLocalDatabase() {
+  assertResponsiveQaMode(process.env);
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("E2E 測試需要設定 DATABASE_URL。");
   const hostname = new URL(databaseUrl).hostname;

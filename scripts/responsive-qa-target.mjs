@@ -49,3 +49,10 @@ export function createResponsiveQaClient(environment, createClient) {
   assertResponsiveQaTarget(environment);
   return createClient();
 }
+
+/** Preserve portable CI use; responsive-mode calls must use the exact isolated lab.
+ * @param {Record<string, string | undefined>} environment
+ */
+export function assertResponsiveQaMode(environment) {
+  if (environment.RESPONSIVE_QA_RUN === "true") assertResponsiveQaTarget(environment);
+}

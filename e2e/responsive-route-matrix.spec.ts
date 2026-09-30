@@ -1,13 +1,5 @@
-import { readFileSync, writeFileSync } from "node:fs";
-import { PrismaClient } from "@prisma/client";
 import { expect, test, type Page } from "@playwright/test";
-import { dismissStaffStartReminder, gotoLocalPath } from "./local-navigation";
-import { acceptanceDirectory, acceptanceQrWhere, acceptanceWidths, fixedAcceptanceFixture, fixedDataset } from "./helpers/responsive-acceptance-fixture";
-import { readResponsiveBuildProvenance } from "../scripts/responsive-build-provenance.mjs";
-
-test.use({ actionTimeout: 15_000, serviceWorkers: "block", trace: "off", video: "off" });
-let fixture: Awaited<ReturnType<typeof fixedAcceptanceFixture>>;
-test.beforeAll(async () => { readResponsiveBuildProvenance(); fixture = await fixedAcceptanceFixture(); });
+import { gotoLocalPath } from "./local-navigation";
 
 const routes = [
   "/merchant/dashboard",
@@ -36,6 +28,7 @@ const routes = [
 
 const publicRoutes = [
   "/store/aming-01?view=menu",
+  "/q/demo-aming-chicken-qr-2026-rotate-me",
   "/store/aming-01?view=pickup",
   "/store/aming-01?view=delivery",
 ];
@@ -54,8 +47,13 @@ async function login(page: Page) {
 }
 
 test("核心營運頁面在手機、平板與桌面不產生全頁水平溢位", async ({ page }) => {
-  test.setTimeout(600_000);
-  const viewports = acceptanceWidths.map(width => ({ name: `${width}px`, width, height: 900 }));
+  test.setTimeout(240_000);
+  const viewports = [
+    { name: "compact-mobile", width: 320, height: 568 },
+    { name: "mobile", width: 390, height: 844 },
+    { name: "tablet", width: 768, height: 1024 },
+    { name: "desktop", width: 1440, height: 900 },
+  ];
 
   await page.setViewportSize(viewports[0]);
   await login(page);
@@ -117,40 +115,10 @@ for (const viewport of [
     test.setTimeout(120_000);
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
 
-    const navigation: Array<{ at: string; event: string; path: string; requestId?: number; kind?: string; rsc?: boolean; status?: number; detail?: string }> = [];
-    const requestIds = new WeakMap<object, number>();
-    let nextRequestId = 1;
-    const safePath = (url: string) => {
-      const parsed = new URL(url);
-      if (parsed.pathname.startsWith("/q/")) return "/q/<owned-qr>";
-      return parsed.pathname.startsWith("/store/") ? `${parsed.pathname}?view=${parsed.searchParams.get("view") ?? "menu"}` : parsed.pathname;
-    };
-    page.on("request", request => {
-      const requestId = nextRequestId++;
-      requestIds.set(request, requestId);
-      navigation.push({ at: new Date().toISOString(), event: "request", path: safePath(request.url()), requestId, kind: request.resourceType(), rsc: request.headers()["rsc"] === "1" });
-    });
-    page.on("response", response => navigation.push({ at: new Date().toISOString(), event: "response", path: safePath(response.url()), requestId: requestIds.get(response.request()), status: response.status() }));
-    page.on("requestfailed", request => navigation.push({ at: new Date().toISOString(), event: "requestfailed", path: safePath(request.url()), requestId: requestIds.get(request), detail: request.failure()?.errorText }));
-    page.on("pageerror", error => navigation.push({ at: new Date().toISOString(), event: "pageerror", path: safePath(page.url()), detail: error.message }));
-
-    for (const route of [...publicRoutes, `/q/${fixture.qrToken}`]) {
-      navigation.push({ at: new Date().toISOString(), event: "transition-start", path: safePath(new URL(route, "http://127.0.0.1:3026").href) });
-      const response = await gotoLocalPath(page, route, canonicalRoutePaths[route] ?? route);
-      expect(response).not.toBeNull();
-      const body = await response!.body();
-      expect(body.length, `Incomplete document stream at ${safePath(page.url())}`).toBeGreaterThan(0);
+    for (const route of publicRoutes) {
+      await gotoLocalPath(page, route, canonicalRoutePaths[route] ?? route);
       await expect(page.locator("body")).toBeVisible();
       await expect(page.locator("[data-nextjs-dialog]")).toHaveCount(0);
-      if (route.startsWith("/store/")) {
-        await expect(page.getByTestId("storefront-mode-nav")).toBeVisible();
-        await expect(page.getByTestId("storefront-menu-view")
-          .or(page.getByTestId("qr-display-controls"))
-          .or(page.getByTestId("storefront-mode-unavailable")).first()).toBeVisible();
-      } else {
-        await expect(page.getByTestId("qr-display-controls")).toBeVisible();
-      }
-      navigation.push({ at: new Date().toISOString(), event: "ready", path: safePath(page.url()), detail: `bodyBytes=${body.length}` });
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
@@ -159,99 +127,5 @@ for (const viewport of [
       ).toBe(true);
       await expect(page.getByRole("main")).toBeVisible();
     }
-    writeFileSync(`${acceptanceDirectory}/storefront-navigation-${viewport.name}.json`, JSON.stringify({ viewport, navigation }, null, 2));
   });
 }
-
-test("missing selected order cannot close the next detail after a delayed animation frame", async ({ page }) => {
-  await page.addInitScript(() => {
-    const NativeEventSource = window.EventSource;
-    const sources: EventSource[] = [];
-    window.EventSource = class extends NativeEventSource { constructor(url: string | URL, options?: EventSourceInit) { super(url, options); sources.push(this); } };
-    (window as Window & { b3Sources?: EventSource[] }).b3Sources = sources;
-  });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await login(page);
-  await page.goto("/staff/aming-chicken");
-  await dismissStaffStartReminder(page);
-  const first = page.getByTestId("staff-order-mobile-list").getByRole("article").first();
-  const heading = await first.innerText();
-  await first.getByRole("button", { name: "查看明細", exact: true }).click();
-  await page.evaluate(() => {
-    const originalRequest = window.requestAnimationFrame.bind(window);
-    const originalCancel = window.cancelAnimationFrame.bind(window);
-    const held = new Map<number, FrameRequestCallback>();
-    let next = 1_000_000;
-    const state = window as Window & { b3Frames?: { count: () => number; release: () => void } };
-    // Fault injection: postpone the missing-record focus effect, preserving all other frames.
-    window.requestAnimationFrame = callback => {
-      if (String(callback).includes("staff-order-mobile-list")) { const id = next++; held.set(id, callback); return id; }
-      return originalRequest(callback);
-    };
-    window.cancelAnimationFrame = id => { held.delete(id); originalCancel(id); };
-    state.b3Frames = { count: () => held.size, release: () => { const callbacks = [...held.values()]; held.clear(); callbacks.forEach(callback => callback(performance.now())); } };
-  });
-  await page.route("**/api/stalls/aming-chicken/orders", async route => {
-    if (route.request().method() !== "GET") return route.continue();
-    const response = await route.fetch();
-    const body = await response.json();
-    await route.fulfill({ response, json: { ...body, orders: body.orders.filter((order: { orderNo: string }) => !heading.includes(order.orderNo)) } });
-  });
-  // Genuine stream invalidation triggers the normal authorized snapshot request.
-  await page.evaluate(() => (window as Window & { b3Sources?: EventSource[] }).b3Sources?.forEach(source => source.dispatchEvent(new MessageEvent("orders", { data: "{}" }))));
-  await expect(page.getByTestId("staff-order-mobile-detail")).toBeHidden({ timeout: 20_000 });
-  expect(await page.evaluate(() => (window as Window & { b3Frames?: { count: () => number } }).b3Frames?.count())).toBeGreaterThan(0);
-  const next = page.getByTestId("staff-order-mobile-list").getByRole("button", { name: "查看明細", exact: true }).first();
-  await next.click();
-  await expect(page.getByTestId("staff-order-mobile-detail")).toBeVisible();
-  await page.evaluate(() => (window as Window & { b3Frames?: { release: () => void } }).b3Frames?.release());
-  await expect(page.getByTestId("staff-order-mobile-detail")).toBeVisible();
-});
-
-test("stations redirect after kitchen layout retains usable validation without React fallback", async ({ page }) => {
-  const errors: string[] = [];
-  page.on("pageerror", error => errors.push(error.message));
-  await login(page);
-  for (const width of [320, 390, 768, 1440]) {
-    await page.setViewportSize({ width, height: 900 });
-    await page.goto("/kitchen?stall=aming-chicken");
-    await page.getByTestId("kitchen-order-queue-button").filter({ hasText: "B3-001" }).click();
-  }
-  await page.goto("/kitchen/stations?stall=aming-chicken");
-  await expect(page).toHaveURL(new RegExp(`/merchant/stalls/${fixture.stallId}/kitchen/stations\\?source=kitchen$`));
-  await page.getByLabel("名稱", { exact: true }).first().fill("B3 無效代碼，不建立資料");
-  const code = page.getByLabel("代碼", { exact: true }).first();
-  await code.fill("中文代碼");
-  await page.getByRole("button", { name: "新增工作站", exact: true }).click();
-  await expect(code).toHaveAttribute("aria-invalid", "true");
-  await expect(code).toBeFocused();
-  expect(errors).toEqual([]);
-});
-
-test("fixed fixture reuses exact main QR with both same-label QRs present", async () => {
-  const prisma = new PrismaClient();
-  try {
-    const before = JSON.parse(readFileSync(acceptanceDirectory + "/fixed-dataset.json", "utf8"));
-    const main = await prisma.stall.findUniqueOrThrow({ where: { slug: "aming-chicken" } });
-    const candidates = await prisma.qrCode.findMany({ where: { label: fixedDataset, state: "ACTIVE" }, select: { id: true, organizationId: true, stallId: true } });
-    expect(candidates).toHaveLength(2);
-    expect(new Set(candidates.map(qr => qr.stallId)).size).toBe(2);
-    const selected = await prisma.qrCode.findMany({ where: acceptanceQrWhere(main.organizationId, main.id), select: { id: true, organizationId: true, stallId: true } });
-    expect(selected).toEqual([{ id: before.qrId, organizationId: main.organizationId, stallId: main.id }]);
-    const first = await fixedAcceptanceFixture();
-    const second = await fixedAcceptanceFixture();
-    expect(first.stallId).toBe(main.id);
-    expect(second.stallId).toBe(main.id);
-    expect(second.qrToken).toBe(first.qrToken);
-    expect(second.localeQrToken).toBe(first.localeQrToken);
-    expect(second.qrToken).not.toBe(second.localeQrToken);
-    expect(JSON.stringify(second.orders)).toBe(JSON.stringify(first.orders));
-    const after = JSON.parse(readFileSync(acceptanceDirectory + "/fixed-dataset.json", "utf8"));
-    expect(after.orderDigest).toBe(before.orderDigest);
-    expect(after.qrId).toBe(before.qrId);
-    expect(after.localeQrId).toBe(before.localeQrId);
-    const mismatched = await prisma.order.count({ where: { id: { in: second.orders.map(order => order.id) }, OR: [{ stallId: { not: main.id } }, { organizationId: { not: main.organizationId } }] } });
-    expect(mismatched).toBe(0);
-    writeFileSync(acceptanceDirectory + "/fixture-reuse.json", JSON.stringify({ source: readResponsiveBuildProvenance(), candidates, selected, count: second.orders.length, orderDigest: after.orderDigest, sameIdsOnRetry: true }, null, 2));
-  } finally { await prisma.$disconnect(); }
-});

@@ -88,6 +88,8 @@ function KitchenBoardSession({ stall, canManage, workModeDestinations, initialDa
   const liveRef = useRef<LiveResourceController | null>(null);
   const authorizedRef = useRef(true);
   const [authorized, setAuthorized] = useState(true);
+  const mutationDeniedRef = useRef(false);
+  const [mutationDenied, setMutationDenied] = useState(false);
   const [mode, setMode] = useState<KitchenBoardMode>(initialData.settings.defaultView);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(() => preferredKitchenOrderId(initialData.tasks));
   const [stationId, setStationId] = useState(initialData.stations[0]?.id ?? "");
@@ -114,7 +116,7 @@ function KitchenBoardSession({ stall, canManage, workModeDestinations, initialDa
 
   const loadBoard = useEffectEvent(async (signal: AbortSignal): Promise<BoardData> => {
     const response = await fetch(`/api/stalls/${stall.slug}/kitchen/board`, { cache: "no-store", signal });
-    if (response.status === 401 || response.status === 403) throw new KitchenBoardAuthorizationError(t("kitchen.board.accessRevoked"));
+    if (response.status === 401 || response.status === 403 || response.status === 404) throw new KitchenBoardAuthorizationError(t("kitchen.board.accessRevoked"));
     const payload = await response.json().catch(() => null) as (BoardData & { code?: string; retryAfterSeconds?: number }) | null;
     if (response.status === 429) {
       const seconds = Number(payload?.retryAfterSeconds ?? response.headers.get("retry-after"));
@@ -130,8 +132,8 @@ function KitchenBoardSession({ stall, canManage, workModeDestinations, initialDa
 
   const applyBoard = useEffectEvent((payload: BoardData) => {
     const recovered = !authorizedRef.current;
-    authorizedRef.current = true;
-    setAuthorized(true);
+    authorizedRef.current = !mutationDeniedRef.current;
+    setAuthorized(!mutationDeniedRef.current);
     const newOrderCount = recovered ? 0 : reconcileKitchenOrderAlerts(knownOrderIdsRef.current, payload.alertOrderIds);
     if (recovered) {
       knownOrderIdsRef.current = new Set(payload.alertOrderIds);
@@ -144,16 +146,22 @@ function KitchenBoardSession({ stall, canManage, workModeDestinations, initialDa
     if (newOrderCount > 0) notifyNewOrders(newOrderCount);
   });
 
+  function revokeBoardAccess() {
+    authorizedRef.current = false;
+    setAuthorized(false);
+    setData((current) => ({ ...current, stations: [], tasks: [], futureReservations: [], alertOrderIds: [] }));
+    knownOrderIdsRef.current.clear();
+    setStationId("");
+    setSelectedOrderId(null);
+    setPendingCancellation(null);
+    setCancellationErrors({});
+  }
+
   const handleBoardError = useEffectEvent((error: unknown) => {
     if (error instanceof KitchenBoardAuthorizationError) {
-      authorizedRef.current = false;
-      setAuthorized(false);
-      setData((current) => ({ ...current, stations: [], tasks: [], futureReservations: [], alertOrderIds: [] }));
-      knownOrderIdsRef.current.clear();
-      setStationId("");
-      setSelectedOrderId(null);
-      setPendingCancellation(null);
-      setCancellationErrors({});
+      mutationDeniedRef.current = true;
+      setMutationDenied(true);
+      revokeBoardAccess();
     }
     setMessage(error instanceof Error ? error.message : t("kitchen.board.reloadFailed"));
   });
@@ -211,6 +219,18 @@ function KitchenBoardSession({ stall, canManage, workModeDestinations, initialDa
         headers: csrfHeaders(),
         body: JSON.stringify(body),
       });
+      if ([401, 403, 404].includes(response.status)) {
+        // A denied write invalidates any older snapshot immediately. A readable
+        // board alone cannot establish that this page still has write permission.
+        if (response.status !== 404) {
+          mutationDeniedRef.current = true;
+          setMutationDenied(true);
+        }
+        revokeBoardAccess();
+        setMessage(t("kitchen.board.accessRevoked"));
+        await refresh(true);
+        return false;
+      }
       const payload = await response.json() as { error?: string; code?: string };
       if (!response.ok) throw new Error(payload.code
         ? t(getOperationsErrorMessageKey(payload.code, "kitchen.board.operationFailed"))
@@ -293,6 +313,18 @@ function KitchenBoardSession({ stall, canManage, workModeDestinations, initialDa
           cancellationDetail: pendingCancellation.detail.trim() || null,
         }),
       });
+      if ([401, 403, 404].includes(response.status)) {
+        // A denied write invalidates any older snapshot immediately. A readable
+        // board alone cannot establish that this page still has write permission.
+        if (response.status !== 404) {
+          mutationDeniedRef.current = true;
+          setMutationDenied(true);
+        }
+        revokeBoardAccess();
+        setMessage(t("kitchen.board.accessRevoked"));
+        await refresh(true);
+        return;
+      }
       const payload = await response.json() as { error?: string; code?: string };
       if (!response.ok) throw new Error(payload.code
         ? t(getOperationsErrorMessageKey(payload.code, "kitchen.cancel.failed"))
@@ -322,6 +354,10 @@ function KitchenBoardSession({ stall, canManage, workModeDestinations, initialDa
   const canCancelOrder = ["PLATFORM_ADMIN", "ORGANIZATION_OWNER", "ORGANIZATION_ADMIN", "STALL_MANAGER"].includes(role);
   return (
     <>
+      {mutationDenied ? <div role="alert" className="border border-amber-400 bg-amber-50 p-4 text-amber-950">
+        <p>{t("kitchen.board.accessRevoked")}</p>
+        <a className="mt-2 inline-flex min-h-12 items-center rounded-md border px-4 font-semibold" href={`/kitchen?stall=${encodeURIComponent(stall.slug)}`}>{t("kitchen.board.reloadPermissions")}</a>
+      </div> : null}
       <KitchenNavigation
         active="BOARD"
         stall={stall}

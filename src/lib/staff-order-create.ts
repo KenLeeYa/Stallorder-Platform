@@ -89,6 +89,19 @@ export class StaffOrderCreateError extends Error {
   }
 }
 
+// Read-only companion to the existing STAFF_POS idempotency owner. An absent row
+// is not proof that an earlier request did not commit or cannot still commit.
+export async function findStaffOrderRecovery(input: {
+  organizationId: string; stallId: string; actorProfileId: string; idempotencyKey: string;
+}) {
+  return prisma.order.findFirst({
+    where: { organizationId: input.organizationId, stallId: input.stallId,
+      source: "STAFF_POS", deviceHash: hashToken(`staff-order:${input.actorProfileId}:STAFF_POS`),
+      idempotencyKey: input.idempotencyKey },
+    select: staffOrderSelect,
+  });
+}
+
 export async function createStaffOrder(input: {
   organizationId: string;
   stallId: string;

@@ -6,7 +6,9 @@ export default defineConfig({
   ...baseline,
   workers: 1,
   retries: 0,
+  testIgnore: [],
   testMatch: [
+    "**/responsive-lab/*.spec.ts",
     "**/responsive-*.spec.ts",
     "**/staff-orders-print-runtime-responsive.spec.ts",
     "**/kds-production-board.spec.ts",

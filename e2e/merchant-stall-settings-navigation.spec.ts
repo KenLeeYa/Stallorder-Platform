@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 
+import { assertResponsiveQaMode } from "../scripts/responsive-qa-target.mjs";
+
+test.beforeAll(() => assertResponsiveQaMode(process.env));
+
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
 

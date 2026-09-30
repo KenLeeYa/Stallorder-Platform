@@ -84,7 +84,7 @@ function render(orders: StaffOrderDto[], moduleOverride: Partial<{ dineIn: boole
     }}
     initialOrders={orders}
     initialNow={new Date("2026-08-13T04:10:00.000Z").getTime()}
-    account={{ displayName: "店員", role: "STAFF" }}
+    account={{ displayName: "店員", role: "STAFF", profileId: "actor" }}
     modules={{ dineIn: true, delivery: true, print: false, kds: true, payment: false, discount: false, discountApprovalThresholdBps: 8000, ...moduleOverride }}
     paymentOptions={[]}
     discountOptions={[]}
@@ -285,4 +285,11 @@ describe("StaffOrderBoard ticket presentation", () => {
     expect(html).toContain("查看明細");
     expect(html).not.toContain("未來預約訂單（1）");
   });
+});
+
+
+it("labels test orders explicitly on the phone summary, without labelling normal orders", () => {
+  const phone = (html: string) => html.split('data-testid="staff-order-mobile-list"')[1].split('</article>')[0];
+  expect(phone(render([order({ isTest: true })]))).toContain("測試訂單");
+  expect(phone(render([order({ isTest: false })]))).not.toContain("測試訂單");
 });

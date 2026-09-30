@@ -1,12 +1,15 @@
+import { assertResponsiveQaTarget } from "../../scripts/responsive-qa-target.mjs";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import AxeBuilder from "@axe-core/playwright";
-import { catalogCsvHeaders } from "../src/lib/catalog-csv-client";
+import { catalogCsvHeaders } from "../../src/lib/catalog-csv-client";
 import { chromium, expect, test, type Locator, type Page } from "@playwright/test";
-import { readResponsiveBuildProvenance } from "../scripts/responsive-build-provenance.mjs";
-import { dismissStaffStartReminder, loginLocalTestAccount, qrProductSelectionControl } from "./local-navigation";
-import { acceptanceDirectory, acceptanceWidths, fixedAcceptanceFixture, longProductName, longProductNameEnglish } from "./helpers/responsive-acceptance-fixture";
+import { readResponsiveBuildProvenance } from "../../scripts/responsive-build-provenance.mjs";
+import { dismissStaffStartReminder, loginLocalTestAccount, qrProductSelectionControl } from "../local-navigation";
+import { acceptanceDirectory, acceptanceWidths, fixedAcceptanceFixture, longProductName, longProductNameEnglish } from "../helpers/responsive-acceptance-fixture";
+
+assertResponsiveQaTarget(process.env);
 
 test.use({ serviceWorkers: "block", trace: "off", video: "off", screenshot: "off", actionTimeout: 15_000 });
 let fixture: Awaited<ReturnType<typeof fixedAcceptanceFixture>>;

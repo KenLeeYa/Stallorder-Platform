@@ -1,10 +1,13 @@
+import { assertResponsiveQaTarget } from "../../scripts/responsive-qa-target.mjs";
 import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
-import { createResponsiveOrderFixture } from "./helpers/responsive-order-fixture";
-import { readResponsiveBuildProvenance } from "../scripts/responsive-build-provenance.mjs";
-import { kitchenProps, mountKitchenBoard, updateKitchenBoard } from "./helpers/mounted-kitchen-board";
-import { addFirstStaffCatalogProduct, dismissStaffStartReminder, continueQrCheckout, qrProductSelectionControl, loginLocalTestAccount } from "./local-navigation";
+import { createResponsiveOrderFixture } from "../helpers/responsive-order-fixture";
+import { readResponsiveBuildProvenance } from "../../scripts/responsive-build-provenance.mjs";
+import { kitchenProps, mountKitchenBoard, updateKitchenBoard } from "../helpers/mounted-kitchen-board";
+import { addFirstStaffCatalogProduct, dismissStaffStartReminder, continueQrCheckout, qrProductSelectionControl, loginLocalTestAccount } from "../local-navigation";
+
+assertResponsiveQaTarget(process.env);
 
 test.use({ serviceWorkers: "block" });
 
@@ -191,24 +194,36 @@ for (const lostResponses of [1, 2, "recovery-500", "first-corrupt", "first-offli
         await route.fulfill({ response });
       }
     });
+    let recoveryReads = 0;
+    await page.route(`**/api/stalls/${fixture.stallSlug}/orders/recovery?**`, async route => {
+      recoveryReads++;
+      const response = await route.fetch();
+      if (lostResponses === 2 && recoveryReads === 1) return route.abort("connectionfailed");
+      if (lostResponses === "recovery-500" && recoveryReads === 1) return route.fulfill({ status: 500, contentType: "text/html", body: "unavailable" });
+      await route.fulfill({ response });
+    });
     await pos.getByRole("button", { name: "建立訂單並收款", exact: true }).click();
     await expect.poll(() => Boolean(accepted)).toBe(true);
     await testInfo.attach("accepted-response-loss", { contentType: "application/json", body: JSON.stringify({ orderId, paymentId: accepted!.paymentId, usage: accepted!.usage, fault: "real server accepted PAID; response aborted afterwards" }) });
     // No second user payment confirmation: the UI must resolve the original outcome.
-    if (lostResponses !== 1) {
+    {
       await expect(pos).toContainText("收款結果尚未確認");
       await expect(pos.getByRole("button", { name: "建立訂單並收款", exact: true })).toHaveCount(0);
       await page.keyboard.press("Escape");
       await page.setViewportSize({ width: 1024, height: 768 });
       await expect(pos).toBeVisible();
       await expect(pos.getByRole("button", { name: "建立訂單並收款", exact: true })).toHaveCount(0);
-      expect(identities).toHaveLength(typeof lostResponses === "string" && lostResponses.startsWith("first-") ? 1 : 2);
+      expect(identities).toHaveLength(1);
       if (lostResponses === "first-offline") {
         expect(await page.evaluate(() => navigator.onLine)).toBe(false);
         await page.context().setOffline(false);
       }
       expect(await offlineOrderCount(page)).toBe(0);
       await pos.getByRole("button", { name: "查回原訂單結果", exact: true }).click();
+      if (lostResponses === 2 || lostResponses === "recovery-500") {
+        await expect(pos).toContainText("仍無法確認原訂單");
+        await pos.getByRole("button", { name: "查回原訂單結果", exact: true }).click();
+      }
     }
     await expect(pos).toBeHidden({ timeout: 15_000 });
     expect(new Set(identities).size).toBe(1);

@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import { assertResponsiveQaTarget, createResponsiveQaClient } from "./responsive-qa-target.mjs";
+import { assertResponsiveQaTarget, createResponsiveQaClient, assertResponsiveQaMode } from "./responsive-qa-target.mjs";
 
 const exactLocalLab = {
   RESPONSIVE_QA_RUN: "true",
@@ -36,4 +36,13 @@ test("pickup fixture refuses a wrong database before creating a client or making
   }, createClient)).toThrow("RESPONSIVE_QA_TARGET_INVALID: database");
   expect(createClient).not.toHaveBeenCalled();
   expect(dbCall).not.toHaveBeenCalled();
+});
+
+
+test("portable entry enforces strict responsive mode before login, query, or client creation", () => {
+  const login = vi.fn(), query = vi.fn(), factory = vi.fn(() => ({ query }));
+  const entry = environment => { assertResponsiveQaMode(environment); const client = factory(); login(); client.query(); };
+  expect(() => entry({ ...exactLocalLab, DATABASE_URL: "postgresql://synthetic:synthetic@localhost:55722/postgres" })).toThrow();
+  expect(factory).not.toHaveBeenCalled(); expect(login).not.toHaveBeenCalled(); expect(query).not.toHaveBeenCalled();
+  expect(() => assertResponsiveQaMode({ RESPONSIVE_QA_RUN: undefined })).not.toThrow();
 });

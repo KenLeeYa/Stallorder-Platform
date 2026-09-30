@@ -1,7 +1,10 @@
+import { assertResponsiveQaTarget } from "../../scripts/responsive-qa-target.mjs";
 import { expect, test, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
-import { dismissStaffStartReminder, qrProductSelectionControl } from "./local-navigation";
-import { createResponsiveOrderFixture } from "./helpers/responsive-order-fixture";
+import { dismissStaffStartReminder, qrProductSelectionControl } from "../local-navigation";
+import { createResponsiveOrderFixture } from "../helpers/responsive-order-fixture";
+
+assertResponsiveQaTarget(process.env);
 
 test.use({ serviceWorkers: "block" });
 

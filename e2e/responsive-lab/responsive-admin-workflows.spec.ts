@@ -1,8 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { expect, test } from "@playwright/test";
-import { assertResponsiveQaTarget } from "../scripts/responsive-qa-target.mjs";
-import { gotoLocalPath, loginLocalTestAccount } from "./local-navigation";
+import { assertResponsiveQaTarget } from "../../scripts/responsive-qa-target.mjs";
+import { gotoLocalPath, loginLocalTestAccount } from "../local-navigation";
 
 const prisma = new PrismaClient();
 const password = "StallOrderDemo!2026";
@@ -12,6 +12,8 @@ let applicationId = "";
 let connectionId = "";
 let planFixtureId = "";
 let applicationNumber = "";
+
+assertResponsiveQaTarget(process.env);
 
 test.describe.configure({ mode: "serial" });
 

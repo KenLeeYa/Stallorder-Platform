@@ -112,7 +112,7 @@ export type StaffOrderBoardControllerInput = {
   stall: { id: string; organizationId: string; slug: string; name: string; currency: string; timezone: string; businessDayCutoffHour: number };
   initialOrders: OrderWithItems[];
   initialNow: number;
-  account: { displayName: string; role: UserRole };
+  account: { displayName: string; role: UserRole; profileId: string };
   modules: StaffOrderPosSnapshot["modules"];
   paymentOptions: StaffOrderPosSnapshot["paymentOptions"];
   discountOptions: StaffOrderPosSnapshot["discountOptions"];

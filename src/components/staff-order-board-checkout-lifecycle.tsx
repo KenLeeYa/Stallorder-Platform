@@ -334,7 +334,7 @@ export function StaffOrderCheckoutDialog({
             </div>
               <label data-testid="staff-cash-received-field" className="relative min-w-0" htmlFor="cash-received"><span aria-hidden="true" className="pointer-events-none absolute inset-x-1 top-1 truncate text-center text-[0.625rem] font-medium text-stone-600">實收金額</span><input type="text" id="cash-received" aria-label="客戶實收金額" inputMode="numeric" maxLength={9} pattern="[0-9]{0,9}" value={state.cashReceived} onChange={(event) => controller.setCashReceived(event.target.value.replace(/\D/g, "").slice(0, 9))} placeholder={String(model.total)} className="h-14 w-full min-w-0 rounded-md border border-stone-300 bg-white px-1 pb-1 pt-5 text-center text-xl font-semibold tabular-nums" /></label>
             </div>
-            <CashChangeSummary label="找零" amount={formatMoney(model.change, currency)} insufficient={state.cashReceived !== "" && Number(state.cashReceived) < model.total} insufficientLabel="實收金額不足" />
+            <CashChangeSummary label="找零" amount={formatMoney(model.shortage || model.change, currency)} insufficient={state.cashReceived !== "" && Number(state.cashReceived) < model.total} insufficientLabel="實收金額不足" />
           </div>
         ) : null}
 

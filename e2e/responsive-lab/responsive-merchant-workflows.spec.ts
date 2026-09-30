@@ -2,9 +2,9 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { PrismaClient } from "@prisma/client";
 import { expect, test } from "@playwright/test";
-import { assertResponsiveQaTarget } from "../scripts/responsive-qa-target.mjs";
-import { catalogCsvHeaders } from "../src/lib/catalog-csv-client";
-import { gotoLocalPath, loginLocalTestAccount } from "./local-navigation";
+import { assertResponsiveQaTarget } from "../../scripts/responsive-qa-target.mjs";
+import { catalogCsvHeaders } from "../../src/lib/catalog-csv-client";
+import { gotoLocalPath, loginLocalTestAccount } from "../local-navigation";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
@@ -16,6 +16,8 @@ let fixtureQrId = "";
 let fixtureQrToken = "";
 let originalStall: { orderingState: "OPEN" | "PAUSED" | "CLOSED"; isSoldOut: boolean };
 let originalHours: Awaited<ReturnType<typeof prisma.stallBusinessHour.findMany>>;
+
+assertResponsiveQaTarget(process.env);
 
 test.describe.configure({ mode: "serial" });
 

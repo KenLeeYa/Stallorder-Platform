@@ -68,6 +68,7 @@ const appServerCommand = productionServer
 
 export default defineConfig({
   testDir: "./e2e",
+  testIgnore: ["**/responsive-lab/**"],
   fullyParallel: false,
   workers: 1,
   retries: process.env.CI ? 1 : 0,

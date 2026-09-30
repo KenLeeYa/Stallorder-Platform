@@ -1,3 +1,4 @@
+import { assertResponsiveQaTarget } from "../../scripts/responsive-qa-target.mjs";
 import { expect, test } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import {
@@ -5,7 +6,9 @@ import {
   dismissStaffStartReminder,
   gotoLocalPath,
   loginLocalTestAccount,
-} from "./local-navigation";
+} from "../local-navigation";
+
+assertResponsiveQaTarget(process.env);
 
 test.use({ serviceWorkers: "block" });
 

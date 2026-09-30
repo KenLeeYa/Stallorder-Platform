@@ -186,7 +186,7 @@ type Actions = {
 export type StaffOrderBoardPresentationProps = {
   queueRedesignEnabled?: boolean;
   stall: Stall;
-  account: { displayName: string; role: UserRole };
+  account: { displayName: string; role: UserRole; profileId: string };
   modules: StaffOrderPosSnapshot["modules"];
   paymentOptions: StaffOrderPosSnapshot["paymentOptions"];
   discountOptions: StaffOrderPosSnapshot["discountOptions"];
@@ -749,6 +749,7 @@ function StaffTicketList(props: StaffTicketListProps) {
       {focusedOrder ? <div data-testid="staff-order-mobile-detail" className="grid gap-3">
         <div data-testid="staff-mobile-detail-summary" className="flex flex-wrap gap-2 text-sm font-semibold text-stone-700">
           <span>{focusedOrder.customerName}</span>
+          {focusedOrder.isTest ? <span className="rounded bg-amber-100 px-2 py-0.5 text-amber-900">{props.t("staff.order.test")}</span> : null}
           <span>{staffQueueSource(focusedOrder) ? props.t(sourceLabels[staffQueueSource(focusedOrder)!]) : workspaceNavigationMessage(props.locale, "otherSource")}</span>
           <span>{contextualOrderStatusLabel(focusedOrder, props.t)}</span>
           <span>{paymentStatusLabel(focusedOrder.paymentStatus, props.t)}</span>
@@ -977,7 +978,7 @@ function StaffOrderTicket(props: StaffOrderTicketProps) {
   />;
   if (mobileSummaryOnly) return <article className={`rounded-lg border p-4 ${orderAgeClasses(order, timing, now)}`}>
     <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0"><strong className="block break-all text-sm">{t("staff.order.number", { number: order.orderNo })}</strong><p className="mt-1 font-semibold">{order.customerName}</p></div>
+      <div className="min-w-0"><strong className="block break-all text-sm">{t("staff.order.number", { number: order.orderNo })}</strong>{order.isTest ? <span className="mt-1 inline-flex rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">{t("staff.order.test")}</span> : null}<p className="mt-1 font-semibold">{order.customerName}</p></div>
       <span className="rounded-md bg-teal-50 px-2 py-1 text-xs font-semibold text-teal-800">{contextualOrderStatusLabel(order, t)}</span>
     </div>
     <p className="mt-2 text-base text-stone-600">{orderTimingSummary(order, timing, now, stall.timezone, locale, t)}</p>

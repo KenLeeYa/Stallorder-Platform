@@ -1,10 +1,13 @@
+import { assertResponsiveQaTarget } from "../../scripts/responsive-qa-target.mjs";
 import { createHash, randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
-import { continueQrCheckout, qrProductSelectionControl } from "./local-navigation";
-import { createResponsiveOrderFixture } from "./helpers/responsive-order-fixture";
-import { waitForOwnedOrderRateWindow } from "./helpers/responsive-order-rate-window";
-import { createResponsiveQaClient } from "../scripts/responsive-qa-target.mjs";
+import { continueQrCheckout, qrProductSelectionControl } from "../local-navigation";
+import { createResponsiveOrderFixture } from "../helpers/responsive-order-fixture";
+import { waitForOwnedOrderRateWindow } from "../helpers/responsive-order-rate-window";
+import { createResponsiveQaClient } from "../../scripts/responsive-qa-target.mjs";
+
+assertResponsiveQaTarget(process.env);
 
 test.use({ actionTimeout: 15_000, serviceWorkers: "block" });
 
