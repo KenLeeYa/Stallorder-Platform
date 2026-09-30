@@ -1,0 +1,51 @@
+{
+  "targets": {
+    "APP_BASE_URL": {
+      "host": "127.0.0.1",
+      "port": "3026",
+      "path": "/"
+    },
+    "PLAYWRIGHT_APP_URL": {
+      "host": "127.0.0.1",
+      "port": "3026",
+      "path": "/"
+    },
+    "PRIMARY_SUPABASE_URL": {
+      "host": "127.0.0.1",
+      "port": "56821",
+      "path": "/"
+    },
+    "NEXT_PUBLIC_SUPABASE_URL": {
+      "host": "127.0.0.1",
+      "port": "56821",
+      "path": "/"
+    },
+    "NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL": {
+      "host": "127.0.0.1",
+      "port": "56821",
+      "path": "/functions/v1"
+    },
+    "NEXT_PUBLIC_SUPABASE_REALTIME_URL": {
+      "host": "127.0.0.1",
+      "port": "56821",
+      "path": "/"
+    },
+    "DATABASE_URL": {
+      "host": "127.0.0.1",
+      "port": "56822",
+      "path": "/postgres"
+    },
+    "DIRECT_URL": {
+      "host": "127.0.0.1",
+      "port": "56822",
+      "path": "/postgres"
+    }
+  },
+  "secrets": {
+    "ABUSE_HASH_SECRET": "PRESENT",
+    "TOKEN_DERIVATION_SECRET": "PRESENT",
+    "PRIMARY_SUPABASE_SERVICE_ROLE_KEY": "PRESENT"
+  },
+  "allValuesLoadedBeforeConfig": true,
+  "snapshotEnvByteEqual": true
+}

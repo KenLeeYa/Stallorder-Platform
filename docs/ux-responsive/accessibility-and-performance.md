@@ -1,6 +1,6 @@
 # 無障礙與效能基線
 
-本輪是設計盤點，沒有改造後數值；不宣稱WCAG合規或效能改善完成。
+本文件保留原始設計盤點、A1先期值與後續B3驗證；各節分開記錄日期、資料集及證據範圍，不宣稱WCAG合規或整體效能改善完成。
 
 ## 現有可驗證證據
 
@@ -16,6 +16,8 @@
 證據是Windows Chrome viewport override，不是觸控真機；沒有模擬iOS安全區或虛擬鍵盤。第三方擴充浮層不計入產品缺陷。正式匿名HTTP基線不計入應用task latency。
 
 ## 候選實作前必補量測
+
+下表保留設計盤點當時的缺口；後續B3量測不會把A1不同資料集的先期值改寫成可比基準。
 
 | 指標 | 採樣設計 | 目前結果 |
 |---|---|---|
@@ -40,7 +42,7 @@
 
 QR 同互動 5 輪本機初步值：LCP 152–220ms、INP 48–56ms、CLS 0；不是 RUM 或實機分布。`scripts/audit-client-bundles.mjs` 8/8 route budget 通過，QR entry 84,586 B、Staff 97,830 B、KDS 85,094 B（未壓縮）；待 B3 固定相同 build/設定比較。公開 availability API 30 筆串行讀取 median 4ms、p95 10ms、error rate 0；Staff orders 的 APIRequestContext 30 筆全為非 200（代表性 401，後續 browser fetch 又受 429），**不給有效 latency p95**。人工作業時間、實機 Safari/Android、100+單與完整暖 QR／授權 API 30 筆為 NOT_RUN。
 
-B3 必須在同一隔離 lab 建立固定 100+ 單、長名稱/備註資料，記錄資料 ID/數量、功能旗標、角色和設定。先停本 lab 的 3026 消費者，於不可變 A1 commit 重建/啟動 production app 對該固定資料集測 before，之後恢復目標 commit 並以相同方法測 after；全部切換前先提交各自工作，不能 reset DB、清理別人資料或碰 3023/55722。補足 QR 暖30與授權 API30（遵守原速率限制，跨有效窗口採樣），無效 401/429 不納入統計。若條件不能匹配，保留兩組原始值但不宣稱速度改善。
+B3 使用同一隔離 lab 的固定 100+ 單、長名稱/備註資料，記錄資料 ID/數量、功能旗標、角色和設定。不可變 A1 以 `git archive` 匯出到新建、受控的來源 artifact，驗證所有 tracked blob 與原 Git tree 完全一致；若 build wrapper 需要 Git 身分，另建 snapshot provenance commit，明記它與原 A1 commit 的差異及相同 tree。不得 checkout/detach 任何既有工作樹，也不得修改 baseline 產品。兩個來源使用獨立 `.next`；每次 build 前只停 owned3026，先載入精確 lab env 再載入舊 config defaults。保持候選 branch/ref、DB、3023/55722 與其他工作不變。QR 冷/暖各30與授權 API30遵守原速率限制、跨有效窗口採樣；無效401/429另計，不納入成功 latency。若條件不能匹配，保留原始值但不宣稱速度改善。
 
 ## WCAG 2.2 AA 目標驗收
 
@@ -62,3 +64,46 @@ Reproduced fixes are limited to cancellation of an obsolete missing-order focus 
 The retained `responsive-b3-fixed-120-v1` dataset has 120 deterministic synthetic CONFIRMED orders with long names/notes; `b3-accessibility/fixed-dataset.json` records every order ID, creation time, hash, settings and flags. B3.2 must freeze and read this same dataset on both revisions, without reseeding, resetting, completing orders or changing flags between samples. The dedicated `b3-fixed-locale` menu and inactive CSV import product are separate UI fixtures; do not use their creation as a performance comparison.
 
 Physical iPhone/iPad Safari and Android Chrome, NVDA/VoiceOver, and five human task timings per role remain NOT_RUN. On the retained lab, operators must exercise portrait/landscape, keyboard opening, safe-area bottom actions and real touch; run screen-reader heading/control/error/status traversal and dialog return; record five real humans' elapsed task times per role with the same task/fixture. Automation durations are not those measurements. Paired performance and the full combined suite belong to B3.2/B3.3.
+
+## B3.2 paired performance results
+
+2026-09-30 isolated production-mode measurement is complete **with concerns**, not a speed-improvement or release claim. Immutable original A1 `a0c635bc8177abd953fd7381d85fbbaf22cf1fe1` was exported into a new artifact and verified against all2,563 tracked blobs; snapshot commit `3e586386d8b916b7e68c5242bc344155e9410fd5` has the identical tree and build `ZRPD1C0hp87hIxeN-6rwI`. Candidate `c1ef63884b7ec731942fe11e0a347f29d9dc174d` used build `rcKKnUtHI8cnstCJFVw4b`. Neither an existing checkout nor the business dataset was switched/reset. Full commands, provenance, failures and B3.3 source/start handoff are in `.superpowers/sdd/2026-09-30-responsive-management-verification/task-3b-report.md`; raw evidence is in `artifacts/ux-responsive-20260930/b3-performance/`.
+
+Both phases used the same fixed120 order/item/task hashes and surrounding231orders/214products/146tasks, settings, flags, role, routes, actual Chromium browser session cookies, measurement/statistics hashes and machine. BEFORE14:16:52–14:52:15UTC, AFTER14:55:34–15:25:45UTC; both precede Taipei midnight. Report query/input date was fixed2026-09-30; KDS elapsed labels and refreshed times naturally advanced. Cold is a fresh browser context with empty HTTP cache; server/OS remain warm. Warm retains one context/page/identity after a priming interaction. Timings include navigation through a genuine readonly action and asserted result, not merely a visible marker. All series run serially; actual429 attempts and ordinary Retry-After waits remain separate from valid latency.
+
+Goals were registered after full BEFORE and before AFTER, against sanitized BEFORE SHA256 `b35de6e47a2b3892b5011c1f7d5a96fd76b01430916af8617f6fb0c43457d8aa`: reduce median by at least baseline IQR, without increased p95 or invalid-attempt rate. IQR is observed spread, not statistical confidence. **All11 timing goals are NOT_MET**; do not claim improvement within noise or attribute this single sequential comparison solely to code.
+
+Each row has30 valid samples per phase; units ms. Invalid ratios use all attempts, not30 as denominator. API availability is public, measured in owner browser context; it is not a report-data API.
+
+| Series | Before median / p95 | After median / p95 | Median goal ≤ | Goal | Invalid before → after |
+| --- | ---: | ---: | ---: | --- | --- |
+| QR390 cold | 1313.50 /1418.0 | 1277.75 /1432.4 | 1278.10 | NOT_MET | 1/31 →1/31 |
+| QR390 warm | 516.30 /761.5 | 516.15 /2295.1 | 400.30 | NOT_MET | 3/33 →3/33 |
+| Staff1024 cold | 1029.65 /1208.0 | 919.75 /3866.8 | 898.75 | NOT_MET | 0/30 →0/30 |
+| Staff1024 warm | 912.00 /1142.5 | 829.45 /1084.1 | 749.60 | NOT_MET | 1/31 →1/31 |
+| KDS1024 cold | 307.80 /597.5 | 324.95 /617.7 | 260.40 | NOT_MET | 3/33 →0/30 |
+| KDS1024 warm | 283.95 /622.4 | 309.00 /482.9 | 241.45 | NOT_MET | 2/32 →0/30 |
+| Report390 cold | 290.90 /339.3 | 298.75 /390.5 | 273.20 | NOT_MET | 0/30 →0/30 |
+| Report390 warm | 158.15 /190.9 | 164.60 /485.0 | 131.45 | NOT_MET | 0/30 →0/30 |
+| Staff orders API | 36.85 /76.8 | 38.65 /83.6 | 30.85 | NOT_MET | 0/30 →0/30 |
+| KDS board API | 67.45 /89.1 | 66.10 /116.9 | 57.45 | NOT_MET | 0/30 →0/30 |
+| Public availability API | 3.45 /12.2 | 4.30 /16.5 | 2.25 | NOT_MET | 0/30 →0/30 |
+
+The QR warm, Staff cold and report warm tails are observed regressions in this run and require focused follow-up before any improvement claim. They were retained, not trimmed or selectively rerun. AFTER QR/warm attempt6 at15:01:43.258Z took2873ms with a35.6ms server request; Staff/cold attempt21 at15:18:45.725Z took3964.5ms with server total1816.9ms (recorded dbMs1816.6/auth195.4); report/warm attempt16 at15:25:08.938Z took486.1ms with server46.8ms. Exact request IDs and further tails are in `tail-server-correlations.json`. Server spans correlate temporally but do not explain the whole browser duration; no resource waterfall, per-action phase trace or contemporaneous CPU trace exists. No product root cause is asserted.
+
+Five genuine lab interaction rounds per flow/phase, zero invalid rounds; p95 below is the five-round maximum, not a population tail. All observed INP values were uncensored; raw EventTiming events and layout shifts are retained. No RUM, human task-time, physical-device or WCAG certification claim follows.
+
+| Flow / phase | LCP median / max ms | INP median / max ms | CLS median / max |
+| --- | ---: | ---: | ---: |
+| QR before | 220 /232 | 56 /56 | 0 /0 |
+| QR after | 204 /236 | 64 /72 | 0 /0 |
+| Staff before | 656 /772 | 24 /64 | 0 /0.0008855 |
+| Staff after | 440 /728 | 32 /56 | 0 /0.0008855 |
+| KDS before | 172 /256 | 24 /24 | 0.0004924 /0.0004924 |
+| KDS after | 212 /280 | 24 /32 | 0.0004924 /0.0004924 |
+| Report before | 184 /208 | 16 /16 | 0 /0 |
+| Report after | 184 /192 | 16 /16 | 0 /0 |
+
+Same-build uncompressed **entry JS**, not complete lazy-loaded payload: QR84586→84586B, Staff97830→97830B, KDS85094→85094B, report136033→136314B (**+281B**, no-growth goal NOT_MET); the four-route shared intersection79827→79827B. Per-chunk SHA256 is retained. Existing `performance:bundles` budgets pass8/8 on both builds; those budgets do not include this report route and do not convert its growth into a met goal.
+
+Route invalid-attempt rate was10/250=4.00% before and5/245=2.04% after; each failed attempt involved actual429. Authorized selected API failures were0/90 per phase, with200/JSON plus body-contract assertions. Only exact optional attendance409/`ATTENDANCE_DISABLED` is classified separately. Console records contain152/134 rate errors,66/65 attendance errors and one localhost websocket CSP violation in each phase; counts include automatic retries during untimed waits and are not unique request counts. Known key values were redacted without dropping these diagnostics, with local-account-only originals retained outside Git. No clean-console claim or SSE fix follows. The older storefront stream-closed issue remains unresolved; this performance run did not exercise that storefront loop. Physical devices, assistive technology, human timings, complete role keyframes and final combined B3.3 QA remain separate open gates.
