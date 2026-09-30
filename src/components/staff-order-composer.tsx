@@ -783,6 +783,11 @@ export function StaffOrderComposer({
     };
     const originalRequest = { body: JSON.stringify(requestBody), cash: paymentTiming === "PAY_NOW" && usesCash };
     try {
+      // Only a request that has not been dispatched may become an offline order.
+      if (!navigator.onLine) {
+        await createOfflineFallback(new TypeError("OFFLINE_BEFORE_DISPATCH"));
+        return;
+      }
       let response: Response;
       let recoveringUnknown = false;
       try {
@@ -791,9 +796,9 @@ export function StaffOrderComposer({
           headers: csrfHeaders(),
           body: originalRequest.body,
         });
-      } catch (error) {
+      } catch {
         if (!navigator.onLine) {
-          await createOfflineFallback(error);
+          setUncertainRequest(originalRequest);
           return;
         }
         recoveringUnknown = true;
@@ -813,7 +818,7 @@ export function StaffOrderComposer({
       let payload: { order?: StaffOrderDto; code?: string };
       try {
         payload = await response.json() as { order?: StaffOrderDto; code?: string };
-      } catch (error) {
+      } catch {
         if (recoveringUnknown || response.ok || isTemporaryOrderFailure(response.status)) {
           setUncertainRequest(originalRequest);
           return;

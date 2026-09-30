@@ -131,7 +131,7 @@ test("RSP-Q05: real session revocation 401 and shared-device finance identity 40
   }
 });
 
-for (const lostResponses of [1, 2, "recovery-500", "first-corrupt"] as const) test(`RSP-Q03: ${lostResponses} accepted cash response losses resume original order before synthetic print retry`, async ({ page }, testInfo) => {
+for (const lostResponses of [1, 2, "recovery-500", "first-corrupt", "first-offline", "first-body-read", "first-503"] as const) test(`RSP-Q03: ${lostResponses} accepted cash response losses resume original order before synthetic print retry`, async ({ page }, testInfo) => {
   test.setTimeout(90_000);
   const prisma = new PrismaClient();
   let orderId = "";
@@ -143,6 +143,18 @@ for (const lostResponses of [1, 2, "recovery-500", "first-corrupt"] as const) te
   const settings = await prisma.stallOrderingSettings.findUniqueOrThrow({ where: { stallId: fixture.stallId }, select: { printModuleEnabled: true, kdsModuleEnabled: true } });
   try {
     await prisma.stallOrderingSettings.update({ where: { stallId: fixture.stallId }, data: { printModuleEnabled: false, kdsModuleEnabled: false } });
+    if (lostResponses === "first-body-read") await page.addInitScript(() => {
+      const originalFetch = window.fetch;
+      let consumed = false;
+      window.fetch = async (...args) => {
+        const response = await originalFetch(...args);
+        if (!consumed && args[1]?.method === "POST" && String(args[0]).endsWith("/api/stalls/aming-chicken/orders") && response.status === 201) {
+          consumed = true;
+          await response.text(); // Real Response.json now rejects with body-used TypeError.
+        }
+        return response;
+      };
+    });
     await loginLocalTestAccount(page, "staff@stallorder.test", "StallOrderDemo!2026");
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`/staff/${fixture.stallSlug}`);
@@ -165,6 +177,9 @@ for (const lostResponses of [1, 2, "recovery-500", "first-corrupt"] as const) te
         accepted = { paymentId: payment.id, orderNo: payload.order.orderNo, usage: await prisma.usageEvent.count({ where: { referenceId: orderId } }) };
         expect(payment.status).toBe("PAID");
         if (lostResponses === "first-corrupt") return route.fulfill({ status: 201, contentType: "application/json", body: '{"order":' });
+        if (lostResponses === "first-body-read") return route.fulfill({ response });
+        if (lostResponses === "first-503") return route.fulfill({ status: 503, contentType: "text/html", body: "<html>Gateway response unavailable</html>" });
+        if (lostResponses === "first-offline") await page.context().setOffline(true);
         await route.abort("connectionfailed");
       } else {
         expect(response.status()).toBe(200);
@@ -186,12 +201,19 @@ for (const lostResponses of [1, 2, "recovery-500", "first-corrupt"] as const) te
       await page.setViewportSize({ width: 1024, height: 768 });
       await expect(pos).toBeVisible();
       await expect(pos.getByRole("button", { name: "建立訂單並收款", exact: true })).toHaveCount(0);
-      expect(identities).toHaveLength(lostResponses === "first-corrupt" ? 1 : 2);
+      expect(identities).toHaveLength(typeof lostResponses === "string" && lostResponses.startsWith("first-") ? 1 : 2);
+      if (lostResponses === "first-offline") {
+        expect(await page.evaluate(() => navigator.onLine)).toBe(false);
+        await page.context().setOffline(false);
+      }
+      expect(await offlineOrderCount(page)).toBe(0);
       await pos.getByRole("button", { name: "查回原訂單結果", exact: true }).click();
     }
     await expect(pos).toBeHidden({ timeout: 15_000 });
     expect(new Set(identities).size).toBe(1);
     expect(new Set(payloads).size).toBe(1);
+    expect(await offlineOrderCount(page)).toBe(0);
+    expect(await prisma.order.count({ where: { idempotencyKey: identities[0] } })).toBe(1);
     expect(await prisma.payment.count({ where: { orderId } })).toBe(1);
     expect((await prisma.payment.findFirstOrThrow({ where: { orderId } })).id).toBe(accepted!.paymentId);
     await prisma.stallOrderingSettings.update({ where: { stallId: fixture.stallId }, data: { printModuleEnabled: true } });
@@ -209,11 +231,29 @@ for (const lostResponses of [1, 2, "recovery-500", "first-corrupt"] as const) te
     expect(await prisma.usageEvent.count({ where: { referenceId: orderId } })).toBe(accepted!.usage);
     expect(await prisma.order.findUniqueOrThrow({ where: { id: orderId }, select: { status: true, paymentStatus: true } })).toEqual({ status: "CONFIRMED", paymentStatus: "PAID" });
   } finally {
+    await page.context().setOffline(false);
     if (jobId) await prisma.printJob.deleteMany({ where: { id: jobId } });
     await prisma.stallOrderingSettings.update({ where: { stallId: fixture.stallId }, data: settings });
     await prisma.$disconnect();
   }
 });
+
+async function offlineOrderCount(page: Page) {
+  return page.evaluate(async () => {
+    if (!(await indexedDB.databases()).some((database) => database.name === "stallorder-offline-pos")) return 0;
+    return new Promise<number>((resolve, reject) => {
+      const opened = indexedDB.open("stallorder-offline-pos");
+      opened.onerror = () => reject(opened.error);
+      opened.onsuccess = () => {
+        const database = opened.result;
+        if (!database.objectStoreNames.contains("offline_orders")) { database.close(); resolve(0); return; }
+        const count = database.transaction("offline_orders", "readonly").objectStore("offline_orders").count();
+        count.onerror = () => { database.close(); reject(count.error); };
+        count.onsuccess = () => { database.close(); resolve(count.result); };
+      };
+    });
+  });
+}
 
 async function configuredCart(page: Page, fixture: Awaited<ReturnType<typeof createResponsiveOrderFixture>>) {
   const ip = `198.18.${Number.parseInt(fixture.runId.slice(0, 2), 16)}.${Number.parseInt(fixture.runId.slice(2, 4), 16)}`;
