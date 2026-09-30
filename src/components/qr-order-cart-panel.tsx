@@ -135,13 +135,13 @@ export function QrOrderCartPanel({
           title={copy.close}
           aria-label={copy.close}
           onClick={onClose}
-          className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 md:hidden"
+          className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 lg:hidden"
         >
           <X className="h-4 w-4" />
         </button>
       </div>
       {cartLines.length > 0 ? (
-        <div data-testid="qr-cart-lines" className={`${activeCartStep === "CART" ? "block" : "hidden"} mt-4 space-y-3 border-b border-stone-200 pb-4 md:block`}>
+        <div data-testid="qr-cart-lines" className={`${activeCartStep === "CART" ? "block" : "hidden"} mt-4 space-y-3 border-b border-stone-200 pb-4 lg:block`}>
           {cartLines.map((line, index) => {
             const product = session.products.find((candidate) => candidate.id === line.productId);
             if (!product) return null;
@@ -190,14 +190,14 @@ export function QrOrderCartPanel({
         </div>
       ) : null}
       {cartLines.length > 0 && activeCartStep === "CART" ? (
-        <button ref={continueButtonRef} type="button" onClick={onContinueToCheckout} className="mt-4 min-h-12 w-full rounded-md bg-teal-800 px-4 text-sm font-semibold text-white md:hidden">
+        <button ref={continueButtonRef} type="button" onClick={onContinueToCheckout} className="mt-4 min-h-12 w-full rounded-md bg-teal-800 px-4 text-sm font-semibold text-white lg:hidden">
           {copy.continueToCheckout}
         </button>
       ) : null}
-      <div data-testid="qr-checkout-panel" role="group" aria-labelledby={`${fieldId}-heading`} aria-describedby={checkoutBlocker ? `${fieldId}-blocker` : undefined} aria-busy={isSubmitting} className={`${activeCartStep === "CHECKOUT" ? "block" : "hidden"} md:block`}>
+      <div data-testid="qr-checkout-panel" role="group" aria-labelledby={`${fieldId}-heading`} aria-describedby={checkoutBlocker ? `${fieldId}-blocker` : undefined} aria-busy={isSubmitting} className={`${activeCartStep === "CHECKOUT" ? "block" : "hidden"} lg:block`}>
         <div className="mt-4 flex items-center justify-between gap-3 border-t border-stone-200 pt-4">
           <h3 id={`${fieldId}-heading`} ref={checkoutHeadingRef} tabIndex={-1} className="font-semibold outline-none">{copy.checkoutDetails}</h3>
-          <button type="button" onClick={onBackToCart} className="min-h-11 rounded-md px-2 text-xs font-semibold text-teal-800 md:hidden">{copy.backToCart}</button>
+          <button type="button" onClick={onBackToCart} className="min-h-11 rounded-md px-2 text-xs font-semibold text-teal-800 lg:hidden">{copy.backToCart}</button>
         </div>
         <div className="mt-4 space-y-3">
           {showCustomerIdentity ? (
