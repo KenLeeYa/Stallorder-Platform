@@ -108,7 +108,7 @@ test("KDS ready 補讀快照時不套用延遲舊回應", async ({ page }) => {
     await route.fulfill({ response, json: { ...stale, tasks: [], futureReservations: [], alertOrderIds: [] } });
   });
   await login(page, "kitchen@stallorder.test");
-  await page.getByTestId("kitchen-order-queue-button").filter({ hasText: `#${orderNo}` }).click();
+  await page.getByTestId("kitchen-order-queue-button").filter({ hasText: `#${orderNo}` }).first().click();
   const orderCard = page.getByRole("article").filter({ hasText: `#${orderNo}` });
   await expect(orderCard).toBeVisible();
   await expect(page.getByText("即時連線", { exact: true })).toBeVisible();
@@ -154,7 +154,7 @@ test("KDS 慢舊回應不能覆寫較新的廚房事件快照", async ({ page })
     await route.fulfill({ response, json: { ...stale, tasks: [], futureReservations: [], alertOrderIds: [] } });
   });
   await login(page, "kitchen@stallorder.test");
-  await page.getByTestId("kitchen-order-queue-button").filter({ hasText: `#${orderNo}` }).click();
+  await page.getByTestId("kitchen-order-queue-button").filter({ hasText: `#${orderNo}` }).first().click();
   const orderCard = page.getByRole("article").filter({ hasText: `#${orderNo}` });
   await expect(orderCard).toBeVisible();
   await page.evaluate((orderNumber) => {
