@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import { validateResponsiveBuildProvenance } from "./responsive-build-provenance.mjs";
 import { createHash, randomBytes } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 
@@ -43,3 +43,26 @@ test("hashes the complete working diff when QA evidence exceeds the default chil
     rmSync(repository, { recursive: true, force: true });
   }
 });
+
+test("hashes all untracked evidence paths beyond the default child-process buffer", () => {
+  const repository = mkdtempSync(join(tmpdir(), "responsive-source-untracked-"));
+  try {
+    execFileSync("git", ["-C", repository, "init", "--quiet"]);
+    execFileSync("git", ["-C", repository, "-c", "user.name=QA", "-c", "user.email=qa@example.invalid", "commit", "--quiet", "--allow-empty", "-m", "baseline"]);
+    mkdirSync(join(repository, "evidence"));
+    for (let index = 0; index < 7_000; index++) {
+      writeFileSync(join(repository, "evidence", `${String(index).padStart(5, "0")}${"x".repeat(150)}`), "");
+    }
+    const untracked = execFileSync("git", ["-C", repository, "ls-files", "--others", "--exclude-standard", "-z"], { maxBuffer: 64 * 1024 * 1024 });
+    expect(untracked.byteLength).toBeGreaterThan(1024 * 1024);
+    console.info(JSON.stringify({ event: "responsive_provenance_untracked_regression", paths: 7_000, bytes: untracked.byteLength }));
+    const expected = createHash("sha256");
+    for (const path of untracked.toString("utf8").split("\0").filter(Boolean)) expected.update(path);
+    const moduleUrl = new URL("./responsive-build-provenance.mjs", import.meta.url).href;
+    const actual = execFileSync(process.execPath, ["--input-type=module", "-e", `import { captureResponsiveSource } from ${JSON.stringify(moduleUrl)}; process.stdout.write(captureResponsiveSource().workingTreePatchSha256);`], { cwd: repository, encoding: "utf8" });
+    expect(actual).toBe(expected.digest("hex"));
+  } finally {
+    if (!resolve(repository).startsWith(`${resolve(tmpdir())}${sep}`)) throw new Error("TEMP_REPOSITORY_OUTSIDE_TMPDIR");
+    rmSync(repository, { recursive: true, force: true });
+  }
+}, 120_000);
