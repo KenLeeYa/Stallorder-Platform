@@ -509,6 +509,62 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
     }
   });
 
+  test("手機 QR 外帶顧客到場後可取消並重新開啟結帳", async ({ browser }) => {
+    test.setTimeout(120_000);
+    await prisma.stallOrderingSettings.update({
+      where: { stallId },
+      data: { kdsModuleEnabled: false, printModuleEnabled: false },
+    });
+    const order = await createConfirmedPublicOrder(`${runMarker} 到場結帳`);
+    await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        fulfillmentTimeState: "CUSTOMER_ACTION_REQUIRED",
+        fulfillmentTimeVersion: 1,
+        pendingFulfillmentAt: new Date(Date.now() + 30 * 60_000),
+        fulfillmentTimeResponseExpiresAt: new Date(Date.now() + 20 * 60_000),
+      },
+    });
+
+    const staffContext = await browser.newContext({
+      locale: "zh-TW", timezoneId: "Asia/Taipei",
+      viewport: { width: 390, height: 844 },
+    });
+    try {
+      const staffPage = await staffContext.newPage();
+      await login(staffPage, "staff@stallorder.test", new RegExp(`/staff/${stallSlug}`));
+      await staffPage.goto(`/staff/${stallSlug}`);
+      await dismissStaffStartReminder(staffPage);
+      await searchStaffOrders(staffPage, order.orderNo);
+      const ticket = staffPage.getByRole("article").filter({ hasText: order.customerName });
+      await ticket.getByRole("button", { name: "查看明細", exact: true }).click();
+      const detail = staffPage.getByRole("dialog", { name: `訂單 ${order.orderNo}` });
+      const presentResponse = staffPage.waitForResponse((response) =>
+        new URL(response.url()).pathname.endsWith(`/orders/${order.id}/fulfillment-time`)
+        && response.request().method() === "PATCH");
+      await detail.getByRole("button", { name: "顧客已到店，直接結帳", exact: true }).first().click();
+      expect((await presentResponse).status()).toBe(200);
+      await expect(detail).toBeHidden({ timeout: 5_000 });
+
+      const checkout = staffPage.getByRole("dialog", { name: "結帳收款" });
+      await expect(checkout).toBeVisible();
+      await checkout.getByRole("button", { name: "關閉結帳視窗" }).click();
+      await expect(checkout).toBeHidden();
+      await expect(ticket).toBeVisible();
+      await ticket.getByRole("button", { name: "查看明細", exact: true }).click();
+      await detail.getByRole("button", { name: "結帳收款", exact: true }).first().click();
+      await expect(detail).toBeHidden({ timeout: 5_000 });
+      await checkout.getByRole("button", { name: "現金", exact: true }).click();
+      await expect(checkout.getByRole("button", { name: "確認收款", exact: true })).toBeEnabled();
+      const stored = await prisma.order.findUniqueOrThrow({ where: { id: order.id } });
+      expect(stored.fulfillmentTimeState).toBe("CONFIRMED");
+      expect(stored.fulfillmentTimeVersion).toBe(2);
+      expect(stored.paymentStatus).toBe("UNPAID");
+    } finally {
+      await staffContext.close();
+    }
+  });
+
   test("KDS 關閉但列印開啟時，確認即排入列印且收款後成功自動結單", async ({
     browser,
   }, testInfo) => {
