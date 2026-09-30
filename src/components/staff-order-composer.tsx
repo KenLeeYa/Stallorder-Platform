@@ -994,7 +994,7 @@ export function StaffOrderComposer({
       }}
       onKeyDown={keepTabInsideDialog}
       className="m-auto h-[100dvh] max-h-[100dvh] w-full max-w-none overflow-hidden border-0 bg-transparent p-0 text-stone-950 backdrop:bg-black/45 print:hidden sm:h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-1.5rem)] sm:w-[calc(100%-1.5rem)] lg:h-[calc(100dvh-3rem)] lg:max-h-[calc(100dvh-3rem)] lg:w-[calc(100%-3rem)]">
-      {uncertainRequest ? <section className="mx-auto grid h-full max-w-xl content-start gap-4 overflow-y-auto bg-white p-6">
+      {uncertainRequest ? <section className="mx-auto grid h-full max-w-xl auto-rows-max content-start gap-4 overflow-y-auto bg-white p-6">
         <h2 id="staff-order-recovery-title" className="text-xl font-semibold">{t("composer.title")}</h2>
         <p role="alert" className="text-base font-semibold">{t(uncertainRequest.paymentTiming === "PAY_NOW" ? "composer.paymentUncertain" : "composer.orderUncertain")}</p>
         {recoveryError ? <p role="alert">{recoveryError}</p> : null}

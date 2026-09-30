@@ -281,6 +281,11 @@ test("I3 nonaccepted or still pending stays UNKNOWN through reload and manual wo
       for (const control of [pos.getByRole("heading"), pos.getByRole("link").first(), pos.getByRole("link").last(), pos.getByRole("button", { name: "查回原訂單結果", exact: true })]) {
         await control.scrollIntoViewIfNeeded(); await expect(control).toBeInViewport();
         const box = await control.boundingBox(); expect(box!.x).toBeGreaterThanOrEqual(0); expect(box!.x + box!.width).toBeLessThanOrEqual(321);
+        expect(await control.evaluate(el => {
+          const range = document.createRange(); range.selectNodeContents(el);
+          const text = range.getBoundingClientRect(), bounds = el.getBoundingClientRect();
+          return text.top >= bounds.top - 1 && text.bottom <= bounds.bottom + 1;
+        })).toBe(true);
       }
       await page.screenshot({ path: testInfo.outputPath(`recovery-unknown-320-text-${fontSize}.png`) });
       expect(await pos.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
