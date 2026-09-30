@@ -200,6 +200,7 @@ test("廚房角色可在手機 KDS 操作且只取得安全欄位", async ({ pag
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   blockKitchenStream = false;
   await expect(page.getByText("即時連線", { exact: true })).toBeVisible({ timeout: 10_000 });
+  await page.getByTestId("kitchen-order-queue-button").filter({ hasText: `#${orderNo}` }).click();
   const orderCard = page.getByRole("article").filter({ hasText: "#" + orderNo });
   await expect(orderCard.getByText("等候警示", { exact: true })).toBeVisible();
   await expect(orderCard.getByText("取餐 738", { exact: true })).toBeVisible();
@@ -317,6 +318,7 @@ test("攤位管理者可進入工作站與 KDS 設定", async ({ page }) => {
   await login(page, "owner@stallorder.test");
   await page.setViewportSize({ width: 320, height: 360 });
   await page.goto("/kitchen?stall=aming-chicken");
+  await page.getByTestId("kitchen-order-queue-button").filter({ hasText: `#${orderNo}` }).click();
   const orderCard = page.getByRole("article").filter({ hasText: `#${orderNo}` });
   const cancelButton = orderCard.getByRole("button", { name: "取消", exact: true });
   await cancelButton.focus();
