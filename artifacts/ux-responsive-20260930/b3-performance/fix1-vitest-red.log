@@ -1,0 +1,29 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 C:/Users/KY/.codex/worktrees/responsive-cross-device/Stallorder-Platform
+
+✔ summary uses average middle values and nearest-rank p95, retaining empty samples (2.5863ms)
+✔ CLS uses maximum session window and INP uses worst observed interaction for short lab rounds (2.7783ms)
+✔ no event over reporting threshold remains censored, never invented as zero INP (0.2324ms)
+✔ CLS starts at the first shift and resets at exact one-second gaps (0.2582ms)
+ ❯ scripts/responsive-performance-stats.test.mjs (0 test)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  scripts/responsive-performance-stats.test.mjs [ scripts/responsive-performance-stats.test.mjs ]
+Error: No test suite found in file C:/Users/KY/.codex/worktrees/responsive-cross-device/Stallorder-Platform/scripts/responsive-performance-stats.test.mjs
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  23:49:05
+   Duration  496ms (transform 34ms, setup 0ms, import 56ms, tests 0ms, environment 0ms)
+

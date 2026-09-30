@@ -1,0 +1,42 @@
+{
+  "at": "2026-09-30T15:52:47.357Z",
+  "fixBase": "d875a83c7209d457f13fd1a694c13568816ed401",
+  "red": {
+    "command": "npx vitest run scripts/responsive-performance-stats.test.mjs",
+    "exit": 1,
+    "failedFiles": 1,
+    "vitestTests": 0,
+    "error": "No test suite found"
+  },
+  "green": {
+    "command": "npx vitest run scripts/responsive-performance-stats.test.mjs",
+    "exit": 0,
+    "passedFiles": 1,
+    "passedTests": 5,
+    "skipped": 0
+  },
+  "lint": {
+    "command": "npx eslint scripts/responsive-performance-stats.test.mjs",
+    "exit": 0
+  },
+  "statisticsSha256": "7f07ca8c6b8d9aa039c58f8ed89979b441fb5212cf81a2d7dd7bb63e1ce3d02f",
+  "measurementSha256": "728a2c8913a78df472923fb41d325d5dba04e0a9ca73d723199b50ba35a4a86c",
+  "algorithmsEqualBothMeasuredReceipts": true,
+  "productInputsEqualMeasuredCandidate": true,
+  "historicalNodeLogsGitDiffEmpty": true,
+  "historicalNodeLogsMatchGitAfterInMemoryCRLFNormalization": true,
+  "initialLogCheck": "Direct working-file vs Git-blob byte comparison failed because preserved Windows CRLF differs from Git LF; no log files rewritten.",
+  "historicalRawSha256": {
+    "measurement-stats-red.log": "d3ca88c3eb246cbacba644e43c6fb060c192f0607e032037d0ae1963537566ab",
+    "measurement-stats-green.log": "45b938fa537c75a3904ed07c290e29ee23ee09e0aac5d6eb1beeaac62c5f4696",
+    "measurement-stats-boundary-red.log": "adeac5119134f9c15fa358f9a7113925cb9b07ddbc30bcbad1d0c92c6c649c20",
+    "measurement-stats-boundary-green.log": "411425b448eb497c225b0f2624b4641b6c4b924b08e7ae7a64b5cef5a3f3268a",
+    "measurement-stats-final.log": "564e605b492498478b0ab1872f0b8ac36c9715531c40823589c8d810755652cf"
+  },
+  "retainedBuild": {
+    "head": "d875a83c7209d457f13fd1a694c13568816ed401",
+    "buildId": "7ZrFOQBRRM4qmDQc68ACE"
+  },
+  "freshBuildOwner": "B3.3; no build or paired rerun for this test/doc fix",
+  "servicesChanged": false
+}
