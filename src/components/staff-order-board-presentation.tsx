@@ -695,7 +695,20 @@ function StaffTicketList(props: StaffTicketListProps) {
   if (page !== queue.page) setPage(queue.page);
   const visibleOrders = props.queueRedesignEnabled ? queue.orders : props.orders;
   const [selectedOrderId, setSelectedOrderId] = useState(props.orders[0]?.id ?? null);
+  const [focusedOrderId, setFocusedOrderId] = useState<string | null>(null);
   const selectedOrder = visibleOrders.find((order) => order.id === selectedOrderId) ?? visibleOrders[0] ?? null;
+  const focusedOrder = props.orders.find((order) => order.id === focusedOrderId) ?? null;
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 768px)");
+    const closeOnDesktop = () => { if (desktop.matches) setFocusedOrderId(null); };
+    desktop.addEventListener("change", closeOnDesktop);
+    return () => desktop.removeEventListener("change", closeOnDesktop);
+  }, []);
+
+  function focusOrder(orderId: string) {
+    setSelectedOrderId(orderId);
+    setFocusedOrderId(orderId);
+  }
 
   return <section className={`mt-6 print:block ${props.fullViewport ? "md:mt-3 md:flex md:min-h-0 md:flex-1 md:flex-col" : ""}`}>
     {props.queueRedesignEnabled ? <><div data-testid="staff-queue-toolbar" className="grid shrink-0 items-center gap-2 md:grid-cols-[minmax(0,1fr)_auto_auto] print:hidden">
@@ -719,8 +732,18 @@ function StaffTicketList(props: StaffTicketListProps) {
     </div>
     {queue.total === 0 && props.orders.length > 0 ? <p role="status" className="mt-4 rounded-lg border border-dashed border-stone-300 p-6 text-sm text-stone-600">{props.t("staff.queue.empty")}</p> : null}</> : null}
     <div className="mt-4 grid gap-4 md:hidden print:block" data-testid="staff-order-mobile-list">
-      {(printingPage ? props.orders : visibleOrders).map((order) => <StaffOrderTicket key={order.id} {...props} order={order} />)}
+      {(printingPage ? props.orders : visibleOrders).map((order) => <StaffOrderTicket key={order.id} {...props} order={order} mobileSummaryOnly={!printingPage} onFocusOrder={focusOrder} />)}
     </div>
+    <ExperienceDialog open={Boolean(focusedOrder)} onClose={() => setFocusedOrderId(null)} title={focusedOrder ? props.t("staff.order.number", { number: focusedOrder.orderNo }) : ""} closeLabel={props.t("common.close")} size="workspace">
+      {focusedOrder ? <div data-testid="staff-order-mobile-detail" className="grid gap-3">
+        <div className="flex flex-wrap gap-2 text-sm font-semibold text-stone-700">
+          <span>{focusedOrder.customerName}</span>
+          <span>{contextualOrderStatusLabel(focusedOrder, props.t)}</span>
+          <span>{paymentStatusLabel(focusedOrder.paymentStatus, props.t)}</span>
+        </div>
+        <StaffOrderTicket {...props} order={focusedOrder} desktopWorkspace mobileWorkspace />
+      </div> : null}
+    </ExperienceDialog>
     {selectedOrder ? <div data-testid="staff-order-master-detail" className={`mt-4 hidden min-w-0 gap-3 md:grid md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.25fr)_minmax(0,0.85fr)] xl:gap-4 print:hidden ${props.fullViewport ? "md:min-h-0 md:flex-1" : "min-h-[32rem] md:h-[calc(100dvh-14rem)]"}`}>
       <nav aria-label={props.t("staff.today.title")} className="min-h-0 min-w-0 overflow-y-auto overscroll-contain rounded-xl border border-stone-200 bg-stone-50 p-2" data-testid="staff-order-list-pane">
         <div className="grid min-w-0 grid-cols-1 gap-2">
@@ -748,6 +771,9 @@ function StaffTicketList(props: StaffTicketListProps) {
 type StaffOrderTicketProps = StaffTicketListProps & {
   order: StaffOrderDto;
   desktopWorkspace?: boolean;
+  mobileWorkspace?: boolean;
+  mobileSummaryOnly?: boolean;
+  onFocusOrder?: (orderId: string) => void;
 };
 
 type StaffSelectedOrderWorkspaceProps = StaffOrderTicketProps & {
@@ -785,6 +811,7 @@ function StaffSelectedOrderWorkspace({
   qrPrepaymentEligible,
   qrCompletionEligible,
   customerPresentCheckoutEligible,
+  mobileWorkspace = false,
 }: StaffSelectedOrderWorkspaceProps) {
   const itemCount = order.items.reduce((sum, item) => sum + item.quantity, 0);
   const statusActions = staffStatusOptions
@@ -793,11 +820,11 @@ function StaffSelectedOrderWorkspace({
     .filter((option) => order.source !== "OFFLINE_POS" || option.value === "CANCELLED");
   const regularStatusActions = statusActions.filter((option) => option.value !== "CANCELLED");
   const cancelStatusAction = statusActions.find((option) => option.value === "CANCELLED");
-  const primaryActionClass = "inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-teal-800 px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50";
+  const primaryActionClass = "inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-teal-800 px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50";
   const secondaryActionClass = "inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-800 hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50";
 
   return <>
-    <section aria-labelledby={`staff-order-items-title-${order.id}`} className="min-h-0 min-w-0 overflow-y-auto overscroll-contain rounded-xl border border-stone-200 bg-white [overflow-wrap:anywhere]" data-testid="staff-order-items-pane">
+    <section aria-labelledby={`staff-order-items-title-${order.id}`} className={`${mobileWorkspace ? "overflow-visible" : "min-h-0 overflow-y-auto overscroll-contain"} min-w-0 rounded-xl border border-stone-200 bg-white [overflow-wrap:anywhere]`} data-testid="staff-order-items-pane">
       <div className="sticky top-0 z-10 border-b border-stone-200 bg-white/95 px-4 py-3 backdrop-blur">
         <div className="flex items-center justify-between gap-3">
           <h2 id={`staff-order-items-title-${order.id}`} className="text-base font-bold">{t("staff.order.items")}</h2>
@@ -810,7 +837,7 @@ function StaffSelectedOrderWorkspace({
       </div>
     </section>
 
-    <aside aria-labelledby={`staff-order-actions-title-${order.id}`} className="min-h-0 min-w-0 overflow-y-auto overscroll-contain rounded-xl border border-stone-200 bg-stone-50 [overflow-wrap:anywhere]" data-testid="staff-order-actions-pane">
+    <aside aria-labelledby={`staff-order-actions-title-${order.id}`} className={`${mobileWorkspace ? "overflow-visible" : "min-h-0 overflow-y-auto overscroll-contain"} min-w-0 rounded-xl border border-stone-200 bg-stone-50 [overflow-wrap:anywhere]`} data-testid="staff-order-actions-pane">
       <div className="sticky top-0 z-10 border-b border-stone-200 bg-stone-50/95 px-4 py-3 backdrop-blur">
         <h2 id={`staff-order-actions-title-${order.id}`} className="text-base font-bold">{t("staff.order.actions")}</h2>
         <div className="mt-2 flex items-end justify-between gap-3"><div>{order.discountAmount > 0 ? <p className="text-xs text-stone-500">{t("staff.order.originalPrice", { amount: formatMoney(order.subtotal, currency, locale) })} · {order.discountLabel}</p> : null}<strong className="text-xl">{formatMoney(order.total, currency, locale)}</strong></div><span className="text-xs font-semibold text-stone-600">{paymentStatusLabel(order.paymentStatus, t)}</span></div>
@@ -840,7 +867,7 @@ function StaffSelectedOrderWorkspace({
 }
 
 function StaffOrderTicket(props: StaffOrderTicketProps) {
-  const { order, currency, role, printEnabled, kdsEnabled, now, selectedItemIds, updatingOrderId, updatingItemId, updatingItemsOrderId, cancellation, timeProposal, actions, stall, locale, t, orderProductionTimings, reminderOrderIds, expandedOrderIds, editableOrderIds, desktopWorkspace = false } = props;
+  const { order, currency, role, printEnabled, kdsEnabled, now, selectedItemIds, updatingOrderId, updatingItemId, updatingItemsOrderId, cancellation, timeProposal, actions, stall, locale, t, orderProductionTimings, reminderOrderIds, expandedOrderIds, editableOrderIds, desktopWorkspace = false, mobileSummaryOnly = false, onFocusOrder } = props;
   const timing = orderProductionTimings.get(order.id);
   const expanded = expandedOrderIds.has(order.id);
   const waitingForPrintCompletion = !kdsEnabled
@@ -901,6 +928,15 @@ function StaffOrderTicket(props: StaffOrderTicketProps) {
     qrCompletionEligible={qrCompletionEligible}
     customerPresentCheckoutEligible={customerPresentCheckoutEligible}
   />;
+  if (mobileSummaryOnly) return <article className={`rounded-lg border p-4 ${orderAgeClasses(order, timing, now)}`}>
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0"><strong className="block break-all text-sm">{t("staff.order.number", { number: order.orderNo })}</strong><p className="mt-1 font-semibold">{order.customerName}</p></div>
+      <span className="rounded-md bg-teal-50 px-2 py-1 text-xs font-semibold text-teal-800">{contextualOrderStatusLabel(order, t)}</span>
+    </div>
+    <p className="mt-2 text-sm text-stone-600">{orderTimingSummary(order, timing, now, stall.timezone, locale, t)}</p>
+    <p className="mt-2 text-sm">{t("common.portions", { count: order.items.reduce((sum, item) => sum + item.quantity, 0) })} · <strong>{formatMoney(order.total, currency, locale)}</strong> · {paymentStatusLabel(order.paymentStatus, t)}</p>
+    <button type="button" onClick={() => onFocusOrder?.(order.id)} className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-teal-700 bg-white px-3 text-sm font-semibold text-teal-800">{t("staff.order.viewDetails")}</button>
+  </article>;
   return (
     <article className={`rounded-lg border p-4 ${reminderOrderIds.has(order.id) ? "animate-pulse border-amber-500 ring-2 ring-amber-300" : orderAgeClasses(order, timing, now)}`}>
       {reminderOrderIds.has(order.id) ? <p className="mb-3 rounded-md bg-amber-100 px-3 py-2 text-xs font-bold text-amber-950">{t("staff.preorder.reminderBadge")}</p> : null}

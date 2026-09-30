@@ -167,6 +167,67 @@ test("店員訂單在手機採單欄，平板與桌機採清單、品項、操�
   expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
 });
 
+for (const redesignEnabled of [false, true]) {
+  test(`手機訂單明細可返回原卡片，旋轉後仍可操作（新工作台 ${redesignEnabled ? "開" : "關"}）`, async ({ page }) => {
+    test.setTimeout(120_000);
+    const existingFlag = await responsivePrisma.resilienceFeatureFlag.findUnique({
+      where: { code: "STAFF_WORKSPACE_REDESIGN_ENABLED" }, select: { id: true },
+    });
+    const flag = existingFlag ?? await responsivePrisma.resilienceFeatureFlag.create({ data: {
+      code: "STAFF_WORKSPACE_REDESIGN_ENABLED", defaultEnabled: false,
+      description: "Isolated responsive Staff layout QA",
+    }, select: { id: true } });
+    const existing = await responsivePrisma.resilienceFeatureFlagOverride.findFirst({
+      where: { flagId: flag.id, scopeType: "STALL", stallId },
+      select: { id: true, enabled: true },
+    });
+    const override = existing
+      ? await responsivePrisma.resilienceFeatureFlagOverride.update({ where: { id: existing.id }, data: { enabled: redesignEnabled } })
+      : await responsivePrisma.resilienceFeatureFlagOverride.create({ data: {
+        flagId: flag.id, scopeType: "STALL", organizationId, stallId,
+        enabled: redesignEnabled, reason: "Isolated responsive Staff layout QA",
+        expiresAt: new Date(Date.now() + 10 * 60_000),
+      } });
+    try {
+      await loginLocalTestAccount(page, "staff@stallorder.test", password);
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.waitForTimeout(2100); // The server's flag snapshot has a two-second TTL.
+      await gotoLocalPath(page, `/staff/${stallSlug}`);
+      await dismissStaffStartReminder(page);
+      await searchStaffOrders(page, responsiveOrderNo);
+      const mobileList = page.getByTestId("staff-order-mobile-list");
+      const card = mobileList.locator("article").filter({ hasText: responsiveOrderNo });
+      const open = card.getByRole("button", { name: "查看明細" });
+      await open.scrollIntoViewIfNeeded();
+      const before = await card.boundingBox();
+      await open.click();
+      const detail = page.getByRole("dialog", { name: `訂單 ${responsiveOrderNo}` });
+      await expect(detail).toBeVisible();
+      await expect(detail.getByTestId("staff-order-item-list").locator("li")).toHaveCount(25);
+      await expect(detail.getByTestId("staff-order-actions-pane")).toBeVisible();
+      await detail.getByRole("button", { name: "關閉" }).click();
+      await expect(open).toBeFocused();
+      expect(Math.abs((await card.boundingBox())!.y - before!.y)).toBeLessThan(2);
+
+      for (const width of [768, 1024]) {
+        await page.setViewportSize({ width, height: 900 });
+        const board = page.getByTestId("staff-order-master-detail");
+        await expect(board.getByTestId("staff-order-list-pane")).toBeVisible();
+        await expect(board.getByTestId("staff-order-items-pane")).toBeVisible();
+        await expect(board.getByTestId("staff-order-actions-pane")).toBeVisible();
+        await expect(board.getByRole("button").filter({ hasText: responsiveOrderNo }).first()).toHaveAttribute("aria-current", "true");
+      }
+      await page.setViewportSize({ width: 390, height: 844 });
+      await expect(card).toBeVisible();
+      await expect(page.getByTestId("staff-search-open")).toHaveAttribute("class", /border-teal-700/);
+    } finally {
+      if (existing) await responsivePrisma.resilienceFeatureFlagOverride.update({ where: { id: override.id }, data: { enabled: existing.enabled } });
+      else await responsivePrisma.resilienceFeatureFlagOverride.delete({ where: { id: override.id } });
+      if (!existingFlag) await responsivePrisma.resilienceFeatureFlag.delete({ where: { id: flag.id } });
+    }
+  });
+}
+
 test("Star webPRNT SDK 載入失敗會在有限時間內離開永久載入狀態", async ({ browser }) => {
   test.setTimeout(60_000);
   const context = await browser.newContext({

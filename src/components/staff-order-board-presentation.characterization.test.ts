@@ -45,6 +45,8 @@ describe("StaffOrderBoard presentation characterization", () => {
     expect(presentationSource).toContain('account.role === "KITCHEN" && viewMode === "SUMMARY"');
     expect(presentationSource).toContain('viewMode === "TABLES"');
     expect(presentationSource).toContain("(printingPage ? props.orders : visibleOrders).map((order) => <StaffOrderTicket");
+    expect(presentationSource).toContain("mobileSummaryOnly={!printingPage}");
+    expect(presentationSource).toContain("onFocusOrder={focusOrder}");
   });
 
   it("retains mobile toolbar and ticket layouts plus accessibility contracts", () => {

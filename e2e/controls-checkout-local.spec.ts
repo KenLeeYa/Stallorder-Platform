@@ -82,8 +82,11 @@ for (const width of [320, 390, 768, 1440]) test(`點餐即時總額與醒目找�
     expect(quickBox.x).toBeGreaterThanOrEqual(discountBox.x + discountBox.width);
     expect(Math.abs(quickBox.y + quickBox.height / 2 - discountBox.y - discountBox.height / 2)).toBeLessThan(2);
     const inputBox = (await cash.boundingBox())!;
-    expect(inputBox.x).toBeGreaterThanOrEqual(quickBox.x + quickBox.width);
-    expect(Math.abs(inputBox.y + inputBox.height / 2 - discountBox.y - discountBox.height / 2)).toBeLessThan(2);
+    if (width < 640) expect(inputBox.y).toBeGreaterThanOrEqual(quickBox.y + quickBox.height);
+    else {
+      expect(inputBox.x).toBeGreaterThanOrEqual(quickBox.x + quickBox.width);
+      expect(Math.abs(inputBox.y + inputBox.height / 2 - discountBox.y - discountBox.height / 2)).toBeLessThan(2);
+    }
     expect(inputBox.width).toBeLessThanOrEqual(100);
     await cash.fill("9999");
     await expect(cash).toHaveValue("9999");
@@ -103,8 +106,8 @@ for (const width of [320, 390, 768, 1440]) test(`點餐即時總額與醒目找�
     expect(box!.width).toBeLessThan(120);
   }
   await cash.fill("1");
-  await expect(change).toContainText("實收金額不可小於應收金額");
-  await expect(change.locator("strong")).toHaveCount(0);
+  await expect(change).toContainText("尚差");
+  await expect(change.locator("strong")).toBeVisible();
   await cash.fill(String(firstAmount * 2));
   await expect(change).toContainText("$0");
   await page.locator("html").evaluate(el => { el.dataset.theme = "dark"; el.dataset.interfaceMode = "senior"; });
