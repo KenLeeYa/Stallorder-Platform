@@ -783,6 +783,7 @@ export function StaffOrderComposer({
     };
     try {
       let response: Response;
+      let recoveringUnknown = false;
       try {
         response = await fetch(`/api/stalls/${stall.slug}/orders`, {
           method: "POST",
@@ -794,6 +795,7 @@ export function StaffOrderComposer({
           await createOfflineFallback(error);
           return;
         }
+        recoveringUnknown = true;
         try {
           // The response may be lost after payment. The unchanged key returns
           // the original order before the server performs another checkout.
@@ -811,11 +813,19 @@ export function StaffOrderComposer({
       try {
         payload = await response.json() as { order?: StaffOrderDto; code?: string };
       } catch (error) {
+        if (recoveringUnknown) {
+          setUncertainRequest({ body: JSON.stringify(requestBody), cash: paymentTiming === "PAY_NOW" && usesCash });
+          return;
+        }
         if (response.ok || isTemporaryOrderFailure(response.status)) {
           await createOfflineFallback(error);
           return;
         }
         throw new Error(t("composer.createFailed"));
+      }
+      if (recoveringUnknown && (!response.ok || !payload.order)) {
+        setUncertainRequest({ body: JSON.stringify(requestBody), cash: paymentTiming === "PAY_NOW" && usesCash });
+        return;
       }
       if (!response.ok) {
         if (isTemporaryOrderFailure(response.status)) {
