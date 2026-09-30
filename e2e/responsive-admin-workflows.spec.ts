@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { expect, test } from "@playwright/test";
 import { assertResponsiveQaTarget } from "../scripts/responsive-qa-target.mjs";
@@ -10,6 +10,7 @@ const organizationId = "11111111-1111-4111-8111-111111111111";
 const merchantName = `B2 管理檢視 ${randomUUID().slice(0, 8)}`;
 let applicationId = "";
 let connectionId = "";
+let planFixtureId = "";
 let applicationNumber = "";
 
 test.describe.configure({ mode: "serial" });
@@ -58,9 +59,39 @@ test.beforeAll(async () => {
     createdByProfileId: admin.id,
     updatedByProfileId: admin.id,
   } })).id;
+  const source = await prisma.planVersion.findFirstOrThrow({ where: { pricingMode: "USAGE_PER_STALL_CAPPED" } });
+  planFixtureId = (await prisma.planVersion.create({ data: {
+    planId: source.planId,
+    version: 10_000 + (parseInt(randomUUID().slice(0, 8), 16) % 1_000_000),
+    displayName: "B2 本機封存欄位測試",
+    billingInterval: source.billingInterval,
+    basePrice: source.basePrice,
+    annualPrice: source.annualPrice,
+    includedStalls: source.includedStalls,
+    maxStalls: source.maxStalls,
+    includedOrders: source.includedOrders,
+    overagePolicy: source.overagePolicy,
+    pricingMode: "USAGE_PER_STALL_CAPPED",
+    usageUnitPrice: source.usageUnitPrice,
+    usageMetric: source.usageMetric,
+    usageScope: source.usageScope,
+    monthlyCapAmount: source.monthlyCapAmount,
+    billingTimezone: "Asia/Taipei",
+    invoiceCloseDelayHours: 24,
+    taxTreatment: "INCLUSIVE",
+    taxRateBps: 500,
+    taxJurisdiction: "TW",
+    capTaxBasis: "TAX_INCLUSIVE_TOTAL",
+    sealedAt: new Date(),
+    sealedByProfileId: admin.id,
+    contractHash: createHash("sha256").update("B2 local presentation fixture").digest("hex"),
+    isPublic: false,
+    effectiveFrom: new Date("2100-01-01T00:00:00.000Z"),
+  } })).id;
 });
 
 test.afterAll(async () => {
+  if (planFixtureId) await prisma.planVersion.delete({ where: { id: planFixtureId } });
   if (connectionId) await prisma.invoiceProviderConnection.delete({ where: { id: connectionId } });
   if (applicationId) await prisma.merchantApplication.delete({ where: { id: applicationId } });
   await prisma.$disconnect();
@@ -87,7 +118,8 @@ test("application review action stays visible at tablet width", async ({ page })
     expect(bounds!.height).toBeGreaterThanOrEqual(44);
   }
   const record = page.locator("article:visible, tr:visible").filter({ hasText: applicationNumber });
-  const details = record.getByRole("group", { name: "完整資料" });
+  const details = record.locator("details");
+  await expect(details.locator("summary")).toHaveText("完整資料");
   await details.locator("summary").focus();
   await page.keyboard.press("Enter");
   await expect(details).toContainText("0912345678");
@@ -107,14 +139,15 @@ test("application review action stays visible at tablet width", async ({ page })
 });
 
 test("plan version details retain all billing fields", async ({ page }) => {
-  const payg = await prisma.planVersion.findFirstOrThrow({ where: { pricingMode: "USAGE_PER_STALL_CAPPED" } });
+  const payg = await prisma.planVersion.findUniqueOrThrow({ where: { id: planFixtureId } });
   expect(payg.contractHash).toBeTruthy();
   await gotoLocalPath(page, "/admin/plan-versions");
   for (const width of [390, 768, 820, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     const record = page.getByTestId("admin-plan-version-record").filter({ hasText: payg.contractHash!.slice(0, 12) });
     await expect(record).toBeVisible();
-    const details = record.getByRole("group", { name: "完整資料" });
+    const details = record.locator("details");
+    await expect(details.locator("summary")).toHaveText("完整資料");
     await details.locator("summary").focus();
     await page.keyboard.press("Enter");
     await expect(details).toContainText(payg.taxTreatment);
@@ -126,16 +159,49 @@ test("plan version details retain all billing fields", async ({ page }) => {
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(content!.x + content!.width + 1);
     await page.keyboard.press("Enter");
   }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
+  const form = page.getByRole("heading", { name: "建立並封存 PAYG 契約版本" }).locator("..").locator("form");
+  await form.locator('[name="taxTreatment"]').selectOption("EXEMPT");
+  await form.locator('[name="taxJurisdiction"]').fill("TW");
+  await form.locator('[name="invoiceCloseDelayHours"]').fill("24");
+  await form.locator('[name="reason"]').fill("B2 local confirmation visibility test");
+  const confirmButton = form.getByRole("button", { name: "建立並封存" });
+  const confirmBounds = await confirmButton.boundingBox();
+  const contentBounds = await page.locator("main").boundingBox();
+  expect(confirmBounds!.x + confirmBounds!.width).toBeLessThanOrEqual(contentBounds!.x + contentBounds!.width + 1);
+  const versionCount = await prisma.planVersion.count({ where: { planId: payg.planId } });
+  const prompt = page.waitForEvent("dialog").then(async (dialog) => {
+    const message = dialog.message();
+    await dialog.dismiss();
+    return message;
+  });
+  await confirmButton.click();
+  expect(await prompt).toContain("封存後不可編輯");
+  expect(await prisma.planVersion.count({ where: { planId: payg.planId } })).toBe(versionCount);
+  expect(await page.evaluate(async () => (await fetch("/api/admin/billing/payg-plan-versions", {
+    method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: "{}",
+  })).status)).toBe(403);
+  expect(await prisma.planVersion.count({ where: { planId: payg.planId } })).toBe(versionCount);
+  await page.context().addCookies([{ name: "stallorder_locale", value: "ja", domain: new URL(page.url()).hostname, path: "/" }]);
+  await gotoLocalPath(page, "/admin/plan-versions");
+  await expect(page.getByRole("heading", { name: "プランバージョン" })).toBeVisible();
+  await expect(page.getByTestId("admin-plan-version-record").filter({ hasText: payg.contractHash!.slice(0, 12) }).locator("summary")).toHaveText("すべての詳細");
 });
 
 test("invoice monitor remains read-only", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await gotoLocalPath(page, "/admin/e-invoice");
-  await expect(page.getByRole("heading", { name: "電子發票整合" })).toBeVisible();
-  const connection = page.getByTestId("admin-einvoice-connection").filter({ hasText: "ECPAY" });
-  await expect(connection).toContainText("MOCK");
-  await expect(connection).toContainText("CONFIGURED");
-  await expect(connection).toContainText("1");
+  for (const width of [320, 360, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await gotoLocalPath(page, "/admin/e-invoice");
+    await expect(page.getByRole("heading", { name: "電子發票整合" })).toBeVisible();
+    const connection = page.getByTestId("admin-einvoice-connection").filter({ hasText: "ECPAY" });
+    await expect(connection).toContainText("MOCK");
+    await expect(connection).toContainText("CONFIGURED");
+    await expect(connection).toContainText("1");
+    const bounds = await connection.boundingBox();
+    const content = await page.locator("main").boundingBox();
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(content!.x + content!.width + 1);
+  }
   await expect(page.getByText("Production Issue：OFF", { exact: false })).toBeVisible();
   await expect(page.getByRole("button", { name: /停用正式連線|強制健康檢查|重試|人工結案/ })).toHaveCount(0);
 });
