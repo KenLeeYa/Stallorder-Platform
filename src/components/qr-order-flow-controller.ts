@@ -224,7 +224,10 @@ export function useQrOrderFlowController({
       ?? ""
   ), [catalogLocale]);
   const focusConfiguredProduct = useCallback((productId: string) => {
-    window.setTimeout(() => document.getElementById(`qr-product-${productId}`)?.focus(), 0);
+    window.setTimeout(() => {
+      const product = document.getElementById(`qr-product-${productId}`);
+      (product?.querySelector<HTMLButtonElement>('[data-testid="qr-open-product-configurator"]:not(:disabled)') ?? product)?.focus();
+    }, 0);
   }, []);
   const requiredSelectionMessage = useCallback((product: Product) => (
     qrOrderMessages[locale].requiredNotes(localizedProduct(product).name)

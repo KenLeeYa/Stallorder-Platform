@@ -139,4 +139,9 @@ test("QR customization keeps its heading and returns focus", async ({ page }) =>
   await customization.getByRole("button", { name: "關閉", exact: true }).click();
   await expect(customization).toBeHidden();
   await expect(trigger).toBeFocused();
+  await trigger.click();
+  await expect(customization).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(customization).toBeHidden();
+  await expect(trigger).toBeFocused();
 });
