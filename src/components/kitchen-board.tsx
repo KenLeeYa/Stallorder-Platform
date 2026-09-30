@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import type { CancellationReason, UserRole } from "@prisma/client";
 import {
   CheckCheck,
@@ -33,6 +33,8 @@ import {
   type KitchenTaskState,
 } from "@/lib/kitchen-board-contract";
 import { reconcileKitchenOrderAlerts } from "@/lib/kitchen-order-alerts";
+import { browserKitchenBoardLiveEnvironment, startKitchenBoardLiveLifecycle, type KitchenBoardConnection } from "@/components/kitchen-board-live";
+import { LiveResourceRetryError, type LiveResourceController } from "@/lib/use-live-resource";
 import type { WorkModeDestination } from "@/lib/work-mode";
 
 type BoardData = {
@@ -72,16 +74,21 @@ type CancellationErrors = {
   request?: string;
 };
 
+class KitchenBoardAuthorizationError extends Error {}
+
 export function KitchenBoard({ stall, canManage, workModeDestinations, initialData, role }: Props) {
   const { locale, t } = useOperationsLocale();
   const knownOrderIdsRef = useRef(new Set(initialData.alertOrderIds));
   const alertsEnabledRef = useRef(false);
   const [data, setData] = useState(initialData);
+  const liveRef = useRef<LiveResourceController | null>(null);
+  const authorizedRef = useRef(true);
+  const [authorized, setAuthorized] = useState(true);
   const [mode, setMode] = useState<KitchenBoardMode>(initialData.settings.defaultView);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(() => preferredKitchenOrderId(initialData.tasks));
   const [stationId, setStationId] = useState(initialData.stations[0]?.id ?? "");
   const [now, setNow] = useState(() => Date.parse(initialData.serverNow));
-  const [connection, setConnection] = useState<"CONNECTING" | "CONNECTED" | "FALLBACK">("CONNECTING");
+  const [connection, setConnection] = useState<KitchenBoardConnection>("CONNECTING");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [alertsEnabled, setAlertsEnabled] = useState(false);
@@ -101,28 +108,49 @@ export function KitchenBoard({ stall, canManage, workModeDestinations, initialDa
     setMessage(t("kitchen.board.newOrders", { count }));
   }, [t]);
 
-  const refresh = useCallback(async (silent = false) => {
-    if (!silent) setBusyId("refresh");
-    try {
-      const response = await fetch(`/api/stalls/${stall.slug}/kitchen/board`, { cache: "no-store" });
-      const payload: BoardData & { error?: string; code?: string } = await response.json();
-      if (!response.ok) throw new Error(payload.code
+  const loadBoard = useEffectEvent(async (signal: AbortSignal): Promise<BoardData> => {
+    const response = await fetch(`/api/stalls/${stall.slug}/kitchen/board`, { cache: "no-store", signal });
+    if (response.status === 401 || response.status === 403) throw new KitchenBoardAuthorizationError(t("kitchen.board.accessRevoked"));
+    const payload = await response.json().catch(() => null) as (BoardData & { code?: string; retryAfterSeconds?: number }) | null;
+    if (response.status === 429) {
+      const seconds = Number(payload?.retryAfterSeconds ?? response.headers.get("retry-after"));
+      throw new LiveResourceRetryError(t("kitchen.board.reloadFailed"), Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds * 1_000) : 1_000);
+    }
+    if (!response.ok || !payload || !Array.isArray(payload.tasks) || !Array.isArray(payload.alertOrderIds)) {
+      throw new Error(payload?.code
         ? t(getOperationsErrorMessageKey(payload.code, "kitchen.board.reloadFailed"))
         : t("kitchen.board.reloadFailed"));
-      const newOrderCount = reconcileKitchenOrderAlerts(
-        knownOrderIdsRef.current,
-        payload.alertOrderIds,
-      );
-      setData(payload);
-      setNow(Date.parse(payload.serverNow));
-      setMessage("");
-      if (newOrderCount > 0) notifyNewOrders(newOrderCount);
-    } catch (error) {
-      if (!silent) setMessage(error instanceof Error ? error.message : t("kitchen.board.reloadFailed"));
-    } finally {
-      if (!silent) setBusyId(null);
     }
-  }, [notifyNewOrders, stall.slug, t]);
+    return payload;
+  });
+
+  const applyBoard = useEffectEvent((payload: BoardData) => {
+    const recovered = !authorizedRef.current;
+    authorizedRef.current = true;
+    setAuthorized(true);
+    const newOrderCount = recovered ? 0 : reconcileKitchenOrderAlerts(knownOrderIdsRef.current, payload.alertOrderIds);
+    if (recovered) knownOrderIdsRef.current = new Set(payload.alertOrderIds);
+    setData(payload);
+    setNow(Date.parse(payload.serverNow));
+    setMessage("");
+    if (newOrderCount > 0) notifyNewOrders(newOrderCount);
+  });
+
+  const handleBoardError = useEffectEvent((error: unknown) => {
+    if (error instanceof KitchenBoardAuthorizationError) {
+      authorizedRef.current = false;
+      setAuthorized(false);
+      setData((current) => ({ ...current, tasks: [], futureReservations: [], alertOrderIds: [] }));
+      setPendingCancellation(null);
+    }
+    setMessage(error instanceof Error ? error.message : t("kitchen.board.reloadFailed"));
+  });
+
+  const refresh = useCallback(async (silent = false) => {
+    if (!silent) setBusyId("refresh");
+    try { await liveRef.current?.refresh(); }
+    finally { if (!silent) setBusyId(null); }
+  }, []);
 
   useEffect(() => {
     let enabled = false;
@@ -134,19 +162,21 @@ export function KitchenBoard({ stall, canManage, workModeDestinations, initialDa
 
   useEffect(() => {
     const clock = window.setInterval(() => setNow((current) => current + 1_000), 1_000);
-    const fallback = window.setInterval(() => void refresh(true), 12_000);
-    const stream = new EventSource(`/api/stalls/${stall.slug}/kitchen/stream`);
-    const connected = () => setConnection("CONNECTED");
-    const changed = () => void refresh(true);
-    stream.addEventListener("ready", connected);
-    stream.addEventListener("kitchen", changed);
-    stream.onerror = () => setConnection("FALLBACK");
+    const controller = startKitchenBoardLiveLifecycle({
+      stallSlug: stall.slug,
+      environment: browserKitchenBoardLiveEnvironment(),
+      load: loadBoard,
+      onData: applyBoard,
+      onError: handleBoardError,
+      onConnectionChange: setConnection,
+    });
+    liveRef.current = controller;
     return () => {
       window.clearInterval(clock);
-      window.clearInterval(fallback);
-      stream.close();
+      controller.stop();
+      if (liveRef.current === controller) liveRef.current = null;
     };
-  }, [refresh, stall.slug]);
+  }, [stall.slug]);
 
   useEffect(() => {
     if (!pendingCancellationOrderId) return;
@@ -160,6 +190,7 @@ export function KitchenBoard({ stall, canManage, workModeDestinations, initialDa
   }, [pendingCancellationOrderId]);
 
   async function mutate(body: Record<string, unknown>, busyKey: string) {
+    if (!authorizedRef.current) return false;
     setBusyId(busyKey);
     setMessage("");
     try {
@@ -191,7 +222,7 @@ export function KitchenBoard({ stall, canManage, workModeDestinations, initialDa
   }
 
   function openCancellation(orderId: string, orderNo: string) {
-    if (busyId !== null) return;
+    if (busyId !== null || !authorizedRef.current) return;
     if (document.activeElement instanceof HTMLElement) cancellationTriggerRef.current = document.activeElement;
     setMessage("");
     setCancellationErrors({});
@@ -219,7 +250,7 @@ export function KitchenBoard({ stall, canManage, workModeDestinations, initialDa
   }
 
   async function confirmCancellation() {
-    if (!pendingCancellation || busyId !== null || cancellationBusyRef.current) return;
+    if (!pendingCancellation || busyId !== null || cancellationBusyRef.current || !authorizedRef.current) return;
     const errors: CancellationErrors = {};
     if (pendingCancellation.reason === "OTHER" && !pendingCancellation.detail.trim()) {
       errors.detail = t("kitchen.cancel.detailRequired");
@@ -350,8 +381,8 @@ export function KitchenBoard({ stall, canManage, workModeDestinations, initialDa
         warningMinutes={data.settings.warningMinutes}
         criticalMinutes={data.settings.criticalMinutes}
         timeZone={data.settings.timeZone}
-        busyId={busyId}
-        canCancelOrder={canCancelOrder}
+        busyId={authorized ? busyId : "unauthorized"}
+        canCancelOrder={canCancelOrder && authorized}
         onTask={(taskId, nextStatus) => mutate({ operation: "UPDATE_TASK", taskId, status: nextStatus }, taskId)}
         onComplete={(orderId) => mutate({ operation: "COMPLETE_ORDER", orderId }, orderId)}
         onCancel={openCancellation}

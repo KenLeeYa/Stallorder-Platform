@@ -38,12 +38,14 @@ flowchart TD
 | 消費者 | 現有來源 | 目前機制 | 改版待驗證 |
 |---|---|---|---|
 | Staff | `staff-order-board-live.ts:38–195`、`use-live-resource.ts` | SSE→Realtime→5秒fallback，30秒安全快照；coalesce、AbortSignal、hidden/offline暫停 | 亂序／重連／撤權後clear；sequence不是server版本 |
-| KDS | `kitchen-board.tsx:104–149` | 12秒polling＋SSE，各請求直接setData | 慢舊回應／切店後返回風險；先寫失敗例再接同一lifecycle |
+| KDS | `kitchen-board-live.ts`、`kitchen-board.tsx` | 每攤一個 guarded lifecycle；首讀與SSE ready補讀、12秒輪詢、單一in-flight、AbortSignal與hidden/offline暫停 | A5本機驗證；B3仍需跨端同單整合驗收 |
 | 一般追蹤 | `public-order-tracker.tsx:651–708` | 3秒polling、AbortSignal、429 Retry-After；部分狀態專項防倒退 | 通用快照順序與取消／改時間競態 |
 | MINI | `line-platform-order-refresh.tsx:9–14` | visible時15秒router refresh，切回與手動刷新 | WebView背景返回、登出、owner隔離 |
 | Offline Staff | `staff-order-board-refresh.ts:114–121` | 未同步local same-ID覆蓋online（offline-wins） | 不擅改；server已完成而本機pending時需明確處理界線 |
 
 SSE授權在連線建立；50秒壽命、15秒heartbeat。不是逐event驗權。刷新API會重驗，但舊畫面何時遮蔽仍須實測。現有fetch沒有統一硬timeout，不可宣稱已有10秒上限。
+
+A5 KDS在每次board GET重新驗權；401/403立即清空舊任務與預約卡、停用命令，僅在後續授權快照套用後恢復。`ready`與`kitchen`只使快照失效，本機sequence只防止慢舊回應覆寫，不是server orderVersion；429遵守Retry-After。SSE失敗仍以同一resource的12秒輪詢恢復，不建立第二個interval。一般追蹤／Staff的共享resource契約未變。
 
 ## 角色資料與命令
 

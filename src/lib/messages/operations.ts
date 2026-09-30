@@ -358,6 +358,7 @@ const definitions = {
   "kitchen.board.title": { "zh-TW": "生產看板", en: "Production board", ja: "製作ボード", ko: "생산 보드", vi: "Bảng chế biến", th: "บอร์ดการผลิต" },
   "kitchen.board.newOrders": { "zh-TW": "收到 {count} 筆新廚房訂單。", en: "{count} new kitchen order(s) received.", ja: "キッチン注文を {count} 件受信しました。", ko: "새 주방 주문 {count}건을 받았습니다.", vi: "Đã nhận {count} đơn bếp mới.", th: "ได้รับออเดอร์ครัวใหม่ {count} รายการ" },
   "kitchen.board.reloadFailed": { "zh-TW": "無法重新載入生產看板。", en: "The production board could not be reloaded.", ja: "製作ボードを再読み込みできません。", ko: "생산 보드를 다시 불러올 수 없습니다.", vi: "Không thể tải lại bảng chế biến.", th: "โหลดบอร์ดการผลิตใหม่ไม่ได้" },
+  "kitchen.board.accessRevoked": { "zh-TW": "廚房看板權限已失效，請重新登入或聯絡管理者。", en: "Kitchen board access has expired. Sign in again or contact a manager.", ja: "キッチンボードへのアクセス権が失効しました。再度ログインするか、管理者に連絡してください。", ko: "주방 보드 접근 권한이 만료되었습니다. 다시 로그인하거나 관리자에게 문의하세요.", vi: "Quyền truy cập bảng bếp đã hết hiệu lực. Hãy đăng nhập lại hoặc liên hệ quản lý.", th: "สิทธิ์เข้าถึงบอร์ดครัวหมดอายุ กรุณาเข้าสู่ระบบอีกครั้งหรือติดต่อผู้จัดการ" },
   "kitchen.board.operationFailed": { "zh-TW": "KDS 操作失敗。", en: "KDS action failed.", ja: "KDS 操作に失敗しました。", ko: "KDS 작업에 실패했습니다.", vi: "Thao tác KDS thất bại.", th: "การทำงาน KDS ล้มเหลว" },
   "kitchen.status.confirmed": { "zh-TW": "待製作", en: "To prepare", ja: "製作待ち", ko: "조리 대기", vi: "Chờ chế biến", th: "รอผลิต" },
   "kitchen.status.preparing": { "zh-TW": "製作中", en: "Preparing", ja: "製作中", ko: "조리 중", vi: "Đang chế biến", th: "กำลังผลิต" },
