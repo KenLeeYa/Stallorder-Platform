@@ -168,6 +168,12 @@ export function StaffOrderComposer({
     return quantitiesByProduct;
   }, [cartLines]);
   const totalQuantity = qrCartTotalQuantity(cartLines);
+  const hasCurrentInput = cartLines.length > 0
+    || Object.values(quantities).some((quantity) => quantity > 0)
+    || customerName.trim().length > 0
+    || customerPhone.trim().length > 0
+    || deliveryAddress.trim().length > 0
+    || customerNote.trim().length > 0;
   const subtotal = selectedItems.reduce((sum, item) => (
     sum + Math.max(
       0,
@@ -394,12 +400,6 @@ export function StaffOrderComposer({
   }
 
   function restoreSavedDraft(draft: StaffOrderDraft) {
-    const hasCurrentInput = cartLines.length > 0
-      || Object.values(quantities).some((quantity) => quantity > 0)
-      || customerName.trim().length > 0
-      || customerPhone.trim().length > 0
-      || deliveryAddress.trim().length > 0
-      || customerNote.trim().length > 0;
     if (hasCurrentInput && !window.confirm(t("composer.draft.replaceConfirm"))) return;
     const restored = restoreQrCartDraft(
       draft.cartDraft,
@@ -874,12 +874,17 @@ export function StaffOrderComposer({
     }
   }
 
+  function requestClose() {
+    if (busy || (hasCurrentInput && !window.confirm(t("composer.discardConfirm")))) return;
+    onClose();
+  }
+
   return (
     <dialog ref={posDialogRef} aria-labelledby="staff-order-title"
       onCancel={(event) => {
         event.preventDefault();
         if (busy || productDialogRef.current?.open || noteDialogRef.current?.open || draftDialogRef.current?.open) return;
-        onClose();
+        requestClose();
       }}
       onKeyDown={keepTabInsideDialog}
       className="m-auto h-[100dvh] max-h-[100dvh] w-full max-w-none overflow-hidden border-0 bg-transparent p-0 text-stone-950 backdrop:bg-black/45 print:hidden sm:h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-1.5rem)] sm:w-[calc(100%-1.5rem)] lg:h-[calc(100dvh-3rem)] lg:max-h-[calc(100dvh-3rem)] lg:w-[calc(100%-3rem)]">
@@ -940,7 +945,7 @@ export function StaffOrderComposer({
               <span className="sr-only">{t("composer.orderAndCheckout", { count: totalQuantity })}</span>
               <span aria-hidden="true" className="absolute right-1 top-1 min-w-4 rounded-full bg-stone-800 px-1 text-center text-[10px] leading-4 text-white">{totalQuantity}</span>
             </button>
-            <button type="button" title={t("composer.close")} aria-label={t("composer.close")} disabled={busy} onClick={onClose} className="grid h-11 min-w-0 place-items-center rounded-md border border-stone-300 md:w-11"><X className="h-5 w-5 md:h-4 md:w-4" /></button>
+            <button type="button" title={t("composer.close")} aria-label={t("composer.close")} disabled={busy} onClick={requestClose} className="grid h-11 min-w-0 place-items-center rounded-md border border-stone-300 md:w-11"><X className="h-5 w-5 md:h-4 md:w-4" /></button>
           </div>
           <div className={`w-full text-xs leading-5 text-stone-600 ${activeDraftId || draftNotice ? "block" : "hidden md:block"}`}>
             <p className="hidden border-t border-stone-100 pt-3 md:block">{t("composer.draft.policy")}</p>
