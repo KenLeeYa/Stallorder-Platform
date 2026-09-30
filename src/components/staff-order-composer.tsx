@@ -80,6 +80,10 @@ export function StaffOrderComposer({
   const actionPromptTimerRef = useRef<number | null>(null);
   const menuScrollRef = useRef<HTMLDivElement>(null);
   const cartScrollRef = useRef<HTMLElement>(null);
+  const posDialogRef = useRef<HTMLDialogElement>(null);
+  const productDialogRef = useRef<HTMLDialogElement>(null);
+  const noteDialogRef = useRef<HTMLDialogElement>(null);
+  const draftDialogRef = useRef<HTMLDialogElement>(null);
   const defaultPayment = modules.payment
     ? paymentOptions[0] ?? null
     : paymentOptions.find((option) => option.kind === "CASH") ?? null;
@@ -114,6 +118,10 @@ export function StaffOrderComposer({
   const [draftManagerOpen, setDraftManagerOpen] = useState(false);
   const [draftNotice, setDraftNotice] = useState("");
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
+  useStaffModal(posDialogRef, true);
+  useStaffModal(productDialogRef, configuringProductId !== null);
+  useStaffModal(noteDialogRef, noteDialogOpen);
+  useStaffModal(draftDialogRef, draftManagerOpen);
   const draftStorageKey = staffOrderDraftStorageKey(stall.organizationId, stall.id);
 
   const productsById = useMemo(
@@ -867,8 +875,10 @@ export function StaffOrderComposer({
   }
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-black/45 print:hidden sm:p-3 lg:p-6">
-      <section role="dialog" aria-modal="true" aria-labelledby="staff-order-title" className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col overflow-hidden bg-white shadow-xl sm:rounded-lg">
+    <dialog ref={posDialogRef} aria-labelledby="staff-order-title"
+      onCancel={(event) => { event.preventDefault(); if (!busy) onClose(); }}
+      className="m-auto h-[100dvh] max-h-[100dvh] w-full max-w-none overflow-hidden border-0 bg-transparent p-0 text-stone-950 backdrop:bg-black/45 print:hidden sm:h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-1.5rem)] sm:w-[calc(100%-1.5rem)] lg:h-[calc(100dvh-3rem)] lg:max-h-[calc(100dvh-3rem)] lg:w-[calc(100%-3rem)]">
+      <section className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col overflow-hidden bg-white shadow-xl sm:rounded-lg">
         <header className="z-20 flex shrink-0 flex-wrap items-start justify-between gap-2 border-b border-stone-200 bg-white px-4 py-3 sm:rounded-t-lg sm:px-6 md:gap-4 lg:py-4">
           <div>
             <h2 id="staff-order-title" className="text-xl font-semibold">{t("composer.title")}</h2>
@@ -1157,12 +1167,9 @@ export function StaffOrderComposer({
         </div>
       </section>
       {actionPrompt ? <div className="pointer-events-none fixed inset-0 z-[80] grid place-items-center p-6" aria-live="assertive"><p data-testid="staff-action-prompt" role="alert" className="max-w-md rounded-xl border-2 border-red-600 bg-white px-5 py-4 text-center text-base font-bold text-red-800 shadow-2xl">{actionPrompt}</p></div> : null}
-      {configuringProduct ? <div className="fixed inset-0 z-[76] flex items-end justify-center bg-black/60 sm:items-center sm:p-4">
+      {configuringProduct ? <dialog ref={productDialogRef} onCancel={(event) => { event.preventDefault(); dismissProductConfigurator(); }} aria-labelledby="staff-product-configurator-title" className="m-auto max-h-[100dvh] w-full max-w-2xl overflow-hidden border-0 bg-transparent p-0 text-stone-950 backdrop:bg-black/60 sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)]">
         <section
           data-testid="staff-product-configurator"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="staff-product-configurator-title"
           className="flex max-h-[100dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl"
         >
           <header className="flex shrink-0 items-start justify-between gap-4 border-b border-stone-200 px-4 py-4 sm:px-6">
@@ -1243,11 +1250,11 @@ export function StaffOrderComposer({
             </div>
           </footer>
         </section>
-      </div> : null}
-      {noteDialogOpen ? <div className="fixed inset-0 z-[75] grid place-items-center bg-black/55 p-4"><section role="dialog" aria-modal="true" aria-labelledby="staff-note-dialog-title" className="w-full max-w-lg rounded-xl bg-white p-5 shadow-2xl"><div className="flex items-center justify-between gap-3"><h3 id="staff-note-dialog-title" className="text-xl font-semibold">{t("composer.customerNote")}</h3><button type="button" title={t("common.close")} aria-label={t("common.close")} onClick={() => setNoteDialogOpen(false)} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300"><X className="h-5 w-5" /></button></div><textarea autoFocus value={customerNote} maxLength={catalog.limits.maxNoteLength} onChange={(event) => setCustomerNote(event.target.value)} className="form-input mt-4 min-h-36" /><button type="button" onClick={() => setNoteDialogOpen(false)} className="mt-4 min-h-12 w-full rounded-md bg-teal-800 px-4 text-sm font-semibold text-white">{t("common.save")}</button></section></div> : null}
+      </dialog> : null}
+      {noteDialogOpen ? <dialog ref={noteDialogRef} onCancel={(event) => { event.preventDefault(); setNoteDialogOpen(false); }} aria-labelledby="staff-note-dialog-title" className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg overflow-y-auto border-0 bg-transparent p-0 text-stone-950 backdrop:bg-black/55"><section className="rounded-xl bg-white p-5 shadow-2xl"><div className="flex items-center justify-between gap-3"><h3 id="staff-note-dialog-title" className="text-xl font-semibold">{t("composer.customerNote")}</h3><button type="button" title={t("common.close")} aria-label={t("common.close")} onClick={() => setNoteDialogOpen(false)} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300"><X className="h-5 w-5" /></button></div><textarea autoFocus value={customerNote} maxLength={catalog.limits.maxNoteLength} onChange={(event) => setCustomerNote(event.target.value)} className="form-input mt-4 min-h-36" /><button type="button" onClick={() => setNoteDialogOpen(false)} className="mt-4 min-h-12 w-full rounded-md bg-teal-800 px-4 text-sm font-semibold text-white">{t("common.save")}</button></section></dialog> : null}
       {draftManagerOpen ? (
-        <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/50 p-4">
-          <section role="dialog" aria-modal="true" aria-labelledby="staff-drafts-title" className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-y-auto rounded-lg bg-white p-5 shadow-2xl">
+        <dialog ref={draftDialogRef} onCancel={(event) => { event.preventDefault(); setDraftManagerOpen(false); }} aria-labelledby="staff-drafts-title" className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-xl overflow-y-auto border-0 bg-transparent p-0 text-stone-950 backdrop:bg-black/50">
+          <section className="rounded-lg bg-white p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div><h3 id="staff-drafts-title" className="text-xl font-semibold">{t("composer.draft.deviceTitle")}</h3><p className="mt-1 text-sm leading-6 text-stone-600">{t("composer.draft.expiry")}</p></div>
               <button type="button" title={t("composer.draft.close")} onClick={() => setDraftManagerOpen(false)} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300"><X className="h-4 w-4" /></button>
@@ -1267,10 +1274,23 @@ export function StaffOrderComposer({
               {savedDrafts.length === 0 ? <p className="py-8 text-center text-sm text-stone-500">{t("composer.draft.empty")}</p> : null}
             </div>
           </section>
-        </div>
+        </dialog>
       ) : null}
-    </div>
+    </dialog>
   );
+}
+
+function useStaffModal(ref: React.RefObject<HTMLDialogElement | null>, open: boolean) {
+  useEffect(() => {
+    const dialog = ref.current;
+    if (!open || !dialog) return;
+    const trigger = document.activeElement;
+    dialog.showModal();
+    return () => {
+      dialog.close();
+      if (trigger instanceof HTMLElement && trigger.isConnected) trigger.focus();
+    };
+  }, [open, ref]);
 }
 
 function staffOrderDraftStorageKey(organizationId: string, stallId: string) {
