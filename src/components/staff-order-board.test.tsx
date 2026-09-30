@@ -10,6 +10,9 @@ vi.mock("@/components/pwa-controls", () => ({ PwaControls: () => null, PwaWakeCo
 vi.mock("@/components/offline-bootstrap-control", () => ({ OfflineBootstrapControl: () => null }));
 vi.mock("@/components/offline-queue-status", () => ({ OfflineQueueStatus: () => null }));
 vi.mock("@/components/logout-button", () => ({ LogoutButton: () => null }));
+vi.mock("@/components/line-platform-pickup-panel", () => ({
+  LinePlatformPickupPanel: () => <button type="button" data-testid="staff-platform-qr-pickup">平台 QR 掃碼交付</button>,
+}));
 
 const orderId = "11111111-1111-4111-8111-111111111111";
 const itemId = "22222222-2222-4222-8222-222222222222";
@@ -108,6 +111,17 @@ function render(orders: StaffOrderDto[], moduleOverride: Partial<{ dineIn: boole
 }
 
 describe("StaffOrderBoard ticket presentation", () => {
+  it("places capability-enabled platform QR pickup directly after pickup-code lookup", () => {
+    const html = render([]);
+    const pickup = html.indexOf('data-testid="staff-pickup-code-lookup"');
+    const qr = html.indexOf('data-testid="staff-platform-qr-pickup"');
+    const floor = html.indexOf('href="/staff/demo/floor"');
+    expect(pickup).toBeGreaterThan(-1);
+    expect(qr).toBeGreaterThan(pickup);
+    expect(floor).toBeGreaterThan(qr);
+    expect(html).toMatch(/data-testid="staff-pickup-code-lookup"[\s\S]*?<\/button><button[^>]*data-testid="staff-platform-qr-pickup"/);
+  });
+
   it("places ordering actions before status controls in the icon-only toolbar", () => {
     const html = render([]);
 
@@ -133,13 +147,13 @@ describe("StaffOrderBoard ticket presentation", () => {
     expect(html).toMatch(/<header[^>]*data-testid="staff-sticky-header"[^>]*sticky top-0[\s\S]*data-testid="staff-function-grid"[\s\S]*<\/header>/);
   });
 
-  it("keeps the item summary and primary actions visible while detailed controls stay compact", () => {
+  it("keeps the mobile summary entry and desktop item actions available", () => {
     const html = render([order()]);
 
     expect(html).toContain("查看明細");
     expect(html).toContain("修改訂單內容");
-    expect(html).toContain('aria-expanded="false"');
-    expect(html).toContain(`aria-controls="order-details-${orderId}"`);
+    expect(html).toContain('data-testid="staff-order-mobile-list"');
+    expect(html).toContain('data-testid="staff-order-master-detail"');
     expect(html).toContain("1 × 測試餐點");
   });
 
