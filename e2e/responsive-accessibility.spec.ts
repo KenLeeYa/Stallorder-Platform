@@ -76,6 +76,7 @@ for (const channel of ["chrome", "msedge"] as const) {
         } else {
           await settings.locator('fluent-menu-button[aria-label^="頁面縮放"]').click();
           await settings.getByRole("menuitemradio", { name: `${zoom * 100}%`, exact: true }).click();
+          await expect(settings.locator('fluent-menu-button[aria-label^="頁面縮放"]')).toHaveAttribute("aria-label", `頁面縮放 ${zoom * 100}%`);
           settingReadback = await settings.locator('fluent-menu-button[aria-label^="頁面縮放"]').getAttribute("aria-label") ?? "";
           expect(settingReadback).toContain(`${zoom * 100}%`);
         }
@@ -190,8 +191,10 @@ for (const surface of ["customer", "staff", "pos", "kds", "merchant", "admin", "
       if (["staff", "pos"].includes(surface)) await dismissStaffStartReminder(page);
       if (surface === "staff") {
         await page.getByTestId("staff-search-open").click();
-        await page.getByRole("dialog").getByRole("searchbox").fill("B3-001");
-        await page.keyboard.press("Escape");
+        const search = page.getByRole("dialog");
+        await search.getByRole("searchbox").fill("B3-001");
+        await search.getByRole("button", { name: /^(確認|Confirm)$/i }).click();
+        await expect(search).toBeHidden();
       }
       const receipt: unknown[] = [];
       for (const width of acceptanceWidths) {
@@ -217,13 +220,15 @@ for (const surface of ["customer", "staff", "pos", "kds", "merchant", "admin", "
           target = dialog.getByRole("button", { name: /加入購物車|Add to cart/i, exact: true });
         } else if (surface === "staff") {
           if (width < 768) {
-            opener = page.getByTestId("staff-order-mobile-list").getByRole("button", { name: /查看明細|View details/i }).first();
+            opener = page.getByTestId("staff-order-mobile-list").getByRole("article").filter({ hasText: "B3-001" }).getByRole("button", { name: /查看明細|View details/i });
             await opener.click();
             dialog = page.getByRole("dialog").filter({ has: page.getByTestId("staff-order-mobile-detail") });
           } else {
-            await page.getByTestId("staff-order-list-pane").getByRole("button").first().click();
+            await page.getByTestId("staff-order-list-pane").getByRole("button").filter({ hasText: "B3-001" }).click();
           }
           target = page.getByTestId("staff-order-primary-actions").getByRole("button").filter({ visible: true }).first();
+          // Exercise browser actionability/scrolling without completing a frozen order.
+          await target.click({ trial: true });
         } else if (surface === "pos") {
           opener = page.getByRole("button", { name: /店員點餐|Take order/i, exact: true });
           await opener.click();
@@ -287,8 +292,8 @@ test("phone partial CSV success preserves row errors and reachable apply", async
   await page.goto(`/merchant/catalog?organizationId=${fixture.organizationId}`);
   const row = (id: string, price: string) => [id, "responsive-b3-fixed-120-v1", "", "B3 partial import fixture", "", price, "", "0", "false", "", ...Array(10).fill(""), "true", "true"].join(",");
   const csv = `${catalogCsvHeaders.join(",")}\n${row(fixture.importProductId, "50")}\n${row("", "=100")}`;
-  await expect(page.getByLabel("匯入 CSV")).toHaveCount(1);
-  await page.getByLabel("匯入 CSV").setInputFiles({ name: "b3-partial.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+  // Accessible role excludes Next's transient hidden streaming copy of the input.
+  await page.getByRole("button", { name: "匯入 CSV", exact: true }).setInputFiles({ name: "b3-partial.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
   const dialog = page.getByRole("dialog", { name: "CSV 匯入預覽" });
   await expect(dialog.getByRole("list", { name: "錯誤資料" })).toContainText("CSV 第 3 列");
   const target = dialog.getByRole("button", { name: "套用 1 筆有效資料" });

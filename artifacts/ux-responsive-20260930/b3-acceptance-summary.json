@@ -1,0 +1,4288 @@
+{
+  "scope": "B3.1 local browser acceptance; independent review/B3.2/B3.3 pending",
+  "source": {
+    "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
+    "tree": "f97666a191563d56650b78812298d12080fa7b03",
+    "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
+    "runtimePatch": "1a6b8c8e6e15f2bef615b8bcaeaf5cfe12df5e60b4956c625557f482f562974d"
+  },
+  "roles": [
+    {
+      "surface": "customer",
+      "locale": "zh-TW",
+      "source": {
+        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
+        "tree": "f97666a191563d56650b78812298d12080fa7b03",
+        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
+        "runtimePatch": "1a6b8c8e6e15f2bef615b8bcaeaf5cfe12df5e60b4956c625557f482f562974d"
+      },
+      "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/customer-zh-TW.json",
+      "rawSha256": "651b115453309be780c7df97f596beb38351c9d009001505e9631969a7356670",
+      "pageErrors": [],
+      "theme": "light",
+      "focusExample": {
+        "outline": "color(srgb 0.0588235 0.462745 0.431373 / 0.72) solid 3px",
+        "shadow": "none"
+      },
+      "motionExample": {
+        "transition": "1e-05s",
+        "animation": "1e-05s"
+      },
+      "widths": [
+        {
+          "width": 320,
+          "layout": {
+            "clientWidth": 320,
+            "scrollWidth": 320,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 104,
+            "height": 56,
+            "left": 200,
+            "right": 304,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 859,
+            "minNormalTextRatio": 4.58,
+            "minLargeTextRatio": 16.74
+          },
+          "axeScanPerformed": true
+        },
+        {
+          "width": 360,
+          "layout": {
+            "clientWidth": 360,
+            "scrollWidth": 360,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 144,
+            "height": 56,
+            "left": 200,
+            "right": 344,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 390,
+          "layout": {
+            "clientWidth": 390,
+            "scrollWidth": 390,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 174,
+            "height": 56,
+            "left": 200,
+            "right": 374,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 768,
+          "layout": {
+            "clientWidth": 768,
+            "scrollWidth": 768,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 440,
+            "height": 56,
+            "left": 256,
+            "right": 696,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 820,
+          "layout": {
+            "clientWidth": 820,
+            "scrollWidth": 820,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 440,
+            "height": 56,
+            "left": 282,
+            "right": 722,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1024,
+          "layout": {
+            "clientWidth": 1024,
+            "scrollWidth": 1024,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 440,
+            "height": 56,
+            "left": 384,
+            "right": 824,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1280,
+          "layout": {
+            "clientWidth": 1280,
+            "scrollWidth": 1280,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 440,
+            "height": 56,
+            "left": 512,
+            "right": 952,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1440,
+          "layout": {
+            "clientWidth": 1440,
+            "scrollWidth": 1440,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 440,
+            "height": 56,
+            "left": 592,
+            "right": 1032,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 874,
+            "minNormalTextRatio": 4.58,
+            "minLargeTextRatio": 16.74
+          },
+          "axeScanPerformed": true
+        }
+      ]
+    },
+    {
+      "surface": "customer",
+      "locale": "en",
+      "source": {
+        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
+        "tree": "f97666a191563d56650b78812298d12080fa7b03",
+        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
+        "runtimePatch": "76cac5329936ffc728a333eadb1431ceb680dc303f07829a1a414be93108ce8b"
+      },
+      "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/customer-en.json",
+      "rawSha256": "8ae97d60a795f7f6c114638c9176561bf914b365c50ba4748295a8954895d7e3",
+      "pageErrors": [],
+      "theme": "dark",
+      "focusExample": {
+        "outline": "color(srgb 0.368627 0.917647 0.831372 / 0.72) solid 3px",
+        "shadow": "none"
+      },
+      "motionExample": {
+        "transition": "1e-05s",
+        "animation": "1e-05s"
+      },
+      "widths": [
+        {
+          "width": 320,
+          "layout": {
+            "clientWidth": 320,
+            "scrollWidth": 320,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 104,
+            "height": 56,
+            "left": 200,
+            "right": 304,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 24,
+            "minNormalTextRatio": 6.93,
+            "minLargeTextRatio": 18.91
+          },
+          "axeScanPerformed": true
+        },
+        {
+          "width": 360,
+          "layout": {
+            "clientWidth": 360,
+            "scrollWidth": 360,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 144,
+            "height": 56,
+            "left": 200,
+            "right": 344,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 390,
+          "layout": {
+            "clientWidth": 390,
+            "scrollWidth": 390,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 174,
+            "height": 56,
+            "left": 200,
+            "right": 374,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 768,
+          "layout": {
+            "clientWidth": 768,
+            "scrollWidth": 768,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 440,
+            "height": 56,
+            "left": 256,
+            "right": 696,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 820,
+          "layout": {
+            "clientWidth": 820,
+            "scrollWidth": 820,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 440,
+            "height": 56,
+            "left": 282,
+            "right": 722,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1024,
+          "layout": {
+            "clientWidth": 1024,
+            "scrollWidth": 1024,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 440,
+            "height": 56,
+            "left": 384,
+            "right": 824,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1280,
+          "layout": {
+            "clientWidth": 1280,
+            "scrollWidth": 1280,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 440,
+            "height": 56,
+            "left": 512,
+            "right": 952,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1440,
+          "layout": {
+            "clientWidth": 1440,
+            "scrollWidth": 1440,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 440,
+            "height": 56,
+            "left": 592,
+            "right": 1032,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 36,
+            "minNormalTextRatio": 6.93,
+            "minLargeTextRatio": 18.91
+          },
+          "axeScanPerformed": true
+        }
+      ]
+    },
+    {
+      "surface": "staff",
+      "locale": "zh-TW",
+      "source": {
+        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
+        "tree": "f97666a191563d56650b78812298d12080fa7b03",
+        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
+        "runtimePatch": "3290b2000c2e00d6977632ee97f0e1be85087d5e72239447a60c960276aa51db"
+      },
+      "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/staff-zh-TW.json",
+      "rawSha256": "69cbd7a6b9c99062aa128f5dbe69f2022872e650ea28421f71e1b2769dd59225",
+      "pageErrors": [],
+      "theme": "light",
+      "focusExample": {
+        "outline": "color(srgb 0.0588235 0.462745 0.431373 / 0.72) solid 3px",
+        "shadow": "none"
+      },
+      "motionExample": {
+        "transition": "1e-05s",
+        "animation": "1e-05s"
+      },
+      "widths": [
+        {
+          "width": 320,
+          "layout": {
+            "clientWidth": 320,
+            "scrollWidth": 320,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 228,
+            "height": 48,
+            "left": 46,
+            "right": 274,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 13,
+            "minNormalTextRatio": 5.03,
+            "minLargeTextRatio": 18.91
+          },
+          "axeScanPerformed": true
+        },
+        {
+          "width": 360,
+          "layout": {
+            "clientWidth": 360,
+            "scrollWidth": 360,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 268,
+            "height": 48,
+            "left": 46,
+            "right": 314,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 390,
+          "layout": {
+            "clientWidth": 390,
+            "scrollWidth": 390,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 298,
+            "height": 48,
+            "left": 46,
+            "right": 344,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 768,
+          "layout": {
+            "clientWidth": 768,
+            "scrollWidth": 768,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 170,
+            "height": 48,
+            "left": 569,
+            "right": 739,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 3,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 820,
+          "layout": {
+            "clientWidth": 820,
+            "scrollWidth": 820,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 184.734375,
+            "height": 48,
+            "left": 606.265625,
+            "right": 791,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 4,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1024,
+          "layout": {
+            "clientWidth": 1024,
+            "scrollWidth": 1024,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 242.546875,
+            "height": 48,
+            "left": 752.453125,
+            "right": 995,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 5,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1280,
+          "layout": {
+            "clientWidth": 1280,
+            "scrollWidth": 1280,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 312.8125,
+            "height": 48,
+            "left": 938.1875,
+            "right": 1251,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 6,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1440,
+          "layout": {
+            "clientWidth": 1440,
+            "scrollWidth": 1440,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 358.140625,
+            "height": 48,
+            "left": 1052.859375,
+            "right": 1411,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 6,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 24,
+            "minNormalTextRatio": 5.03,
+            "minLargeTextRatio": 16.74
+          },
+          "axeScanPerformed": true
+        }
+      ]
+    },
+    {
+      "surface": "staff",
+      "locale": "en",
+      "source": {
+        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
+        "tree": "f97666a191563d56650b78812298d12080fa7b03",
+        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
+        "runtimePatch": "4faab9324993abf4b08596f429dccf45d8f6169879f0780c5cc8e368d582be7f"
+      },
+      "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/staff-en.json",
+      "rawSha256": "6d484067e8c5b3addd100ccdbdf5a3bc08856ef41e6fbfeb3e5727421fc8a010",
+      "pageErrors": [],
+      "theme": "dark",
+      "focusExample": {
+        "outline": "oklab(0.854872 -0.125014 -0.00232285) solid 3px",
+        "shadow": "none"
+      },
+      "motionExample": {
+        "transition": "1e-05s",
+        "animation": "1e-05s"
+      },
+      "widths": [
+        {
+          "width": 320,
+          "layout": {
+            "clientWidth": 320,
+            "scrollWidth": 320,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 228,
+            "height": 48,
+            "left": 46,
+            "right": 274,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 13,
+            "minNormalTextRatio": 5.03,
+            "minLargeTextRatio": 19.75
+          },
+          "axeScanPerformed": true
+        },
+        {
+          "width": 360,
+          "layout": {
+            "clientWidth": 360,
+            "scrollWidth": 360,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 268,
+            "height": 48,
+            "left": 46,
+            "right": 314,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 390,
+          "layout": {
+            "clientWidth": 390,
+            "scrollWidth": 390,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 298,
+            "height": 48,
+            "left": 46,
+            "right": 344,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 768,
+          "layout": {
+            "clientWidth": 768,
+            "scrollWidth": 768,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 170,
+            "height": 48,
+            "left": 569,
+            "right": 739,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 3,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 820,
+          "layout": {
+            "clientWidth": 820,
+            "scrollWidth": 820,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 184.734375,
+            "height": 48,
+            "left": 606.265625,
+            "right": 791,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 4,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1024,
+          "layout": {
+            "clientWidth": 1024,
+            "scrollWidth": 1024,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 242.546875,
+            "height": 48,
+            "left": 752.453125,
+            "right": 995,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 5,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1280,
+          "layout": {
+            "clientWidth": 1280,
+            "scrollWidth": 1280,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 312.8125,
+            "height": 48,
+            "left": 938.1875,
+            "right": 1251,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 6,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1440,
+          "layout": {
+            "clientWidth": 1440,
+            "scrollWidth": 1440,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 358.140625,
+            "height": 48,
+            "left": 1052.859375,
+            "right": 1411,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 6,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 24,
+            "minNormalTextRatio": 5.03,
+            "minLargeTextRatio": 18.91
+          },
+          "axeScanPerformed": true
+        }
+      ]
+    },
+    {
+      "surface": "pos",
+      "locale": "zh-TW",
+      "source": {
+        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
+        "tree": "f97666a191563d56650b78812298d12080fa7b03",
+        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
+        "runtimePatch": "b49d77041219722c609e9c2e6fdaa8528c43c17f2c64481c1567a983482bc12e"
+      },
+      "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/pos-zh-TW.json",
+      "rawSha256": "4fb679ab8d8c0f6b2539b939e6b26e3ebbeb89f4e1938ac8b251a3653f13e48b",
+      "pageErrors": [],
+      "theme": "light",
+      "focusExample": {
+        "outline": "color(srgb 0.0588235 0.462745 0.431373 / 0.72) solid 3px",
+        "shadow": "none"
+      },
+      "motionExample": {
+        "transition": "1e-05s",
+        "animation": "1e-05s"
+      },
+      "widths": [
+        {
+          "width": 320,
+          "layout": {
+            "clientWidth": 320,
+            "scrollWidth": 320,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 132,
+            "height": 56,
+            "left": 172,
+            "right": 304,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 32,
+            "minNormalTextRatio": 4.78,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": true
+        },
+        {
+          "width": 360,
+          "layout": {
+            "clientWidth": 360,
+            "scrollWidth": 360,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 132,
+            "height": 56,
+            "left": 212,
+            "right": 344,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 390,
+          "layout": {
+            "clientWidth": 390,
+            "scrollWidth": 390,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 132,
+            "height": 56,
+            "left": 242,
+            "right": 374,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 768,
+          "layout": {
+            "clientWidth": 768,
+            "scrollWidth": 768,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 132,
+            "height": 56,
+            "left": 240,
+            "right": 372,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 4,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 820,
+          "layout": {
+            "clientWidth": 820,
+            "scrollWidth": 820,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 132,
+            "height": 56,
+            "left": 292,
+            "right": 424,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 4,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1024,
+          "layout": {
+            "clientWidth": 1024,
+            "scrollWidth": 1024,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 132,
+            "height": 56,
+            "left": 484,
+            "right": 616,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 5,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1280,
+          "layout": {
+            "clientWidth": 1280,
+            "scrollWidth": 1280,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 132,
+            "height": 56,
+            "left": 700,
+            "right": 832,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 6,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1440,
+          "layout": {
+            "clientWidth": 1440,
+            "scrollWidth": 1440,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 132,
+            "height": 56,
+            "left": 780,
+            "right": 912,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 6,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 47,
+            "minNormalTextRatio": 4.58,
+            "minLargeTextRatio": 7.22
+          },
+          "axeScanPerformed": true
+        }
+      ]
+    },
+    {
+      "surface": "pos",
+      "locale": "en",
+      "source": {
+        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
+        "tree": "f97666a191563d56650b78812298d12080fa7b03",
+        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
+        "runtimePatch": "52b222a20a4815d24c86b33f39ad17b3d99c02e8f062f38a3ff2e36a25f46841"
+      },
+      "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/pos-en.json",
+      "rawSha256": "2773706cc098f544bfe4e40d4a9a7c4ecb9909b97d1608c9976c20e63e414119",
+      "pageErrors": [],
+      "theme": "dark",
+      "focusExample": {
+        "outline": "color(srgb 0.368627 0.917647 0.831372 / 0.72) solid 3px",
+        "shadow": "none"
+      },
+      "motionExample": {
+        "transition": "1e-05s",
+        "animation": "1e-05s"
+      },
+      "widths": [
+        {
+          "width": 320,
+          "layout": {
+            "clientWidth": 320,
+            "scrollWidth": 320,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 149.78125,
+            "height": 56,
+            "left": 154.21875,
+            "right": 304,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 31,
+            "minNormalTextRatio": 6.93,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": true
+        },
+        {
+          "width": 360,
+          "layout": {
+            "clientWidth": 360,
+            "scrollWidth": 360,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 149.78125,
+            "height": 56,
+            "left": 194.21875,
+            "right": 344,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 390,
+          "layout": {
+            "clientWidth": 390,
+            "scrollWidth": 390,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 149.78125,
+            "height": 56,
+            "left": 224.21875,
+            "right": 374,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 768,
+          "layout": {
+            "clientWidth": 768,
+            "scrollWidth": 768,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 149.78125,
+            "height": 56,
+            "left": 222.21875,
+            "right": 372,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 4,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 820,
+          "layout": {
+            "clientWidth": 820,
+            "scrollWidth": 820,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 149.78125,
+            "height": 56,
+            "left": 274.21875,
+            "right": 424,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 4,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1024,
+          "layout": {
+            "clientWidth": 1024,
+            "scrollWidth": 1024,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 149.78125,
+            "height": 56,
+            "left": 466.21875,
+            "right": 616,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 5,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1280,
+          "layout": {
+            "clientWidth": 1280,
+            "scrollWidth": 1280,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 149.78125,
+            "height": 56,
+            "left": 682.21875,
+            "right": 832,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 6,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1440,
+          "layout": {
+            "clientWidth": 1440,
+            "scrollWidth": 1440,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 149.78125,
+            "height": 56,
+            "left": 762.21875,
+            "right": 912,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 6,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 46,
+            "minNormalTextRatio": 6.93,
+            "minLargeTextRatio": 13.35
+          },
+          "axeScanPerformed": true
+        }
+      ]
+    },
+    {
+      "surface": "kds",
+      "locale": "zh-TW",
+      "source": {
+        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
+        "tree": "f97666a191563d56650b78812298d12080fa7b03",
+        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
+        "runtimePatch": "44cc103c6b63b4f2da87584752495036f3045713e7d882d06f7b63f96851c63e"
+      },
+      "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/kds-zh-TW.json",
+      "rawSha256": "e39f4be98c566e14bead3df647324956fef6eff31f06a8e86fda9fe7a76fdb4c",
+      "pageErrors": [],
+      "theme": "light",
+      "focusExample": null,
+      "motionExample": {
+        "transition": "1e-05s",
+        "animation": "1e-05s"
+      },
+      "widths": [
+        {
+          "width": 320,
+          "layout": {
+            "clientWidth": 320,
+            "scrollWidth": 320,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 262,
+            "height": 48,
+            "left": 29,
+            "right": 291,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 0,
+          "minIconWidth": null,
+          "minIconHeight": null,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 402,
+            "minNormalTextRatio": 4.58,
+            "minLargeTextRatio": 9.13
+          },
+          "axeScanPerformed": true
+        },
+        {
+          "width": 360,
+          "layout": {
+            "clientWidth": 360,
+            "scrollWidth": 360,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 302,
+            "height": 48,
+            "left": 29,
+            "right": 331,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 390,
+          "layout": {
+            "clientWidth": 390,
+            "scrollWidth": 390,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 332,
+            "height": 48,
+            "left": 29,
+            "right": 361,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 768,
+          "layout": {
+            "clientWidth": 768,
+            "scrollWidth": 768,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 163.203125,
+            "height": 48,
+            "left": 563.796875,
+            "right": 727,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 820,
+          "layout": {
+            "clientWidth": 820,
+            "scrollWidth": 820,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 177.921875,
+            "height": 48,
+            "left": 601.0625,
+            "right": 778.984375,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1024,
+          "layout": {
+            "clientWidth": 1024,
+            "scrollWidth": 1024,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 235.734375,
+            "height": 48,
+            "left": 747.265625,
+            "right": 983,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1280,
+          "layout": {
+            "clientWidth": 1280,
+            "scrollWidth": 1280,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 308.265625,
+            "height": 48,
+            "left": 930.71875,
+            "right": 1238.984375,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1440,
+          "layout": {
+            "clientWidth": 1440,
+            "scrollWidth": 1440,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 353.609375,
+            "height": 48,
+            "left": 1045.390625,
+            "right": 1399,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 402,
+            "minNormalTextRatio": 4.58,
+            "minLargeTextRatio": 9.13
+          },
+          "axeScanPerformed": true
+        }
+      ]
+    },
+    {
+      "surface": "kds",
+      "locale": "en",
+      "source": {
+        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
+        "tree": "f97666a191563d56650b78812298d12080fa7b03",
+        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
+        "runtimePatch": "20c66745b1b4f52c61ad024755524505abf3d96dda40fa85144ea2a2b907679f"
+      },
+      "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/kds-en.json",
+      "rawSha256": "a9ae2a22452878bee38d93503fdbef594cdc60f5c57e1dbdd13411e7789b9a5e",
+      "pageErrors": [],
+      "theme": "dark",
+      "focusExample": null,
+      "motionExample": {
+        "transition": "1e-05s",
+        "animation": "1e-05s"
+      },
+      "widths": [
+        {
+          "width": 320,
+          "layout": {
+            "clientWidth": 320,
+            "scrollWidth": 320,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 262,
+            "height": 48,
+            "left": 29,
+            "right": 291,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 0,
+          "minIconWidth": null,
+          "minIconHeight": null,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 402,
+            "minNormalTextRatio": 5.47,
+            "minLargeTextRatio": 9.94
+          },
+          "axeScanPerformed": true
+        },
+        {
+          "width": 360,
+          "layout": {
+            "clientWidth": 360,
+            "scrollWidth": 360,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 302,
+            "height": 48,
+            "left": 29,
+            "right": 331,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 390,
+          "layout": {
+            "clientWidth": 390,
+            "scrollWidth": 390,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 332,
+            "height": 48,
+            "left": 29,
+            "right": 361,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 768,
+          "layout": {
+            "clientWidth": 768,
+            "scrollWidth": 768,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 163.203125,
+            "height": 48,
+            "left": 563.796875,
+            "right": 727,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 820,
+          "layout": {
+            "clientWidth": 820,
+            "scrollWidth": 820,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 177.921875,
+            "height": 48,
+            "left": 601.0625,
+            "right": 778.984375,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1024,
+          "layout": {
+            "clientWidth": 1024,
+            "scrollWidth": 1024,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 235.734375,
+            "height": 48,
+            "left": 747.265625,
+            "right": 983,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1280,
+          "layout": {
+            "clientWidth": 1280,
+            "scrollWidth": 1280,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 308.265625,
+            "height": 48,
+            "left": 930.71875,
+            "right": 1238.984375,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1440,
+          "layout": {
+            "clientWidth": 1440,
+            "scrollWidth": 1440,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 353.609375,
+            "height": 48,
+            "left": 1045.390625,
+            "right": 1399,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 2,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 402,
+            "minNormalTextRatio": 5.47,
+            "minLargeTextRatio": 9.94
+          },
+          "axeScanPerformed": true
+        }
+      ]
+    },
+    {
+      "surface": "merchant",
+      "locale": "zh-TW",
+      "source": {
+        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
+        "tree": "f97666a191563d56650b78812298d12080fa7b03",
+        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
+        "runtimePatch": "1dae807fffebc158ac497a90067725981b0500fe7440fb2c51939af67b05869e"
+      },
+      "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/merchant-zh-TW.json",
+      "rawSha256": "c0a42c6e66b1ef72f0bb64fdb0af257712e751661c6677ab6ee1a8ba041b3def",
+      "pageErrors": [],
+      "theme": "light",
+      "focusExample": {
+        "outline": "color(srgb 0.0588235 0.462745 0.431373 / 0.72) solid 3px",
+        "shadow": "none"
+      },
+      "motionExample": {
+        "transition": "1e-05s",
+        "animation": "1e-05s"
+      },
+      "widths": [
+        {
+          "width": 320,
+          "layout": {
+            "clientWidth": 320,
+            "scrollWidth": 320,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 44,
+            "height": 44,
+            "left": 28,
+            "right": 72,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 10,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 24,
+            "minNormalTextRatio": 4.78,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": true
+        },
+        {
+          "width": 360,
+          "layout": {
+            "clientWidth": 360,
+            "scrollWidth": 360,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 44,
+            "height": 44,
+            "left": 28,
+            "right": 72,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 11,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 390,
+          "layout": {
+            "clientWidth": 390,
+            "scrollWidth": 390,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 44,
+            "height": 44,
+            "left": 28,
+            "right": 72,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 11,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 768,
+          "layout": {
+            "clientWidth": 768,
+            "scrollWidth": 768,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 44,
+            "height": 44,
+            "left": 400,
+            "right": 444,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 16,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 820,
+          "layout": {
+            "clientWidth": 820,
+            "scrollWidth": 820,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 44,
+            "height": 44,
+            "left": 400,
+            "right": 444,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 16,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1024,
+          "layout": {
+            "clientWidth": 1024,
+            "scrollWidth": 1024,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 44,
+            "height": 44,
+            "left": 400,
+            "right": 444,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 16,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1280,
+          "layout": {
+            "clientWidth": 1280,
+            "scrollWidth": 1280,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 44,
+            "height": 44,
+            "left": 400,
+            "right": 444,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 16,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1440,
+          "layout": {
+            "clientWidth": 1440,
+            "scrollWidth": 1440,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 44,
+            "height": 44,
+            "left": 480,
+            "right": 524,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 16,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 70,
+            "minNormalTextRatio": 4.58,
+            "minLargeTextRatio": 16.74
+          },
+          "axeScanPerformed": true
+        }
+      ]
+    },
+    {
+      "surface": "merchant",
+      "locale": "en",
+      "source": {
+        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
+        "tree": "f97666a191563d56650b78812298d12080fa7b03",
+        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
+        "runtimePatch": "3b2ea51c06e0db7cc1a00e1f922f9f4ecb0e8368fe9d4c02e506f5de30fdbab1"
+      },
+      "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/merchant-en.json",
+      "rawSha256": "3664abdeb5966637c42de2311da3abccd458fbe8fb8afca5166068619534f15a",
+      "pageErrors": [],
+      "theme": "dark",
+      "focusExample": {
+        "outline": "color(srgb 0.368627 0.917647 0.831372 / 0.72) solid 3px",
+        "shadow": "none"
+      },
+      "motionExample": {
+        "transition": "1e-05s",
+        "animation": "1e-05s"
+      },
+      "widths": [
+        {
+          "width": 320,
+          "layout": {
+            "clientWidth": 320,
+            "scrollWidth": 320,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 44,
+            "height": 44,
+            "left": 28,
+            "right": 72,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 10,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 22,
+            "minNormalTextRatio": 6.93,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": true
+        },
+        {
+          "width": 360,
+          "layout": {
+            "clientWidth": 360,
+            "scrollWidth": 360,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 44,
+            "height": 44,
+            "left": 28,
+            "right": 72,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 11,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 390,
+          "layout": {
+            "clientWidth": 390,
+            "scrollWidth": 390,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 44,
+            "height": 44,
+            "left": 28,
+            "right": 72,
+            "uncovered": true
+          },
+          "focusVisible": true,
+          "iconCount": 11,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 768,
+          "layout": {
+            "clientWidth": 768,
+            "scrollWidth": 768,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 44,
+            "height": 44,
+            "left": 400,
+            "right": 444,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 16,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 820,
+          "layout": {
+            "clientWidth": 820,
+            "scrollWidth": 820,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 44,
+            "height": 44,
+            "left": 400,
+            "right": 444,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 16,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1024,
+          "layout": {
+            "clientWidth": 1024,
+            "scrollWidth": 1024,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 44,
+            "height": 44,
+            "left": 400,
+            "right": 444,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 16,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1280,
+          "layout": {
+            "clientWidth": 1280,
+            "scrollWidth": 1280,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 44,
+            "height": 44,
+            "left": 400,
+            "right": 444,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 16,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1440,
+          "layout": {
+            "clientWidth": 1440,
+            "scrollWidth": 1440,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 44,
+            "height": 44,
+            "left": 480,
+            "right": 524,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 16,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 55,
+            "minNormalTextRatio": 6.93,
+            "minLargeTextRatio": 18.91
+          },
+          "axeScanPerformed": true
+        }
+      ]
+    },
+    {
+      "surface": "admin",
+      "locale": "zh-TW",
+      "source": {
+        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
+        "tree": "f97666a191563d56650b78812298d12080fa7b03",
+        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
+        "runtimePatch": "496b79fb186dcf3101695aee2432805d8a043d08d83253bc50cf198bcfaf5856"
+      },
+      "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/admin-zh-TW.json",
+      "rawSha256": "254f88ff6c4dfa33de52f16055c9c8216d02303961ca0fc185a1381a51c2d335",
+      "pageErrors": [],
+      "theme": "light",
+      "focusExample": null,
+      "motionExample": {
+        "transition": "1e-05s",
+        "animation": "1e-05s"
+      },
+      "widths": [
+        {
+          "width": 320,
+          "layout": {
+            "clientWidth": 320,
+            "scrollWidth": 320,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 254,
+            "height": 44,
+            "left": 33,
+            "right": 287,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 1,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 184,
+            "minNormalTextRatio": 4.78,
+            "minLargeTextRatio": 16.74
+          },
+          "axeScanPerformed": true
+        },
+        {
+          "width": 360,
+          "layout": {
+            "clientWidth": 360,
+            "scrollWidth": 360,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 294,
+            "height": 44,
+            "left": 33,
+            "right": 327,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 1,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 390,
+          "layout": {
+            "clientWidth": 390,
+            "scrollWidth": 390,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 324,
+            "height": 44,
+            "left": 33,
+            "right": 357,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 1,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 768,
+          "layout": {
+            "clientWidth": 768,
+            "scrollWidth": 768,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 670,
+            "height": 44,
+            "left": 49,
+            "right": 719,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 1,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 820,
+          "layout": {
+            "clientWidth": 820,
+            "scrollWidth": 820,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 722,
+            "height": 44,
+            "left": 49,
+            "right": 771,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 1,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1024,
+          "layout": {
+            "clientWidth": 1024,
+            "scrollWidth": 1024,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 926,
+            "height": 44,
+            "left": 49,
+            "right": 975,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 1,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1280,
+          "layout": {
+            "clientWidth": 1280,
+            "scrollWidth": 1280,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 942,
+            "height": 44,
+            "left": 289,
+            "right": 1231,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 1,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1440,
+          "layout": {
+            "clientWidth": 1440,
+            "scrollWidth": 1440,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 1102,
+            "height": 44,
+            "left": 289,
+            "right": 1391,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 1,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 202,
+            "minNormalTextRatio": 4.78,
+            "minLargeTextRatio": 16.74
+          },
+          "axeScanPerformed": true
+        }
+      ]
+    },
+    {
+      "surface": "admin",
+      "locale": "en",
+      "source": {
+        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
+        "tree": "f97666a191563d56650b78812298d12080fa7b03",
+        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
+        "runtimePatch": "d38f195cf064a49f16fb148244ac43fdbeff0a98724d5456f32a383a0477af58"
+      },
+      "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/admin-en.json",
+      "rawSha256": "340f325fea550942a0ef1c5f065e6055fce9d4e1081d4cd53c460fa36ccec5d5",
+      "pageErrors": [],
+      "theme": "dark",
+      "focusExample": null,
+      "motionExample": {
+        "transition": "1e-05s",
+        "animation": "1e-05s"
+      },
+      "widths": [
+        {
+          "width": 320,
+          "layout": {
+            "clientWidth": 320,
+            "scrollWidth": 320,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 254,
+            "height": 44,
+            "left": 33,
+            "right": 287,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 1,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 183,
+            "minNormalTextRatio": 6.93,
+            "minLargeTextRatio": 18.91
+          },
+          "axeScanPerformed": true
+        },
+        {
+          "width": 360,
+          "layout": {
+            "clientWidth": 360,
+            "scrollWidth": 360,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 294,
+            "height": 44,
+            "left": 33,
+            "right": 327,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 1,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 390,
+          "layout": {
+            "clientWidth": 390,
+            "scrollWidth": 390,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 324,
+            "height": 44,
+            "left": 33,
+            "right": 357,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 1,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 768,
+          "layout": {
+            "clientWidth": 768,
+            "scrollWidth": 768,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 670,
+            "height": 44,
+            "left": 49,
+            "right": 719,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 1,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 820,
+          "layout": {
+            "clientWidth": 820,
+            "scrollWidth": 820,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 722,
+            "height": 44,
+            "left": 49,
+            "right": 771,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 1,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1024,
+          "layout": {
+            "clientWidth": 1024,
+            "scrollWidth": 1024,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 926,
+            "height": 44,
+            "left": 49,
+            "right": 975,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 1,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1280,
+          "layout": {
+            "clientWidth": 1280,
+            "scrollWidth": 1280,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 942,
+            "height": 44,
+            "left": 289,
+            "right": 1231,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 1,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1440,
+          "layout": {
+            "clientWidth": 1440,
+            "scrollWidth": 1440,
+            "reducedMotion": true
+          },
+          "target": {
+            "width": 1102,
+            "height": 44,
+            "left": 289,
+            "right": 1391,
+            "uncovered": true
+          },
+          "focusVisible": null,
+          "iconCount": 1,
+          "minIconWidth": 44,
+          "minIconHeight": 44,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 202,
+            "minNormalTextRatio": 6.93,
+            "minLargeTextRatio": 18.91
+          },
+          "axeScanPerformed": true
+        }
+      ]
+    },
+    {
+      "surface": "mini",
+      "locale": "zh-TW",
+      "source": {
+        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
+        "tree": "f97666a191563d56650b78812298d12080fa7b03",
+        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
+        "runtimePatch": "d527493f9ac6f3d33e7fc5bad827f61066bc020733c809806d43509e4bedf37c"
+      },
+      "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/mini-zh-TW.json",
+      "rawSha256": "eb6588d62619892a48d32d14665924b05a9ed951a00ed489efd8a0a2ab27798f",
+      "pageErrors": [],
+      "theme": "light",
+      "focusExample": null,
+      "motionExample": {
+        "transition": "1e-05s",
+        "animation": "1e-05s"
+      },
+      "widths": [
+        {
+          "width": 320,
+          "layout": {
+            "clientWidth": 320,
+            "scrollWidth": 320,
+            "reducedMotion": true
+          },
+          "target": null,
+          "focusVisible": null,
+          "iconCount": 0,
+          "minIconWidth": null,
+          "minIconHeight": null,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 2,
+            "minNormalTextRatio": 16.74,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": true
+        },
+        {
+          "width": 360,
+          "layout": {
+            "clientWidth": 360,
+            "scrollWidth": 360,
+            "reducedMotion": true
+          },
+          "target": null,
+          "focusVisible": null,
+          "iconCount": 0,
+          "minIconWidth": null,
+          "minIconHeight": null,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 390,
+          "layout": {
+            "clientWidth": 390,
+            "scrollWidth": 390,
+            "reducedMotion": true
+          },
+          "target": null,
+          "focusVisible": null,
+          "iconCount": 0,
+          "minIconWidth": null,
+          "minIconHeight": null,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 768,
+          "layout": {
+            "clientWidth": 768,
+            "scrollWidth": 768,
+            "reducedMotion": true
+          },
+          "target": null,
+          "focusVisible": null,
+          "iconCount": 0,
+          "minIconWidth": null,
+          "minIconHeight": null,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 820,
+          "layout": {
+            "clientWidth": 820,
+            "scrollWidth": 820,
+            "reducedMotion": true
+          },
+          "target": null,
+          "focusVisible": null,
+          "iconCount": 0,
+          "minIconWidth": null,
+          "minIconHeight": null,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1024,
+          "layout": {
+            "clientWidth": 1024,
+            "scrollWidth": 1024,
+            "reducedMotion": true
+          },
+          "target": null,
+          "focusVisible": null,
+          "iconCount": 0,
+          "minIconWidth": null,
+          "minIconHeight": null,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1280,
+          "layout": {
+            "clientWidth": 1280,
+            "scrollWidth": 1280,
+            "reducedMotion": true
+          },
+          "target": null,
+          "focusVisible": null,
+          "iconCount": 0,
+          "minIconWidth": null,
+          "minIconHeight": null,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1440,
+          "layout": {
+            "clientWidth": 1440,
+            "scrollWidth": 1440,
+            "reducedMotion": true
+          },
+          "target": null,
+          "focusVisible": null,
+          "iconCount": 0,
+          "minIconWidth": null,
+          "minIconHeight": null,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 2,
+            "minNormalTextRatio": 16.74,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": true
+        }
+      ]
+    },
+    {
+      "surface": "mini",
+      "locale": "en",
+      "source": {
+        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
+        "tree": "f97666a191563d56650b78812298d12080fa7b03",
+        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
+        "runtimePatch": "ba838951a193a43cbccd09e0c38d12a8eac3f00853ffc83957fa6b5eae3bc6e3"
+      },
+      "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/mini-en.json",
+      "rawSha256": "f99d9908c8c16c29c8a6c48897c226aed92b49ca008efa756f96c69ad793c7a1",
+      "pageErrors": [],
+      "theme": "dark",
+      "focusExample": null,
+      "motionExample": {
+        "transition": "1e-05s",
+        "animation": "1e-05s"
+      },
+      "widths": [
+        {
+          "width": 320,
+          "layout": {
+            "clientWidth": 320,
+            "scrollWidth": 320,
+            "reducedMotion": true
+          },
+          "target": null,
+          "focusVisible": null,
+          "iconCount": 0,
+          "minIconWidth": null,
+          "minIconHeight": null,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 2,
+            "minNormalTextRatio": 18.91,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": true
+        },
+        {
+          "width": 360,
+          "layout": {
+            "clientWidth": 360,
+            "scrollWidth": 360,
+            "reducedMotion": true
+          },
+          "target": null,
+          "focusVisible": null,
+          "iconCount": 0,
+          "minIconWidth": null,
+          "minIconHeight": null,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 390,
+          "layout": {
+            "clientWidth": 390,
+            "scrollWidth": 390,
+            "reducedMotion": true
+          },
+          "target": null,
+          "focusVisible": null,
+          "iconCount": 0,
+          "minIconWidth": null,
+          "minIconHeight": null,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 768,
+          "layout": {
+            "clientWidth": 768,
+            "scrollWidth": 768,
+            "reducedMotion": true
+          },
+          "target": null,
+          "focusVisible": null,
+          "iconCount": 0,
+          "minIconWidth": null,
+          "minIconHeight": null,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 820,
+          "layout": {
+            "clientWidth": 820,
+            "scrollWidth": 820,
+            "reducedMotion": true
+          },
+          "target": null,
+          "focusVisible": null,
+          "iconCount": 0,
+          "minIconWidth": null,
+          "minIconHeight": null,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1024,
+          "layout": {
+            "clientWidth": 1024,
+            "scrollWidth": 1024,
+            "reducedMotion": true
+          },
+          "target": null,
+          "focusVisible": null,
+          "iconCount": 0,
+          "minIconWidth": null,
+          "minIconHeight": null,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1280,
+          "layout": {
+            "clientWidth": 1280,
+            "scrollWidth": 1280,
+            "reducedMotion": true
+          },
+          "target": null,
+          "focusVisible": null,
+          "iconCount": 0,
+          "minIconWidth": null,
+          "minIconHeight": null,
+          "seriousCritical": null,
+          "contrast": {
+            "checkedTextNodes": 0,
+            "minNormalTextRatio": null,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": false
+        },
+        {
+          "width": 1440,
+          "layout": {
+            "clientWidth": 1440,
+            "scrollWidth": 1440,
+            "reducedMotion": true
+          },
+          "target": null,
+          "focusVisible": null,
+          "iconCount": 0,
+          "minIconWidth": null,
+          "minIconHeight": null,
+          "seriousCritical": [],
+          "contrast": {
+            "checkedTextNodes": 2,
+            "minNormalTextRatio": 18.91,
+            "minLargeTextRatio": null
+          },
+          "axeScanPerformed": true
+        }
+      ]
+    }
+  ],
+  "native": [
+    {
+      "channel": "chrome",
+      "mode": "zoom200",
+      "status": "PASS",
+      "version": "153.0.8010.53",
+      "source": {
+        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
+        "tree": "f97666a191563d56650b78812298d12080fa7b03",
+        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
+        "runtimePatch": "481346857524e45c9a40778a967aa3ffd1413ac1a11db89e4a4efe772e3d9a8d"
+      },
+      "method": "Native browser settings UI; no viewport, deviceScaleFactor or page-scale override. Text size uses owned profile default_font_size. Full-frame CDP capture; Merchant QR block masked.",
+      "baseline": {
+        "innerWidth": 1282,
+        "outerWidth": 1297,
+        "dpr": 1.25
+      },
+      "settingReadback": "2",
+      "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/chrome-zoom200.json",
+      "rawSha256": "3c1bfaa1380314503737970d86df438122b31de7021e9f2b5f342689ba438cc8",
+      "receipts": [
+        {
+          "surface": "customer",
+          "readback": {
+            "innerWidth": 641,
+            "outerWidth": 160,
+            "dpr": 2.5,
+            "pinchScale": 1,
+            "rootFont": "16px",
+            "scrollWidth": 641,
+            "clientWidth": 641
+          },
+          "target": {
+            "width": 369.6000061035156,
+            "height": 56,
+            "left": 224,
+            "right": 593.6000061035156,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "staff",
+          "readback": {
+            "innerWidth": 641,
+            "outerWidth": 160,
+            "dpr": 2.5,
+            "pinchScale": 1,
+            "rootFont": "16px",
+            "scrollWidth": 633,
+            "clientWidth": 633
+          },
+          "target": {
+            "width": 44,
+            "height": 44,
+            "left": 172,
+            "right": 216,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "pos",
+          "readback": {
+            "innerWidth": 641,
+            "outerWidth": 160,
+            "dpr": 2.5,
+            "pinchScale": 1,
+            "rootFont": "16px",
+            "scrollWidth": 633,
+            "clientWidth": 633
+          },
+          "target": {
+            "width": 369.6000061035156,
+            "height": 56,
+            "left": 224,
+            "right": 593.6000061035156,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "kds",
+          "readback": {
+            "innerWidth": 641,
+            "outerWidth": 160,
+            "dpr": 2.5,
+            "pinchScale": 1,
+            "rootFont": "16px",
+            "scrollWidth": 633,
+            "clientWidth": 633
+          },
+          "target": {
+            "width": 576,
+            "height": 48,
+            "left": 28.80000114440918,
+            "right": 604.8000011444092,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "merchant",
+          "readback": {
+            "innerWidth": 641,
+            "outerWidth": 160,
+            "dpr": 2.5,
+            "pinchScale": 1,
+            "rootFont": "16px",
+            "scrollWidth": 641,
+            "clientWidth": 641
+          },
+          "target": {
+            "width": 44,
+            "height": 44,
+            "left": 40,
+            "right": 84,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "admin",
+          "readback": {
+            "innerWidth": 641,
+            "outerWidth": 160,
+            "dpr": 2.5,
+            "pinchScale": 1,
+            "rootFont": "16px",
+            "scrollWidth": 633,
+            "clientWidth": 633
+          },
+          "target": {
+            "width": 568,
+            "height": 44,
+            "left": 32.79999923706055,
+            "right": 600.7999992370605,
+            "uncovered": true
+          }
+        }
+      ]
+    },
+    {
+      "channel": "chrome",
+      "mode": "zoom400",
+      "status": "PASS",
+      "version": "153.0.8010.53",
+      "source": {
+        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
+        "tree": "f97666a191563d56650b78812298d12080fa7b03",
+        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
+        "runtimePatch": "1dd850b9839e31342a896da511aab965f9228b678547274ea26ddca8e72c1809"
+      },
+      "method": "Native browser settings UI; no viewport, deviceScaleFactor or page-scale override. Text size uses owned profile default_font_size. Full-frame CDP capture; Merchant QR block masked.",
+      "baseline": {
+        "innerWidth": 1282,
+        "outerWidth": 1297,
+        "dpr": 1.25
+      },
+      "settingReadback": "4",
+      "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/chrome-zoom400.json",
+      "rawSha256": "2bbd5ddcead0ad23a96fe2c7db756b08fa568e93bd57ae6eecd7db3870a1ffe3",
+      "receipts": [
+        {
+          "surface": "customer",
+          "readback": {
+            "innerWidth": 320,
+            "outerWidth": 1297,
+            "dpr": 5,
+            "pinchScale": 1,
+            "rootFont": "16px",
+            "scrollWidth": 320,
+            "clientWidth": 320
+          },
+          "target": {
+            "width": 100.80000305175781,
+            "height": 56,
+            "left": 200,
+            "right": 300.8000030517578,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "staff",
+          "readback": {
+            "innerWidth": 320,
+            "outerWidth": 1297,
+            "dpr": 5,
+            "pinchScale": 1,
+            "rootFont": "16px",
+            "scrollWidth": 316,
+            "clientWidth": 316
+          },
+          "target": {
+            "width": 44,
+            "height": 44,
+            "left": 172,
+            "right": 216,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "pos",
+          "readback": {
+            "innerWidth": 320,
+            "outerWidth": 1297,
+            "dpr": 5,
+            "pinchScale": 1,
+            "rootFont": "16px",
+            "scrollWidth": 316,
+            "clientWidth": 316
+          },
+          "target": {
+            "width": 100.80000305175781,
+            "height": 56,
+            "left": 200,
+            "right": 300.8000030517578,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "kds",
+          "readback": {
+            "innerWidth": 320,
+            "outerWidth": 1297,
+            "dpr": 5,
+            "pinchScale": 1,
+            "rootFont": "16px",
+            "scrollWidth": 316,
+            "clientWidth": 316
+          },
+          "target": {
+            "width": 258.8000183105469,
+            "height": 48,
+            "left": 29,
+            "right": 287.8000183105469,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "merchant",
+          "readback": {
+            "innerWidth": 320,
+            "outerWidth": 1297,
+            "dpr": 5,
+            "pinchScale": 1,
+            "rootFont": "16px",
+            "scrollWidth": 320,
+            "clientWidth": 320
+          },
+          "target": {
+            "width": 44,
+            "height": 44,
+            "left": 28,
+            "right": 72,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "admin",
+          "readback": {
+            "innerWidth": 320,
+            "outerWidth": 1297,
+            "dpr": 5,
+            "pinchScale": 1,
+            "rootFont": "16px",
+            "scrollWidth": 316,
+            "clientWidth": 316
+          },
+          "target": {
+            "width": 250.8000030517578,
+            "height": 44,
+            "left": 33,
+            "right": 283.8000030517578,
+            "uncovered": true
+          }
+        }
+      ]
+    },
+    {
+      "channel": "chrome",
+      "mode": "text200",
+      "status": "PASS",
+      "version": "153.0.8010.53",
+      "source": {
+        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
+        "tree": "f97666a191563d56650b78812298d12080fa7b03",
+        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
+        "runtimePatch": "14882030681f5bbff2ee0b8fc74ce5269f1d7b8f3479f76d257e64e08d52e219"
+      },
+      "method": "Native browser settings UI; no viewport, deviceScaleFactor or page-scale override. Text size uses owned profile default_font_size. Full-frame CDP capture; Merchant QR block masked.",
+      "baseline": {
+        "innerWidth": 1282,
+        "outerWidth": 1297,
+        "dpr": 1.25
+      },
+      "settingReadback": "1",
+      "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/chrome-text200.json",
+      "rawSha256": "87644cd0a243ebd2f3548ec7f49bd7f9882c1fbf089e817d6b9c63b50d2947aa",
+      "receipts": [
+        {
+          "surface": "customer",
+          "readback": {
+            "innerWidth": 1282,
+            "outerWidth": 1297,
+            "dpr": 1.25,
+            "pinchScale": 1,
+            "rootFont": "32px",
+            "scrollWidth": 1282,
+            "clientWidth": 1282
+          },
+          "target": {
+            "width": 899.2000122070312,
+            "height": 112,
+            "left": 288,
+            "right": 1187.2000122070312,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "staff",
+          "readback": {
+            "innerWidth": 1282,
+            "outerWidth": 1297,
+            "dpr": 1.25,
+            "pinchScale": 1,
+            "rootFont": "32px",
+            "scrollWidth": 1267,
+            "clientWidth": 1267
+          },
+          "target": {
+            "width": 88,
+            "height": 88,
+            "left": 672.7999877929688,
+            "right": 760.7999877929688,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "pos",
+          "readback": {
+            "innerWidth": 1282,
+            "outerWidth": 1297,
+            "dpr": 1.25,
+            "pinchScale": 1,
+            "rootFont": "32px",
+            "scrollWidth": 1267,
+            "clientWidth": 1267
+          },
+          "target": {
+            "width": 899.2000122070312,
+            "height": 112,
+            "left": 288,
+            "right": 1187.2000122070312,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "kds",
+          "readback": {
+            "innerWidth": 1282,
+            "outerWidth": 1297,
+            "dpr": 1.25,
+            "pinchScale": 1,
+            "rootFont": "32px",
+            "scrollWidth": 1267,
+            "clientWidth": 1267
+          },
+          "target": {
+            "width": 1153.5999755859375,
+            "height": 96,
+            "left": 56.79999923706055,
+            "right": 1210.399974822998,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "merchant",
+          "readback": {
+            "innerWidth": 1282,
+            "outerWidth": 1297,
+            "dpr": 1.25,
+            "pinchScale": 1,
+            "rootFont": "32px",
+            "scrollWidth": 1267,
+            "clientWidth": 1267
+          },
+          "target": {
+            "width": 88,
+            "height": 88,
+            "left": 80,
+            "right": 168,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "admin",
+          "readback": {
+            "innerWidth": 1282,
+            "outerWidth": 1297,
+            "dpr": 1.25,
+            "pinchScale": 1,
+            "rootFont": "32px",
+            "scrollWidth": 1267,
+            "clientWidth": 1267
+          },
+          "target": {
+            "width": 1137.5999755859375,
+            "height": 88,
+            "left": 64.80000305175781,
+            "right": 1202.3999786376953,
+            "uncovered": true
+          }
+        }
+      ]
+    },
+    {
+      "channel": "msedge",
+      "mode": "zoom200",
+      "status": "PASS",
+      "version": "154.0.4258.37",
+      "source": {
+        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
+        "tree": "f97666a191563d56650b78812298d12080fa7b03",
+        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
+        "runtimePatch": "1bba1b40dfa9285eafd944ef3068d747117a863549f005dfa5556232b6b40389"
+      },
+      "method": "Native browser settings UI; no viewport, deviceScaleFactor or page-scale override. Text size uses owned profile default_font_size. Full-frame CDP capture; Merchant QR block masked.",
+      "baseline": {
+        "innerWidth": 1280,
+        "outerWidth": 1303,
+        "dpr": 1.25
+      },
+      "settingReadback": "頁面縮放 200%",
+      "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/msedge-zoom200.json",
+      "rawSha256": "0fdda027a520322c7ebfeb70c1b8d2d4dfc22455d6ffe153e9da140af73d09e4",
+      "receipts": [
+        {
+          "surface": "customer",
+          "readback": {
+            "innerWidth": 640,
+            "outerWidth": 1303,
+            "dpr": 2.5,
+            "pinchScale": 1,
+            "rootFont": "16px",
+            "scrollWidth": 640,
+            "clientWidth": 640
+          },
+          "target": {
+            "width": 368.3999938964844,
+            "height": 56,
+            "left": 224,
+            "right": 592.3999938964844,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "staff",
+          "readback": {
+            "innerWidth": 640,
+            "outerWidth": 1303,
+            "dpr": 2.5,
+            "pinchScale": 1,
+            "rootFont": "16px",
+            "scrollWidth": 632,
+            "clientWidth": 632
+          },
+          "target": {
+            "width": 44,
+            "height": 44,
+            "left": 172,
+            "right": 216,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "pos",
+          "readback": {
+            "innerWidth": 640,
+            "outerWidth": 1303,
+            "dpr": 2.5,
+            "pinchScale": 1,
+            "rootFont": "16px",
+            "scrollWidth": 632,
+            "clientWidth": 632
+          },
+          "target": {
+            "width": 368.3999938964844,
+            "height": 56,
+            "left": 224,
+            "right": 592.3999938964844,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "kds",
+          "readback": {
+            "innerWidth": 640,
+            "outerWidth": 1303,
+            "dpr": 2.5,
+            "pinchScale": 1,
+            "rootFont": "16px",
+            "scrollWidth": 632,
+            "clientWidth": 632
+          },
+          "target": {
+            "width": 574.7999877929688,
+            "height": 48,
+            "left": 28.80000114440918,
+            "right": 603.5999889373779,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "merchant",
+          "readback": {
+            "innerWidth": 640,
+            "outerWidth": 1303,
+            "dpr": 2.5,
+            "pinchScale": 1,
+            "rootFont": "16px",
+            "scrollWidth": 640,
+            "clientWidth": 640
+          },
+          "target": {
+            "width": 44,
+            "height": 44,
+            "left": 40,
+            "right": 84,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "admin",
+          "readback": {
+            "innerWidth": 640,
+            "outerWidth": 1303,
+            "dpr": 2.5,
+            "pinchScale": 1,
+            "rootFont": "16px",
+            "scrollWidth": 632,
+            "clientWidth": 632
+          },
+          "target": {
+            "width": 566.7999877929688,
+            "height": 44,
+            "left": 32.79999923706055,
+            "right": 599.5999870300293,
+            "uncovered": true
+          }
+        }
+      ]
+    },
+    {
+      "channel": "msedge",
+      "mode": "zoom400",
+      "status": "PASS",
+      "version": "154.0.4258.37",
+      "source": {
+        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
+        "tree": "f97666a191563d56650b78812298d12080fa7b03",
+        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
+        "runtimePatch": "1feeddb3d9b981a1661c3c65145c3beedd75eb9b7a7298a6fde80c0aa99ea687"
+      },
+      "method": "Native browser settings UI; no viewport, deviceScaleFactor or page-scale override. Text size uses owned profile default_font_size. Full-frame CDP capture; Merchant QR block masked.",
+      "baseline": {
+        "innerWidth": 1280,
+        "outerWidth": 1303,
+        "dpr": 1.25
+      },
+      "settingReadback": "頁面縮放 400%",
+      "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/msedge-zoom400.json",
+      "rawSha256": "e3eb9e84186a7fe863d17599213409fe9689018ab0c04e5c8568fcdfcdb6d18f",
+      "receipts": [
+        {
+          "surface": "customer",
+          "readback": {
+            "innerWidth": 320,
+            "outerWidth": 1303,
+            "dpr": 5,
+            "pinchScale": 1,
+            "rootFont": "16px",
+            "scrollWidth": 320,
+            "clientWidth": 320
+          },
+          "target": {
+            "width": 100.20000457763672,
+            "height": 56,
+            "left": 200,
+            "right": 300.2000045776367,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "staff",
+          "readback": {
+            "innerWidth": 320,
+            "outerWidth": 1303,
+            "dpr": 5,
+            "pinchScale": 1,
+            "rootFont": "16px",
+            "scrollWidth": 316,
+            "clientWidth": 316
+          },
+          "target": {
+            "width": 44,
+            "height": 44,
+            "left": 172,
+            "right": 216,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "pos",
+          "readback": {
+            "innerWidth": 320,
+            "outerWidth": 1303,
+            "dpr": 5,
+            "pinchScale": 1,
+            "rootFont": "16px",
+            "scrollWidth": 316,
+            "clientWidth": 316
+          },
+          "target": {
+            "width": 100.20000457763672,
+            "height": 56,
+            "left": 200,
+            "right": 300.2000045776367,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "kds",
+          "readback": {
+            "innerWidth": 320,
+            "outerWidth": 1303,
+            "dpr": 5,
+            "pinchScale": 1,
+            "rootFont": "16px",
+            "scrollWidth": 316,
+            "clientWidth": 316
+          },
+          "target": {
+            "width": 258.20001220703125,
+            "height": 48,
+            "left": 29,
+            "right": 287.20001220703125,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "merchant",
+          "readback": {
+            "innerWidth": 320,
+            "outerWidth": 1303,
+            "dpr": 5,
+            "pinchScale": 1,
+            "rootFont": "16px",
+            "scrollWidth": 320,
+            "clientWidth": 320
+          },
+          "target": {
+            "width": 44,
+            "height": 44,
+            "left": 28,
+            "right": 72,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "admin",
+          "readback": {
+            "innerWidth": 320,
+            "outerWidth": 1303,
+            "dpr": 5,
+            "pinchScale": 1,
+            "rootFont": "16px",
+            "scrollWidth": 316,
+            "clientWidth": 316
+          },
+          "target": {
+            "width": 250.1999969482422,
+            "height": 44,
+            "left": 33,
+            "right": 283.1999969482422,
+            "uncovered": true
+          }
+        }
+      ]
+    },
+    {
+      "channel": "msedge",
+      "mode": "text200",
+      "status": "PASS",
+      "version": "154.0.4258.37",
+      "source": {
+        "head": "7d7c6a4b59b2fed7732f3d63a1c1c3bf4355da35",
+        "tree": "f97666a191563d56650b78812298d12080fa7b03",
+        "buildId": "Y9-jP5R3uklDWYkLb3oGJ",
+        "runtimePatch": "1e39398875ebdc394d110253834340958ee02eda8a7c7e75b5de48042731900b"
+      },
+      "method": "Native browser settings UI; no viewport, deviceScaleFactor or page-scale override. Text size uses owned profile default_font_size. Full-frame CDP capture; Merchant QR block masked.",
+      "baseline": {
+        "innerWidth": 1280,
+        "outerWidth": 1303,
+        "dpr": 1.25
+      },
+      "settingReadback": "頁面縮放 100%",
+      "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/msedge-text200.json",
+      "rawSha256": "30a5b990e511f08951cde940171d3fe5e59aed9797fa146e6648c1fc30fe3294",
+      "receipts": [
+        {
+          "surface": "customer",
+          "readback": {
+            "innerWidth": 1280,
+            "outerWidth": 1303,
+            "dpr": 1.25,
+            "pinchScale": 1,
+            "rootFont": "32px",
+            "scrollWidth": 1280,
+            "clientWidth": 1280
+          },
+          "target": {
+            "width": 896.7999877929688,
+            "height": 112,
+            "left": 288,
+            "right": 1184.7999877929688,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "staff",
+          "readback": {
+            "innerWidth": 1280,
+            "outerWidth": 1303,
+            "dpr": 1.25,
+            "pinchScale": 1,
+            "rootFont": "32px",
+            "scrollWidth": 1265,
+            "clientWidth": 1265
+          },
+          "target": {
+            "width": 88,
+            "height": 88,
+            "left": 672.7999877929688,
+            "right": 760.7999877929688,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "pos",
+          "readback": {
+            "innerWidth": 1280,
+            "outerWidth": 1303,
+            "dpr": 1.25,
+            "pinchScale": 1,
+            "rootFont": "32px",
+            "scrollWidth": 1265,
+            "clientWidth": 1265
+          },
+          "target": {
+            "width": 896.7999877929688,
+            "height": 112,
+            "left": 288,
+            "right": 1184.7999877929688,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "kds",
+          "readback": {
+            "innerWidth": 1280,
+            "outerWidth": 1303,
+            "dpr": 1.25,
+            "pinchScale": 1,
+            "rootFont": "32px",
+            "scrollWidth": 1265,
+            "clientWidth": 1265
+          },
+          "target": {
+            "width": 1151.2000732421875,
+            "height": 96,
+            "left": 56.79999923706055,
+            "right": 1208.000072479248,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "merchant",
+          "readback": {
+            "innerWidth": 1280,
+            "outerWidth": 1303,
+            "dpr": 1.25,
+            "pinchScale": 1,
+            "rootFont": "32px",
+            "scrollWidth": 1265,
+            "clientWidth": 1265
+          },
+          "target": {
+            "width": 88,
+            "height": 88,
+            "left": 80,
+            "right": 168,
+            "uncovered": true
+          }
+        },
+        {
+          "surface": "admin",
+          "readback": {
+            "innerWidth": 1280,
+            "outerWidth": 1303,
+            "dpr": 1.25,
+            "pinchScale": 1,
+            "rootFont": "32px",
+            "scrollWidth": 1265,
+            "clientWidth": 1265
+          },
+          "target": {
+            "width": 1135.2000732421875,
+            "height": 88,
+            "left": 64.80000305175781,
+            "right": 1200.0000762939453,
+            "uncovered": true
+          }
+        }
+      ]
+    }
+  ],
+  "dataset": {
+    "orderCount": 120,
+    "itemCount": 120,
+    "taskCount": 120,
+    "orderDigest": "10b7242ec9d9fb274e5cd38e78fcb937089a6c35e72e5601df0d01410301d255",
+    "fullDatasetDigest": "0e6c590475502b69070d0a00da43c2bf08ca911441f705f9e86dacc3abf6c447",
+    "rawPath": "artifacts/ux-responsive-20260930/b3-accessibility/frozen-dataset.json",
+    "rawSha256": "91b4e36d64752792cc62f52f0d1173352013699ec030cc5e8ad066e5ab88f525",
+    "orderIds": [
+      "56e2cc1c-b772-4146-9a55-1f19a0e83f7c",
+      "546bc958-f3f4-401a-8d66-3a271ca2873d",
+      "2ec99b8d-aa42-4502-b33f-53b31f98a33a",
+      "c28ed6bb-d9e6-4f68-895b-01f02e243581",
+      "b5aa05f3-cad2-4bf3-b98a-b345c147bbac",
+      "9b3940b0-c08a-4ef2-8071-e389db320327",
+      "8e4c5bfe-2e6b-4d72-b0ef-d46c9b179f53",
+      "b691a49b-c8cc-4b32-8a09-ccbc7b8614cd",
+      "e1ddd625-d5a5-43e5-afc9-7e6b11204ea3",
+      "1f15f529-c9bc-4b46-8945-e2fedf017c1e",
+      "599a685e-fe4e-4b05-9627-26f41677047b",
+      "24dc56e9-e07d-45e7-9adf-f6350f7eb644",
+      "a5a6ce5b-1996-4f45-8b9a-cb51b50fef95",
+      "6949cf54-2c4b-41bd-85c2-ef0dfbf47e6e",
+      "28f9070b-9e39-4661-bbbe-f6f120113bd7",
+      "f741e3f2-ecbd-4e02-b150-ec96d3db967c",
+      "319335e0-9279-4b9c-b584-f9b91e377215",
+      "9cd50d78-a5d0-4936-8c22-bb8a6617578f",
+      "8ebb658f-cea4-4847-a3b0-ee78318efcbb",
+      "0d9daf6b-91d5-474b-81d1-1b53781a582c",
+      "deab7713-27bd-403a-a785-bfac29859aab",
+      "d3f248df-0e08-430b-a1a3-3a61268553c2",
+      "06f6c842-050a-449c-b461-c74fd542422b",
+      "feba2f94-c58e-49ba-bbb0-991650ac35b1",
+      "ecc630b1-f67e-4a66-a180-e00e79e80b60",
+      "5fb92c47-ea3c-4527-a7a4-209ae0562791",
+      "280b4efb-1dec-40f3-bb09-0435ee9dc3e7",
+      "988121a0-c77a-43be-82a8-54dd7e9a6894",
+      "0a6e239c-bb98-47db-8733-476e8e06e3a5",
+      "c40b574d-39e8-4777-9a24-51e93499f66e",
+      "769c2d65-5944-4969-a3a4-51da96d5ab70",
+      "fc87d3e5-5d22-43aa-9f0e-5e1f0cb16201",
+      "5e55a6a2-a535-4b8d-8155-1c53d88c9f75",
+      "a1688b9b-bcdc-43ec-bc1a-9f6b77be53ac",
+      "5f384bdc-847d-4a34-acf9-0401e435643c",
+      "dfe7e4b1-ff7b-4583-a1da-906700ec582b",
+      "86078436-9630-4a57-9544-4c71e9e36217",
+      "c8c41391-3425-4721-9434-52799b769457",
+      "1d7100d5-1ac1-4322-adbb-758641d47db6",
+      "248f6a8d-705f-4eea-a875-82205504e90c",
+      "13404a71-5541-40dd-9cbe-5a6962559a74",
+      "263f9a9f-850e-4b66-ba22-b0a1e825aaea",
+      "6e88007d-d0e5-4c75-96b9-ddc27fadf1e7",
+      "7992a3b3-4f51-4841-896d-9fa1d23505de",
+      "3603851c-d242-4637-9b93-a769b1d10ad8",
+      "4c141b25-49bd-417f-a187-f040371c2595",
+      "84e1d3b1-78cb-4a3f-b372-b2953b0431f3",
+      "68d48ec2-b8c3-43ad-85e4-b6e7d8d0b276",
+      "4f55ee0c-98b5-4b23-a1b4-a748d873bef4",
+      "c9182350-8706-44eb-a16f-a224b4966301",
+      "10e57f22-2f57-4042-8e18-94457338cc4e",
+      "f53e35a0-2851-4c60-a396-84fb45dff91d",
+      "02346a25-fdff-4eea-89f5-8b52a7c5e826",
+      "c2d88a11-49a2-40bf-863c-098378fb11fc",
+      "daa33dba-8701-40cf-bf96-e7e33e2fe908",
+      "7fe677fb-60f4-4312-92a9-4360008494e5",
+      "66de96c6-ce92-4164-a47e-3f6e1a2d279f",
+      "df121709-104c-4633-a56f-1bfab4a72f5b",
+      "d8b49009-0216-4482-b5a1-9eb0e1ebdd8b",
+      "4d9e8a91-2d5f-4ef2-a267-21e402338329",
+      "76cf23ab-a0e2-46ee-9ed9-4ebc31a46d6b",
+      "cacfaceb-6227-42f3-b124-8afc4e58c7a2",
+      "3771cfbc-7f46-470e-af78-b2e02cf1d240",
+      "036a75b5-fd2e-4023-ae06-5160a0e4c06c",
+      "b2e8935c-afa5-4829-a973-43e699fbab4c",
+      "b226ce7b-c4b4-4801-8779-346caa80db09",
+      "2e5c7d38-46b5-46bf-8378-3d2746411ade",
+      "2ca69140-8411-4717-8f31-ddee554aafdb",
+      "b9d68f0e-6d9f-4a0e-9bb1-60220a971512",
+      "09cdd988-73c9-4770-b9ed-b0e25999d167",
+      "66da1725-2faf-4d82-a71d-10d1cf337aa0",
+      "d98c67e5-50c2-4de6-80e5-ac2148b88a9b",
+      "a7edc5f5-0d9c-490f-ae4a-cdcf8de5c99d",
+      "607aa2d0-031d-4856-b2ef-a32cd2d03f4c",
+      "86ef1997-3c81-45ab-a0fc-dc579e85697d",
+      "16cd12cc-890c-4e75-abf7-29cf34166fb5",
+      "8b89b0f3-6852-45cc-b463-2544013a9046",
+      "b1930cdb-7a47-40cc-9fb2-2c913b1606b8",
+      "96d67d8a-ee6c-4268-8fbe-012700eab2fb",
+      "24c1f4f0-1c02-4216-9f9d-0898e5a7e4f1",
+      "89198ce2-3844-485f-905c-d849715854ad",
+      "0168dedf-fc3d-4449-95dc-9383d6264f0a",
+      "fa595184-be60-4fec-8ae3-c10b62c07d02",
+      "00b7fe31-4f5d-466f-8532-11c361eadc6d",
+      "0d444cdf-2c90-49d7-b1ae-200d0a84d108",
+      "87e75f6d-1e76-488b-99e4-8d9b3250c7cd",
+      "65c232ad-70df-4c3e-96b8-3b542baf69b2",
+      "0357faec-39b9-4ea3-9a87-82f4258aacf7",
+      "330fc83d-6d3e-47c4-9fa4-952bcebe07c0",
+      "455ce6b8-b1fc-4f03-8a39-898b92f42144",
+      "19282139-a6cb-4af5-b697-6974192628db",
+      "2b4bc25c-d8b7-4035-a948-3565163d7b17",
+      "c28047ec-35a8-42cd-9f7c-361ed7ec1f00",
+      "a5dc8a4c-1e1e-4042-99d0-563a6c39d3aa",
+      "16edf498-ca1f-4d6e-b3b8-a2f93add16ee",
+      "0a49358c-d999-4807-a4fe-61b2c22309f5",
+      "177d872e-152d-4887-8894-8f579e550da0",
+      "af1604c2-ad8a-44b4-96fa-edbaa95edaae",
+      "b663e2d0-461e-418e-b3ac-a9d04881e03d",
+      "eec831fe-aeb4-477e-b0b8-7541bc6f89b5",
+      "dc661b34-ab9c-4c9c-89d7-cbf57ac84d44",
+      "07b705e2-bf0b-48d3-ad98-a075f74ed4fe",
+      "0a0190ee-aef9-4c3d-9462-a5d6e4a51a1e",
+      "f66f0a79-8e5e-46c6-b6ac-bcceacd0e211",
+      "3f4e4f7d-dfce-4aab-b729-4ce022872e7a",
+      "fa6fd397-51e0-4a20-8268-ac0aae234c67",
+      "f53d4a3b-254a-437c-94c8-3c677aee3efb",
+      "6eafeb17-a8d3-4d18-8f5c-26d0c2610a4a",
+      "5eeb9cf4-1460-4504-901d-a7649fbe2d74",
+      "1b68900e-855c-4958-8493-c07df18fd9e3",
+      "f8d2e39e-5687-449e-a1d1-4c71e78abe53",
+      "0fc846e6-ef63-44f1-9d51-58b8fbaf8753",
+      "46853d60-a06c-4fd8-9a7c-2fd8e040fc40",
+      "c3325cd5-b974-48a8-8a37-cc23fd1d4613",
+      "c507886a-b4af-4e23-8c3a-8c08ac3566cf",
+      "3376fbeb-ec63-41be-bf80-b4721e5f27cd",
+      "cb175bb4-34ea-4bab-8825-d72115115f2d",
+      "870f4899-c19a-448b-a5a0-94deccd081ce",
+      "d46b1f68-942a-4e89-a887-2e30cccceb8b",
+      "c544bde1-d8eb-47a3-9791-ddeef71d1563"
+    ],
+    "settings": {
+      "kdsModuleEnabled": true,
+      "printModuleEnabled": false,
+      "paymentModuleEnabled": true,
+      "enabledLocales": [
+        "zh-TW",
+        "en",
+        "ja",
+        "ko",
+        "vi",
+        "th"
+      ],
+      "kdsWarningMinutes": 5,
+      "kdsCriticalMinutes": 10,
+      "kdsDefaultView": "ORDER"
+    },
+    "flags": [
+      {
+        "id": "87af29f6-10da-4aaf-8358-a164e0ae4072",
+        "flag": {
+          "code": "MODULE_HQ_ENABLED"
+        },
+        "scopeType": "ORGANIZATION",
+        "organizationId": "11111111-1111-4111-8111-111111111111",
+        "stallId": null,
+        "enabled": true,
+        "rolloutPercentage": null,
+        "expiresAt": null
+      },
+      {
+        "id": "bfb35eab-064d-42de-b33b-e1f219ff7ce5",
+        "flag": {
+          "code": "MODULE_GROWTH_ENABLED"
+        },
+        "scopeType": "ORGANIZATION",
+        "organizationId": "11111111-1111-4111-8111-111111111111",
+        "stallId": null,
+        "enabled": true,
+        "rolloutPercentage": null,
+        "expiresAt": null
+      },
+      {
+        "id": "84272135-7596-41c4-8767-d65b38537fbc",
+        "flag": {
+          "code": "MODULE_SUPPLY_LITE_ENABLED"
+        },
+        "scopeType": "ORGANIZATION",
+        "organizationId": "11111111-1111-4111-8111-111111111111",
+        "stallId": null,
+        "enabled": true,
+        "rolloutPercentage": null,
+        "expiresAt": null
+      },
+      {
+        "id": "a0feb80c-e992-4d83-bb42-fd7e761d52e8",
+        "flag": {
+          "code": "MODULE_PUBLIC_API_ENABLED"
+        },
+        "scopeType": "ORGANIZATION",
+        "organizationId": "11111111-1111-4111-8111-111111111111",
+        "stallId": null,
+        "enabled": true,
+        "rolloutPercentage": null,
+        "expiresAt": null
+      },
+      {
+        "id": "a1a9f2d3-ead5-4d7a-9388-15cefcc40da5",
+        "flag": {
+          "code": "MODULE_EVENT_GROWTH_ENABLED"
+        },
+        "scopeType": "ORGANIZATION",
+        "organizationId": "11111111-1111-4111-8111-111111111111",
+        "stallId": null,
+        "enabled": true,
+        "rolloutPercentage": null,
+        "expiresAt": null
+      },
+      {
+        "id": "07948fe5-db85-436c-9ff2-f904441af278",
+        "flag": {
+          "code": "MODULE_ADVANCED_ANALYTICS_ENABLED"
+        },
+        "scopeType": "ORGANIZATION",
+        "organizationId": "11111111-1111-4111-8111-111111111111",
+        "stallId": null,
+        "enabled": true,
+        "rolloutPercentage": null,
+        "expiresAt": null
+      },
+      {
+        "id": "6f7ad6b5-3757-4332-9960-ec00438f70c0",
+        "flag": {
+          "code": "DUAL_ORDER_INTAKE_ENABLED"
+        },
+        "scopeType": "GLOBAL",
+        "organizationId": null,
+        "stallId": null,
+        "enabled": true,
+        "rolloutPercentage": null,
+        "expiresAt": "2026-10-01T00:20:50.494Z"
+      }
+    ],
+    "surroundings": {
+      "orders": [
+        {
+          "_count": 4,
+          "status": "WAITING_CONFIRMATION"
+        },
+        {
+          "_count": 157,
+          "status": "CONFIRMED"
+        },
+        {
+          "_count": 4,
+          "status": "READY"
+        },
+        {
+          "_count": 20,
+          "status": "COMPLETED"
+        },
+        {
+          "_count": 46,
+          "status": "EXPIRED"
+        }
+      ],
+      "products": 214,
+      "tasks": [
+        {
+          "_count": 14,
+          "status": "COMPLETED"
+        },
+        {
+          "_count": 122,
+          "status": "PENDING"
+        },
+        {
+          "_count": 10,
+          "status": "CANCELLED"
+        }
+      ]
+    },
+    "uiFixture": {
+      "localeStallId": "71e3fd06-3c22-43df-a9c9-8144888114ff",
+      "localeQrId": "b37ed550-db50-4dce-ad49-98c8bb9b9e5b",
+      "importProductId": "b4091759-bc4a-4a23-b77c-984520403b33"
+    },
+    "freeze": "Preserve 120 orders/items/tasks, settings/flags and surrounding count snapshot; no reseed/reset/completion/payment/CSV mutation between paired B3.2 phases. Raw receipt includes all item/task IDs; compare both hashes before/after."
+  },
+  "externalNotRun": [
+    "physical iPhone/iPad Safari/Android rotation, keyboard, safe area and touch",
+    "NVDA/VoiceOver",
+    "five human timings per role",
+    "exact1280 Chrome native baseline (measured1282; Edge exact1280 verified)",
+    "real MINI LINE/Pay provider flow",
+    "B3.2 paired performance",
+    "B3.3 combined suite"
+  ],
+  "visualInspection": "Representative phone/tablet/desktop and native full-frame captures recorded in task-3a-report.md; raw screenshots retained locally; Merchant QR masked; earlier cropped captures excluded.",
+  "validation": {
+    "rawFinal27": {
+      "pass": 23,
+      "fail": 4,
+      "notRun": 0,
+      "log": "artifacts/ux-responsive-20260930/b3-green-final.log"
+    },
+    "focused4": {
+      "pass": 2,
+      "fail": 2,
+      "log": "artifacts/ux-responsive-20260930/b3-green-focused.log"
+    },
+    "staffFocused2": {
+      "pass": 2,
+      "fail": 0,
+      "log": "artifacts/ux-responsive-20260930/b3-green-staff-focused.log"
+    },
+    "distinctCasesWithPass": 27,
+    "qualification": "Same product build Y9-jP5R3uklDWYkLb3oGJ, test-only harness fixes between runs; not one all-green 27-case run.",
+    "unit": {
+      "files": 3,
+      "pass": 16
+    },
+    "handoffTypecheck": "PASS",
+    "handoffScopedLint": "PASS"
+  },
+  "limitations": [
+    "Three SERVER_UNEXPECTED_ERROR / destination stream closed early during public route loops; correlation with rapid navigation, no proven abort causality. Routes assertions passed; no clean-console/network claim.",
+    "Staff frozen order CTA receives unforced actionability trial after real search/selection, then bounds/hit/focus measurement. This proves reachability, not business action completion.",
+    "Earlier native screenshot clipping/white captures invalid for visual PASS; final CDP full-frame screenshots used."
+  ]
+}
