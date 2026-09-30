@@ -138,5 +138,10 @@ test("QR customization keeps its heading and returns focus", async ({ page }) =>
   await expect(customization.getByRole("heading", { name: productName, exact: true })).toHaveCount(1);
   await customization.getByRole("button", { name: "關閉", exact: true }).click();
   await expect(customization).toBeHidden();
-  await expect(trigger).toBeFocused();
+  expect(await product.evaluate((element) => ({
+    active: document.activeElement?.tagName,
+    activeId: document.activeElement?.id,
+    triggerFound: Boolean(element.querySelector('[data-testid="qr-open-product-configurator"]')),
+    triggerFocused: document.activeElement === element.querySelector('[data-testid="qr-open-product-configurator"]'),
+  }))).toMatchObject({ triggerFound: true, triggerFocused: true });
 });
