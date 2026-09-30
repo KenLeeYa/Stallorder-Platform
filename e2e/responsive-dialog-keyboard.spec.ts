@@ -43,15 +43,74 @@ test("empty POS closes once and restores trigger", async ({ page }) => {
   await expect(trigger).toBeFocused();
 });
 
-test("nested modifier Escape closes only top layer", async ({ page }) => {
-  const { dialog } = await openPos(page);
+async function prepareDirtyPos(page: Page, dialog: ReturnType<Page["getByRole"]>) {
   await dialog.getByTestId("staff-product-card").filter({ hasText: productName })
     .getByTestId("staff-open-product-configurator").click();
+  const modifier = page.getByTestId("staff-product-configurator");
+  await modifier.getByRole("radio", { name: /QA 必選加料/ }).click();
+  await modifier.getByRole("button", { name: "加入購物車", exact: true }).click();
+  await dialog.getByTestId("staff-order-cart-tab").click();
+  const line = dialog.getByTestId("staff-cart-line").filter({ hasText: productName });
+  await line.getByRole("button", { name: new RegExp(`^增加 ${productName}`) }).click();
+  await expect(line).toContainText(`2 × ${productName}`);
+  await dialog.getByTestId("staff-tablet-confirm-order").click();
+  await dialog.getByTestId("staff-checkout-note-button").click();
+  const note = page.getByRole("dialog", { name: "整單備註" });
+  await note.getByRole("textbox").fill("A2 保留的整單備註");
+  await note.getByRole("button", { name: "儲存", exact: true }).click();
+}
+
+async function expectDirtyPosRetained(page: Page, dialog: ReturnType<Page["getByRole"]>) {
+  await expect(dialog).toBeVisible();
+  await dialog.getByTestId("staff-checkout-back-icon").click();
+  const line = dialog.getByTestId("staff-cart-line").filter({ hasText: productName });
+  await expect(line).toContainText(`2 × ${productName}`);
+  await expect(line).toContainText("QA 必選加料");
+  await dialog.getByTestId("staff-tablet-confirm-order").click();
+  await dialog.getByTestId("staff-checkout-note-button").click();
+  const note = page.getByRole("dialog", { name: "整單備註" });
+  await expect(note.getByRole("textbox")).toHaveValue("A2 保留的整單備註");
+  await note.getByRole("button", { name: "儲存", exact: true }).click();
+}
+
+for (const closeMethod of ["Escape", "close button"] as const) {
+  test(`dirty POS ${closeMethod} confirms discard and preserves draft on cancel`, async ({ page }) => {
+    const { trigger, dialog } = await openPos(page);
+    await prepareDirtyPos(page, dialog);
+    const messages: string[] = [];
+    let accept = false;
+    page.on("dialog", async (confirmation) => {
+      messages.push(confirmation.message());
+      if (accept) await confirmation.accept();
+      else await confirmation.dismiss();
+    });
+    const close = async () => {
+      if (closeMethod === "Escape") await page.keyboard.press("Escape");
+      else await dialog.getByRole("button", { name: "關閉店員點餐", exact: true }).click();
+    };
+    await close();
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain("放棄");
+    await expectDirtyPosRetained(page, dialog);
+    accept = true;
+    await close();
+    expect(messages).toHaveLength(2);
+    await expect(dialog).toBeHidden();
+    await expect(trigger).toBeFocused();
+  });
+}
+
+test("nested modifier Escape closes only top layer", async ({ page }) => {
+  const { dialog } = await openPos(page);
+  const productTrigger = dialog.getByTestId("staff-product-card").filter({ hasText: productName })
+    .getByTestId("staff-open-product-configurator");
+  await productTrigger.click();
   const modifier = page.getByTestId("staff-product-configurator");
   await expect(modifier).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(modifier).toBeHidden();
   await expect(dialog).toBeVisible();
+  await expect(productTrigger).toBeFocused();
 });
 
 test("pending submission rejects Escape and close", async ({ page }) => {
