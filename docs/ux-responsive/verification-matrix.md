@@ -70,3 +70,5 @@ LINE runner `node scripts/run-line-platform-qa.mjs unit|database|browser` 的dat
 | 同 KitchenBoard instance 切店 | **NOT_RUN**。已通過的 Merchant→角色路由切換不能證明已掛載 instance 的舊任務／選取／station 清除 |
 
 A6.2 仍需新增 PAID 回應遺失查原 attempt、售罄舊車 422 保留有效項、401/403 撤權換人、409 新快照、429 Retry-After／HTML500／timeout 安全恢復，以及同 KitchenBoard instance 切店。Google OAuth、實體紙本／錢櫃、LINE／Pay 真供應商與正式站訂單均非 A6.1 PASS。`LOCAL_VERIFIED` 整體標記維持否。
+
+A6.1 獨立審查修正：手機 QR 外帶「顧客已到店，直接結帳」原本在 PATCH 200 後仍留原生明細（RED 1 FAILED）；`d134b49` 關閉明細再交回原 controller，build `pMdRk0EiqgzXvjuFVx-RQ` 上新 UI 案例 1/1 PASS，涵蓋取消、回原單、重開及現金選項可操作，尚未在該案例提交付款。測試 commit `2e38cd6`；KDS／列印既有跨端追蹤失敗仍在，整體狀態不變。
