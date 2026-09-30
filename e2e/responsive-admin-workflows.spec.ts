@@ -97,8 +97,11 @@ test.afterAll(async () => {
   await prisma.$disconnect();
 });
 
-test.beforeEach(async ({ page }) => {
-  await loginLocalTestAccount(page, "platform.admin@stallorder.test", password);
+test.beforeEach(async ({ page }, testInfo) => {
+  const email = testInfo.title === "direct admin URL and sensitive action reject lower roles"
+    ? "owner@stallorder.test"
+    : "platform.admin@stallorder.test";
+  await loginLocalTestAccount(page, email, password);
 });
 
 test("application review action stays visible at tablet width", async ({ page }) => {
@@ -207,8 +210,6 @@ test("invoice monitor remains read-only", async ({ page }) => {
 });
 
 test("direct admin URL and sensitive action reject lower roles", async ({ page }) => {
-  await page.context().clearCookies();
-  await loginLocalTestAccount(page, "owner@stallorder.test", password);
   await gotoLocalPath(page, `/merchant/dashboard?organizationId=${organizationId}`);
   const identity = await page.evaluate(async () => {
     const response = await fetch("/api/auth/me", { credentials: "include", cache: "no-store" });
