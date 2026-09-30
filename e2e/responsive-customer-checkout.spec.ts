@@ -4,6 +4,7 @@ import { PrismaClient } from "@prisma/client";
 import { continueQrCheckout, qrProductSelectionControl } from "./local-navigation";
 import { createResponsiveOrderFixture } from "./helpers/responsive-order-fixture";
 import { waitForOwnedOrderRateWindow } from "./helpers/responsive-order-rate-window";
+import { createResponsiveQaClient } from "../scripts/responsive-qa-target.mjs";
 
 test.use({ actionTimeout: 15_000, serviceWorkers: "block" });
 
@@ -107,7 +108,7 @@ test("guest customizations keep server total through rotation", async ({ page })
 
 test("menu pickup navigation reaches usable cart", async ({ page }) => {
   test.setTimeout(120_000);
-  const prisma = new PrismaClient();
+  const prisma = createResponsiveQaClient(process.env, () => new PrismaClient());
   const stallId = randomUUID();
   const stallSlug = `b3-pickup-${stallId.slice(0, 8)}`;
   try {

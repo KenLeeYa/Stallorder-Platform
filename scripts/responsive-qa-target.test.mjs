@@ -1,5 +1,5 @@
-import { expect, test } from "vitest";
-import { assertResponsiveQaTarget } from "./responsive-qa-target.mjs";
+import { expect, test, vi } from "vitest";
+import { assertResponsiveQaTarget, createResponsiveQaClient } from "./responsive-qa-target.mjs";
 
 const exactLocalLab = {
   RESPONSIVE_QA_RUN: "true",
@@ -25,4 +25,15 @@ test("rejects a remote database even with the local flag", () => {
 test("rejects a missing flag or mismatched primary API", () => {
   expect(() => assertResponsiveQaTarget({ ...exactLocalLab, RESPONSIVE_QA_RUN: undefined })).toThrow();
   expect(() => assertResponsiveQaTarget({ ...exactLocalLab, PRIMARY_SUPABASE_URL: "http://127.0.0.1:55721" })).toThrow();
+});
+
+test("pickup fixture refuses a wrong database before creating a client or making DB calls", () => {
+  const dbCall = vi.fn();
+  const createClient = vi.fn(() => ({ stall: { create: dbCall } }));
+  expect(() => createResponsiveQaClient({
+    ...exactLocalLab,
+    DATABASE_URL: "postgresql://synthetic:synthetic@localhost:55722/postgres",
+  }, createClient)).toThrow("RESPONSIVE_QA_TARGET_INVALID: database");
+  expect(createClient).not.toHaveBeenCalled();
+  expect(dbCall).not.toHaveBeenCalled();
 });

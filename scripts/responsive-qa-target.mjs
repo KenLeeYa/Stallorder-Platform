@@ -37,3 +37,15 @@ export function assertResponsiveQaTarget(environment) {
     throw new Error("RESPONSIVE_QA_TARGET_INVALID: primary API");
   }
 }
+
+/**
+ * Guard the target before constructing a client that can access it.
+ * @template T
+ * @param {Record<string, string | undefined>} environment
+ * @param {() => T} createClient
+ * @returns {T}
+ */
+export function createResponsiveQaClient(environment, createClient) {
+  assertResponsiveQaTarget(environment);
+  return createClient();
+}
