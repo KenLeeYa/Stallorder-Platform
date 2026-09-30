@@ -1,6 +1,6 @@
 # 分片、Gate 與回退邊界
 
-狀態：設計於 2026-09-30 已核准。此文件是設計的順序／風險；[implementation plan](../superpowers/plans/2026-09-30-responsive-cross-device.md)待審閱，並非正式發布 Plan。
+狀態：設計於 2026-09-30 已核准；下文保留當時的設計順序／風險。方案之後在隔離本機實作與驗證，但[目前 B3 合併 QA 證據](b3-final-qa-evidence.md)仍非 Staging／Production 正式發布 Plan。
 
 ## Gate
 
@@ -34,3 +34,7 @@
 需發布時另遵循Staging先驗、fresh Plan/commit/tree、單一remote writer、Primary/DR明確ID、部署/alias/backend讀回、真實hostname登入與受影響合法QR流程。不得用HTTP200或READY宣稱全流程通過。PR365既有release blockers須另核對，這輪不自動merge／deploy。
 
 LINE MINI Endpoint、OA rich menu/webhook、付款credentials、DNS、正式訊息、真實退款／開櫃不在此次設計／本機更新授權；既有LINE Preview清理與停用排程保持已結束狀態。
+
+## B3 候選下一關與回復依據
+
+候選 `aa91704`／build `hmUGGDjw6VdCYMJ6hoiIo` 僅在本機 3026／56822 驗證；初次 129 案整批為 110 PASS／16 FAIL／3 NOT_RUN，已留原始失敗史。修正後 129 案同序再次執行，其最終計數須從[合併 QA 索引](b3-final-qa-evidence.md)讀回，不以局部綠燈取代。B3.2 的 11 項時間目標未達成、stream 診斷尚不確定，故無速度或全面 release-ready 宣稱。部署前須另完成獨立審查、Staging 目標／版本／流程證明、fresh Production Plan、Primary／DR 回復目標與 provider readback；實體裝置、輔助科技、真人操作、真 LINE／Pay 和受影響正式站流程未驗者列為 NOT_RUN。產品回退只選精確已驗證版本，不刪既有訂單／付款／audit／print jobs 或用 UI 回退回灌資料庫。

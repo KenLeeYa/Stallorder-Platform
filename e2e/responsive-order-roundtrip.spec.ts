@@ -4,6 +4,7 @@ import { expect, test, type Browser, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { continueQrCheckout, dismissStaffStartReminder, qrProductSelectionControl } from "./local-navigation";
 import { createResponsiveOrderFixture } from "./helpers/responsive-order-fixture";
+import { waitForOwnedOrderRateWindow } from "./helpers/responsive-order-rate-window";
 import { readResponsiveBuildProvenance } from "../scripts/responsive-build-provenance.mjs";
 
 test.use({ actionTimeout: 15_000, serviceWorkers: "block" });
@@ -95,32 +96,11 @@ for (const printing of [false, true]) test(`RSP-Q01: one real order moves throug
     if (await acknowledge.isVisible()) await acknowledge.check();
     const sessionRequestId = issuedSessionRequestIds.at(-1);
     expect(sessionRequestId).toBeTruthy();
-    const issuedAttempts = await prisma.publicOrderAttempt.findMany({
-      where: { stallId: fixture.stallId, requestId: sessionRequestId, eventType: "SESSION_ISSUE", outcome: "ALLOWED" },
-      select: { ipHash: true },
+    rateLimitPreflight = await waitForOwnedOrderRateWindow(prisma, fixture.stallId, sessionRequestId!);
+    console.info(JSON.stringify({ event: "responsive_order_rate_preflight", phase: "roundtrip", ...rateLimitPreflight }));
+    await testInfo.attach("order-rate-window-preflight", {
+      body: Buffer.from(JSON.stringify(rateLimitPreflight)), contentType: "application/json",
     });
-    expect(issuedAttempts).toHaveLength(1);
-    const ipHash = issuedAttempts[0].ipHash;
-    expect(ipHash).toBeTruthy();
-    const settings = await prisma.stallOrderingSettings.findUniqueOrThrow({
-      where: { stallId: fixture.stallId },
-      select: { maxOrdersPerWindow: true, orderWindowSeconds: true },
-    });
-    const checkedAt = new Date();
-    const activeBuckets = await prisma.publicRateLimitBucket.findMany({
-      where: { stallId: fixture.stallId, dimensionType: "ORDER_IP", dimensionHash: ipHash!, expiresAt: { gt: checkedAt } },
-      select: { count: true, expiresAt: true },
-    });
-    expect(activeBuckets.length).toBeLessThanOrEqual(1);
-    const bucket = activeBuckets[0];
-    const waitMs = bucket && bucket.count >= settings.maxOrdersPerWindow
-      ? Math.max(0, bucket.expiresAt.getTime() - Date.now() + 1_000) : 0;
-    expect(waitMs).toBeLessThanOrEqual(settings.orderWindowSeconds * 1_000 + 1_000);
-    rateLimitPreflight = {
-      checkedAt: checkedAt.toISOString(), count: bucket?.count ?? 0,
-      limit: settings.maxOrdersPerWindow, expiresAt: bucket?.expiresAt.toISOString() ?? null, waitedMs: waitMs,
-    };
-    if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
     const submitted = customer.page.waitForResponse((response) =>
       ["/functions/v1/create-public-order", "/api/public/orders"].includes(new URL(response.url()).pathname)
       && response.request().method() === "POST",

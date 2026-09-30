@@ -34,3 +34,7 @@
 | ResponsiveTable | 現有desktop table＋mobile cards組合 | 各欄位可到達；主動作不需橫滑尋找；保留sort/filter/page |
 
 等效元件範例採現有測試fixture／本機頁面狀態，不新增展示產品或替代API。每個變動元件列 default、loading、disabled、focus、error、partial success；不适用須寫明理由。先修有來源與實测證據的差距，避免因規格清單而另造十多個同名wrapper。
+
+## B3 候選實際元件界線
+
+B3.1 的實測修正集中於既有元件：ThemeToggle 命中區 44px、KDS 完成品項主動作 48px、短高度 QR 設定對話框可捲動、Merchant QR SVG 使用既有可見標題作名稱，以及 Staff 選取明細在舊回應到達時的生命週期保護。B3.3 沒新增另一套 token、通用 wrapper 或 backend authority；測試只收斂 fixture 隔離、商品清單歸屬及重試前置。完整變更與仍未驗項見[合併 QA 證據](b3-final-qa-evidence.md)。

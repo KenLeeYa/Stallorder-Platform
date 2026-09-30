@@ -1,6 +1,6 @@
 # 跨裝置改版：現況與設計審閱入口
 
-日期：2026-09-30（Asia/Taipei）。狀態：**Design approved；使用者已核准方案 B，實作計畫待審，尚未進入產品實作**。
+日期：2026-09-30（Asia/Taipei）。本節保留當時的設計／改造前盤點：**Design approved；當時尚未進入產品實作**。後續本機實作與 B3 合併候選狀態見 [B3 證據索引](b3-final-qa-evidence.md)；不可把這份早期盤點當作目前未實作的結論。
 
 ## 本輪依據與版本
 
@@ -25,7 +25,7 @@
 3. [共用元件](design-tokens-and-components.md)、[跨裝置狀態契約](cross-device-state-contract.md)。
 4. [無障礙／效能](accessibility-and-performance.md)、[驗收矩陣](verification-matrix.md)、[發布／回退](release-rollback.md)。
 
-使用者於 2026-09-30 回覆「核准」，本份設計 Gate 已完成。依 `writing-plans` 已整理[兩份分批實作計畫](../superpowers/plans/2026-09-30-responsive-cross-device.md)，待審閱計畫並選擇執行方式；不再重問設計。未把未完成測試填成通過。
+使用者於 2026-09-30 回覆「核准」，本份設計 Gate 已完成。當時依 `writing-plans` 整理[兩份分批實作計畫](../superpowers/plans/2026-09-30-responsive-cross-device.md)，尚待審閱與選擇執行方式；後續實作與 QA 依本頁末段的 B3 收據為準。未把未完成測試填成通過。
 
 ## 真實入口盤點
 
@@ -74,3 +74,7 @@
 採用 skills：brainstorming（設計Gate）、Matt Pocock codebase-design（沿用共用資料/元件邊界）、product-release-qa 與 stallorder-product-qa（證據／角色／回歸）、瀏覽器提供的 local-web-development/viewport 能力。兩個實際只讀 agent 分別盤點UI與狀態；未授權其改檔或部署。writing-plans、TDD、systematic-debugging、verification-before-completion 於各自階段再使用；不因技能名稱而更換 UI library。
 
 設計已完成兩個只讀角色審閱並修正來源路徑、未實作undo的錯誤承諾、pending付款關閉界線、stream ready補快照、旋轉測試入口及400% reflow案例。文件引用存在性檢查通過；這些都不是新版功能QA。候選 `src/prisma/package` 無未提交差異。正式站結束前匿名入口／PRIMARY狀態仍與基線一致；未操作登入後正式交易。
+
+## B3 本機候選狀態（2026-10-01）
+
+B3.1 完成具體 UI/焦點/原生 zoom 修正；B3.2 配對效能全部 11 項預先登記的時間目標未達成。B3.3 已收斂測試 fixture 污染並以 `aa91704`／build `hmUGGDjw6VdCYMJ6hoiIo` 執行 129 案整批同序瀏覽器驗證；最終結果與失敗歷史以[合併 QA 索引](b3-final-qa-evidence.md)為準。原始 3023／55722 與本機 3026／56822 是不同服務與資料集。此本機證據不代表 Staging／Production、實體裝置、輔助科技、真 LINE／Pay 或人工時間已驗收。

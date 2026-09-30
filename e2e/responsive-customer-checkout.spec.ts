@@ -3,6 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { continueQrCheckout, qrProductSelectionControl } from "./local-navigation";
 import { createResponsiveOrderFixture } from "./helpers/responsive-order-fixture";
+import { waitForOwnedOrderRateWindow } from "./helpers/responsive-order-rate-window";
 
 test.use({ actionTimeout: 15_000, serviceWorkers: "block" });
 
@@ -316,9 +317,17 @@ for (const failure of [
   { name: "422 sold-out rejection", status: 422, body: { code: "PRODUCT_UNAVAILABLE" }, expected: "部分商品已售完" },
   { name: "HTML 500 from both intake paths", status: 500, body: null, expected: "目前無法送出訂單" },
 ] as const) {
-  test(`${failure.name} preserves cart and recovers through the original submit`, async ({ page }) => {
-    test.setTimeout(120_000);
+  test(`${failure.name} preserves cart and recovers through the original submit`, async ({ page }, testInfo) => {
+    test.setTimeout(450_000);
     const prisma = new PrismaClient();
+    const issuedSessionRequestIds: string[] = [];
+    page.on("response", (response) => {
+      if (new URL(response.url()).pathname === "/functions/v1/create-order-session"
+        && response.request().method() === "POST" && response.status() === 201) {
+        const requestId = response.headers()["x-request-id"];
+        if (requestId) issuedSessionRequestIds.push(requestId);
+      }
+    });
     try {
       const fixture = await createResponsiveOrderFixture(prisma);
       const name = `跨裝置 QA 餐 ${fixture.runId.slice(0, 8)}`;
@@ -352,6 +361,13 @@ for (const failure of [
       await feedback.getByRole("button", { name: "關閉" }).click();
       await page.unroute("**/functions/v1/create-public-order");
       await page.unroute("**/api/public/orders");
+      const sessionRequestId = issuedSessionRequestIds.at(-1);
+      expect(sessionRequestId).toBeTruthy();
+      const rateWindow = await waitForOwnedOrderRateWindow(prisma, fixture.stallId, sessionRequestId!);
+      console.info(JSON.stringify({ event: "responsive_order_rate_preflight", phase: failure.name, ...rateWindow }));
+      await testInfo.attach("order-rate-window-before-recovery", {
+        body: Buffer.from(JSON.stringify(rateWindow)), contentType: "application/json",
+      });
       await page.getByRole("button", { name: "送出訂單", exact: true }).click();
       await expect(page).toHaveURL(/\/order\/[^/]+$/);
       const trackingToken = new URL(page.url()).pathname.slice("/order/".length);

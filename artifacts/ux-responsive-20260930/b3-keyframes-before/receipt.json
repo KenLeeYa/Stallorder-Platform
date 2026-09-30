@@ -1,0 +1,405 @@
+{
+  "source": "immutable A1 snapshot a0c635bc/tree 67caefa1",
+  "buildId": "ZRPD1C0hp87hIxeN-6rwI",
+  "origin": "http://127.0.0.1:3026",
+  "dataset": "responsive-b3-fixed-120-v1",
+  "qrId": "9c0b848b-4aa5-4c81-9f41-291ee5c55da4",
+  "viewportHeight": 900,
+  "locale": "zh-TW",
+  "theme": "default light",
+  "method": "Chromium emulation; role entry via owned local login; Merchant QR mask",
+  "results": [
+    {
+      "role": "customer",
+      "width": 390,
+      "route": "/q/<owned-qr>",
+      "status": "CAPTURED",
+      "file": "customer-zh-TW-390.png",
+      "measured": {
+        "viewport": 390,
+        "scrollWidth": 390,
+        "title": "攤點通｜行動點餐與攤位營運",
+        "mainText": "台北市饒河街觀光夜市阿明鹽酥雞語言繁體中文外帶取餐正在建立安全點餐工作階段...目前預估等候時間：83～88 分鐘抽抽樂依近 30 天完成訂單的熱銷趨勢推薦，也保留探索其他商品的機會；結帳折扣會另外獨立抽取。開始抽抽樂搜尋餐點或分類resp"
+      },
+      "capturedAt": "2026-09-30T16:04:02.319Z"
+    },
+    {
+      "role": "customer",
+      "width": 768,
+      "route": "/q/<owned-qr>",
+      "status": "CAPTURED",
+      "file": "customer-zh-TW-768.png",
+      "measured": {
+        "viewport": 768,
+        "scrollWidth": 768,
+        "title": "攤點通｜行動點餐與攤位營運",
+        "mainText": "台北市饒河街觀光夜市阿明鹽酥雞語言繁體中文外帶取餐正在建立安全點餐工作階段...目前預估等候時間：83～88 分鐘抽抽樂依近 30 天完成訂單的熱銷趨勢推薦，也保留探索其他商品的機會；結帳折扣會另外獨立抽取。開始抽抽樂搜尋餐點或分類resp"
+      },
+      "capturedAt": "2026-09-30T16:04:03.414Z"
+    },
+    {
+      "role": "customer",
+      "width": 1024,
+      "route": "/q/<owned-qr>",
+      "status": "CAPTURED",
+      "file": "customer-zh-TW-1024.png",
+      "measured": {
+        "viewport": 1024,
+        "scrollWidth": 1024,
+        "title": "攤點通｜行動點餐與攤位營運",
+        "mainText": "台北市饒河街觀光夜市阿明鹽酥雞語言繁體中文外帶取餐正在建立安全點餐工作階段...目前預估等候時間：83～88 分鐘抽抽樂依近 30 天完成訂單的熱銷趨勢推薦，也保留探索其他商品的機會；結帳折扣會另外獨立抽取。開始抽抽樂搜尋餐點或分類resp"
+      },
+      "capturedAt": "2026-09-30T16:04:05.383Z"
+    },
+    {
+      "role": "customer",
+      "width": 1440,
+      "route": "/q/<owned-qr>",
+      "status": "CAPTURED",
+      "file": "customer-zh-TW-1440.png",
+      "measured": {
+        "viewport": 1440,
+        "scrollWidth": 1440,
+        "title": "攤點通｜行動點餐與攤位營運",
+        "mainText": "台北市饒河街觀光夜市阿明鹽酥雞語言繁體中文外帶取餐正在建立安全點餐工作階段...目前預估等候時間：83～88 分鐘抽抽樂依近 30 天完成訂單的熱銷趨勢推薦，也保留探索其他商品的機會；結帳折扣會另外獨立抽取。開始抽抽樂搜尋餐點或分類resp"
+      },
+      "capturedAt": "2026-09-30T16:04:06.042Z"
+    },
+    {
+      "role": "staff",
+      "width": 390,
+      "route": "/staff/aming-chicken",
+      "status": "CAPTURED",
+      "file": "staff-zh-TW-390.png",
+      "measured": {
+        "viewport": 390,
+        "scrollWidth": 390,
+        "title": "攤點通｜行動點餐與攤位營運",
+        "mainText": "阿明鹽酥雞示範店員 · 店員訂單提醒螢幕保持喚醒未啟用SSE 即時員工定位打卡店員點餐輸入取餐碼桌位平面圖現金交班產能與等候時間 · 83～88 分鐘 · 785% · 公開接單中產能與等候時間83～88 分鐘 · 785% · 公開接單中"
+      },
+      "capturedAt": "2026-09-30T16:04:07.672Z"
+    },
+    {
+      "role": "staff",
+      "width": 768,
+      "route": "/staff/aming-chicken",
+      "status": "CAPTURED",
+      "file": "staff-zh-TW-768.png",
+      "measured": {
+        "viewport": 768,
+        "scrollWidth": 768,
+        "title": "攤點通｜行動點餐與攤位營運",
+        "mainText": "阿明鹽酥雞示範店員 · 店員訂單提醒螢幕保持喚醒未啟用SSE 即時員工定位打卡店員點餐輸入取餐碼桌位平面圖現金交班產能與等候時間 · 83～88 分鐘 · 785% · 公開接單中產能與等候時間83～88 分鐘 · 785% · 公開接單中"
+      },
+      "capturedAt": "2026-09-30T16:04:10.692Z"
+    },
+    {
+      "role": "staff",
+      "width": 1024,
+      "route": "/staff/aming-chicken",
+      "status": "CAPTURED",
+      "file": "staff-zh-TW-1024.png",
+      "measured": {
+        "viewport": 1024,
+        "scrollWidth": 1024,
+        "title": "攤點通｜行動點餐與攤位營運",
+        "mainText": "阿明鹽酥雞示範店員 · 店員訂單提醒螢幕保持喚醒未啟用連線中員工定位打卡店員點餐輸入取餐碼桌位平面圖現金交班產能與等候時間 · 83～88 分鐘 · 785% · 公開接單中產能與等候時間83～88 分鐘 · 785% · 公開接單中負載7"
+      },
+      "capturedAt": "2026-09-30T16:04:12.052Z"
+    },
+    {
+      "role": "staff",
+      "width": 1440,
+      "route": "/staff/aming-chicken",
+      "status": "CAPTURED",
+      "file": "staff-zh-TW-1440.png",
+      "measured": {
+        "viewport": 1440,
+        "scrollWidth": 1440,
+        "title": "攤點通｜行動點餐與攤位營運",
+        "mainText": "阿明鹽酥雞示範店員 · 店員訂單提醒螢幕保持喚醒未啟用SSE 即時員工定位打卡店員點餐輸入取餐碼桌位平面圖現金交班產能與等候時間 · 83～88 分鐘 · 785% · 公開接單中產能與等候時間83～88 分鐘 · 785% · 公開接單中"
+      },
+      "capturedAt": "2026-09-30T16:04:13.368Z"
+    },
+    {
+      "role": "pos",
+      "width": 390,
+      "route": "/staff/aming-chicken",
+      "status": "CAPTURED",
+      "file": "pos-zh-TW-390.png",
+      "measured": {
+        "viewport": 390,
+        "scrollWidth": 390,
+        "title": "攤點通｜行動點餐與攤位營運",
+        "mainText": "阿明鹽酥雞示範店員 · 店員訂單提醒螢幕保持喚醒未啟用SSE 即時員工定位打卡店員點餐輸入取餐碼桌位平面圖現金交班產能與等候時間 · 83～88 分鐘 · 785% · 公開接單中產能與等候時間83～88 分鐘 · 785% · 公開接單中"
+      },
+      "capturedAt": "2026-09-30T16:04:19.443Z"
+    },
+    {
+      "role": "pos",
+      "width": 768,
+      "route": "/staff/aming-chicken",
+      "status": "CAPTURED",
+      "file": "pos-zh-TW-768.png",
+      "measured": {
+        "viewport": 768,
+        "scrollWidth": 768,
+        "title": "攤點通｜行動點餐與攤位營運",
+        "mainText": "阿明鹽酥雞示範店員 · 店員訂單提醒螢幕保持喚醒未啟用SSE 即時員工定位打卡店員點餐輸入取餐碼桌位平面圖現金交班產能與等候時間 · 83～88 分鐘 · 785% · 公開接單中產能與等候時間83～88 分鐘 · 785% · 公開接單中"
+      },
+      "capturedAt": "2026-09-30T16:04:22.880Z"
+    },
+    {
+      "role": "pos",
+      "width": 1024,
+      "route": "/staff/aming-chicken",
+      "status": "CAPTURED",
+      "file": "pos-zh-TW-1024.png",
+      "measured": {
+        "viewport": 1024,
+        "scrollWidth": 1024,
+        "title": "攤點通｜行動點餐與攤位營運",
+        "mainText": "阿明鹽酥雞示範店員 · 店員訂單提醒螢幕保持喚醒未啟用SSE 即時員工定位打卡店員點餐輸入取餐碼桌位平面圖現金交班產能與等候時間 · 83～88 分鐘 · 785% · 公開接單中產能與等候時間83～88 分鐘 · 785% · 公開接單中"
+      },
+      "capturedAt": "2026-09-30T16:04:27.518Z"
+    },
+    {
+      "role": "pos",
+      "width": 1440,
+      "route": "/staff/aming-chicken",
+      "status": "CAPTURED",
+      "file": "pos-zh-TW-1440.png",
+      "measured": {
+        "viewport": 1440,
+        "scrollWidth": 1440,
+        "title": "攤點通｜行動點餐與攤位營運",
+        "mainText": "阿明鹽酥雞示範店員 · 店員訂單提醒螢幕保持喚醒未啟用SSE 即時員工定位打卡店員點餐輸入取餐碼桌位平面圖現金交班產能與等候時間 · 83～88 分鐘 · 785% · 公開接單中產能與等候時間83～88 分鐘 · 785% · 公開接單中"
+      },
+      "capturedAt": "2026-09-30T16:04:28.941Z"
+    },
+    {
+      "role": "kds",
+      "width": 390,
+      "route": "/kitchen?stall=aming-chicken",
+      "status": "CAPTURED",
+      "file": "kds-zh-TW-390.png",
+      "measured": {
+        "viewport": 390,
+        "scrollWidth": 390,
+        "title": "攤點通｜行動點餐與攤位營運",
+        "mainText": "訂單清單126待製作122#A6-07d2251f已等待 451 分外帶自取 · 1 個品項#A6-6673dda6已等待 451 分外送 · 1 個品項#B3-001已等待 240 分外帶自取 · 1 個品項#B3-002已等待 240 "
+      },
+      "capturedAt": "2026-09-30T16:04:31.993Z"
+    },
+    {
+      "role": "kds",
+      "width": 768,
+      "route": "/kitchen?stall=aming-chicken",
+      "status": "CAPTURED",
+      "file": "kds-zh-TW-768.png",
+      "measured": {
+        "viewport": 768,
+        "scrollWidth": 768,
+        "title": "攤點通｜行動點餐與攤位營運",
+        "mainText": "訂單清單126待製作122#A6-07d2251f已等待 451 分外帶自取 · 1 個品項#A6-6673dda6已等待 451 分外送 · 1 個品項#B3-001已等待 240 分外帶自取 · 1 個品項#B3-002已等待 240 "
+      },
+      "capturedAt": "2026-09-30T16:04:32.666Z"
+    },
+    {
+      "role": "kds",
+      "width": 1024,
+      "route": "/kitchen?stall=aming-chicken",
+      "status": "CAPTURED",
+      "file": "kds-zh-TW-1024.png",
+      "measured": {
+        "viewport": 1024,
+        "scrollWidth": 1024,
+        "title": "攤點通｜行動點餐與攤位營運",
+        "mainText": "訂單清單126待製作122#A6-07d2251f已等待 451 分外帶自取 · 1 個品項#A6-6673dda6已等待 451 分外送 · 1 個品項#B3-001已等待 240 分外帶自取 · 1 個品項#B3-002已等待 240 "
+      },
+      "capturedAt": "2026-09-30T16:04:33.270Z"
+    },
+    {
+      "role": "kds",
+      "width": 1440,
+      "route": "/kitchen?stall=aming-chicken",
+      "status": "CAPTURED",
+      "file": "kds-zh-TW-1440.png",
+      "measured": {
+        "viewport": 1440,
+        "scrollWidth": 1440,
+        "title": "攤點通｜行動點餐與攤位營運",
+        "mainText": "訂單清單126待製作122#A6-07d2251f已等待 451 分外帶自取 · 1 個品項#A6-6673dda6已等待 451 分外送 · 1 個品項#B3-001已等待 240 分外帶自取 · 1 個品項#B3-002已等待 240 "
+      },
+      "capturedAt": "2026-09-30T16:04:33.876Z"
+    },
+    {
+      "role": "merchant",
+      "width": 390,
+      "route": "/merchant/aming-chicken",
+      "status": "CAPTURED",
+      "file": "merchant-zh-TW-390.png",
+      "measured": {
+        "viewport": 390,
+        "scrollWidth": 390,
+        "title": "攤點通｜行動點餐與攤位營運",
+        "mainText": "攤位管理示範商戶 · 組織擁有者阿明鹽酥雞開放點餐可供應QR 啟用中攤位商品設定顧客點餐 QR Code · v178http://127.0.0.1:3026/q/responsive-qa-HcD-u1C6DPSsmcDFto8n_6U"
+      },
+      "capturedAt": "2026-09-30T16:04:35.256Z"
+    },
+    {
+      "role": "merchant",
+      "width": 768,
+      "route": "/merchant/aming-chicken",
+      "status": "CAPTURED",
+      "file": "merchant-zh-TW-768.png",
+      "measured": {
+        "viewport": 768,
+        "scrollWidth": 768,
+        "title": "攤點通｜行動點餐與攤位營運",
+        "mainText": "攤位管理示範商戶 · 組織擁有者阿明鹽酥雞開放點餐可供應QR 啟用中攤位商品設定顧客點餐 QR Code · v178http://127.0.0.1:3026/q/responsive-qa-HcD-u1C6DPSsmcDFto8n_6U"
+      },
+      "capturedAt": "2026-09-30T16:04:36.169Z"
+    },
+    {
+      "role": "merchant",
+      "width": 1024,
+      "route": "/merchant/aming-chicken",
+      "status": "CAPTURED",
+      "file": "merchant-zh-TW-1024.png",
+      "measured": {
+        "viewport": 1024,
+        "scrollWidth": 1024,
+        "title": "攤點通｜行動點餐與攤位營運",
+        "mainText": "攤位管理示範商戶 · 組織擁有者阿明鹽酥雞開放點餐可供應QR 啟用中攤位商品設定顧客點餐 QR Code · v178http://127.0.0.1:3026/q/responsive-qa-HcD-u1C6DPSsmcDFto8n_6U"
+      },
+      "capturedAt": "2026-09-30T16:04:37.047Z"
+    },
+    {
+      "role": "merchant",
+      "width": 1440,
+      "route": "/merchant/aming-chicken",
+      "status": "CAPTURED",
+      "file": "merchant-zh-TW-1440.png",
+      "measured": {
+        "viewport": 1440,
+        "scrollWidth": 1440,
+        "title": "攤點通｜行動點餐與攤位營運",
+        "mainText": "攤位管理示範商戶 · 組織擁有者阿明鹽酥雞開放點餐可供應QR 啟用中攤位商品設定顧客點餐 QR Code · v178http://127.0.0.1:3026/q/responsive-qa-HcD-u1C6DPSsmcDFto8n_6U"
+      },
+      "capturedAt": "2026-09-30T16:04:37.828Z"
+    },
+    {
+      "role": "mini",
+      "width": 390,
+      "route": "/mini",
+      "status": "CAPTURED",
+      "file": "mini-zh-TW-390.png",
+      "measured": {
+        "viewport": 390,
+        "scrollWidth": 390,
+        "title": "攤點通 LINE 點餐",
+        "mainText": "LINE 點餐店家正在準備 LINE 連線設定，請稍後再試。"
+      },
+      "capturedAt": "2026-09-30T16:04:54.147Z"
+    },
+    {
+      "role": "mini",
+      "width": 768,
+      "route": "/mini",
+      "status": "CAPTURED",
+      "file": "mini-zh-TW-768.png",
+      "measured": {
+        "viewport": 768,
+        "scrollWidth": 768,
+        "title": "攤點通 LINE 點餐",
+        "mainText": "LINE 點餐店家正在準備 LINE 連線設定，請稍後再試。"
+      },
+      "capturedAt": "2026-09-30T16:04:58.034Z"
+    },
+    {
+      "role": "mini",
+      "width": 1024,
+      "route": "/mini",
+      "status": "CAPTURED",
+      "file": "mini-zh-TW-1024.png",
+      "measured": {
+        "viewport": 1024,
+        "scrollWidth": 1024,
+        "title": "攤點通 LINE 點餐",
+        "mainText": "LINE 點餐店家正在準備 LINE 連線設定，請稍後再試。"
+      },
+      "capturedAt": "2026-09-30T16:04:58.321Z"
+    },
+    {
+      "role": "mini",
+      "width": 1440,
+      "route": "/mini",
+      "status": "CAPTURED",
+      "file": "mini-zh-TW-1440.png",
+      "measured": {
+        "viewport": 1440,
+        "scrollWidth": 1440,
+        "title": "攤點通 LINE 點餐",
+        "mainText": "LINE 點餐店家正在準備 LINE 連線設定，請稍後再試。"
+      },
+      "capturedAt": "2026-09-30T16:04:58.595Z"
+    },
+    {
+      "role": "admin",
+      "width": 390,
+      "route": "/admin/plan-versions",
+      "status": "CAPTURED",
+      "file": "admin-zh-TW-390.png",
+      "measured": {
+        "viewport": 390,
+        "scrollWidth": 390,
+        "title": "攤點通｜行動點餐與攤位營運",
+        "mainText": "方案版本此介面目前為唯讀目錄；新增版本須走受控遷移與稽核流程。方案方案版本方案權益加購目錄建立並封存 PAYG 契約版本僅可填入已核准的財務與稅務決策；既有訂閱不會自動遷移，所有收費旗標也維持原狀。來源方案版本PAYG 按量計費方案 v1稅"
+      },
+      "capturedAt": "2026-09-30T16:06:51.603Z"
+    },
+    {
+      "role": "admin",
+      "width": 768,
+      "route": "/admin/plan-versions",
+      "status": "CAPTURED",
+      "file": "admin-zh-TW-768.png",
+      "measured": {
+        "viewport": 768,
+        "scrollWidth": 768,
+        "title": "攤點通｜行動點餐與攤位營運",
+        "mainText": "方案版本此介面目前為唯讀目錄；新增版本須走受控遷移與稽核流程。方案方案版本方案權益加購目錄建立並封存 PAYG 契約版本僅可填入已核准的財務與稅務決策；既有訂閱不會自動遷移，所有收費旗標也維持原狀。來源方案版本PAYG 按量計費方案 v1稅"
+      },
+      "capturedAt": "2026-09-30T16:06:51.942Z"
+    },
+    {
+      "role": "admin",
+      "width": 1024,
+      "route": "/admin/plan-versions",
+      "status": "CAPTURED",
+      "file": "admin-zh-TW-1024.png",
+      "measured": {
+        "viewport": 1024,
+        "scrollWidth": 1024,
+        "title": "攤點通｜行動點餐與攤位營運",
+        "mainText": "方案版本此介面目前為唯讀目錄；新增版本須走受控遷移與稽核流程。方案方案版本方案權益加購目錄建立並封存 PAYG 契約版本僅可填入已核准的財務與稅務決策；既有訂閱不會自動遷移，所有收費旗標也維持原狀。來源方案版本PAYG 按量計費方案 v1稅"
+      },
+      "capturedAt": "2026-09-30T16:06:52.257Z"
+    },
+    {
+      "role": "admin",
+      "width": 1440,
+      "route": "/admin/plan-versions",
+      "status": "CAPTURED",
+      "file": "admin-zh-TW-1440.png",
+      "measured": {
+        "viewport": 1440,
+        "scrollWidth": 1440,
+        "title": "攤點通｜行動點餐與攤位營運",
+        "mainText": "方案版本此介面目前為唯讀目錄；新增版本須走受控遷移與稽核流程。方案方案版本方案權益加購目錄建立並封存 PAYG 契約版本僅可填入已核准的財務與稅務決策；既有訂閱不會自動遷移，所有收費旗標也維持原狀。來源方案版本PAYG 按量計費方案 v1稅"
+      },
+      "capturedAt": "2026-09-30T16:06:52.580Z"
+    }
+  ]
+}

@@ -130,3 +130,9 @@ Do not rewrite an old row to make a later rollout look complete. Append a new ro
 新增 LIFF 2.31.0 最小登入殼層與一次性 browser-bound challenge，沿用既有 Session 並區分 OAuth flow；新增 migration 僅在 `stallorder_line_miniapp_20260926` clone 套用。78 regression（含 8 DB/provider-fixture）、2 disabled-shell/既有登入 browser PASS，型別與 ESLint 通過。真實 LINE／Sandbox、私人訂單所有權及 durable payment workflow 尚未完成。逐步設定指南與不輸出 secret 的設定檢查 CLI 已備妥，無外部交易或部署。
 
 - 2026-09-28 LINE-LOCAL-UI-INTEGRATION：整合 3023 本機工作樹的結帳、商戶導覽、選擇控制與外送資料契約至 LINE v2 候選；保留新 QR／MINI，待本次 QA 與 PR365 Preview 部署讀回，參見 integrations/line/UI_UX_REDESIGN_20260928.md。
+
+## 2026-10-01 responsive local candidate
+
+| Date | ID | Status | Change | Scope and evidence |
+| --- | --- | --- | --- | --- |
+| 2026-10-01 | `RESPONSIVE-B3-LOCAL-001` | Local QA in progress; no release approval | B3.1 retained role/zoom/focus corrections; B3.3 isolated destructive closure and pickup fixtures, restored exact KDS selection, protected same-session rate-window waits and bounded POS retry setup. No backend/security/payment/schema authority change in B3.3. | Exact test/helper candidate `aa91704ac2799b0e46ab4571678d1f3798f3a58e` / tree `518f31ed821a3f4aa32bda8ad383cb9dfb527e5f` / build `hmUGGDjw6VdCYMJ6hoiIo`; [evidence and historical failures](ux-responsive/b3-final-qa-evidence.md). First combined 129: 110 PASS/16 FAIL/3 NOT_RUN; final same-order result pending. B3.2 eleven timing goals NOT_MET. No remote write or live provider claim. |

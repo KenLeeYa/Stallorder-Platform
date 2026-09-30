@@ -6,7 +6,7 @@ const git = (...args) => execFileSync("git", args, { encoding: "utf8" }).trim();
 const productInputs = ["src", "prisma", "public", "next.config.ts", "package.json", "package-lock.json", "tsconfig.json", "postcss.config.mjs"];
 
 export function captureResponsiveSource() {
-  const patch = execFileSync("git", ["diff", "--binary", "HEAD"]);
+  const patch = execFileSync("git", ["diff", "--binary", "HEAD"], { maxBuffer: 64 * 1024 * 1024 });
   const untracked = execFileSync("git", ["ls-files", "--others", "--exclude-standard", "-z"]);
   const digest = createHash("sha256").update(patch);
   for (const path of untracked.toString("utf8").split("\0").filter(Boolean)) {

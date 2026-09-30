@@ -66,3 +66,7 @@ UI暫態（filter、selected ID、scroll、editor草稿）與server資料分離�
 所有安全排隊依目前offline能力；收款、外部退款、QR核銷不得新增離線權限。恢復連線時讀權威快照，並在stream ready／reconnect後再次刷新，封閉快照完成與訂閱之間的漏訊窗口（Staff現有onopen已觸發刷新）；重複invalidation合併、舊generation回應丟棄。這些是待驗收要求，不是全部已完成能力。
 
 LINE v2：runtime禁止租戶選sender；每environment唯一PLATFORM_OA。舊店家OA設定不改變此契約。通知SENT目前代表provider接受；Pay adapter在production返回LINE_PAY_SANDBOX_ONLY 503。QR preview與redeem分離，UI尺寸不延長效期。
+
+## B3 同單與隔離資料回歸
+
+B3 本機真實四端訂單以同一 orderId、付款與取餐碼核驗終結；列印失敗只重試其 printJob，已完成 POS 收款不再次送出。KDS 撤權清除舊卡後，重獲授權須先顯示新快照，再選原單明細。整批測試的 Merchant KDS-off 曾正確取消主店 126 筆 pending 工作（其中 120 筆是固定 B3 資料），顯示測試不能把整店破壞性設定套在共享 fixture。B3.3 改為專屬測試店並讀回原 120 task IDs/status/completedAt；原始凍結收據、首次失敗現場與後續修復分開保留。[詳細證據及仍未執行的真設備／Provider 界線](b3-final-qa-evidence.md)。

@@ -55,3 +55,7 @@ Selected authorized `stallId` and custom 2026-09-01–30 period survive report A
 ## B3.1 device evidence boundary
 
 `responsive-accessibility.spec.ts` exercises 320/360/390/768/820/1024/1280/1440 CSS widths in zh-TW/light and en/dark for customer, Staff, POS, KDS, Merchant, Admin and the existing MINI unavailable-provider entry. Desktop Chrome/Edge native zoom and native default text size use disposable owned profiles, not deviceScaleFactor/pinch emulation or user profiles. The exact observed geometry and any failures are reported in the B3.1 handoff. This desktop evidence does not substitute for physical Safari/Android rotation, virtual keyboard/safe-area/touch, screen readers or human timing. Existing LINE/Pay capability gates stay unchanged.
+
+## B3.3 視覺矩陣與實機界線
+
+[完整 keyframe 索引](../../artifacts/ux-responsive-20260930/b3-keyframes-manifest.json)有 7 個角色 × 390／768／1024／1440 CSS px × 改造前後兩版本，共 56 張原檔與個別 SHA-256。前版來源 A1 `a0c635bc`／build `ZRPD1C0hp87hIxeN-6rwI`；後版來源 B3.1 `484bf026`／build `GL_yj-pqLi9A49Ltu1gqU`。這是程式版本對比，不是同日同分鐘截圖；商家 QR 區塊已遮蔽。B3.1 的另外 320／360／820／1280 操作、en/dark、Chrome/Edge 真瀏覽器 zoom/text 另由其測試收據支撐，不從這 56 張推論。實體 Safari／Android 轉向、觸控、虛擬鍵盤、安全區及 MINI 真供應商流程仍 NOT_RUN；[目前合併 QA 狀態](b3-final-qa-evidence.md)不得取代實機證明。
