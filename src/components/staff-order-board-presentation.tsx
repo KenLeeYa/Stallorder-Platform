@@ -760,6 +760,10 @@ function StaffTicketList(props: StaffTicketListProps) {
           mobileWorkspace
           actions={{
             ...props.actions,
+            onCheckoutCustomerPresent: (order) => {
+              setFocusedOrderId(null);
+              return props.actions.onCheckoutCustomerPresent(order);
+            },
             onOpenCheckout: (orders) => {
               setFocusedOrderId(null);
               return props.actions.onOpenCheckout(orders);
