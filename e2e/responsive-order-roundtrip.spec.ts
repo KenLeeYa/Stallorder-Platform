@@ -4,6 +4,7 @@ import { expect, test, type Browser, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { continueQrCheckout, dismissStaffStartReminder, qrProductSelectionControl } from "./local-navigation";
 import { createResponsiveOrderFixture } from "./helpers/responsive-order-fixture";
+import { readResponsiveBuildProvenance } from "../scripts/responsive-build-provenance.mjs";
 
 test.use({ actionTimeout: 15_000, serviceWorkers: "block" });
 
@@ -33,6 +34,7 @@ async function rolePage(browser: Browser, width: number) {
 
 test("RSP-Q01: one real order moves from customer phone through staff tablet, KDS and desktop", async ({ browser }, testInfo) => {
   test.setTimeout(300_000);
+  const build = readResponsiveBuildProvenance();
   const prisma = new PrismaClient();
   const customer = await rolePage(browser, 390);
   const staff = await rolePage(browser, 1024);
@@ -189,7 +191,7 @@ test("RSP-Q01: one real order moves from customer phone through staff tablet, KD
       where: { orderId }, orderBy: { createdAt: "asc" }, select: { eventType: true, createdAt: true },
     });
     const receipt = JSON.stringify({
-        revision: process.env.VERCEL_GIT_COMMIT_SHA ?? "2f8de0b7ac5a03c3235125a1848f8d35efe6a71d",
+        build,
         startedAt, finishedAt: new Date().toISOString(), runId: fixture.runId,
         edgeSessionStatuses, edgeOrderStatus: orderSubmissionStatus,
         orderId, orderNo, total: final.total, quantity: order.items[0].quantity,

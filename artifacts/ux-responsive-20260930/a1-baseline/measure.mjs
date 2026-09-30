@@ -2,20 +2,30 @@ import { readFile, writeFile } from "node:fs/promises";
 import { loadEnvFile } from "node:process";
 import { performance } from "node:perf_hooks";
 import { chromium, expect } from "@playwright/test";
+import { PrismaClient } from "@prisma/client";
 import { assertResponsiveQaTarget } from "../../../scripts/responsive-qa-target.mjs";
+import { readResponsiveBuildProvenance } from "../../../scripts/responsive-build-provenance.mjs";
 
 loadEnvFile(".env.local");
 assertResponsiveQaTarget(process.env);
 
 const origin = "http://127.0.0.1:3026";
 const receipt = JSON.parse(await readFile(new URL("./same-order-receipt.json", import.meta.url), "utf8"));
-const qrPath = `/q/responsive-qa-${receipt.runId}`;
+const build = readResponsiveBuildProvenance();
+const prisma = new PrismaClient();
+const qrs = await prisma.qrCode.findMany({
+  where: { label: `Responsive QA ${receipt.runId}`, state: "ACTIVE" },
+  select: { token: true },
+});
+await prisma.$disconnect();
+if (qrs.length !== 1) throw new Error("RESPONSIVE_QA_QR_NOT_UNIQUE_OR_ACTIVE");
+const qrPath = `/q/${encodeURIComponent(qrs[0].token)}`;
 const headers = { "x-vercel-forwarded-for": "203.0.113.10", "cf-connecting-ip": "203.0.113.10" };
 const visitorHeaders = (index) => ({ "x-vercel-forwarded-for": `203.0.113.${index}`, "cf-connecting-ip": `203.0.113.${index}` });
 const browser = await chromium.launch();
 const startedAt = new Date().toISOString();
 const result = {
-  revision: receipt.revision,
+  build,
   startedAt,
   origin,
   mode: "next start; local Docker DB/API/Edge; loopback network; Chromium",

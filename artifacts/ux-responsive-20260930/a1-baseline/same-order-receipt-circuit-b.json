@@ -1,8 +1,6 @@
 {
-  "revision": "2f8de0b7ac5a03c3235125a1848f8d35efe6a71d",
   "startedAt": "2026-09-30T00:48:21.881Z",
   "finishedAt": "2026-09-30T00:48:43.241Z",
-  "runId": "65f8ef9f-4e7c-47d9-89e5-dadd7a184fcf",
   "orderId": "e9bfe131-fdfa-4a76-bd91-5a762aae12d4",
   "orderNo": "260930-008",
   "total": 130,
@@ -75,5 +73,8 @@
       "type": "ORDER_COMPLETED_AFTER_PREPAYMENT",
       "at": "2026-09-30T00:48:41.756Z"
     }
-  ]
+  ],
+  "runIdSha256": "0e49732211cb38a36d8248380a9aa49b47c3edb1caaca745ea4001391f6bd271",
+  "legacyQrState": "REVOKED_IN_RESPONSIVE_LAB",
+  "reportedRevisionUnverified": "2f8de0b7ac5a03c3235125a1848f8d35efe6a71d"
 }

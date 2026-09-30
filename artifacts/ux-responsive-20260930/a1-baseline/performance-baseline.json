@@ -1,5 +1,4 @@
 {
-  "revision": "2f8de0b7ac5a03c3235125a1848f8d35efe6a71d",
   "startedAt": "2026-09-30T00:57:17.443Z",
   "origin": "http://127.0.0.1:3026",
   "mode": "next start; local Docker DB/API/Edge; loopback network; Chromium",
@@ -314,5 +313,6 @@
     "Staff and KDS samples used authenticated browser storage states from normal UI logins.",
     "Dataset counts and active flag are frozen in dataset-baseline.json; 100+ order comparison requires new same-build baseline at that dataset."
   ],
-  "checkoutCircuitAtCapture": "Circuit B fallback; Edge lacked local ABUSE_HASH_SECRET. Circuit A repaired after these samples."
+  "checkoutCircuitAtCapture": "Circuit B fallback; Edge lacked local ABUSE_HASH_SECRET. Circuit A repaired after these samples.",
+  "reportedRevisionUnverified": "2f8de0b7ac5a03c3235125a1848f8d35efe6a71d"
 }

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import { assertResponsiveQaTarget } from "../../scripts/responsive-qa-target.mjs";
+import { generateResponsiveQrToken } from "../../scripts/responsive-qa-token.mjs";
 
 export async function createResponsiveOrderFixture(prisma: PrismaClient): Promise<{
   runId: string;
@@ -126,7 +127,7 @@ export async function createResponsiveOrderFixture(prisma: PrismaClient): Promis
     where: { stallId: stall.id },
     _max: { tokenVersion: true },
   });
-  const qrToken = `responsive-qa-${runId}`;
+  const qrToken = generateResponsiveQrToken();
   await prisma.qrCode.create({
     data: {
       organizationId: organization.id,

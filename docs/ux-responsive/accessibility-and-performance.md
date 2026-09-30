@@ -30,7 +30,7 @@
 
 ## A1 production-mode 本機先期數值（2026-09-30）
 
-固定來源 `2f8de0b7ac5a03c3235125a1848f8d35efe6a71d`，Next production build、Chromium、loopback、獨立 DB56822；完整原始樣本、量測程式、bundle 與資料集/旗標收據見 `artifacts/ux-responsive-20260930/a1-baseline/`。量測時 Edge 尚缺本 lab secret，正常訂單走產品真實 Circuit B 備援；後續已修復 Edge 並以同單 browser E2E 驗證 Circuit A，但**下列先期數值不可當 Circuit A 延遲**。量測時 demo 攤位有 18 單（READY 4、COMPLETED 12、EXPIRED 2）及 13 個 QA 商品，`DUAL_ORDER_INTAKE_ENABLED` 有本 lab 的暫時 global override。這是 A1 的小資料集先期值，**不能直接與後續 100+ 單比較**。
+原始量測使用當時的 Next production build、Chromium、loopback、獨立 DB56822；完整原始樣本、量測程式、bundle 與資料集/旗標收據見 `artifacts/ux-responsive-20260930/a1-baseline/`。原收據靜態標示 `2f8de0b7ac5a03c3235125a1848f8d35efe6a71d`，未驗證 build provenance，已改記 `reportedRevisionUnverified`。量測時 Edge 尚缺本 lab secret，正常訂單走產品真實 Circuit B 備援；後續已修復 Edge 並以同單 browser E2E 驗證 Circuit A，但**下列先期數值不可當 Circuit A 延遲或正式 before/after**。量測時 demo 攤位有 18 單（READY 4、COMPLETED 12、EXPIRED 2）及 13 個 QA 商品，`DUAL_ORDER_INTAKE_ENABLED` 有本 lab 的暫時 global override。這是 A1 的小資料集先期值，**不能直接與後續 100+ 單比較**。
 
 | 互動就緒（ms；30次／組） | 新 context p95 | 同 context p95 | 判定 |
 |---|---:|---:|---|
