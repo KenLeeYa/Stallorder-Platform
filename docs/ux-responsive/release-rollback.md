@@ -37,4 +37,4 @@ LINE MINI Endpoint、OA rich menu/webhook、付款credentials、DNS、正式訊�
 
 ## B3 候選下一關與回復依據
 
-候選 `aa91704`／build `hmUGGDjw6VdCYMJ6hoiIo` 僅在本機 3026／56822 驗證；初次 129 案整批為 110 PASS／16 FAIL／3 NOT_RUN，已留原始失敗史。修正後 129 案同序再次執行，其最終計數須從[合併 QA 索引](b3-final-qa-evidence.md)讀回，不以局部綠燈取代。B3.2 的 11 項時間目標未達成、stream 診斷尚不確定，故無速度或全面 release-ready 宣稱。部署前須另完成獨立審查、Staging 目標／版本／流程證明、fresh Production Plan、Primary／DR 回復目標與 provider readback；實體裝置、輔助科技、真人操作、真 LINE／Pay 和受影響正式站流程未驗者列為 NOT_RUN。產品回退只選精確已驗證版本，不刪既有訂單／付款／audit／print jobs 或用 UI 回退回灌資料庫。
+本機 3026／56822 最後完整同序 129 案為 `9d6d926`／build `2_SDNG-0WPqKN2eo0RvJE` 的 128 PASS／1 provenance 前置 FAIL／0 NOT_RUN；修正該子程序有界 buffer 後，`951da26`／build `JkhAOmjpcVnrPc59NHe-l` 的真 Edge #84 與六個受影響來源收據消費者聚焦 PASS，但沒有另跑 129 案整批。初次 110 PASS／16 FAIL／3 NOT_RUN 與中間 95 PASS／8 FAIL／26 NOT_RUN 的歷史均保留於[合併 QA 索引](b3-final-qa-evidence.md)，不以分輪局部綠燈改寫。B3.2 的 11 項時間目標未達成、stream 診斷尚不確定，故無速度或全面 release-ready 宣稱。部署前須另完成獨立審查、Staging 目標／版本／流程證明、fresh Production Plan、Primary／DR 回復目標與 provider readback；實體裝置、輔助科技、真人操作、真 LINE／Pay 和受影響正式站流程未驗者列為 NOT_RUN。產品回退只選精確已驗證版本，不刪既有訂單／付款／audit／print jobs 或用 UI 回退回灌資料庫。

@@ -77,4 +77,4 @@
 
 ## B3 本機候選狀態（2026-10-01）
 
-B3.1 完成具體 UI/焦點/原生 zoom 修正；B3.2 配對效能全部 11 項預先登記的時間目標未達成。B3.3 已收斂測試 fixture 污染並以 `aa91704`／build `hmUGGDjw6VdCYMJ6hoiIo` 執行 129 案整批同序瀏覽器驗證；最終結果與失敗歷史以[合併 QA 索引](b3-final-qa-evidence.md)為準。原始 3023／55722 與本機 3026／56822 是不同服務與資料集。此本機證據不代表 Staging／Production、實體裝置、輔助科技、真 LINE／Pay 或人工時間已驗收。
+B3.1 完成具體 UI/焦點/原生 zoom 修正；B3.2 配對效能全部 11 項預先登記的時間目標未達成。B3.3 完整同序 129 案最後一輪為 `9d6d926`／build `2_SDNG-0WPqKN2eo0RvJE` 的 128 PASS／1 pretest FAIL；唯一下游來源收據工具已在 `951da26`／build `JkhAOmjpcVnrPc59NHe-l` 以真 Edge #84 與六個受影響消費者聚焦通過，並未另跑 129 案整批。結果與原始 110/16/3、95/8/26 失敗歷史以[合併 QA 索引](b3-final-qa-evidence.md)為準。原始 3023／55722 與本機 3026／56822 是不同服務與資料集。此本機證據不代表 Staging／Production、實體裝置、輔助科技、真 LINE／Pay 或人工時間已驗收。
