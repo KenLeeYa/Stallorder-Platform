@@ -167,6 +167,39 @@ test("店員訂單在手機採單欄，平板與桌機採清單、品項、操�
   expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
 });
 
+test("所有已授權的 Staff 工具列動作在手機、平板與桌機皆可觸及", async ({ page }) => {
+  test.setTimeout(120_000);
+  await loginLocalTestAccount(page, "staff@stallorder.test", password);
+  await gotoLocalPath(page, `/staff/${stallSlug}`);
+  await dismissStaffStartReminder(page);
+  const toolbar = page.getByTestId("staff-function-grid");
+  for (const width of [320, 390, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    if (width < 768) {
+      const toggle = page.getByTestId("staff-tools-toggle");
+      if (await toggle.getAttribute("aria-expanded") === "false") await toggle.click();
+    }
+    const controls = toolbar.locator("a, button").filter({ visible: true });
+    expect(await controls.count()).toBeGreaterThan(8);
+    for (const control of await controls.all()) {
+      await control.scrollIntoViewIfNeeded();
+      const box = await control.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.width).toBeGreaterThanOrEqual(44);
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+      expect(box!.x).toBeGreaterThanOrEqual(0);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(width + 1);
+    }
+    await expect(page.getByTestId("staff-search-open")).toBeVisible();
+    const capacity = page.getByTestId("staff-capacity-tool");
+    if (await capacity.count()) {
+      const capacityBox = await capacity.boundingBox();
+      const searchBox = await page.getByTestId("staff-search-open").boundingBox();
+      expect(searchBox!.x).toBeGreaterThanOrEqual(capacityBox!.x + capacityBox!.width);
+    }
+  }
+});
+
 for (const redesignEnabled of [false, true]) {
   test(`手機訂單明細可返回原卡片，旋轉後仍可操作（新工作台 ${redesignEnabled ? "開" : "關"}）`, async ({ page }) => {
     test.setTimeout(120_000);
@@ -203,6 +236,8 @@ for (const redesignEnabled of [false, true]) {
       await open.click();
       const detail = page.getByRole("dialog", { name: `訂單 ${responsiveOrderNo}` });
       await expect(detail).toBeVisible();
+      await expect(detail.getByTestId("staff-mobile-detail-summary")).toContainText("店員點餐");
+      await expect(detail.getByTestId("staff-mobile-detail-summary")).toContainText("$2,375");
       await expect(detail.getByTestId("staff-order-item-list").locator("li")).toHaveCount(25);
       await expect(detail.getByTestId("staff-order-actions-pane")).toBeVisible();
       await detail.getByRole("button", { name: "關閉" }).click();
@@ -227,6 +262,34 @@ for (const redesignEnabled of [false, true]) {
     }
   });
 }
+
+test("手機明細的訂單消失後回到仍可操作的列表", async ({ page }) => {
+  test.setTimeout(120_000);
+  await loginLocalTestAccount(page, "staff@stallorder.test", password);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await gotoLocalPath(page, `/staff/${stallSlug}`);
+  await dismissStaffStartReminder(page);
+  await searchStaffOrders(page, responsiveOrderNo);
+  const card = page.getByTestId("staff-order-mobile-list").locator("article").filter({ hasText: responsiveOrderNo });
+  await card.getByRole("button", { name: "查看明細" }).click();
+  const detail = page.getByRole("dialog", { name: `訂單 ${responsiveOrderNo}` });
+  await expect(detail).toBeVisible();
+  try {
+    await responsivePrisma.order.update({ where: { id: responsiveOrderId }, data: { status: "COMPLETED" } });
+    await page.getByTestId("staff-function-grid").locator('button[title="重新整理"]').evaluate((button: HTMLButtonElement) => button.click());
+    await expect(detail).toBeHidden();
+    await expect(card).toHaveCount(0);
+    expect(await page.evaluate(() => {
+      const active = document.activeElement;
+      return active instanceof HTMLElement && active.isConnected && Boolean(
+        active.closest('[data-testid="staff-order-mobile-list"]')
+        || active.matches('[data-testid="staff-queue-toggle"], [data-testid="staff-search-open"]'),
+      );
+    })).toBe(true);
+  } finally {
+    await responsivePrisma.order.update({ where: { id: responsiveOrderId }, data: { status: "WAITING_CONFIRMATION" } });
+  }
+});
 
 test("Star webPRNT SDK 載入失敗會在有限時間內離開永久載入狀態", async ({ browser }) => {
   test.setTimeout(60_000);
@@ -259,8 +322,16 @@ test("修改既有自動出單規則只送出嚴格 command 欄位", async ({ pa
   const stallId = "22222222-2222-4222-8222-222222222222";
   const ruleName = "E2E 自動出單修改 " + Date.now();
   let ruleId = "";
+  let printWasEnabled: boolean | null = null;
 
   try {
+    const settings = await prisma.stallOrderingSettings.findUniqueOrThrow({
+      where: { stallId }, select: { printModuleEnabled: true },
+    });
+    printWasEnabled = settings.printModuleEnabled;
+    await prisma.stallOrderingSettings.update({
+      where: { stallId }, data: { printModuleEnabled: true },
+    });
     const printer = await prisma.printer.findFirstOrThrow({
       where: { organizationId, stallId, isEnabled: true },
       orderBy: { createdAt: "asc" },
@@ -305,6 +376,9 @@ test("修改既有自動出單規則只送出嚴格 command 欄位", async ({ pa
     await expect(page.getByRole("dialog", { name: "操作已完成" })).toContainText("出單規則已儲存");
   } finally {
     if (ruleId) await prisma.printRule.deleteMany({ where: { id: ruleId } });
+    if (printWasEnabled !== null) await prisma.stallOrderingSettings.update({
+      where: { stallId }, data: { printModuleEnabled: printWasEnabled },
+    });
     await prisma.$disconnect();
   }
 });
