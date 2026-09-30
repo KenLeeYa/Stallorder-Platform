@@ -6,7 +6,7 @@
 
 `ExperienceDialog` 保留原有呼叫介面，新增預設為 `false` 的 `closeDisabled` 與預設外觀不變的 `size="workspace"`。原生 `cancel` 一律先 `preventDefault()`，再依可否關閉走單一 `onClose`；禁用時關閉按鈕亦不可操作。Staff POS 主視窗、商品客製、整單備註及暫存單使用原生 modal 生命週期；同一個 composer 保有待處理請求及冪等鍵，送單 `busy` 時 Escape 和關閉鍵都不能卸載。巢狀 Escape 只關最上層，Tab 留在作用中的視窗；關閉 POS 返回「店員點餐」觸發鍵。QR 商品客製沿既有 controller 的單一焦點路徑返回原「選擇規格」鍵，找不到可操作鍵時退回商品卡。
 
-此節僅為隔離本機候選，未發布。`e2e/responsive-dialog-keyboard.spec.ts` 的 6 個實際瀏覽器案例、4 個受影響 Vitest 檔案的 19 個案例、範圍 lint／型別與記錄來源的 production build 通過；完整跨任務整合矩陣另由後續驗收執行。
+此節僅為隔離本機候選，未發布。`e2e/responsive-dialog-keyboard.spec.ts` 的 7 個實際瀏覽器案例、4 個受影響 Vitest 檔案的 19 個案例、範圍 lint／型別與記錄來源的 production build 通過；完整跨任務整合矩陣另由後續驗收執行。
 
 ## 動作位置
 
