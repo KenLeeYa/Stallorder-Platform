@@ -41,3 +41,9 @@ Staff工具順序保留：取餐碼右方為平台QR交付圖示（功能可用�
 ## 第一個端到端切片
 
 先在隔離本機固定fixture驗證：顧客390手機選必選／多選→建立一筆訂單→Staff1024平板接單→KDS更新→顧客追蹤→desktop讀回同單；同鍵重送仍只有一筆。再驗售罄、斷線、舊快照、權限負例。不是先把所有頁面換樣式後才測交易。
+
+## B1 Merchant local verification
+
+2026-09-30 isolated 3026 production-mode browser: 390px function directory remains available; 768/820/1024/1440px show every authorized function as labeled keyboard-reachable icons without a directory button. Phone product editor traps Tab, keeps one unsaved catalog selection through 390→1024→390, closes a child on Escape without closing the parent, and returns focus to its trigger. Saved TODAY sold-out state reads back after reload and rejects a previously issued customer cart with `PRODUCT_UNAVAILABLE`; a logged-in pure Staff identity receives HTTP 403 for direct Merchant availability PATCH.
+
+Selected authorized `stallId` and custom 2026-09-01–30 period survive report Apply and export. The actual downloaded CSV contained dated rows only for `AMING-01`; the unfiltered SINGLE_STALL default still submits no explicit stall ID. Phone import preview displayed the valid row, labeled invalid row 3, and a visible submit action. LINE setup displayed its actual unverified integration state; the local payments module was not advertised and its route returned 404 under the current capability gate, so no live payment claim follows. Prior-stall hint clearing and same-mounted-store draft isolation are source-scoped protections in `MerchantProducts` (`stallId`-tagged state and keyed catalog child), not independently browser-proven in this slice. Physical device, live LINE/Pay, and combined B3 verification remain open.

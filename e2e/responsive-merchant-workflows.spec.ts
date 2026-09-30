@@ -1,4 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { PrismaClient } from "@prisma/client";
 import { expect, test } from "@playwright/test";
 import { assertResponsiveQaTarget } from "../scripts/responsive-qa-target.mjs";
@@ -75,6 +76,10 @@ test("tablet shows all authorized functions without directory button", async ({ 
   await expect(allFunctionsButton).toBeVisible();
   await allFunctionsButton.click();
   await expect(page.getByRole("dialog", { name: "所有功能" }).getByRole("link", { name: "帳號與安全性" })).toBeVisible();
+  await expect(navigation.getByRole("link", { name: "付款與金流" })).toHaveCount(0);
+  await gotoLocalPath(page, `/merchant/stalls/${stallId}/line`);
+  await expect(page.getByRole("heading", { name: "LINE 訂單通知" })).toBeVisible();
+  await expect(page.getByText(/整合狀態：(?:未啟用|設定已儲存，尚未驗證實際收訊。|需要檢查)/)).toBeVisible();
 });
 
 test("mobile editor traps focus and restores trigger while rotation preserves unsaved catalog selection", async ({ page }) => {
@@ -86,8 +91,7 @@ test("mobile editor traps focus and restores trigger while rotation preserves un
   await expect(dialog).toBeVisible();
   const product = dialog.locator("[data-stall-product-list] h3").first();
   const name = (await product.innerText()).trim();
-  const selected = dialog.getByRole("checkbox", { name: `選取 ${name}` });
-  const row = dialog.locator("[data-stall-product-list] .grid").filter({ has: selected }).last();
+  const selected = page.getByRole("checkbox", { name: `選取 ${name}` });
   await selected.check();
   await expect(selected).toBeChecked();
   const outside = page.getByRole("link", { name: "攤點通" });
@@ -99,7 +103,7 @@ test("mobile editor traps focus and restores trigger while rotation preserves un
   await expect.poll(() => page.evaluate(() => document.body.style.overflow)).not.toBe("hidden");
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(selected).toBeChecked();
-  const settings = row.getByTestId("stall-product-settings-trigger");
+  const settings = page.getByTestId("stall-product-settings-trigger").first();
   await settings.click();
   const child = page.getByTestId("stall-product-settings-dialog");
   await expect(child).toBeVisible();
@@ -117,20 +121,29 @@ test("report filters and export preserve scope", async ({ page }) => {
   const form = page.locator("form").filter({ has: page.getByTestId("report-date-action-row") });
   await form.getByRole("button", { name: "自訂" }).click();
   await form.getByRole("textbox", { name: "開始日期" }).fill("2026-09-01");
-  await form.getByRole("textbox", { name: "結束日期" }).fill("2026-09-07");
+  await form.getByRole("textbox", { name: "結束日期" }).fill("2026-09-30");
   const exportRequest = page.waitForRequest(request => request.url().endsWith("/api/merchant/reports/export") && request.method() === "POST");
   const exportResponse = page.waitForResponse(response => response.url().endsWith("/api/merchant/reports/export") && response.request().method() === "POST");
   await form.getByRole("button", { name: "匯出 CSV" }).click();
   const confirmation = page.getByRole("dialog", { name: "匯出 CSV" });
-  await expect(confirmation).toContainText("2026-09-01 – 2026-09-07");
+  await expect(confirmation).toContainText("2026-09-01 – 2026-09-30");
+  const download = page.waitForEvent("download");
   await confirmation.getByRole("button", { name: "匯出 CSV" }).click();
   const body = exportRequest.then(request => request.postDataJSON() as { stallIds: string[]; dateFrom: string; dateTo: string });
   expect((await body).stallIds).toEqual([stallId]);
   expect((await body).dateFrom).toBe("2026-09-01");
-  expect((await body).dateTo).toBe("2026-09-07");
-  expect((await exportResponse).status()).toBe(200);
+  expect((await body).dateTo).toBe("2026-09-30");
+  const response = await exportResponse;
+  expect(response.status()).toBe(200);
+  const file = await download;
+  expect(file.suggestedFilename()).toBe("stallorder-report-2026-09-01-2026-09-30.csv");
+  const csv = await readFile((await file.path())!, "utf8");
+  expect(csv).toContain('"營業日期","攤位代碼"');
+  const exportedCodes = [...csv.matchAll(/^"\d{4}-\d{2}-\d{2}","([^"]+)",/gm)].map((match) => match[1]);
+  expect(exportedCodes.length).toBeGreaterThan(0);
+  expect([...new Set(exportedCodes)]).toEqual(["AMING-01"]);
   await form.getByRole("button", { name: "套用篩選" }).click();
-  await expect(page).toHaveURL(/dateFrom=2026-09-01.*dateTo=2026-09-07/);
+  await expect(page).toHaveURL(/dateFrom=2026-09-01.*dateTo=2026-09-30/);
   await expect.poll(() => new URL(page.url()).searchParams.getAll("stallId")).toEqual([stallId]);
   await expect(page.getByTestId("report-overview").first()).toBeVisible();
   await expect(page.getByTestId("report-definitions").first()).toContainText("資料範圍與計算方式");
@@ -161,15 +174,15 @@ test("sold-out scope survives refresh and rejects stale customer cart", async ({
     await gotoLocalPath(page, "/merchant/aming-chicken");
     await page.getByRole("button", { name: "攤位商品設定", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "攤位商品設定" });
-    await dialog.getByRole("button", { name: new RegExp(fixtureName) }).click();
-    const availability = page.getByRole("dialog", { name: "供應設定" });
+    await dialog.getByRole("button", { name: `${fixtureName}：供應中，設定供應狀態` }).click();
+    const availability = page.getByRole("dialog", { name: "設定供應狀態" });
     await availability.getByRole("button", { name: /^今日售完/ }).click();
     const save = page.waitForResponse(response => response.url().endsWith(`/api/merchant/stalls/${stallId}/products`) && response.request().method() === "PATCH");
     await availability.getByRole("button", { name: "確認今日售完", exact: true }).click();
     expect((await save).status()).toBe(200);
     await page.reload();
     await page.getByRole("button", { name: "攤位商品設定", exact: true }).click();
-    await expect(page.getByRole("dialog", { name: "攤位商品設定" }).getByRole("button", { name: new RegExp(`今日售完.*${fixtureName}|${fixtureName}.*今日售完`) })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "攤位商品設定" }).getByRole("button", { name: `${fixtureName}：暫停供應，設定供應狀態` })).toBeVisible();
 
     const staleOrder = await customer.request.post("/api/public/orders", { headers: headers(), data: {
       qrToken: fixtureQrToken, deviceId, orderingMode: "DEFAULT", orderSessionToken: session.orderSessionToken,
@@ -177,29 +190,35 @@ test("sold-out scope survives refresh and rejects stale customer cart", async ({
       turnstileToken: "XXXX.DUMMY.TOKEN.XXXX", customerName: "B1 local stale cart", customerPhone: "0912345678",
       waitAcknowledged: true, scheduledPickupAt: null, items: [{ productId: fixtureProductId, quantity: 1 }],
     } });
-    expect(staleOrder.status()).toBe(409);
-    expect((await staleOrder.json()).code).toBe("PRODUCT_UNAVAILABLE");
+    const staleBody = await staleOrder.json() as { code?: string };
+    expect(staleOrder.status(), staleBody.code).toBe(400);
+    expect(staleBody.code).toBe("PRODUCT_UNAVAILABLE");
   } finally {
     await customer.close();
   }
 });
 
-test("pure Staff cannot mutate Merchant availability", async ({ browser }) => {
-  const staff = await browser.newContext({ baseURL: process.env.PLAYWRIGHT_APP_URL });
-  try {
-    const page = await staff.newPage();
-    await loginLocalTestAccount(page, "staff@stallorder.test", password);
-    await gotoLocalPath(page, "/staff/aming-chicken");
-    await expect(page.getByTestId("merchant-function-navigation")).toHaveCount(0);
-    const csrf = (await staff.cookies()).find(cookie => cookie.name === "stallorder_csrf")?.value;
-    const response = await staff.request.patch(`/api/merchant/stalls/${stallId}/products`, {
-      headers: { origin: process.env.PLAYWRIGHT_APP_URL!, "x-csrf-token": csrf ?? "" },
-      data: { operation: "BULK_AVAILABILITY", productIds: [fixtureProductId], mode: "PERMANENT" },
+test("pure Staff cannot mutate Merchant availability", async ({ page }) => {
+  await page.context().clearCookies();
+  await loginLocalTestAccount(page, "staff@stallorder.test", password);
+  await gotoLocalPath(page, "/staff/aming-chicken");
+  await expect(page.getByTestId("merchant-function-navigation")).toHaveCount(0);
+  const identity = await page.evaluate(async () => {
+    const response = await fetch("/api/auth/me", { credentials: "include", cache: "no-store" });
+    return { status: response.status, body: await response.json() as { user?: { email?: string } } };
+  });
+  expect(identity.status).toBe(200);
+  expect(identity.body.user?.email).toBe("staff@stallorder.test");
+  const csrf = (await page.context().cookies()).find(cookie => cookie.name === "stallorder_csrf")?.value;
+  expect(csrf).toBeTruthy();
+  const denied = await page.evaluate(async ({ stallId, fixtureProductId, csrf }) => {
+    const response = await fetch(`/api/merchant/stalls/${stallId}/products`, {
+      method: "PATCH", credentials: "include", headers: { "content-type": "application/json", "x-csrf-token": csrf },
+      body: JSON.stringify({ operation: "BULK_AVAILABILITY", productIds: [fixtureProductId], mode: "PERMANENT" }),
     });
-    expect(response.status()).toBe(403);
-  } finally {
-    await staff.close();
-  }
+    return { status: response.status, body: await response.json() as { error?: string } };
+  }, { stallId, fixtureProductId, csrf: csrf! });
+  expect(denied.status, denied.body.error).toBe(403);
 });
 
 test("CSV import preview exposes row errors and reachable submit on phone", async ({ page }) => {

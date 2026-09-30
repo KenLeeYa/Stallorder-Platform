@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { PrismaClient } from "@prisma/client";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
@@ -7,6 +8,12 @@ test.use({ viewport: { width: 375, height: 812 } });
 
 test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) => {
   test.setTimeout(180_000);
+  const prisma = new PrismaClient();
+  const activeStalls = await prisma.stall.findMany({
+    where: { organizationId, isActive: true },
+    select: { id: true, name: true, slug: true },
+  }).finally(() => prisma.$disconnect());
+  expect(activeStalls.some((stall) => stall.id === stallId)).toBe(true);
   const overviewPath = `/merchant/stalls/${stallId}`;
   const sectionLinks = [
     ["基本資料", "basic"],
@@ -83,9 +90,26 @@ test("手機版攤位設定以跳轉頁面呈現", async ({ page }, testInfo) =>
     `/merchant/dashboard?organizationId=${organizationId}`,
   );
   await expect(page.getByLabel("選擇商家")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /^選擇攤位/u })).toHaveCount(0);
-  const stallShortcut = page.getByRole("link", { name: "選擇攤位：阿明鹽酥雞", exact: true });
-  await expect(stallShortcut).toHaveAttribute("href", "/merchant/aming-chicken");
+  const stallShortcut = activeStalls.length === 1
+    ? page.getByRole("link", { name: "選擇攤位：阿明鹽酥雞", exact: true })
+    : page.getByRole("button", { name: "選擇攤位：阿明鹽酥雞", exact: true });
+  if (activeStalls.length === 1) {
+    await expect(page.getByRole("button", { name: /^選擇攤位/u })).toHaveCount(0);
+    await expect(stallShortcut).toHaveAttribute("href", "/merchant/aming-chicken");
+  } else {
+    await expect(page.getByRole("link", { name: "選擇攤位：阿明鹽酥雞", exact: true })).toHaveCount(0);
+    await stallShortcut.click();
+    const stallDialog = page.getByRole("dialog", { name: "選擇攤位" });
+    for (const name of new Set(activeStalls.map((stall) => stall.name))) {
+      await expect(stallDialog.getByRole("button", { name, exact: true })).toHaveCount(
+        activeStalls.filter((stall) => stall.name === name).length,
+      );
+    }
+    await expect(stallDialog.getByRole("button", { name: "阿明鹽酥雞", exact: true })).toHaveAttribute("aria-current", "page");
+    await stallDialog.getByRole("button", { name: "阿明鹽酥雞", exact: true }).click();
+    await expect(page).toHaveURL(/\/merchant\/aming-chicken$/u);
+    await page.goto(overviewPath);
+  }
   const workMode = page.getByRole("button", { name: "商家管理", exact: true });
   const [stallShortcutBox, workModeBox] = await Promise.all([
     stallShortcut.boundingBox(),

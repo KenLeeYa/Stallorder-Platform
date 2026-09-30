@@ -14,5 +14,7 @@ export default defineConfig({
     "**/catalog-operations-local.spec.ts",
     "**/staff-kds-print-closure-flow.spec.ts",
     "**/multi-stall.spec.ts",
+    "**/merchant-stall-settings-navigation.spec.ts",
+    "**/operations-report-filter-responsive.spec.ts",
   ],
 });
