@@ -134,6 +134,10 @@ test("report filters and export preserve scope", async ({ page }) => {
   await expect.poll(() => new URL(page.url()).searchParams.getAll("stallId")).toEqual([stallId]);
   await expect(page.getByTestId("report-overview").first()).toBeVisible();
   await expect(page.getByTestId("report-definitions").first()).toContainText("資料範圍與計算方式");
+  await gotoLocalPath(page, `/merchant/reports/overview?organizationId=${organizationId}`);
+  await page.getByTestId("report-date-action-row").first().getByRole("button", { name: "本週" }).click();
+  await page.getByTestId("report-filter-actions").first().getByRole("button", { name: "套用篩選" }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.getAll("stallId")).toEqual([]);
 });
 
 test("sold-out scope survives refresh and rejects stale customer cart", async ({ page, browser }) => {
