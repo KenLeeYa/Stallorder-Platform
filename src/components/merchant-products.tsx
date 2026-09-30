@@ -28,34 +28,85 @@ const orderingLabels: Record<StallOrderingState, string> = { OPEN: "開放點餐
 
 export function MerchantProducts({ stall, products, sourceStalls, sharedCatalogUrl, appBaseUrl, qrCode, account }: Props) {
   const { label } = useMerchantMessages();
-  const [ordering, setOrdering] = useState({ orderingState: stall.orderingState, isSoldOut: stall.isSoldOut, qrCode });
-  const [message, setMessage] = useState("");
-  const [menuLinkMessage, setMenuLinkMessage] = useState("");
+  const [orderingSnapshot, setOrderingSnapshot] = useState({ stallId: stall.id, value: { orderingState: stall.orderingState, isSoldOut: stall.isSoldOut, qrCode } });
+  const ordering = orderingSnapshot.stallId === stall.id ? orderingSnapshot.value : { orderingState: stall.orderingState, isSoldOut: stall.isSoldOut, qrCode };
+  const [messageState, setMessageState] = useState({ stallId: stall.id, text: "" });
+  const message = messageState.stallId === stall.id ? messageState.text : "";
+  const setMessage = (text: string) => setMessageState({ stallId: stall.id, text });
+  const [menuLinkState, setMenuLinkState] = useState({ stallId: stall.id, text: "" });
+  const menuLinkMessage = menuLinkState.stallId === stall.id ? menuLinkState.text : "";
+  const setMenuLinkMessage = (text: string) => setMenuLinkState({ stallId: stall.id, text });
   const [isSaving, setIsSaving] = useState(false);
-  const [catalogDialogOpen, setCatalogDialogOpen] = useState(false);
+  const [catalogDialogStallId, setCatalogDialogStallId] = useState<string | null>(null);
+  const catalogDialogOpen = catalogDialogStallId === stall.id;
+  const [compactCatalog, setCompactCatalog] = useState(false);
   const catalogTriggerRef = useRef<HTMLButtonElement>(null);
   const catalogCloseRef = useRef<HTMLButtonElement>(null);
+  const catalogPaneRef = useRef<HTMLElement>(null);
   const orderUrl = useMemo(() => ordering.qrCode ? `${appBaseUrl.replace(/\/$/, "")}/q/${ordering.qrCode.token}` : "", [appBaseUrl, ordering.qrCode]);
   const publicStorefrontPath = `/store/${encodeURIComponent(stall.code.trim().toLowerCase())}`;
 
   useEffect(() => {
-    if (!catalogDialogOpen) return;
+    const viewport = window.matchMedia("(max-width: 767px)");
+    const update = () => setCompactCatalog(viewport.matches);
+    update();
+    viewport.addEventListener("change", update);
+    return () => viewport.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    if (!catalogDialogOpen || !compactCatalog) return;
+    const pane = catalogPaneRef.current;
+    if (!pane) return;
     const previousOverflow = document.body.style.overflow;
+    const background: Array<{ element: HTMLElement; inert: boolean }> = [];
+    for (let current: HTMLElement | null = pane; current?.parentElement; current = current.parentElement) {
+      for (const sibling of current.parentElement.children) {
+        if (sibling === current || !(sibling instanceof HTMLElement)) continue;
+        background.push({ element: sibling, inert: sibling.inert });
+        sibling.inert = true;
+      }
+    }
     document.body.style.overflow = "hidden";
     const focusTimer = window.setTimeout(() => catalogCloseRef.current?.focus(), 0);
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setCatalogDialogOpen(false);
+    const focusable = () => [...pane.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    )].filter((element) => element.getClientRects().length > 0 && !element.closest("[inert]"));
+    const onKeyDown = (event: KeyboardEvent) => {
+      const childDialog = (event.target as Element | null)?.closest('dialog[open], [role="dialog"][aria-modal="true"]');
+      if (childDialog && childDialog !== pane) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeCatalogDialog();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const elements = focusable();
+      const first = elements[0];
+      const last = elements.at(-1);
+      if (!first || !last) return;
+      if (!pane.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
-    document.addEventListener("keydown", closeOnEscape);
+    document.addEventListener("keydown", onKeyDown);
     return () => {
       window.clearTimeout(focusTimer);
       document.body.style.overflow = previousOverflow;
-      document.removeEventListener("keydown", closeOnEscape);
+      for (const item of background) item.element.inert = item.inert;
+      document.removeEventListener("keydown", onKeyDown);
     };
-  }, [catalogDialogOpen]);
+  }, [catalogDialogOpen, compactCatalog]);
 
   function closeCatalogDialog() {
-    setCatalogDialogOpen(false);
+    setCatalogDialogStallId(null);
     window.requestAnimationFrame(() => catalogTriggerRef.current?.focus());
   }
 
@@ -66,7 +117,7 @@ export function MerchantProducts({ stall, products, sourceStalls, sharedCatalogU
       const response = await fetch(`/api/stalls/${stall.slug}/ordering`, { method: "PATCH", headers: csrfHeaders(), body: JSON.stringify(body) });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? label("目前無法更新點餐設定。"));
-      setOrdering({ orderingState: payload.state.orderingState, isSoldOut: payload.state.isSoldOut, qrCode: payload.state.qrCode });
+      setOrderingSnapshot({ stallId: stall.id, value: { orderingState: payload.state.orderingState, isSoldOut: payload.state.isSoldOut, qrCode: payload.state.qrCode } });
       setMessage(label("點餐設定已更新。"));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : label("網路連線中斷，請稍後再試。"));
@@ -108,7 +159,7 @@ export function MerchantProducts({ stall, products, sourceStalls, sharedCatalogU
           ref={catalogTriggerRef}
           type="button"
           aria-haspopup="dialog"
-          onClick={() => setCatalogDialogOpen(true)}
+          onClick={() => setCatalogDialogStallId(stall.id)}
           className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white md:hidden"
         >
           <Package className="h-5 w-5" />
@@ -166,9 +217,10 @@ export function MerchantProducts({ stall, products, sourceStalls, sharedCatalogU
 
       <div className={`${catalogDialogOpen ? "fixed inset-0 z-50 flex items-stretch bg-black/50 p-3 sm:p-6" : "hidden"} min-h-0 md:static md:z-auto md:block md:h-full md:bg-transparent md:p-0`}>
         <section
-          role={catalogDialogOpen ? "dialog" : undefined}
-          aria-modal={catalogDialogOpen ? true : undefined}
-          aria-labelledby={catalogDialogOpen ? "stall-product-dialog-title" : undefined}
+          ref={catalogPaneRef}
+          role={catalogDialogOpen && compactCatalog ? "dialog" : undefined}
+          aria-modal={catalogDialogOpen && compactCatalog ? true : undefined}
+          aria-labelledby={catalogDialogOpen && compactCatalog ? "stall-product-dialog-title" : undefined}
           className="flex max-h-full w-full flex-col overflow-hidden rounded-lg bg-white shadow-xl md:h-full md:max-h-none md:rounded-none md:bg-transparent md:shadow-none"
         >
           <div className="flex items-center justify-between gap-3 border-b border-stone-200 px-4 py-3 md:hidden">
@@ -179,7 +231,7 @@ export function MerchantProducts({ stall, products, sourceStalls, sharedCatalogU
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 md:h-full md:p-0 md:pl-1 md:pr-3">
             {message ? <p role="alert" className="mb-4 text-sm text-red-700">{message}</p> : null}
-            <StallCatalogSettings stallId={stall.id} currency={stall.currency} initialProducts={products} sourceStalls={sourceStalls} />
+            <StallCatalogSettings key={stall.id} stallId={stall.id} currency={stall.currency} initialProducts={products} sourceStalls={sourceStalls} />
           </div>
         </section>
       </div>
