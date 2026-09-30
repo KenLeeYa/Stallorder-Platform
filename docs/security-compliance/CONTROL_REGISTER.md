@@ -74,3 +74,22 @@
 | T68 | CONDITIONAL | IMPLEMENTED | PASS | 工程/資安；conditional72h、未知待評、知悉時間不可延後、人工receipt及狀態機本機通過；依法適用/真實通知尚需簽核。 E01/E15 |
 | T69 | CONDITIONAL | PARTIAL | BLOCKED | 工程/資安；complaint15日與人工結果證據流程已實作；食品/零售適用、完整帳戶刪除與資料移轉非僅文案能完成。 E01/E02/E07 |
 | T70 | CONDITIONAL | REUSED_VERIFIED | BLOCKED | 工程/資安；既有商品翻譯provider本機契約通過；hosted跨租戶AI輸入/供應商保留與惡意資料測試待核，沒有新增任意工具agent。 E16/E18 |
+
+## 2026-09-30 v2.0 同步（本機，未發布）
+
+目前目標是各商家自有 OA 發訊；OA 通知、Mini Store、LINE Pay 三開關獨立。平台 OA 僅為未來明確選用的受控遷移，不是現況或預設。此規則優先於 09-29 Assessment 的平台單一 OA 假設。
+
+| 控制 | 必要情境 | 本輪結果 |
+|---|---|---|
+| T71 | A 店簽章有效的 webhook 不得以 B 店 destination／order 更新或觸發通知；錯簽章、重播、停用 channel 被拒。 | NOT_RUN；整合與外部驗收未完成 |
+| T72 | A 店 token／secret／Pay merchant 不可被 B 店或支援帳號讀取、借用、套用；輪替後舊版本停止生效。 | NOT_RUN；整合與外部驗收未完成 |
+| T73 | 平台管理者讀取遠端 Webhook、測試、套用、狀態核對與遠端失敗各有正確權限、差異、稽核及可回復狀態；惡意 URL 不可 SSRF。 | NOT_RUN；整合與外部驗收未完成 |
+| T74 | OA 通知、Mini Store、LINE Pay 三開關的八種組合及撤銷均不破壞其他能力或既有訂單。 | NOT_RUN；整合與外部驗收未完成 |
+| T75 | 通知 worker 的延遲、重送、額度不足、封鎖、退訂、換綁與停用 sender 不跨店、不雙發，且不重做訂單／計費。 | NOT_RUN；整合與外部驗收未完成 |
+| T76 | 不同 OA／Login channel 的相同表面 user ID、email、電話不自動合併；切換 sender 前確認收件資格，歷史事件仍可追溯。 | NOT_RUN；整合與外部驗收未完成 |
+| T77 | 平台 OA 試點切換與回退只能在明確授權和功能旗標下執行；未具資格時保持各店 OA，過渡不雙發、不洩漏。 | NOT_RUN；整合與外部驗收未完成 |
+| T78 | A 店的 LINE Pay return、Confirm、退款及對帳不能變更 B 店付款；未知狀態及重送不重複扣款。 | NOT_RUN；整合與外部驗收未完成 |
+| T79 | 顧客轉發取餐卡／QR、跨店掃描、重掃或並行核銷都不能越權；付款、核銷、列印、配送各自獨立。 | NOT_RUN；整合與外部驗收未完成 |
+| T80 | 第三方 POS／供應商／承運者只能操作明確授權交易；離線任務重派後，舊裝置補傳及 ePOD 附件須拒絕。 | NOT_RUN；整合與外部驗收未完成 |
+
+T01–T70 保留原日期與範圍；不因文件同步重標 PASS。T71–T80 尚未固定整合版、逐入口實測，不能用既有檔案名稱推定完成。責任：工程／資安；LINE、支付與契約 owner 見 E19–E22。

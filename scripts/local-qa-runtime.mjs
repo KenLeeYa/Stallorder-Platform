@@ -1,3 +1,7 @@
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { parseEnv } from "node:util";
+
 const DEFAULT_LOCAL_QA_PORT = 3012;
 
 export function parseLocalQaPort(args, defaultPort = DEFAULT_LOCAL_QA_PORT) {
@@ -12,7 +16,7 @@ export function parseLocalQaPort(args, defaultPort = DEFAULT_LOCAL_QA_PORT) {
   return port;
 }
 
-export function buildLocalQaEnvironment(port, environment = process.env) {
+export function buildLocalQaEnvironment(port, environment = process.env, { envDirectory } = {}) {
   if (
     environment.NODE_ENV === "production"
     || environment.APP_ENV === "production"
@@ -54,7 +58,7 @@ export function buildLocalQaEnvironment(port, environment = process.env) {
   const isolated = Object.fromEntries(Object.entries(environment).filter(([key]) => systemKey.test(key) || localKeys.has(key)));
 
   const origin = `http://127.0.0.1:${port}`;
-  return {
+  const localEnvironment = {
     ...isolated,
     NODE_ENV: "development",
     APP_ENV: "development",
@@ -77,6 +81,24 @@ export function buildLocalQaEnvironment(port, environment = process.env) {
     NEXT_PUBLIC_FORCE_PUBLIC_ORDER_CIRCUIT_B: "true",
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
   };
+
+  // Next loads these files again in the child. Only pre-populated, verified
+  // variables are safe: otherwise dotenv can restore a stripped live credential.
+  if (envDirectory) {
+    for (const file of [".env.development.local", ".env.local", ".env.development", ".env"]) {
+      const path = resolve(envDirectory, file);
+      if (!existsSync(path)) continue;
+      const values = parseEnv(readFileSync(path, "utf8"));
+      // Check every file even when a higher-priority value would shadow it.
+      buildLocalQaEnvironment(port, { ...localEnvironment, ...values });
+      for (const key of Object.keys(values)) {
+        if (!Object.hasOwn(localEnvironment, key) || typeof localEnvironment[key] !== "string") {
+          throw new Error(`LOCAL_QA_ENV_FILE_UNAPPROVED:${file}:${key}`);
+        }
+      }
+    }
+  }
+  return localEnvironment;
 }
 
 function isLoopbackDatabaseUrl(value) {

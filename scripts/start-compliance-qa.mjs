@@ -16,7 +16,7 @@ const environment = buildLocalQaEnvironment(3093, { ...system,
   AUDIT_IP_HASH_SECRET: "compliance-local-only-audit-hash-key", SESSION_FINGERPRINT_HASH_SECRET: "compliance-local-only-session-hash-key",
   OFFLINE_PERMIT_SIGNING_SECRET: "compliance-local-only-offline-signing-key", TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA", TURNSTILE_ALLOW_TEST_KEYS: "true",
   COMPLIANCE_ENABLED: "true", COMPLIANCE_FIELD_KEY: Buffer.alloc(32, 29).toString("base64"), NEXT_TELEMETRY_DISABLED: "1",
-});
+}, { envDirectory: process.cwd() });
 const child = spawn(process.execPath, [resolve("node_modules/next/dist/bin/next"), "dev", "--webpack", "-H", "127.0.0.1", "-p", "3093"], { env: environment, stdio: "inherit", windowsHide: true });
 writeFileSync("docs/security-compliance/qa-service.json", JSON.stringify({ project: "stallorder-compliance-20260913", worktree: process.cwd(), wrapperPid: process.pid, childPid: child.pid, port: 3093, databasePort: 55992, startedAt: new Date().toISOString(), secretsLogged: false }, null, 2));
 child.on("exit", (code) => { process.exitCode = code ?? 1; });

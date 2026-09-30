@@ -31,7 +31,7 @@ for (const key of ["ABUSE_HASH_SECRET", "TOKEN_DERIVATION_SECRET", "TURNSTILE_SE
 }
 
 await assertPortAvailable(port);
-const environment = buildLocalQaEnvironment(port, process.env);
+const environment = buildLocalQaEnvironment(port, process.env, { envDirectory: root });
 const origin = `http://127.0.0.1:${port}`;
 const nextCli = resolve(root, "node_modules", "next", "dist", "bin", "next");
 if (!existsSync(nextCli)) throw new Error("LOCAL_QA_DEPENDENCIES_MISSING");

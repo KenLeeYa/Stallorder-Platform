@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "interpretation": "PASS is the stated isolated test scope, not legal approval, full certification or hosted rollout.",
   "controls": [
     {
@@ -2539,6 +2539,227 @@
         "E18"
       ],
       "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T71",
+      "requirement": "A 店簽章有效的 webhook 不得以 B 店 destination／order 更新或觸發通知；錯簽章、重播、停用 channel 被拒。",
+      "applicability": "REQUIRED_WHEN_CAPABILITY_EXISTS",
+      "owner": "工程/資安；外部 owner 待 E19-E22 核定",
+      "codeStatus": "INTEGRATION_REVIEW_REQUIRED",
+      "verification": "NOT_RUN",
+      "rollout": "OFF",
+      "environment": "NO_RUNTIME_VERIFICATION_THIS_REFRESH",
+      "observedAt": "2026-09-30T07:01:00.403Z",
+      "baseCommit": "c31a5d9b379086b04360430aa71564b083a99292",
+      "candidateSource": "ASSESSMENT_REFRESH_20260930.json",
+      "sources": [],
+      "residualRisk": "新增需求尚未完成整合、正負案例及真實渠道驗證；本輪只修復 QA 環境檔隔離。",
+      "externalPrerequisites": [
+        "E19",
+        "E20",
+        "E21",
+        "E22"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T72",
+      "requirement": "A 店 token／secret／Pay merchant 不可被 B 店或支援帳號讀取、借用、套用；輪替後舊版本停止生效。",
+      "applicability": "REQUIRED_WHEN_CAPABILITY_EXISTS",
+      "owner": "工程/資安；外部 owner 待 E19-E22 核定",
+      "codeStatus": "INTEGRATION_REVIEW_REQUIRED",
+      "verification": "NOT_RUN",
+      "rollout": "OFF",
+      "environment": "NO_RUNTIME_VERIFICATION_THIS_REFRESH",
+      "observedAt": "2026-09-30T07:01:00.406Z",
+      "baseCommit": "c31a5d9b379086b04360430aa71564b083a99292",
+      "candidateSource": "ASSESSMENT_REFRESH_20260930.json",
+      "sources": [],
+      "residualRisk": "新增需求尚未完成整合、正負案例及真實渠道驗證；本輪只修復 QA 環境檔隔離。",
+      "externalPrerequisites": [
+        "E19",
+        "E20",
+        "E21",
+        "E22"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T73",
+      "requirement": "平台管理者讀取遠端 Webhook、測試、套用、狀態核對與遠端失敗各有正確權限、差異、稽核及可回復狀態；惡意 URL 不可 SSRF。",
+      "applicability": "REQUIRED_WHEN_CAPABILITY_EXISTS",
+      "owner": "工程/資安；外部 owner 待 E19-E22 核定",
+      "codeStatus": "INTEGRATION_REVIEW_REQUIRED",
+      "verification": "NOT_RUN",
+      "rollout": "OFF",
+      "environment": "NO_RUNTIME_VERIFICATION_THIS_REFRESH",
+      "observedAt": "2026-09-30T07:01:00.406Z",
+      "baseCommit": "c31a5d9b379086b04360430aa71564b083a99292",
+      "candidateSource": "ASSESSMENT_REFRESH_20260930.json",
+      "sources": [],
+      "residualRisk": "新增需求尚未完成整合、正負案例及真實渠道驗證；本輪只修復 QA 環境檔隔離。",
+      "externalPrerequisites": [
+        "E19",
+        "E20",
+        "E21",
+        "E22"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T74",
+      "requirement": "OA 通知、Mini Store、LINE Pay 三開關的八種組合及撤銷均不破壞其他能力或既有訂單。",
+      "applicability": "REQUIRED_WHEN_CAPABILITY_EXISTS",
+      "owner": "工程/資安；外部 owner 待 E19-E22 核定",
+      "codeStatus": "INTEGRATION_REVIEW_REQUIRED",
+      "verification": "NOT_RUN",
+      "rollout": "OFF",
+      "environment": "NO_RUNTIME_VERIFICATION_THIS_REFRESH",
+      "observedAt": "2026-09-30T07:01:00.406Z",
+      "baseCommit": "c31a5d9b379086b04360430aa71564b083a99292",
+      "candidateSource": "ASSESSMENT_REFRESH_20260930.json",
+      "sources": [],
+      "residualRisk": "新增需求尚未完成整合、正負案例及真實渠道驗證；本輪只修復 QA 環境檔隔離。",
+      "externalPrerequisites": [
+        "E19",
+        "E20",
+        "E21",
+        "E22"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T75",
+      "requirement": "通知 worker 的延遲、重送、額度不足、封鎖、退訂、換綁與停用 sender 不跨店、不雙發，且不重做訂單／計費。",
+      "applicability": "REQUIRED_WHEN_CAPABILITY_EXISTS",
+      "owner": "工程/資安；外部 owner 待 E19-E22 核定",
+      "codeStatus": "INTEGRATION_REVIEW_REQUIRED",
+      "verification": "NOT_RUN",
+      "rollout": "OFF",
+      "environment": "NO_RUNTIME_VERIFICATION_THIS_REFRESH",
+      "observedAt": "2026-09-30T07:01:00.406Z",
+      "baseCommit": "c31a5d9b379086b04360430aa71564b083a99292",
+      "candidateSource": "ASSESSMENT_REFRESH_20260930.json",
+      "sources": [],
+      "residualRisk": "新增需求尚未完成整合、正負案例及真實渠道驗證；本輪只修復 QA 環境檔隔離。",
+      "externalPrerequisites": [
+        "E19",
+        "E20",
+        "E21",
+        "E22"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T76",
+      "requirement": "不同 OA／Login channel 的相同表面 user ID、email、電話不自動合併；切換 sender 前確認收件資格，歷史事件仍可追溯。",
+      "applicability": "REQUIRED_WHEN_CAPABILITY_EXISTS",
+      "owner": "工程/資安；外部 owner 待 E19-E22 核定",
+      "codeStatus": "INTEGRATION_REVIEW_REQUIRED",
+      "verification": "NOT_RUN",
+      "rollout": "OFF",
+      "environment": "NO_RUNTIME_VERIFICATION_THIS_REFRESH",
+      "observedAt": "2026-09-30T07:01:00.406Z",
+      "baseCommit": "c31a5d9b379086b04360430aa71564b083a99292",
+      "candidateSource": "ASSESSMENT_REFRESH_20260930.json",
+      "sources": [],
+      "residualRisk": "新增需求尚未完成整合、正負案例及真實渠道驗證；本輪只修復 QA 環境檔隔離。",
+      "externalPrerequisites": [
+        "E19",
+        "E20",
+        "E21",
+        "E22"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T77",
+      "requirement": "平台 OA 試點切換與回退只能在明確授權和功能旗標下執行；未具資格時保持各店 OA，過渡不雙發、不洩漏。",
+      "applicability": "CONDITIONAL_FUTURE_PLATFORM_OA",
+      "owner": "工程/資安；外部 owner 待 E19-E22 核定",
+      "codeStatus": "INTEGRATION_REVIEW_REQUIRED",
+      "verification": "NOT_RUN",
+      "rollout": "OFF",
+      "environment": "NO_RUNTIME_VERIFICATION_THIS_REFRESH",
+      "observedAt": "2026-09-30T07:01:00.406Z",
+      "baseCommit": "c31a5d9b379086b04360430aa71564b083a99292",
+      "candidateSource": "ASSESSMENT_REFRESH_20260930.json",
+      "sources": [],
+      "residualRisk": "新增需求尚未完成整合、正負案例及真實渠道驗證；本輪只修復 QA 環境檔隔離。",
+      "externalPrerequisites": [
+        "E19",
+        "E20",
+        "E21",
+        "E22"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T78",
+      "requirement": "A 店的 LINE Pay return、Confirm、退款及對帳不能變更 B 店付款；未知狀態及重送不重複扣款。",
+      "applicability": "REQUIRED_WHEN_CAPABILITY_EXISTS",
+      "owner": "工程/資安；外部 owner 待 E19-E22 核定",
+      "codeStatus": "INTEGRATION_REVIEW_REQUIRED",
+      "verification": "NOT_RUN",
+      "rollout": "OFF",
+      "environment": "NO_RUNTIME_VERIFICATION_THIS_REFRESH",
+      "observedAt": "2026-09-30T07:01:00.406Z",
+      "baseCommit": "c31a5d9b379086b04360430aa71564b083a99292",
+      "candidateSource": "ASSESSMENT_REFRESH_20260930.json",
+      "sources": [],
+      "residualRisk": "新增需求尚未完成整合、正負案例及真實渠道驗證；本輪只修復 QA 環境檔隔離。",
+      "externalPrerequisites": [
+        "E19",
+        "E20",
+        "E21",
+        "E22"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T79",
+      "requirement": "顧客轉發取餐卡／QR、跨店掃描、重掃或並行核銷都不能越權；付款、核銷、列印、配送各自獨立。",
+      "applicability": "REQUIRED_WHEN_CAPABILITY_EXISTS",
+      "owner": "工程/資安；外部 owner 待 E19-E22 核定",
+      "codeStatus": "INTEGRATION_REVIEW_REQUIRED",
+      "verification": "NOT_RUN",
+      "rollout": "OFF",
+      "environment": "NO_RUNTIME_VERIFICATION_THIS_REFRESH",
+      "observedAt": "2026-09-30T07:01:00.406Z",
+      "baseCommit": "c31a5d9b379086b04360430aa71564b083a99292",
+      "candidateSource": "ASSESSMENT_REFRESH_20260930.json",
+      "sources": [],
+      "residualRisk": "新增需求尚未完成整合、正負案例及真實渠道驗證；本輪只修復 QA 環境檔隔離。",
+      "externalPrerequisites": [
+        "E19",
+        "E20",
+        "E21",
+        "E22"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T80",
+      "requirement": "第三方 POS／供應商／承運者只能操作明確授權交易；離線任務重派後，舊裝置補傳及 ePOD 附件須拒絕。",
+      "applicability": "REQUIRED_WHEN_CAPABILITY_EXISTS",
+      "owner": "工程/資安；外部 owner 待 E19-E22 核定",
+      "codeStatus": "INTEGRATION_REVIEW_REQUIRED",
+      "verification": "NOT_RUN",
+      "rollout": "OFF",
+      "environment": "NO_RUNTIME_VERIFICATION_THIS_REFRESH",
+      "observedAt": "2026-09-30T07:01:00.406Z",
+      "baseCommit": "c31a5d9b379086b04360430aa71564b083a99292",
+      "candidateSource": "ASSESSMENT_REFRESH_20260930.json",
+      "sources": [],
+      "residualRisk": "新增需求尚未完成整合、正負案例及真實渠道驗證；本輪只修復 QA 環境檔隔離。",
+      "externalPrerequisites": [
+        "E19",
+        "E20",
+        "E21",
+        "E22"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
     }
-  ]
+  ],
+  "requirementsRefresh": "20260930"
 }

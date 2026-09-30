@@ -24,3 +24,13 @@
 優先關閉feature/dispatcher並撤銷短效grant；不刪新案件、audit或ledger，不以回滾全部schema作一般復原。APP向後相容讀取既有欄位，新欄位nullable；實際刪除不可逆，復原備份前必須重套刪除/撤銷清單，不能把已刪個資復活。不能rollback安全修正重新開啟已確認漏洞。資料writer切換只能走既有failback，不能直接改兩側環境變數。
 
 正式端只測公開入口與health；authenticated/valid-QR完整正式流程未測，不計PASS。最後provider/health與本機服務狀態見各receipt。
+
+## 2026-09-30 v2.0 同步（本機，未發布）
+
+**NO-GO：尚不能把整包資安／隱私候選更新至正式環境。**
+
+本輪只完成下載需求同步及 QA 啟動環境檔修正，23 個聚焦測試通過；並未完成新增 T71–T80。原 Phase 00–15 的歷史 local 證據不等於本輪整合驗收。卡點依序：固定與改版相容的整合候選 → 補齊原實作缺口及 T71–T80 → Staging／provider／硬體驗收 → 五項 migration 與 replication 兼容檢查／新 DR Plan → 正式門檻及核心流程。
+
+目前目標是各商家自有 OA 發訊；OA 通知、Mini Store、LINE Pay 三開關獨立。平台 OA 僅為未來明確選用的受控遷移，不是現況或預設。此規則優先於 09-29 Assessment 的平台單一 OA 假設。
+
+外部項目見 E01–E22；本輪不啟用平台 OA，不更動 Primary／DR。細節見 [同步報告](ASSESSMENT_REFRESH_20260930.md)。

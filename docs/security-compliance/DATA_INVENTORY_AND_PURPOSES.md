@@ -16,3 +16,11 @@
 | backups/DR/log/analytics | 復原、安全監控、效能 | 具名維運，單writer；還原前套用刪除/撤銷，Auth/Storage/DDL/sequence另驗 |
 
 新表不收身分證影本、信用卡卡號/CVV、醫療或生物辨識原始資料。subject HMAC屬可連結的假名化資料，仍須按個資保護，不稱匿名。資料項目、法律基礎、接收者/地區、owner、retention版本及刪除API須依實際營運補齊。
+
+## 2026-09-30 v2.0 同步（本機，未發布）
+
+目前目標是各商家自有 OA 發訊；OA 通知、Mini Store、LINE Pay 三開關獨立。平台 OA 僅為未來明確選用的受控遷移，不是現況或預設。此規則優先於 09-29 Assessment 的平台單一 OA 假設。
+
+新增待盤點：channel-scoped subject、merchant/stall/channel 綁定與版本、sender_mode、收件資格、服務通知目的／獨立行銷同意、模板版本、attempt/provider receipt、遠端 webhook 遮蔽差異。不同 channel 的 user ID、email 或電話不自動合併；sender 切換不重寫歷史事件與同意。秘密只記錄參照／版本，禁止報告含明文。
+
+ePOD 照片／簽名、GPS、配送地址按指派任務最小共享及核定保存；適用欄位、處理區域、當事人與刪除 adapters 仍須實際 inventory。保留期限待 E21 核定，本輪沒有新增法定期限。

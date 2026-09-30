@@ -25,3 +25,14 @@
 | E18 既有AI／原生App T62/70 | 檔案顯示既有catalog translation AI及PWA/offline；無本次新增native shell或自動工具agent。 | 產品＋資安＋法務；API/商店費按實際存在能力 | AI輸入限商品/語系、無任意工具調用；hosted租戶/供應商保留/惡意資料要實測。若另開nativeApp再核商店政策，現在不臆造上架完成。CONDITIONAL/BLOCKED |
 
 補充實作工作清單：E06 dispatcher/monitor、E07全主體mapping/額外adapter、E15通知/提醒通道，以及現有付款/收款資訊等高風險入口全面套用新step-up，均不能僅靠填env完成。必須先確認既有身分provider可綁定應用session後，依共享呼叫鏈逐項實作及回歸；目前新step-up只涵蓋本次privacy/support治理API，不宣稱全系統MFA已落地。
+
+## 2026-09-30 v2.0 同步（本機，未發布）
+
+所有 owner 尚待指定；本輪不設定外部資源、不新增費用。
+
+| ID | 用途／控制與精確待辦 | 環境／權限與費用 | 驗證／復原 | 狀態 |
+|---|---|---|---|---|
+| E19 | T71–77：逐商家 OA/Login/MINI App 清冊、sender 綁定、收件資格、秘密版本、webhook 精確允許 URL；平台 OA 預設關閉 | 指定測試 channel；商家與平台管理者最小權限；資格／配額成本待核 | raw body、跨店拒絕、遠端 test/apply/readback、八組開關、撤權重試；失敗停發並保留站內查單，不雙發 | BLOCKED |
+| E20 | T72/T78：各店 Pay sandbox merchant、環境、Confirm／查詢／退款授權 | 各商家測試商戶；正式資格與費率待核；不得用另一店憑證 | 跨店、逾時後查單、退款併發及對帳；停止新 attempt，不刪舊交易 | BLOCKED |
+| E21 | T76/T80：更新告知／同意、DPA、資料區域、ePOD 留存與分享；核現行 PlanVersion、稅務及退款保存 | 法務／會計／業務 owner；專業核對費用待確認 | 官方法源／版本／生效日、簽約與實際欄位對照；未核定不擴大資料用途／更改費率 | NEEDS_LEGAL_ACCOUNTING_REVIEW |
+| E22 | T79/T80：指定門市裝置、第三方 POS／承運者 scope、任務版本及授權測試資料 | 隔離測試環境／實機及商用合作權限；硬體及渠道費用待核 | 取餐併發、重派後舊裝置與附件拒絕；撤銷測試綁定，保留必要交易證據 | BLOCKED |

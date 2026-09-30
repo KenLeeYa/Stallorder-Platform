@@ -14,3 +14,15 @@
 實際lab postgres與service_role是BYPASSRLS；anon/authenticated不是。另在transaction建立NOLOGIN NOBYPASSRLS角色，測試無scope及跨org SELECT/UPDATE拒絕，最後rollback。這只證明新表policy，不能稱現有Prisma已全面使用非bypass角色。正式前須驗Prisma/worker/view/RPC/Storage/Realtime及pool並發撤權。
 
 MFA驗證既有Supabase身分與真實簽章，不接受自報aal2；fixture grants只用於本機消耗與scope測試。未配置provider或身分連結時保持敏感操作關閉。最後owner與恢復沿用既有程序，不新增免MFA後門。
+
+## 2026-09-30 v2.0 同步（本機，未發布）
+
+| actor | scope/action | 必要限制（待驗證） |
+|---|---|---|
+| 商家管理者 | 自店 OA／Mini Store／Pay 選配 | 三開關獨立；不能讀回明文或操作別店 merchant |
+| 平台管理者 | 指定店 webhook 遠端 read/test/apply/compare | 最小權限、套用前版本與環境核對、敏感操作 step-up、精確 URL 允許範圍、稽核 |
+| 通知 worker | 單事件 order/stall/channel/sender/recipient | 發送前撤權／目的／開關／版本再核；不能任意選收件人 |
+| 顧客／員工 | 取餐卡預覽／同店核銷 | GET 不改狀態；POST 角色、店、版本及原子核銷 |
+| 承運者／外部 POS | 指派任務／明確授權交易 | 撤權、重派後舊裝置及附件補傳拒絕 |
+
+對應 T71–T80，不能以需求表當作現有權限測試通過。

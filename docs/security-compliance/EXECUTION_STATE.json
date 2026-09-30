@@ -124,5 +124,16 @@
     "due/incident notification dispatcher and actual delivery receipt integration",
     "provider-linked application MFA recovery and extension to all existing high-risk management/payout paths",
     "remaining legacy QA launcher isolation and actual outbound DNS/redirect pinning where dispatch is enabled"
-  ]
+  ],
+  "refresh20260930": {
+    "status": "LOCAL_SCOPED_UPDATE_WITH_OPEN_GATES",
+    "branch": "codex/security-assessment-refresh-20260930",
+    "baseCommit": "c31a5d9b379086b04360430aa71564b083a99292",
+    "requirements": "inputs/prompt-20260930.received.md",
+    "precedence": "MERCHANT_OA_CURRENT_PLATFORM_OA_FUTURE_OPT_IN",
+    "controls": "T71-T80 NOT_RUN",
+    "receipt": "ASSESSMENT_REFRESH_20260930.json",
+    "historicalState": "Top-level Phase 00-15 and production baseline remain dated 2026-09-13; not current release proof",
+    "next": "Fixed integration candidate, remaining implementations and E01-E22, fresh Staging/DR gates; no remote writes authorized by this sync"
+  }
 }

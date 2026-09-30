@@ -76,3 +76,20 @@
 | T70 | 若使用 AI／新增敏感資料：跨租戶檢索、惡意指令與未授權工具副作用被拒絕 | CONDITIONAL | BLOCKED | [openai-catalog-translation-provider.test.ts](../../src/server/localization/openai-catalog-translation-provider.test.ts) PASS(22) | 既有商品翻譯provider本機契約通過；hosted跨租戶AI輸入/供應商保留與惡意資料測試待核，沒有新增任意工具agent。 |
 
 正向業務：實際瀏覽器QR→合成現金確認→人工核對交付通過。庫存/贈品/列印模擬/PAYG/退款與報表分別由canonical SQL及service regression覆蓋；尚未串成同一筆跨所有系統的真實PSP/硬體閉環，不能合稱完整商用驗收。
+
+## 2026-09-30 v2.0 同步（本機，未發布）
+
+| 控制 | 必要情境 | 本輪結果 |
+|---|---|---|
+| T71 | A 店簽章有效的 webhook 不得以 B 店 destination／order 更新或觸發通知；錯簽章、重播、停用 channel 被拒。 | NOT_RUN；整合與外部驗收未完成 |
+| T72 | A 店 token／secret／Pay merchant 不可被 B 店或支援帳號讀取、借用、套用；輪替後舊版本停止生效。 | NOT_RUN；整合與外部驗收未完成 |
+| T73 | 平台管理者讀取遠端 Webhook、測試、套用、狀態核對與遠端失敗各有正確權限、差異、稽核及可回復狀態；惡意 URL 不可 SSRF。 | NOT_RUN；整合與外部驗收未完成 |
+| T74 | OA 通知、Mini Store、LINE Pay 三開關的八種組合及撤銷均不破壞其他能力或既有訂單。 | NOT_RUN；整合與外部驗收未完成 |
+| T75 | 通知 worker 的延遲、重送、額度不足、封鎖、退訂、換綁與停用 sender 不跨店、不雙發，且不重做訂單／計費。 | NOT_RUN；整合與外部驗收未完成 |
+| T76 | 不同 OA／Login channel 的相同表面 user ID、email、電話不自動合併；切換 sender 前確認收件資格，歷史事件仍可追溯。 | NOT_RUN；整合與外部驗收未完成 |
+| T77 | 平台 OA 試點切換與回退只能在明確授權和功能旗標下執行；未具資格時保持各店 OA，過渡不雙發、不洩漏。 | NOT_RUN；整合與外部驗收未完成 |
+| T78 | A 店的 LINE Pay return、Confirm、退款及對帳不能變更 B 店付款；未知狀態及重送不重複扣款。 | NOT_RUN；整合與外部驗收未完成 |
+| T79 | 顧客轉發取餐卡／QR、跨店掃描、重掃或並行核銷都不能越權；付款、核銷、列印、配送各自獨立。 | NOT_RUN；整合與外部驗收未完成 |
+| T80 | 第三方 POS／供應商／承運者只能操作明確授權交易；離線任務重派後，舊裝置補傳及 ePOD 附件須拒絕。 | NOT_RUN；整合與外部驗收未完成 |
+
+狀態適用本輪新增範圍，未取消原 T01–T70 缺口。QA 環境檔隔離：23 個聚焦測試通過，包含真實 Next 環境載入器；不能抵銷 T71–T80 的 NOT_RUN。所有三開關組合、遠端 webhook 讀回、sender 遷移、商戶付款與裝置離線須另在固定整合版完成。
