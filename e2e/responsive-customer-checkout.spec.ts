@@ -93,10 +93,12 @@ test("guest customizations keep server total through rotation", async ({ page })
       },
     });
     expect([403, 404]).toContain(otherDevice.status());
+    const isOriginalOrder = () => new URL(page.url()).pathname === `/order/${trackingToken}`;
     await page.reload();
     await expect(page.getByTestId("pickup-code")).toBeVisible();
+    await expect.poll(isOriginalOrder).toBe(true);
     await page.goBack();
-    await expect(page).toHaveURL(/\/order\/[^/]+$/);
+    await expect.poll(isOriginalOrder).toBe(true);
   } finally {
     await prisma.$disconnect();
   }
