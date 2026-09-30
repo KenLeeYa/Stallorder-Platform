@@ -259,7 +259,7 @@ test.describe("多攤位商戶關鍵流程", () => {
         prisma.auditLog.count({
           where: {
             organizationId: organization.id,
-            action: "GOOGLE_LOGIN_SUCCESS",
+            action: responsiveMode ? "LOGIN_SUCCESS" : "GOOGLE_LOGIN_SUCCESS",
           },
         }),
       )
@@ -309,7 +309,7 @@ test.describe("多攤位商戶關鍵流程", () => {
 
     businessDate = new Date(`${taipeiToday()}T00:00:00.000Z`);
     await prisma.$transaction([
-      prisma.dailyStallSummary.upsert({
+      ...(!responsiveMode ? [prisma.dailyStallSummary.upsert({
         where: {
           stallId_businessDate: { stallId: firstStall.id, businessDate },
         },
@@ -340,7 +340,7 @@ test.describe("多攤位商戶關鍵流程", () => {
           averageOrderValue: 111,
           lastOrderAt: new Date(),
         },
-      }),
+      })] : []),
       prisma.dailyStallSummary.upsert({
         where: {
           stallId_businessDate: { stallId: secondStall.id, businessDate },
@@ -553,9 +553,15 @@ test.describe("多攤位商戶關鍵流程", () => {
       page,
       `/merchant/dashboard?organizationId=${organization.id}`,
     );
+    const expectedSales = responsiveMode
+      ? (await prisma.dailyStallSummary.aggregate({
+        where: { organizationId: organization.id, businessDate },
+        _sum: { netSales: true },
+      }))._sum.netSales ?? 0
+      : 1_500;
     await expect(
       page.locator("#main-content").getByLabel("營運摘要"),
-    ).toContainText("1,500");
+    ).toContainText(new Intl.NumberFormat("en-US").format(expectedSales));
     await expect(page.getByRole("heading", { name: "攤位比較" })).toBeVisible();
     await expect(
       page.getByRole("link", { name: firstStall.name, exact: true }),

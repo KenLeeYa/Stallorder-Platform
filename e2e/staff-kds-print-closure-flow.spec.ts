@@ -608,14 +608,16 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       await expect(checkoutResponse.json()).resolves.toMatchObject({
         completionPendingPrint: true,
       });
+      await ticket.getByRole("button", { name: "查看明細", exact: true }).click();
+      const pendingDetail = staffPage.getByRole("dialog", { name: `訂單 ${order.orderNo}` });
       await expect(
-        ticket.getByText("已收款，列印完成後自動結單", { exact: true }),
+        pendingDetail.getByText("已收款，列印完成後自動結單", { exact: true }),
       ).toBeVisible();
       await expect(
-        ticket.getByRole("button", { name: "代結帳", exact: true }),
+        pendingDetail.getByRole("button", { name: "代結帳", exact: true }),
       ).toHaveCount(0);
       await expect(
-        ticket.getByRole("button", { name: "完成此桌", exact: true }),
+        pendingDetail.getByRole("button", { name: "完成此桌", exact: true }),
       ).toHaveCount(0);
       await staffPage.screenshot({
         path: testInfo.outputPath("staff-waiting-for-print.png"),
@@ -764,8 +766,10 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       await searchStaffOrders(page, order.orderNo);
       const main = page.locator("#main-content");
       const ticket = main.getByRole("article").filter({ hasText: order.customerName });
-      await expect(ticket).toContainText("列印需要處理");
-      await expect(ticket.getByRole("button", { name: "列印並完成", exact: true })).toHaveCount(0);
+      await ticket.getByRole("button", { name: "查看明細", exact: true }).click();
+      const failedDetail = page.getByRole("dialog", { name: `訂單 ${order.orderNo}` });
+      await expect(failedDetail).toContainText("列印需要處理");
+      await expect(failedDetail.getByRole("button", { name: "列印並完成", exact: true })).toHaveCount(0);
 
       const csrf = (await context.cookies()).find((cookie) => cookie.name === "stallorder_csrf")?.value;
       expect(csrf).toBeTruthy();
@@ -810,9 +814,11 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       await page.screenshot({ path: testInfo.outputPath("reprint-recovered-tablet.png") });
 
       await page.setViewportSize({ width: 390, height: 844 });
-      const complete = ticket.getByRole("button", { name: "列印並完成", exact: true });
+      await ticket.getByRole("button", { name: "查看明細", exact: true }).click();
+      const recoveredDetail = page.getByRole("dialog", { name: `訂單 ${order.orderNo}` });
+      const complete = recoveredDetail.getByRole("button", { name: "列印並完成", exact: true });
       await expect(complete).toBeEnabled();
-      await expect(ticket).not.toContainText("列印需要處理");
+      await expect(recoveredDetail).not.toContainText("列印需要處理");
       const completedResponse = waitForOrderPatch(page, order.id);
       await complete.click();
       const response = await completedResponse;

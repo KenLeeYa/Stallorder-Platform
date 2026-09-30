@@ -206,6 +206,7 @@ test("removing the only stall role blocks an existing login and preserves member
 test("catalog desktop/tablet group board and mobile stock editor render without horizontal overflow",async({page})=>{
   test.setTimeout(180000);await establishLocalTestSession(page,prisma,ownerId);
   await gotoLocalPath(page,`/merchant/catalog?organizationId=${organizationId}`);
+  await page.getByRole("region",{name:"商品批次管理"}).getByRole("combobox",{name:"管理攤位"}).selectOption(stallId);
   for(const width of [1440,768,390,320]){
     await page.setViewportSize({width,height:900});
     const board=page.getByRole("region",{name:"商品批次管理"});
@@ -223,6 +224,7 @@ test("catalog desktop/tablet group board and mobile stock editor render without 
       const saved=page.waitForResponse((response)=>response.url().endsWith("/products")&&response.request().method()==="PATCH");
       await dialog.getByRole("button",{name:/^儲存庫存/}).click();expect((await saved).status()).toBe(200);
       expect(await remaining()).toBe(3);await expect(dialog).not.toBeVisible();
+      await board.getByRole("searchbox",{name:"搜尋管理商品"}).fill("庫存驗收餐");
       await board.getByRole("checkbox",{name:"選取 庫存驗收餐",exact:true}).check();
       await board.getByRole("button",{name:"批次供應設定",exact:true}).click();
       const availability=page.getByRole("dialog",{name:"設定供應狀態",exact:true});

@@ -1,4 +1,4 @@
-import { randomInt, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomInt, randomUUID } from "node:crypto";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { dismissStaffStartReminder, gotoLocalPath } from "./local-navigation";
@@ -95,6 +95,22 @@ async function createOrder(request: APIRequestContext) {
   } });
   expect(created.status(), (await created.json()).code).toBe(201);
   const trackingToken = (await created.json()).trackingToken as string;
+  if (process.env.RESPONSIVE_QA_RUN === "true") {
+    const stored = await prisma.order.findUniqueOrThrow({
+      where: { trackingTokenHash: createHash("sha256").update(trackingToken).digest("hex") },
+      select: { deviceHash: true },
+    });
+    expect(stored.deviceHash).toBe(createHmac("sha256", process.env.ABUSE_HASH_SECRET!)
+      .update(`device:${deviceId}`).digest("hex"));
+    const nodeRead = await request.get(`/api/public/orders/${trackingToken}`, {
+      headers: { ...headers, "x-stallorder-device-id": deviceId },
+    });
+    expect(nodeRead.status(), "Node should read its created order").toBe(200);
+    const edgeRead = await request.post(process.env.NEXT_PUBLIC_SUPABASE_URL + "/functions/v1/get-public-order", {
+      headers, data: { trackingToken, deviceId },
+    });
+    expect(edgeRead.status(), "Edge should read the Node-created order").toBe(200);
+  }
   return { id, deviceId, slots, trackingToken, headers, path: "/api/public/orders/" + trackingToken };
 }
 type OrderFixture = Awaited<ReturnType<typeof createOrder>>;
