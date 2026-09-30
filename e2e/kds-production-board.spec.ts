@@ -199,6 +199,9 @@ test(`KDS ${viewport.name} board GET 撤權後移除舊卡與命令，授權新�
   ));
   await refresh.click();
   await authorizedResponse;
+  const restoredQueueOrder = page.getByTestId("kitchen-order-queue-button").filter({ hasText: `#${orderNo}` });
+  await expect(restoredQueueOrder).toBeVisible();
+  await restoredQueueOrder.click();
   await expect(orderCard).toBeVisible();
 });
 }

@@ -61,6 +61,11 @@ test("列印失敗只重試列印工作，不重送已完成的 POS 收款", asy
   });
   try {
     await loginLocalTestAccount(page, "staff@stallorder.test", "StallOrderDemo!2026");
+    const settings = await prisma.stallOrderingSettings.findUniqueOrThrow({
+      where: { stallId }, select: { printModuleEnabled: true },
+    });
+    printWasEnabled = settings.printModuleEnabled;
+    await prisma.stallOrderingSettings.update({ where: { stallId }, data: { printModuleEnabled: false } });
     await page.setViewportSize({ width: 390, height: 844 });
     await gotoLocalPath(page, "/staff/aming-chicken");
     await dismissStaffStartReminder(page);
@@ -81,20 +86,20 @@ test("列印失敗只重試列印工作，不重送已完成的 POS 收款", asy
     await expect(pos).toBeHidden();
     expect(orderPosts).toBe(1);
     expect(await prisma.payment.count({ where: { orderId } })).toBe(1);
-
-    const settings = await prisma.stallOrderingSettings.findUniqueOrThrow({
-      where: { stallId }, select: { printModuleEnabled: true },
-    });
-    printWasEnabled = settings.printModuleEnabled;
+    expect(await prisma.printJob.count({ where: { orderId } })).toBe(0);
     await prisma.stallOrderingSettings.update({ where: { stallId }, data: { printModuleEnabled: true } });
     jobId = (await prisma.printJob.create({ data: {
       organizationId, stallId, orderId, status: "FAILED", attemptCount: 1,
       lastError: "A4 synthetic printer offline",
     }, select: { id: true } })).id;
+    expect(await prisma.printJob.findMany({
+      where: { orderId }, select: { id: true, status: true, lastError: true },
+    })).toEqual([{ id: jobId, status: "FAILED", lastError: "A4 synthetic printer offline" }]);
     await gotoLocalPath(page, "/staff/aming-chicken/print");
     const job = page.locator("article")
       .filter({ hasText: payload.order.orderNo })
       .filter({ hasText: "A4 synthetic printer offline" });
+    await expect(job).toHaveCount(1);
     await expect(job).toContainText(payload.order.orderNo);
     const retry = page.waitForResponse((res) => (
       new URL(res.url()).pathname === "/api/stalls/aming-chicken/print-jobs"

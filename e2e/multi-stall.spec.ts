@@ -38,6 +38,9 @@ let authorizedStall: { id: string; name: string; slug: string };
 let otherStall: { id: string; name: string; slug: string };
 let businessDate: Date;
 let createdGoogleAuthUser = false;
+let sharedProductId = "";
+let sharedAssignmentSnapshotAt: Date | null = null;
+let sharedAssignmentIds: string[] = [];
 
 test.describe("多攤位商戶關鍵流程", () => {
   test.describe.configure({ mode: "serial" });
@@ -51,6 +54,16 @@ test.describe("多攤位商戶關鍵流程", () => {
       where: { slug: "aming-chicken" },
       select: { id: true, name: true, slug: true },
     });
+    if (responsiveMode) {
+      const sharedProduct = await prisma.product.findFirstOrThrow({
+        where: { organizationId: organization.id, name: sharedProductName }, select: { id: true },
+      });
+      sharedProductId = sharedProduct.id;
+      sharedAssignmentSnapshotAt = new Date();
+      sharedAssignmentIds = (await prisma.stallProduct.findMany({
+        where: { productId: sharedProductId }, select: { id: true },
+      })).map((row) => row.id);
+    }
 
     if (!responsiveMode) {
     await prisma.authSession.deleteMany({
@@ -239,7 +252,23 @@ test.describe("多攤位商戶關鍵流程", () => {
       if (!responsiveMode || createdGoogleAuthUser) await prisma.$executeRaw`delete from auth.users where id = ${googleAuthUserId}::uuid`;
       if (!responsiveMode) await prisma.rateLimitBucket.deleteMany();
     } finally {
-      await prisma.$disconnect();
+      try {
+        if (responsiveMode && sharedProductId && sharedAssignmentSnapshotAt) {
+          const addedAssignments = await prisma.stallProduct.findMany({
+            where: { productId: sharedProductId, id: { notIn: sharedAssignmentIds } },
+            select: { id: true, organizationId: true, createdAt: true },
+          });
+          if (addedAssignments.some((row) => row.organizationId !== organization.id || row.createdAt < sharedAssignmentSnapshotAt!)) {
+            throw new Error("RESPONSIVE_SHARED_ASSIGNMENT_OWNERSHIP_DRIFT");
+          }
+          if (addedAssignments.length) {
+            const removed = await prisma.stallProduct.deleteMany({ where: { id: { in: addedAssignments.map((row) => row.id) }, productId: sharedProductId } });
+            if (removed.count !== addedAssignments.length) throw new Error("RESPONSIVE_SHARED_ASSIGNMENT_CLEANUP_DRIFT");
+          }
+        }
+      } finally {
+        await prisma.$disconnect();
+      }
     }
   });
 
@@ -495,14 +524,10 @@ test.describe("多攤位商戶關鍵流程", () => {
     });
 
     await openCustomerMenu(page, firstQr.token, firstStall.name);
-    await expect(
-      page.getByRole("article").filter({ hasText: sharedProductName }),
-    ).toContainText(/95/);
+    await expect(page.locator(`article#qr-product-${sharedProduct.id}`)).toContainText(/95/);
     await page.context().clearCookies();
     await openCustomerMenu(page, secondQr.token, secondStall.name);
-    await expect(
-      page.getByRole("article").filter({ hasText: sharedProductName }),
-    ).toContainText(/109/);
+    await expect(page.locator(`article#qr-product-${sharedProduct.id}`)).toContainText(/109/);
   });
 
   test("儀表板範圍、staff、finance、kitchen 與跨組織 URL 權限", async ({

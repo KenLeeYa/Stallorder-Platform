@@ -3,7 +3,7 @@ import type { PrismaClient } from "@prisma/client";
 import { assertResponsiveQaTarget } from "../../scripts/responsive-qa-target.mjs";
 import { generateResponsiveQrToken } from "../../scripts/responsive-qa-token.mjs";
 
-export async function createResponsiveOrderFixture(prisma: PrismaClient): Promise<{
+export async function createResponsiveOrderFixture(prisma: PrismaClient, stallSlug = "aming-chicken"): Promise<{
   runId: string;
   qrToken: string;
   productId: string;
@@ -20,7 +20,7 @@ export async function createResponsiveOrderFixture(prisma: PrismaClient): Promis
     select: { id: true },
   });
   const stall = await prisma.stall.findUniqueOrThrow({
-    where: { slug: "aming-chicken" },
+    where: { slug: stallSlug },
     select: { id: true, slug: true, organizationId: true },
   });
   if (stall.organizationId !== organization.id) {

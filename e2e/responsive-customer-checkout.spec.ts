@@ -107,8 +107,31 @@ test("guest customizations keep server total through rotation", async ({ page })
 test("menu pickup navigation reaches usable cart", async ({ page }) => {
   test.setTimeout(120_000);
   const prisma = new PrismaClient();
+  const stallId = randomUUID();
+  const stallSlug = `b3-pickup-${stallId.slice(0, 8)}`;
   try {
-    const fixture = await createResponsiveOrderFixture(prisma);
+    const organization = await prisma.organization.findUniqueOrThrow({
+      where: { email: "owner@stallorder.test" },
+      select: { id: true },
+    });
+    await prisma.stall.create({ data: {
+      id: stallId, organizationId: organization.id, name: "B3 pickup isolated stall",
+      slug: stallSlug, code: stallSlug, address: "Synthetic local QA",
+      location: "Synthetic local QA", isActive: true, businessStatus: "OPEN",
+      orderingState: "OPEN", orderingEnabled: true,
+    } });
+    await prisma.stallBusinessHour.createMany({ data: Array.from({ length: 7 }, (_, dayOfWeek) => ({
+      organizationId: organization.id, stallId, dayOfWeek,
+      opensAt: "00:00", closesAt: "00:00", isClosed: false,
+    })) });
+    await prisma.stallOrderingSettings.create({ data: {
+      organizationId: organization.id, stallId, kdsModuleEnabled: true,
+      printModuleEnabled: false, paymentModuleEnabled: true, enabledLocales: ["zh-TW"],
+    } });
+    await prisma.paymentOption.create({ data: {
+      organizationId: organization.id, stallId, code: "CASH", name: "現金", kind: "CASH",
+    } });
+    const fixture = await createResponsiveOrderFixture(prisma, stallSlug);
     await prisma.stallOrderingSettings.update({
       where: { stallId: fixture.stallId },
       data: { takeoutPreorderEnabled: true },
@@ -117,18 +140,48 @@ test("menu pickup navigation reaches usable cart", async ({ page }) => {
       where: { id: fixture.stallId },
       select: { code: true },
     });
+    const sessionProductIds: string[][] = [];
+    page.on("response", async (response) => {
+      if (new URL(response.url()).pathname === "/functions/v1/create-order-session"
+        && response.request().method() === "POST" && response.status() === 201) {
+        const body = await response.json() as { products?: Array<{ id: string }> };
+        sessionProductIds.push((body.products ?? []).map((product) => product.id));
+      }
+    });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`/store/${stall.code}?view=menu`);
     await expect(page.getByTestId("storefront-menu-view")).toBeVisible();
     await page.locator('[data-testid="storefront-mode-nav"] a[href*="view=pickup"]').click();
     await expect(page).toHaveURL(new RegExp(`/store/${stall.code.toLowerCase()}\\?view=pickup`));
-    await page.getByRole("button", { name: "套用這個時間", exact: true }).click();
-    await expect(page.getByRole("heading", { name: `跨裝置 QA 餐 ${fixture.runId.slice(0, 8)}` })).toBeVisible();
+    const pickupDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(Date.now() + 86_400_000));
+    const fields = page.getByTestId("qr-preorder-fulfillment-time-fields");
+    await fields.getByLabel("預約取餐日期").fill(pickupDate);
+    await fields.getByLabel("預約取餐時間－時").selectOption("12");
+    await fields.getByLabel("預約取餐時間－分").selectOption("00");
+    const apply = page.getByRole("button", { name: "套用這個時間", exact: true });
+    if (await apply.isVisible()) await apply.click();
+    await expect(page.getByRole("button", { name: "時間已套用", exact: true })).toBeVisible();
+    await expect.poll(() => sessionProductIds.length).toBeGreaterThan(0);
+    expect(sessionProductIds.some((ids) => ids.includes(fixture.productId))).toBe(true);
+    const fixtureProduct = page.locator(`article#qr-product-${fixture.productId}`).getByRole("heading", { name: `跨裝置 QA 餐 ${fixture.runId.slice(0, 8)}`, exact: true });
+    await expect(fixtureProduct).toBeVisible();
     await addConfiguredCopy(page, `跨裝置 QA 餐 ${fixture.runId.slice(0, 8)}`);
     await expect(page.getByTestId("qr-mobile-cart-summary")).toContainText("65");
     await expect(page.getByTestId("storefront-mode-nav").locator('a[aria-current="page"]')).toContainText("外帶");
   } finally {
-    await prisma.$disconnect();
+    try {
+      const stall = await prisma.stall.findUnique({ where: { id: stallId }, select: { slug: true } });
+      if (stall) {
+        expect(stall.slug).toBe(stallSlug);
+        await prisma.cashShiftReview.deleteMany({ where: { cashShift: { stallId } } });
+        await prisma.cashMovement.deleteMany({ where: { cashShift: { stallId } } });
+        await prisma.cashShift.deleteMany({ where: { stallId } });
+        await prisma.billingStallUsageSummary.deleteMany({ where: { stallId } });
+        await prisma.stall.delete({ where: { id: stallId } });
+      }
+    } finally {
+      await prisma.$disconnect();
+    }
   }
 });
 

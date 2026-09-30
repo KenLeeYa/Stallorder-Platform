@@ -2,10 +2,11 @@ import { searchStaffOrders } from "./helpers/staff-search";
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { expect, test, type Page, type Response } from "@playwright/test";
+import { expect, test, type Dialog, type Page, type Response } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { derivePublicOrderTokens } from "../supabase/functions/_shared/crypto";
 import { assertResponsiveQaTarget } from "../scripts/responsive-qa-target.mjs";
+import { generateResponsiveQrToken } from "../scripts/responsive-qa-token.mjs";
 import {
   dismissStaffStartReminder,
   gotoLocalPath,
@@ -18,9 +19,11 @@ assertLocalDatabase();
 
 const prisma = new PrismaClient();
 const organizationId = "11111111-1111-4111-8111-111111111111";
-const stallId = "22222222-2222-4222-8222-222222222222";
-const stallSlug = "aming-chicken";
-const qrToken = "demo-aming-chicken-qr-2026-rotate-me";
+const responsiveMode = process.env.RESPONSIVE_QA_RUN === "true";
+const stallId = responsiveMode ? randomUUID() : "22222222-2222-4222-8222-222222222222";
+const stallSlug = responsiveMode ? `b3-closure-${stallId.slice(0, 8)}` : "aming-chicken";
+const stallName = responsiveMode ? "B3 closure isolated stall" : "阿明鹽酥雞";
+const qrToken = responsiveMode ? generateResponsiveQrToken() : "demo-aming-chicken-qr-2026-rotate-me";
 const password = "StallOrderDemo!2026";
 const runMarker = `單店員 KDS 列印 QA ${Date.now()}-${randomUUID().slice(0, 8)}`;
 const printerName = `${runMarker} 印表機`;
@@ -50,6 +53,33 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
   test.describe.configure({ mode: "serial" });
 
   test.beforeAll(async () => {
+    if (responsiveMode) {
+      const demoProduct = await prisma.product.findFirstOrThrow({
+        where: { organizationId, isActive: true, stallProducts: { some: { stallId: "22222222-2222-4222-8222-222222222222", isEnabled: true, isSoldOut: false } } },
+        orderBy: { sortOrder: "asc" },
+        select: { id: true },
+      });
+      const [staff, kitchen] = await Promise.all([
+        prisma.profile.findUniqueOrThrow({ where: { email: "staff@stallorder.test" }, select: { id: true } }),
+        prisma.profile.findUniqueOrThrow({ where: { email: "kitchen@stallorder.test" }, select: { id: true } }),
+      ]);
+      await prisma.stall.create({ data: {
+        id: stallId, organizationId, name: stallName, slug: stallSlug, code: stallSlug,
+        address: "Synthetic local QA", location: "Synthetic local QA", isActive: true,
+        businessStatus: "OPEN", orderingState: "OPEN", orderingEnabled: true,
+      } });
+      await prisma.stallMembership.createMany({ data: [
+        { organizationId, stallId, profileId: staff.id, role: "STAFF" },
+        { organizationId, stallId, profileId: kitchen.id, role: "KITCHEN" },
+      ] });
+      await prisma.stallProduct.create({ data: { organizationId, stallId, productId: demoProduct.id, isEnabled: true, stockRemaining: 100 } });
+      const station = await prisma.kitchenStation.create({ data: { organizationId, stallId, code: "QA", name: "QA kitchen" } });
+      await prisma.kitchenStationAssignment.create({ data: { organizationId, stallId, stationId: station.id, productId: demoProduct.id } });
+      await prisma.stallBusinessHour.createMany({ data: Array.from({ length: 7 }, (_, dayOfWeek) => ({ organizationId, stallId, dayOfWeek, opensAt: "00:00", closesAt: "00:00", isClosed: false })) });
+      await prisma.stallOrderingSettings.create({ data: { organizationId, stallId, kdsModuleEnabled: true, printModuleEnabled: true, paymentModuleEnabled: true, enabledLocales: ["zh-TW"] } });
+      await prisma.qrCode.create({ data: { organizationId, stallId, token: qrToken, tokenVersion: 1, label: "B3 closure isolated QR", state: "ACTIVE" } });
+      await prisma.paymentOption.create({ data: { organizationId, stallId, code: "CASH", name: "現金", kind: "CASH" } });
+    }
     const [settings, cashOption, staff, openShift, selectedProduct] =
       await Promise.all([
         prisma.stallOrderingSettings.findUniqueOrThrow({
@@ -157,9 +187,13 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
           where: { id: createdCashShiftId },
         });
       }
+      if (responsiveMode) {
+        await prisma.billingStallUsageSummary.deleteMany({ where: { organizationId, stallId } });
+        await prisma.stall.delete({ where: { id: stallId } });
+      }
     } finally {
       try {
-        if (originalSettings) {
+        if (originalSettings && !responsiveMode) {
           await prisma.stallOrderingSettings.update({
             where: { stallId },
             data: originalSettings,
@@ -250,7 +284,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       await expect(
         workModeDialog
           .getByTestId("compact-switcher-option")
-          .filter({ hasText: /^廚房 · 阿明鹽酥雞(?: ·|$)/u }),
+          .filter({ hasText: new RegExp(`^廚房 · ${stallName}(?: ·|$)`, "u") }),
       ).toHaveCount(0);
       await workModeDialog
         .getByRole("button", { name: "關閉", exact: true })
@@ -976,7 +1010,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       });
       try {
         const customerPage = await customerContext.newPage();
-        await customerPage.goto("/store/aming-01?view=menu");
+        await customerPage.goto(`/store/${responsiveMode ? stallSlug : "aming-01"}?view=menu`);
         const publicBanner = customerPage.getByTestId(
           "public-menu-special-closure",
         );
@@ -1155,16 +1189,30 @@ async function setModule(
   const control = page.getByRole("switch", { name: new RegExp(label, "u") });
   await expect(control).toBeVisible();
   const expected = String(enabled);
-  if ((await control.getAttribute("aria-checked")) !== expected)
+  const current = await control.getAttribute("aria-checked");
+  if (current !== expected)
     await control.click();
+  const confirmations: string[] = [];
+  const handleDialog = async (dialog: Dialog) => {
+    confirmations.push(dialog.message());
+    await dialog.accept();
+  };
+  page.on("dialog", handleDialog);
   const responsePromise = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname.endsWith(
         `/api/merchant/stalls/${stallId}/modules`,
       ) && response.request().method() === "PATCH",
   );
-  await page.getByRole("button", { name: "儲存設定", exact: true }).click();
-  const response = await responsePromise;
+  let response: Response;
+  try {
+    await page.getByRole("button", { name: "儲存設定", exact: true }).click();
+    response = await responsePromise;
+  } finally {
+    page.off("dialog", handleDialog);
+  }
+  expect(confirmations.length).toBeLessThanOrEqual(1);
+  for (const message of confirmations) expect(message).toContain("確定儲存這些變更");
   expect(response.status()).toBe(200);
   expect(response.request().postDataJSON()).toMatchObject({
     operation: "UPDATE_MODULES",

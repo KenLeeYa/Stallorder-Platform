@@ -33,7 +33,7 @@ async function rolePage(browser: Browser, width: number) {
 }
 
 for (const printing of [false, true]) test(`RSP-Q01: one real order moves through customer, staff, KDS and desktop with printing=${printing}`, async ({ browser }, testInfo) => {
-  test.setTimeout(300_000);
+  test.setTimeout(660_000);
   const build = readResponsiveBuildProvenance();
   const prisma = new PrismaClient();
   const customer = await rolePage(browser, 390);
@@ -49,9 +49,17 @@ for (const printing of [false, true]) test(`RSP-Q01: one real order moves throug
   const disabledPrinterIds: string[] = [];
   const observed: Array<{ step: string; status: string; at: string }> = [];
   const edgeSessionStatuses: number[] = [];
+  const issuedSessionRequestIds: string[] = [];
+  let rateLimitPreflight: { checkedAt: string; count: number; limit: number; expiresAt: string | null; waitedMs: number } | undefined;
   customer.page.on("response", (response) => {
     if (new URL(response.url()).pathname === "/functions/v1/create-order-session"
-      && response.request().method() === "POST") edgeSessionStatuses.push(response.status());
+      && response.request().method() === "POST") {
+      edgeSessionStatuses.push(response.status());
+      if (response.status() === 201) {
+        const requestId = response.headers()["x-request-id"];
+        if (requestId) issuedSessionRequestIds.push(requestId);
+      }
+    }
   });
   const observe = (step: string, status: string) => observed.push({ step, status, at: new Date().toISOString() });
   try {
@@ -85,6 +93,34 @@ for (const printing of [false, true]) test(`RSP-Q01: one real order moves throug
     await expect(customer.page.getByTestId("qr-cart-panel")).toContainText("$130");
     const acknowledge = customer.page.getByRole("checkbox", { name: /我已了解目前預估等候時間/ });
     if (await acknowledge.isVisible()) await acknowledge.check();
+    const sessionRequestId = issuedSessionRequestIds.at(-1);
+    expect(sessionRequestId).toBeTruthy();
+    const issuedAttempts = await prisma.publicOrderAttempt.findMany({
+      where: { stallId: fixture.stallId, requestId: sessionRequestId, eventType: "SESSION_ISSUE", outcome: "ALLOWED" },
+      select: { ipHash: true },
+    });
+    expect(issuedAttempts).toHaveLength(1);
+    const ipHash = issuedAttempts[0].ipHash;
+    expect(ipHash).toBeTruthy();
+    const settings = await prisma.stallOrderingSettings.findUniqueOrThrow({
+      where: { stallId: fixture.stallId },
+      select: { maxOrdersPerWindow: true, orderWindowSeconds: true },
+    });
+    const checkedAt = new Date();
+    const activeBuckets = await prisma.publicRateLimitBucket.findMany({
+      where: { stallId: fixture.stallId, dimensionType: "ORDER_IP", dimensionHash: ipHash!, expiresAt: { gt: checkedAt } },
+      select: { count: true, expiresAt: true },
+    });
+    expect(activeBuckets.length).toBeLessThanOrEqual(1);
+    const bucket = activeBuckets[0];
+    const waitMs = bucket && bucket.count >= settings.maxOrdersPerWindow
+      ? Math.max(0, bucket.expiresAt.getTime() - Date.now() + 1_000) : 0;
+    expect(waitMs).toBeLessThanOrEqual(settings.orderWindowSeconds * 1_000 + 1_000);
+    rateLimitPreflight = {
+      checkedAt: checkedAt.toISOString(), count: bucket?.count ?? 0,
+      limit: settings.maxOrdersPerWindow, expiresAt: bucket?.expiresAt.toISOString() ?? null, waitedMs: waitMs,
+    };
+    if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
     const submitted = customer.page.waitForResponse((response) =>
       ["/functions/v1/create-public-order", "/api/public/orders"].includes(new URL(response.url()).pathname)
       && response.request().method() === "POST",
@@ -228,7 +264,7 @@ for (const printing of [false, true]) test(`RSP-Q01: one real order moves throug
     const receipt = JSON.stringify({
         build,
         startedAt, finishedAt: new Date().toISOString(), runId: fixture.runId,
-        edgeSessionStatuses, edgeOrderStatus: orderSubmissionStatus,
+        edgeSessionStatuses, edgeOrderStatus: orderSubmissionStatus, rateLimitPreflight,
         orderId, orderNo, total: final.total, quantity: order.items[0].quantity,
         observed, events: events.map((event) => ({ type: event.eventType, at: event.createdAt.toISOString() })),
       }, null, 2);
