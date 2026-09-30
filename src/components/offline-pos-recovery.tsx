@@ -265,7 +265,7 @@ export function OfflinePosRecovery() {
               {t("offline.recovery.ordersDescription")}
             </p>
           </div>
-          <button
+          {online ? <p role="status" className="max-w-lg text-sm text-stone-700">{t("offline.recovery.onlineOrderHelp")}</p> : <button
             type="button"
             disabled={!workspace.canCreateOrder}
             onClick={() => setComposerOpen(true)}
@@ -273,7 +273,7 @@ export function OfflinePosRecovery() {
           >
             <ShoppingCart className="h-4 w-4" />
             {t("offline.recovery.newOrder")}
-          </button>
+          </button>}
         </div>
 
         {message ? (
@@ -389,6 +389,7 @@ export function OfflinePosRecovery() {
           stall={workspace.stall}
           catalog={workspace.catalog}
           account={workspace.account}
+          onlineEntryRequired={online}
           modules={workspace.modules}
           paymentOptions={workspace.paymentOptions}
           discountOptions={[]}

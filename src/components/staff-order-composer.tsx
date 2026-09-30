@@ -61,6 +61,7 @@ type Props = {
   modules: { dineIn: boolean; delivery: boolean; print: boolean; payment: boolean; discount: boolean; discountApprovalThresholdBps: number };
   paymentOptions: Array<{ id: string; name: string; kind: PaymentOptionKind }>;
   discountOptions: Array<{ id: string; name: string; rateBps: number }>;
+  onlineEntryRequired?: boolean;
   onCreated: (order: StaffOrderDto) => void;
   onClose: () => void;
 };
@@ -72,6 +73,7 @@ export function StaffOrderComposer({
   modules,
   paymentOptions,
   discountOptions,
+  onlineEntryRequired = false,
   onCreated,
   onClose,
 }: Props) {
@@ -128,9 +130,9 @@ export function StaffOrderComposer({
   const [draftNotice, setDraftNotice] = useState("");
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
   useStaffModal(posDialogRef, true, t("staff.action.createOrder"));
-  useStaffModal(productDialogRef, configuringProductId !== null);
-  useStaffModal(noteDialogRef, noteDialogOpen);
-  useStaffModal(draftDialogRef, draftManagerOpen);
+  useStaffModal(productDialogRef, configuringProductId !== null && !onlineEntryRequired);
+  useStaffModal(noteDialogRef, noteDialogOpen && !onlineEntryRequired);
+  useStaffModal(draftDialogRef, draftManagerOpen && !onlineEntryRequired);
   const draftStorageKey = staffOrderDraftStorageKey(stall.organizationId, stall.id);
 
   const productsById = useMemo(
@@ -721,7 +723,7 @@ export function StaffOrderComposer({
   }
 
   async function submit() {
-    if (busy || uncertainRequest || !recoveryReady) return;
+    if (busy || uncertainRequest || !recoveryReady || onlineEntryRequired) return;
     if (selectedItems.length === 0) {
       showActionPrompt(Object.values(quantities).some((quantity) => quantity > 0)
         ? t("composer.addPendingItem")
@@ -984,6 +986,18 @@ export function StaffOrderComposer({
     } catch { setRecoveryError(t("composer.recoveryUnknown")); }
     finally { setBusy(false); }
   }
+
+  // Retain the offline cart in this mounted instance if connectivity returns.
+  // A permit's role is not a reliable identity for an online transaction.
+  if (onlineEntryRequired && !uncertainRequest) return (
+    <dialog ref={posDialogRef} aria-labelledby="staff-online-entry-title" onCancel={event => { event.preventDefault(); requestClose(); }} onKeyDown={keepTabInsideDialog}
+      className="m-auto max-h-[100dvh] w-full max-w-xl overflow-y-auto bg-white p-6 backdrop:bg-black/45">
+      <h2 id="staff-online-entry-title" className="text-xl font-semibold">{t("composer.title")}</h2>
+      <p role="status" className="my-4">{t("offline.recovery.onlineOrderHelp")}</p>
+      <a href={`/staff/${stall.slug}`} className="inline-flex min-h-12 items-center rounded-md border px-4 py-2">{t("offline.recovery.backToStaff")}</a>
+      <button type="button" disabled={busy} onClick={requestClose} className="ml-2 min-h-12 rounded-md border px-4 py-2">{t("composer.close")}</button>
+    </dialog>
+  );
 
   return (
     <dialog ref={posDialogRef} aria-labelledby={uncertainRequest ? "staff-order-recovery-title" : "staff-order-title"}

@@ -4,6 +4,7 @@ import { loginLocalTestAccount, dismissStaffStartReminder } from "../local-navig
 import { searchStaffOrders } from "../helpers/staff-search";
 import { expect, test, type Page, type Locator } from "@playwright/test";
 import { assertResponsiveQaTarget } from "../../scripts/responsive-qa-target.mjs";
+import { mountOfflineRecovery } from "../helpers/mounted-offline-recovery";
 import { mountStaffOrderRecovery } from "../helpers/mounted-staff-order-recovery";
 import { kitchenProps, mountKitchenBoard } from "../helpers/mounted-kitchen-board";
 
@@ -373,4 +374,34 @@ test("I3 still-mounted original actor rejects a first POST after another tab cha
     }, response.request().postData());
     expect(malformed).toBe(400); expect(await counts()).toEqual(before);
   } finally { await otherTab.close(); await f.close(); }
+});
+
+
+test("I3 offline workspace without actor directs online users to Staff without POST", async ({ page }) => {
+  await mountOfflineRecovery(page);
+  await expect(page.getByRole("status")).toContainText("offline.recovery.onlineOrderHelp");
+  await expect(page.getByRole("button", { name: "offline.recovery.newOrder", exact: true })).toHaveCount(0);
+  await page.evaluate(() => (window as unknown as { renderRecovery: (online: boolean) => void }).renderRecovery(false));
+  await page.getByRole("button", { name: "offline.recovery.newOrder", exact: true }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.getByRole("button", { name: "composer.increaseItem", exact: true }).click();
+  await page.getByRole("button", { name: "composer.addToCart", exact: true }).click();
+  await expect(page.getByTestId("staff-cart-line")).toContainText("Meal");
+  await page.getByTestId("staff-tablet-confirm-order").click();
+  await page.getByTestId("staff-checkout-note-button").click();
+  const note = page.getByRole("dialog", { name: "composer.customerNote", exact: true });
+  await note.getByRole("textbox").fill("Retained offline note");
+  await page.evaluate(() => (window as unknown as { renderRecovery: (online: boolean) => void }).renderRecovery(true));
+  const notice = page.getByRole("dialog");
+  await expect(notice.getByRole("status")).toContainText("offline.recovery.onlineOrderHelp");
+  await expect(notice.getByRole("button", { name: "composer.createPaid", exact: true })).toHaveCount(0);
+  await page.evaluate(() => (window as unknown as { renderRecovery: (online: boolean) => void }).renderRecovery(false));
+  await expect(note).toBeVisible();
+  await expect(note.getByRole("textbox")).toHaveValue("Retained offline note");
+  await note.getByRole("button", { name: "common.save", exact: true }).click();
+  await expect(page.getByTestId("staff-cart-line")).toContainText("Meal");
+  await page.evaluate(() => (window as unknown as { renderRecovery: (online: boolean) => void }).renderRecovery(true));
+  expect(await page.evaluate(() => (window as unknown as { requests: Array<{ method?: string }> }).requests.filter(r => r.method === "POST"))).toEqual([]);
+  await notice.getByRole("link", { name: "offline.recovery.backToStaff", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Authenticated staff entry" })).toBeVisible();
 });

@@ -340,16 +340,16 @@ for (const redesignEnabled of [false, true]) {
           await page.setViewportSize({ width, height: 900 });
           if (width < 768) {
             const mobileCard = page.getByTestId("staff-order-mobile-list").getByRole("article").filter({ hasText: responsiveOrderNo });
-            await expect(mobileCard.getByText("測試訂單", { exact: true })).toHaveCount(isTest ? 1 : 0);
+            await expect(mobileCard.getByText("開店測試訂單", { exact: true })).toHaveCount(isTest ? 1 : 0);
             await mobileCard.getByRole("button", { name: "查看明細", exact: true }).click();
             const summary = page.getByTestId("staff-mobile-detail-summary");
-            await expect(summary.getByText("測試訂單", { exact: true })).toHaveCount(isTest ? 1 : 0);
+            await expect(summary.getByText("開店測試訂單", { exact: true })).toHaveCount(isTest ? 1 : 0);
             if (isTest && width === 320) await page.screenshot({ path: testInfo.outputPath(`test-order-label-${redesignEnabled}-320.png`) });
             await expect(page.getByTestId("staff-order-mobile-detail").getByTestId("staff-order-actions-pane")).toBeVisible();
             await page.getByRole("dialog", { name: `訂單 ${responsiveOrderNo}` }).getByRole("button", { name: "關閉", exact: true }).click();
           } else {
             const desktopCard = page.getByTestId("staff-order-list-pane").getByRole("button").filter({ hasText: responsiveOrderNo });
-            await expect(desktopCard.getByText("測試訂單", { exact: true })).toHaveCount(isTest ? 1 : 0);
+            await expect(desktopCard.getByText("開店測試訂單", { exact: true })).toHaveCount(isTest ? 1 : 0);
           }
           expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
         }
