@@ -15,7 +15,7 @@ node -e "const fs=require('fs'),u=require('util'),cp=require('child_process');Ob
 
 此指令會前景運行，關閉該終端才停止該 app；不要與 Playwright 的 3026 webServer 或另一個 build 同時運作。`scripts/build-responsive-qa.mjs` 只在 3026 停止且來源確認後重建，不能把舊 BUILD_ID 貼到新建置。需要重啟完整 lab 時依[本機服務生命週期](../LOCAL_TEST_SERVICE_LIFECYCLE.md)核對 project labels、ports 與 owner；只操作這七個容器與本輪 Functions，不使用 reset/prune/volume 刪除。3023／55722 是另一本機 QA，維持原樣。
 
-此 lab 的 `DUAL_ORDER_INTAKE_ENABLED` 預設為停用；2026-10-01 03:22（台北）唯讀檢查顯示**唯一 GLOBAL 有界覆寫**已啟用，但將於 **2026-10-01 08:20:50（台北）**到期。到期後不能再把雙路進單當成可用；未登入 `/api/health` 實際回 401，也不能當作公開的下單健康證據。需要繼續手測時，先用上述獨立 profile 的平台管理員登入並停在 `http://127.0.0.1:3026/admin/billing`，在該頁瀏覽器開發者工具 Console 執行以下**每次只延長六小時**的既有受稽核管理 API 操作。此操作僅限 3026／56822；不改旗標預設、不設永久有效、不排程自動續期：
+此 lab 的 `DUAL_ORDER_INTAKE_ENABLED` 預設為停用；2026-10-01 03:40（台北）以隔離瀏覽器的 seed 平台管理員實際登入、進入 `/admin/billing` 後，登入 POST 與管理員 GET `/api/admin/resilience/feature-flags` 均回 200，CSRF cookie 可讀；管理員讀回顯示**唯一 GLOBAL 有界覆寫**已啟用，但將於 **2026-10-01 08:20:50（台北）**到期。此次只驗證登入與 GET，未執行續期 PUT。到期後不能再把雙路進單當成可用；未登入 `/api/health` 實際回 401，也不能當作公開的下單健康證據。需要繼續手測時，先用上述獨立 profile 的平台管理員登入並停在 `http://127.0.0.1:3026/admin/billing`，在該頁瀏覽器開發者工具 Console 執行以下**每次只延長六小時**的既有受稽核管理 API 操作。此操作僅限 3026／56822；不改旗標預設、不設永久有效、不排程自動續期：
 
 ```js
 (async () => {
