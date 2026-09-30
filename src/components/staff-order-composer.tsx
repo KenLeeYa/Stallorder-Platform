@@ -77,6 +77,7 @@ export function StaffOrderComposer({
   const { locale, t } = useOperationsLocale();
   const optionSeparator = locale === "zh-TW" || locale === "ja" ? "、" : ", ";
   const idempotencyKeyRef = useRef(createWebUuid());
+  const [uncertainRequest, setUncertainRequest] = useState<{ body: string; cash: boolean } | null>(null);
   const actionPromptTimerRef = useRef<number | null>(null);
   const menuScrollRef = useRef<HTMLDivElement>(null);
   const cartScrollRef = useRef<HTMLElement>(null);
@@ -801,8 +802,8 @@ export function StaffOrderComposer({
             headers: csrfHeaders(),
             body: JSON.stringify(requestBody),
           });
-        } catch (retryError) {
-          await createOfflineFallback(retryError);
+        } catch {
+          setUncertainRequest({ body: JSON.stringify(requestBody), cash: paymentTiming === "PAY_NOW" && usesCash });
           return;
         }
       }
@@ -889,8 +890,26 @@ export function StaffOrderComposer({
   }
 
   function requestClose() {
-    if (busy || (hasCurrentInput && !window.confirm(t("composer.discardConfirm")))) return;
+    if (busy || uncertainRequest || (hasCurrentInput && !window.confirm(t("composer.discardConfirm")))) return;
     onClose();
+  }
+
+  async function recoverUncertainRequest() {
+    if (!uncertainRequest || busy) return;
+    setBusy(true);
+    try {
+      const response = await fetch(`/api/stalls/${stall.slug}/orders`, {
+        method: "POST", headers: csrfHeaders(), body: uncertainRequest.body,
+      });
+      const payload = await response.json() as { order?: StaffOrderDto };
+      if (!response.ok || !payload.order) return;
+      idempotencyKeyRef.current = createWebUuid();
+      consumeActiveDraft();
+      onCreated(payload.order);
+      if (uncertainRequest.cash) window.dispatchEvent(new Event("stallorder:cash-payment-completed"));
+      setUncertainRequest(null);
+    } catch { /* Keep the original request locked until its outcome is known. */ }
+    finally { setBusy(false); }
   }
 
   return (
@@ -902,7 +921,11 @@ export function StaffOrderComposer({
       }}
       onKeyDown={keepTabInsideDialog}
       className="m-auto h-[100dvh] max-h-[100dvh] w-full max-w-none overflow-hidden border-0 bg-transparent p-0 text-stone-950 backdrop:bg-black/45 print:hidden sm:h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-1.5rem)] sm:w-[calc(100%-1.5rem)] lg:h-[calc(100dvh-3rem)] lg:max-h-[calc(100dvh-3rem)] lg:w-[calc(100%-3rem)]">
-      <section className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col overflow-hidden bg-white shadow-xl sm:rounded-lg">
+      {uncertainRequest ? <section className="mx-auto grid h-full max-w-xl content-center gap-4 bg-white p-6">
+        <p role="alert" className="text-base font-semibold">{t("composer.paymentUncertain")}</p>
+        <button type="button" autoFocus disabled={busy} onClick={() => void recoverUncertainRequest()} className="min-h-12 rounded-md bg-teal-800 px-4 font-semibold text-white disabled:opacity-50">{t("composer.recoverOriginal")}</button>
+      </section> : null}
+      <section hidden={Boolean(uncertainRequest)} className={`${uncertainRequest ? "hidden" : "flex"} mx-auto h-full min-h-0 w-full max-w-6xl flex-col overflow-hidden bg-white shadow-xl sm:rounded-lg`}>
         <header className="z-20 flex shrink-0 flex-wrap items-start justify-between gap-2 border-b border-stone-200 bg-white px-4 py-3 sm:rounded-t-lg sm:px-6 md:gap-4 lg:py-4">
           <div>
             <h2 id="staff-order-title" className="text-xl font-semibold">{t("composer.title")}</h2>

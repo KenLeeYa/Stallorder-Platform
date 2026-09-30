@@ -832,6 +832,8 @@ const definitions = {
   "composer.managerPassword": { "zh-TW": "經理密碼", en: "Manager password", ja: "管理者パスワード", ko: "관리자 비밀번호", vi: "Mật khẩu quản lý", th: "รหัสผ่านผู้จัดการ" },
   "composer.managerAuthorizationCode": { "zh-TW": "管理授權碼", en: "Manager authorization code", ja: "管理者承認コード", ko: "관리자 승인 코드", vi: "Mã phê duyệt quản lý", th: "รหัสอนุมัติผู้จัดการ" },
   "composer.createPaid": { "zh-TW": "建立訂單並收款", en: "Create order and collect payment", ja: "注文を作成して会計", ko: "주문 생성 및 결제", vi: "Tạo đơn và thu tiền", th: "สร้างออเดอร์และรับชำระ" },
+  "composer.paymentUncertain": { "zh-TW": "收款結果尚未確認。請勿再次收款，請查回原訂單結果。", en: "Payment outcome is unconfirmed. Do not collect again; recover the original order.", ja: "会計結果を確認できません。再度会計せず、元の注文を確認してください。", ko: "결제 결과가 확인되지 않았습니다. 다시 결제하지 말고 기존 주문을 확인하세요.", vi: "Chưa xác nhận kết quả thanh toán. Không thu tiền lại; hãy kiểm tra đơn ban đầu.", th: "ยังยืนยันผลชำระเงินไม่ได้ อย่าเรียกเก็บซ้ำ โปรดตรวจสอบออเดอร์เดิม" },
+  "composer.recoverOriginal": { "zh-TW": "查回原訂單結果", en: "Recover original order", ja: "元の注文を確認", ko: "기존 주문 확인", vi: "Kiểm tra đơn ban đầu", th: "ตรวจสอบออเดอร์เดิม" },
   "composer.createKitchen": { "zh-TW": "建立訂單送入廚房", en: "Create order and send to kitchen", ja: "注文を作成して厨房へ送信", ko: "주문 생성 후 주방 전송", vi: "Tạo đơn và gửi vào bếp", th: "สร้างออเดอร์และส่งเข้าครัว" },
   "composer.creating": { "zh-TW": "建立中…", en: "Creating…", ja: "作成中…", ko: "생성 중…", vi: "Đang tạo…", th: "กำลังสร้าง…" },
   "composer.createFailed": { "zh-TW": "目前無法建立訂單。", en: "The order cannot be created right now.", ja: "現在注文を作成できません。", ko: "현재 주문을 생성할 수 없습니다.", vi: "Hiện không thể tạo đơn.", th: "ขณะนี้สร้างออเดอร์ไม่ได้" },
