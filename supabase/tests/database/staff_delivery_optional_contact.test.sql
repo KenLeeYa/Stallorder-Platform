@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(12);
+select plan(16);
 
 -- Exercise the actual deployed CHECK without unrelated order triggers or fixture writes.
 create temporary table delivery_contact_contract (
@@ -10,12 +10,20 @@ create temporary table delivery_contact_contract (
   origin public.order_origin default 'ONLINE_STAFF',
   external_provider text,
   delivery_address text,
-  customer_phone text
+  customer_phone text,
+  status public.order_status default 'WAITING_CONFIRMATION',
+  customer_name text default 'QA customer',
+  note text,
+  privacy_erasure_request_id uuid,
+  privacy_contact_erased_at timestamptz
 );
 do $$ begin
   execute 'alter table delivery_contact_contract add constraint orders_delivery_fields_check '
     || (select pg_get_constraintdef(oid) from pg_constraint
         where conrelid = 'public.orders'::regclass and conname = 'orders_delivery_fields_check');
+  execute 'alter table delivery_contact_contract add constraint orders_erased_contact_check '
+    || (select pg_get_constraintdef(oid) from pg_constraint
+        where conrelid = 'public.orders'::regclass and conname = 'orders_erased_contact_check');
 end $$;
 
 select lives_ok($$insert into delivery_contact_contract default values$$, 'Staff can omit both contact fields');
@@ -30,5 +38,9 @@ select throws_ok($$insert into delivery_contact_contract(source, origin, custome
 select lives_ok($$insert into delivery_contact_contract(source, origin, customer_phone, delivery_address) values ('QR_MENU','ONLINE_QR','0912345678','QA address')$$, 'Public delivery full contact accepted');
 select lives_ok($$insert into delivery_contact_contract(source, origin, external_provider) values ('DELIVERY_PLATFORM','IMPORTED','QA')$$, 'Imported provider can omit contact');
 select throws_ok($$insert into delivery_contact_contract(fulfillment_type, delivery_address) values ('TAKEOUT','QA address')$$, '23514', null, 'Takeout cannot carry delivery address');
+select lives_ok($$insert into delivery_contact_contract(source, origin, status, customer_name, privacy_erasure_request_id, privacy_contact_erased_at) values ('QR_MENU','ONLINE_QR','COMPLETED','[removed]','11111111-1111-4111-8111-111111111111',now())$$, 'Terminal erased delivery may omit contact');
+select throws_ok($$insert into delivery_contact_contract(source, origin, customer_name, privacy_erasure_request_id, privacy_contact_erased_at) values ('QR_MENU','ONLINE_QR','[removed]','11111111-1111-4111-8111-111111111111',now())$$, '23514', null, 'Live delivery cannot use erased contact exemption');
+select throws_ok($$insert into delivery_contact_contract(source, origin, status, customer_name, privacy_erasure_request_id) values ('QR_MENU','ONLINE_QR','COMPLETED','[removed]','11111111-1111-4111-8111-111111111111')$$, '23514', null, 'Partial erasure marker cannot bypass delivery contact');
+select throws_ok($$insert into delivery_contact_contract(source, origin, status, customer_name, customer_phone, privacy_erasure_request_id, privacy_contact_erased_at) values ('QR_MENU','ONLINE_QR','COMPLETED','[removed]','0912345678','11111111-1111-4111-8111-111111111111',now())$$, '23514', null, 'Erased terminal delivery cannot retain contact');
 select * from finish();
 rollback;
