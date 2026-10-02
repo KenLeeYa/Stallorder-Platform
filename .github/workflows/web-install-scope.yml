@@ -29,8 +29,11 @@ jobs:
           npm --version > web-scope-evidence/npm-version.txt
       - name: Audit the same Web and contracts dependency scope
         run: npm audit --workspace packages/contracts --include-workspace-root --audit-level=moderate --json > web-scope-evidence/audit.json
-      - name: Record dependency inventory for the same scope
-        run: npm sbom --workspace packages/contracts --include-workspace-root --sbom-format cyclonedx > web-scope-evidence/sbom.json
+      - name: Preserve root npm inventory and verify shared-workspace supplement
+        run: |
+          npm sbom --workspaces=false --package-lock-only --sbom-format cyclonedx > web-scope-evidence/npm-root-sbom.json
+          node scripts/verify-web-install-scope.mjs --supplement-sbom web-scope-evidence/npm-root-sbom.json web-scope-evidence/sbom.json > web-scope-evidence/sbom-supplement.json
+          node scripts/verify-web-install-scope.mjs --sbom web-scope-evidence/sbom.json > web-scope-evidence/installed-sbom-coverage.json
       - name: Preserve scope evidence without claiming deployment verification
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
