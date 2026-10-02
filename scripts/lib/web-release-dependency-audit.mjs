@@ -1,8 +1,9 @@
 import {createHash} from 'node:crypto';
 import {execFileSync,spawnSync} from 'node:child_process';
-import {existsSync,readFileSync,readdirSync,realpathSync,statSync} from 'node:fs';
+import {existsSync,readFileSync,readdirSync,realpathSync,statSync,mkdtempSync,writeFileSync,rmSync} from 'node:fs';
 import {dirname,join,relative,resolve,sep} from 'node:path';
 import {builtinModules} from 'node:module';
+import {tmpdir} from 'node:os';
 import ts from 'typescript';
 import {verifyWebInstallScope} from '../verify-web-install-scope.mjs';
 
@@ -150,6 +151,75 @@ export function sourceSnapshot(root){
 }
 export function prepareWebAudit(root){return {version:1,scope:'WEB_PRODUCTION_ROOT_AND_BUILD_DEPENDENCIES',preparedAt:new Date().toISOString(),...sourceSnapshot(root),oldBuildId:existsSync(join(root,'.next/BUILD_ID'))?readFileSync(join(root,'.next/BUILD_ID'),'utf8').trim():null};}
 
+
+/** Exact generated Prisma output is attributed to its locked audited generator, never a hidden-package wildcard. */
+export function verifyGeneratedPrisma(root,packages){
+ const generated=join(root,'node_modules/.prisma/client'),lock=json(join(root,'package-lock.json'));
+ const generatedReal=realpathSync(generated);
+ if(generatedReal!==resolve(realpathSync(root),'node_modules/.prisma/client'))reject('WEB_PRISMA_GENERATED_PATH_INVALID');
+ const owners={};
+ for(const name of ['prisma','@prisma/client']){
+  const path=join(root,'node_modules',name),pkg=json(join(path,'package.json'));
+  if(realpathSync(path)!==resolve(realpathSync(root),'node_modules',name)||pkg.name!==name||pkg.version!==lock.packages?.[`node_modules/${name}`]?.version||!packages.has(`${name}@${pkg.version}`))reject('WEB_PRISMA_GENERATOR_UNAUDITED');
+  owners[name]=pkg;
+ }
+ if(owners.prisma.version!==owners['@prisma/client'].version)reject('WEB_PRISMA_GENERATOR_VERSION_MISMATCH');
+ const pkg=json(join(generated,'package.json')),schema=readFileSync(join(generated,'schema.prisma'),'utf8');
+ if(pkg.version!==owners.prisma.version||pkg.name!==`prisma-client-${hash(schema)}`)reject('WEB_PRISMA_GENERATED_IDENTITY_INVALID');
+ const cli=resolve(root,'node_modules/prisma',typeof owners.prisma.bin==='string'?owners.prisma.bin:owners.prisma.bin?.prisma??'');
+ if(!inside(realpathSync(join(root,'node_modules/prisma')),realpathSync(cli))||!statSync(cli).isFile())reject('WEB_PRISMA_FORMATTER_INVALID');
+ const generator=join(root,'node_modules/@prisma/client/generator-build/index.js'),wasm=join(root,'node_modules/prisma/build/prisma_schema_build_bg.wasm');
+ for(const [file,owner] of [[generator,'@prisma/client'],[wasm,'prisma']])if(!inside(realpathSync(join(root,'node_modules',owner)),realpathSync(file))||!statSync(file).isFile())reject('WEB_PRISMA_PRODUCER_FILE_INVALID');
+ const temporary=mkdtempSync(join(tmpdir(),'stallorder-schema-proof-'));
+ try{
+  const copy=join(temporary,'schema.prisma');writeFileSync(copy,readFileSync(join(root,'prisma/schema.prisma')));
+  try{execFileSync(process.execPath,[cli,'format','--schema',copy],{cwd:temporary,encoding:'utf8',stdio:'pipe',timeout:30000,env:{SystemRoot:process.env.SystemRoot??'',PATH:process.env.PATH??'',TEMP:tmpdir(),TMP:tmpdir(),CHECKPOINT_DISABLE:'1',PRISMA_HIDE_UPDATE_MESSAGE:'1'}});}catch{reject('WEB_PRISMA_FORMATTER_FAILED');}
+  if(readFileSync(copy,'utf8')!==schema)reject('WEB_PRISMA_SOURCE_SCHEMA_MISMATCH');
+ }finally{rmSync(temporary,{recursive:true,force:true,maxRetries:10,retryDelay:100});}
+ const ast=ts.createSourceFile('index.js',readFileSync(join(generated,'index.js'),'utf8'),ts.ScriptTarget.Latest,true);
+ if(ast.parseDiagnostics.length)reject('WEB_PRISMA_CONFIG_INVALID');
+ const configs=ast.statements.filter(ts.isVariableStatement).flatMap(statement=>[...statement.declarationList.declarations]).filter(declaration=>declaration.name.getText(ast)==='config');
+ if(configs.length!==1||!configs[0].initializer||!ts.isObjectLiteralExpression(configs[0].initializer))reject('WEB_PRISMA_CONFIG_INVALID');
+ const values=new Map(),keys=new Set();
+ for(const property of configs[0].initializer.properties){
+  if(!ts.isPropertyAssignment(property)||ts.isComputedPropertyName(property.name))reject('WEB_PRISMA_CONFIG_INVALID');
+  const key=ts.isStringLiteralLike(property.name)?property.name.text:property.name.getText(ast);
+  if(keys.has(key))reject('WEB_PRISMA_CONFIG_INVALID');keys.add(key);
+  if(['inlineSchema','clientVersion'].includes(key)&&!ts.isStringLiteralLike(property.initializer))reject('WEB_PRISMA_CONFIG_INVALID');
+  if(ts.isStringLiteralLike(property.initializer))values.set(key,property.initializer.text);
+ }
+ if(values.get('inlineSchema')!==schema||values.get('clientVersion')!==pkg.version)reject('WEB_PRISMA_CONFIG_INVALID');
+ const seen=new Set(),generatedFiles=[];
+ const walk=directory=>{
+  const real=realpathSync(directory);
+  if(!inside(generatedReal,real)||seen.has(real))reject('WEB_PRISMA_GENERATED_PATH_INVALID');seen.add(real);
+  for(const name of readdirSync(real)){
+   const path=join(real,name),target=realpathSync(path);
+   if(!inside(generatedReal,target))reject('WEB_PRISMA_GENERATED_PATH_INVALID');
+   if(name==='node_modules'||(name==='package.json'&&target!==join(generatedReal,'package.json')))reject('WEB_PRISMA_NESTED_PACKAGE_FORBIDDEN');
+   if(statSync(target).isDirectory()){walk(target);continue;}
+   if(!statSync(target).isFile())reject('WEB_PRISMA_GENERATED_PATH_INVALID');generatedFiles.push(target);
+   if(/\.[cm]?js$/.test(name)){
+    const scan=inspectImports(readFileSync(target,'utf8'),target);
+    if(scan.parseErrors||scan.unknown.length)reject('WEB_PRISMA_GENERATED_IMPORT_UNPROVEN');
+    for(const specifier of scan.imports){
+     if(nativePackage(packageName(specifier)))reject('WEB_PRISMA_NATIVE_GENERATED_IMPORT');
+     if(specifier.startsWith('.')){if(!inside(generatedReal,resolve(dirname(target),specifier)))reject('WEB_PRISMA_GENERATED_PATH_INVALID');}
+     else if(specifier.startsWith('#')){if(!Object.hasOwn(pkg.imports??{},specifier))reject('WEB_PRISMA_GENERATED_IMPORT_UNPROVEN');}
+     else if(!specifier.startsWith('node:')&&!builtinModules.includes(specifier)&&![...packages].some(p=>p.startsWith(packageName(specifier)+'@')))reject('WEB_PRISMA_GENERATED_IMPORT_UNPROVEN');
+    }
+   }
+  }
+ };
+ const aliases=value=>{
+  if(typeof value==='string'){const path=resolve(generatedReal,value);if(!value.startsWith('./')||!inside(generatedReal,path)||!existsSync(path)||!inside(generatedReal,realpathSync(path)))reject('WEB_PRISMA_GENERATED_IMPORT_UNPROVEN');}
+  else if(value&&typeof value==='object'&&!Array.isArray(value))Object.values(value).forEach(aliases);
+  else reject('WEB_PRISMA_GENERATED_IMPORT_UNPROVEN');
+ };
+ Object.values(pkg.imports??{}).forEach(aliases);walk(generatedReal);
+ return {path:'node_modules/.prisma/client',name:pkg.name,version:pkg.version,schemaSha256:hash(schema),formatterSha256:hash(readFileSync(cli)),formatterWasmSha256:hash(readFileSync(wasm)),generatorSha256:hash(readFileSync(generator)),sourceSchemaSha256:hash(readFileSync(join(root,'prisma/schema.prisma'))),generatedFiles:generatedFiles.length,generatedFilesSha256:hash(generatedFiles.sort().map(path=>`${relative(generatedReal,path)}\0${hash(readFileSync(path))}`).join('\n'))};
+}
+
 export function verifyWebArtifact(root,baseline,audit,sbom){
  assertRootAudit(audit);
  if(baseline.version!==1||baseline.scope!=='WEB_PRODUCTION_ROOT_AND_BUILD_DEPENDENCIES'||!Number.isFinite(Date.parse(baseline.preparedAt)))reject('WEB_PREBUILD_RECEIPT_INVALID');
@@ -182,16 +252,50 @@ export function verifyWebArtifact(root,baseline,audit,sbom){
  const nextFiles=files(join(root,'.next/server')).concat(files(join(root,'.next/static')));
  const traces=files(join(root,'.next')).filter(p=>p.endsWith('.nft.json'));
  if(!traces.length||!nextFiles.length)reject('WEB_ARTIFACT_EMPTY');
- const realRoot=realpathSync(root),traced=new Set();
+ const realRoot=realpathSync(root),traced=new Set();let generatedPrisma=null;
+ const prismaRoot=resolve(realRoot,'node_modules/.prisma/client');
  for(const path of traces){
   const trace=json(path);if(trace.version!==1||!Array.isArray(trace.files))reject('WEB_TRACE_INVALID');
   for(const entry of trace.files){
    if(typeof entry!=='string'||!entry)reject('WEB_TRACE_INVALID');
    const target=resolve(dirname(path),entry);if(!existsSync(target))reject('WEB_TRACE_FILE_MISSING');
-   const real=realpathSync(target);if(!inside(realRoot,real))reject('WEB_TRACE_ESCAPES_ROOT');
+   const realTarget=realpathSync(target);
+   if(inside(prismaRoot,target)&&!inside(prismaRoot,realTarget))reject('WEB_PRISMA_GENERATED_PATH_INVALID');
+   if(!inside(realRoot,realTarget))reject('WEB_TRACE_ESCAPES_ROOT');
+   let targets=[realTarget];
+   if(statSync(realTarget).isDirectory()){
+    const directoryRel=relative(realRoot,realTarget).replaceAll('\\','/'),segments=directoryRel.split('/'),boundary=segments.lastIndexOf('node_modules');
+    const isPackageRoot=boundary>=0&&segments.length===boundary+(segments[boundary+1]?.startsWith('@')?3:2);
+    const isContract=realTarget===realpathSync(join(root,'packages/contracts'));
+    const identity=existsSync(join(realTarget,'package.json'))?json(join(realTarget,'package.json')):null;
+    const isGenerated=realTarget===prismaRoot;
+    if(isGenerated)generatedPrisma??=verifyGeneratedPrisma(root,packages);
+    if(!isGenerated&&((!isPackageRoot&&!isContract)||!identity?.name||nativePackage(identity.name)||!packages.has(`${identity.name}@${identity.version}`)||(isContract&&identity.name!==contract.name)))reject('WEB_TRACE_DIRECTORY_SCOPE_UNPROVEN');
+    const visited=new Set();
+    const expand=directory=>{
+     const actual=realpathSync(directory);
+     if(!inside(realRoot,actual))reject('WEB_TRACE_ESCAPES_ROOT');
+     if(!inside(realTarget,actual))reject('WEB_TRACE_DIRECTORY_ESCAPES_WORKSPACE');
+     if(visited.has(actual))reject('WEB_TRACE_DIRECTORY_CYCLE');
+     visited.add(actual);
+     return readdirSync(actual).flatMap(name=>{
+      const path=join(actual,name),resolved=realpathSync(path);
+      if(!inside(realRoot,resolved))reject('WEB_TRACE_ESCAPES_ROOT');
+      if(!inside(realTarget,resolved))reject('WEB_TRACE_DIRECTORY_ESCAPES_WORKSPACE');
+      if(statSync(resolved).isDirectory())return expand(resolved);
+      if(!statSync(resolved).isFile())reject('WEB_TRACE_NON_FILE');
+      return [resolved];
+     });
+    };
+    targets=expand(realTarget);
+    if(!targets.length)reject('WEB_TRACE_DIRECTORY_EMPTY');
+   }
+   for(const real of targets){
+   if(!statSync(real).isFile())reject('WEB_TRACE_NON_FILE');
    const rel=relative(realRoot,real).replaceAll('\\','/');
    if(rel.startsWith('apps/mobile/'))reject('WEB_TRACE_NATIVE_WORKSPACE');
-   if(rel.includes('node_modules/')){
+   if(inside(prismaRoot,real)){generatedPrisma??=verifyGeneratedPrisma(root,packages);}
+   else if(rel.includes('node_modules/')){
     const segments=rel.split('/'),boundary=segments.lastIndexOf('node_modules');
     const packageEnd=boundary+(segments[boundary+1]?.startsWith('@')?3:2);
     const packageRoot=join(realRoot,...segments.slice(0,packageEnd));
@@ -199,6 +303,7 @@ export function verifyWebArtifact(root,baseline,audit,sbom){
     if(!manifest?.name||nativePackage(manifest.name)||!packages.has(`${manifest.name}@${manifest.version}`))problems.push({path:rel,code:'TRACE_PACKAGE_OUTSIDE_AUDITED_CLOSURE'});
    }
    traced.add(real);
+   }
   }
  }
  for(const path of nextFiles.filter(p=>p.endsWith('.js'))){
@@ -209,7 +314,7 @@ export function verifyWebArtifact(root,baseline,audit,sbom){
  }
  const manifestClosure=verifyManifestReferences(root,nextFiles,traced);
  const artifactInputs=[...new Set([...nextFiles,...traces,...traced,buildPath])].sort().map(p=>`${relative(root,p).replaceAll('\\','/')}\0${hash(readFileSync(p))}`);
- const receipt={version:1,scope:baseline.scope,...current,buildId,traces:traces.length,tracedFiles:traced.size,artifactSha256:hash(artifactInputs.join('\n')),rootAudit:'PASS',manifestClosure,status:problems.length?'INCOMPLETE':'PASS',problems};
+ const receipt={version:1,scope:baseline.scope,...current,buildId,traces:traces.length,tracedFiles:traced.size,artifactSha256:hash(artifactInputs.join('\n')),rootAudit:'PASS',manifestClosure,generatedPrisma,status:problems.length?'INCOMPLETE':'PASS',problems};
  return receipt;
 }
 export function npmJson(root,args){

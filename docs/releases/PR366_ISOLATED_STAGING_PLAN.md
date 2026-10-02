@@ -18,3 +18,23 @@
 ## 邊界
 
 本方案尚未建立上述雲端資源。Production 發布仍須所有必要檢查及新 Plan/Apply；隔離驗證成功本身不是正式發布成功。使用者指定延後的治理設定持續 OFF／dry-run。
+
+## 配對 Preview 的最小瀏覽器 QA 矩陣（PENDING）
+
+每項須記錄同一 child、deployment、完整候選 SHA/tree、帳號 scope 與結果；下面是待執行驗收，不是 PASS 收據。
+
+| 範圍 | 必要實際使用案例 |
+| --- | --- |
+| 登入與權限 | owner／staff／kitchen／platform admin 登入授權頁；匿名、跨組織及越權拒絕。 |
+| 共用商品 | 320／390／768／1440 排版；搜尋＋分頁後編輯儲存／取消回原位置；儲存失敗保留對話框與原清單。 |
+| 通知中心 | 商戶／店員鈴鐺狀態、未讀→已讀、返回正確 scope；換身分／撤權清除私人狀態。 |
+| 長清單 | Supply、損益、排班、行程、發票用 child 專用密集資料；手機 6→更多→收合、桌面完整，末筆可操作且摘要按完整資料。 |
+| 功能列與 POS | merchant／staff 各寬度功能列、搜尋、切換模式及結帳；店員外送與內用設定各自重新驗證。 |
+| 公開接單 | DEFAULT／DELIVERY 開店成功；閉店 session／送單／增量拒絕且資料不變、減量允許；跨午夜、截止時間、有效預購及既有 staff POS 行為。 |
+| LINE 本機模擬邊界 | Hosted Preview 的 `/local-qa/line` 必須 404。四階段 MINI／OA mock 只留本機證據，不放寬 local guard；不計為真 LINE 登入、OA 送達、Pay 或實機掃碼。 |
+
+seed 測試身分為 `owner@stallorder.test`、`staff@stallorder.test`、`kitchen@stallorder.test`、`platform.admin@stallorder.test`，密碼 `StallOrderDemo!2026`；僅用於隔離 child，不是正式商戶帳號。測試前須讀回角色／scope、配對 DB／Edge／部署 origin、Preview bypass、接單 rollout override 與 Supply 資格／開關；不能只依環境變數推定能力已啟用。治理持續 OFF／dry-run，LINE／Pay 真實能力 OFF。
+
+現有 `staff-pos-line-delivery.spec.ts`、商品與響應式測試可作驗收來源，但含本機 Prisma／精確 target fixture 的測試不可直接換 URL／連線指向遠端。移植前須加精確 child／owner guard、限時測試資料與還原收據，不改正式 seed，不掩蓋閉店負案。`catalog-note-settings-feedback-responsive.spec.ts` 僅覆蓋部分設定介面，不能替代商品 edit-return 驗收。
+
+目前 workflow 的 pgTAP、readonly smoke、OAuth／delivery synthetic smoke 仍缺上述完整 browser cases 與安全的 child fixture；狀態為 PENDING。先前本機／mock／CI 結果不自動轉為本次配對 Preview PASS。6 小時外部期限清理須在獲准且建立資源前由協調者配置；workflow 的收據與 finally 清理不等同獨立到期保障。
