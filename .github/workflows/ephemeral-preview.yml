@@ -51,6 +51,8 @@ jobs:
     env:
       DO_NOT_TRACK: "1"
       SUPABASE_PARENT_PROJECT_REF: ${{ vars.SUPABASE_PARENT_PROJECT_REF }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
       PREVIEW_BRANCH_NAME: ${{ github.event_name == 'pull_request' && format('pr-{0}-oauth-delivery', github.event.pull_request.number) || format('manual-{0}', github.run_id) }}
       PREVIEW_RESOURCE_KEY: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('manual-{0}', github.run_id) }}
       PREVIEW_GIT_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
@@ -121,6 +123,20 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Record manual Preview owner and six-hour deadline before resource creation
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: node scripts/manual-preview-cleanup.mjs capture
+
+      - name: Upload initial manual Preview recovery receipt
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: manual-preview-initial-${{ github.run_id }}
+          path: .preview-receipt/manual-resources.json
+          if-no-files-found: error
 
       - name: Create or reuse data-less Preview Branch
         id: preview
@@ -195,6 +211,20 @@ jobs:
               ;;
           esac
           echo "branch_ref=$branch_ref" >> "$GITHUB_OUTPUT"
+
+      - name: Capture exact manual Preview Branch for recovery
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: node scripts/manual-preview-cleanup.mjs capture
+
+      - name: Upload manual Preview Branch identity receipt
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: manual-preview-branch-${{ github.run_id }}
+          path: .preview-receipt/manual-resources.json
+          if-no-files-found: error
 
       - name: Load and mask Preview Branch configuration
         env:
@@ -616,6 +646,21 @@ jobs:
           echo "deployment_id=$deployment_id" >> "$GITHUB_OUTPUT"
           echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
 
+      - name: Capture exact manual Vercel deployment for recovery
+        if: github.event_name == 'workflow_dispatch' && steps.vercel-auth.outputs.enabled == 'true'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: node scripts/manual-preview-cleanup.mjs capture
+
+      - name: Upload paired manual Preview deployment receipt
+        if: github.event_name == 'workflow_dispatch' && steps.vercel-auth.outputs.enabled == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: manual-preview-paired-${{ github.run_id }}
+          path: .preview-receipt/manual-resources.json
+          if-no-files-found: error
+
       - name: Run matching Preview read-only smoke
         if: steps.vercel-auth.outputs.enabled == 'true'
         env:
@@ -661,25 +706,20 @@ jobs:
             --file supabase/fixtures/line_live_preview.sql \
             --log-level error
 
-      - name: Remove manual Vercel Preview
-        if: always() && steps.preview-approval.outcome == 'success' && github.event_name == 'workflow_dispatch' && steps.vercel-preview.outputs.deployment_id != ''
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: |
-          npx --yes vercel@58.3.0 remove \
-            "${{ steps.vercel-preview.outputs.deployment_id }}" \
-            --yes \
-            --token "$VERCEL_TOKEN" || true
-
-      - name: Remove manual Preview Branch
+      - name: Clean exact manual Preview resources and verify absence
         if: always() && steps.preview-approval.outcome == 'success' && github.event_name == 'workflow_dispatch'
         env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: |
-          supabase branches delete "$PREVIEW_BRANCH_NAME" \
-            --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
-            --yes \
-            --log-level error || true
+        run: node scripts/manual-preview-cleanup.mjs cleanup
+
+      - name: Upload final manual Preview cleanup or recovery receipt
+        if: always() && steps.preview-approval.outcome == 'success' && github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: manual-preview-final-${{ github.run_id }}
+          path: .preview-receipt/manual-resources.json
+          if-no-files-found: warn
 
   cleanup:
     if: >-
