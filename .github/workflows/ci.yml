@@ -53,6 +53,8 @@ jobs:
         run: npm run ui:audit
       - name: Typecheck
         run: npm run typecheck
+      - name: Install Playwright Chromium and WebKit
+        run: npx playwright install --with-deps chromium webkit
       - name: Unit tests
         run: npm test
       - name: Start local Supabase
@@ -106,8 +108,6 @@ jobs:
         run: npm run build
       - name: Verify independent status Worker bundle
         run: npm run status:check
-      - name: Install Playwright Chromium and WebKit
-        run: npx playwright install --with-deps chromium webkit
       - name: Playwright end-to-end tests
         env:
           PLAYWRIGHT_PRODUCTION_SERVER: "true"

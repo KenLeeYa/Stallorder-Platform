@@ -23,3 +23,11 @@
 ## 發布狀態
 
 目前是整合候選，尚未發布正式站。後續需候選 CI、新建資料庫遷移、Staging 實際流程、精確 tree／Plan 綁定、DR／Primary 提交與部署讀回、Production 受影響流程及 DR 同步驗證。失敗、跳過與外部未設定項目不得計入通過。
+
+## 2026-10-03 續作
+
+- 草稿 PR366 已建立；`a30cec90` 本機完整單元測試為 4,121 通過、106 跳過。雲端同版本因單元測試使用 Chromium、但流程太晚安裝瀏覽器而失敗；已將瀏覽器安裝移至測試前，後續須重跑。
+- Primary 與 DR 的實際 migration head 均為 `20260912112200`，原候選需 26 項遷移；新增 forward migration 修復依時間順序升級時外送 CHECK 覆蓋隱私刪除約束的問題。重現失敗後，clone 16 項實際外送契約測試通過；不改歷史 migration。
+- Primary 通知已讀回填已接入發布流程、位於 schema Apply 後及 Edge／應用更新前。專用 clone runner 的七項實際測試通過，交易回滾並讀回 runtime 狀態不變；正式回填尚未執行。
+- 原有 staging environment 指向正式 DR 的 Supabase project，不能寫入候選測試資料。PR366 的隔離 Staging 方案另列，尚待新的限時付費測試授權；原 PR365 授權不延用。
+- 完整倉庫依賴掃描有七項漏洞，屬未發布的 Native／Expo 相依鏈；不得宣稱完整倉庫或 Native 安全通過。正式 Web 的獨立 artifact 範圍仍需依賴閉包及部署產物證據，不得只以路徑搜尋代替放行。
