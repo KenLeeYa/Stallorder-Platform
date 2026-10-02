@@ -6,7 +6,7 @@ function source(fileName: string) {
 }
 
 describe("merchant mobile action bars", () => {
-  it("keeps shared catalog actions in one icon-only row through tablet widths", () => {
+  it("keeps shared catalog actions aligned right without compressing the heading", () => {
     const catalog = source("./shared-catalog-manager.tsx");
 
     expect(catalog).toContain('data-testid="shared-catalog-actions"');
@@ -14,9 +14,8 @@ describe("merchant mobile action bars", () => {
     expect(catalog).toContain('data-testid="shared-catalog-tools"');
     expect(catalog).toContain('data-testid="shared-catalog-create-actions"');
     expect(catalog).toContain('className="hidden xl:inline"');
-    expect(catalog).toContain("max-w-[calc(100vw-2rem)] overflow-x-hidden");
-    expect(catalog).toContain("flex w-full min-w-0 flex-nowrap gap-2 overflow-x-auto pb-1");
-    expect(catalog).toContain("flex shrink-0 gap-2 xl:flex-wrap");
+    expect(catalog).toContain("w-full min-w-0 md:ml-auto md:w-auto md:flex-1");
+    expect(catalog).toContain("flex w-full min-w-0 flex-wrap justify-end gap-2");
     expect(catalog).toContain("<FolderPlus");
     expect(catalog).toContain("<Layers3");
     expect(catalog).toContain("<PackagePlus");

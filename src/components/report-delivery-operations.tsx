@@ -104,7 +104,7 @@ export function ReportDeliveryOperations({ organizationId, timeZone }: { organiz
     {loadedFor === organizationId && range && <p className="text-sm text-slate-500">已套用的查詢範圍：{range}</p>}
     <div aria-live="polite" role="status">{loadedFor === organizationId ? notice : ""}</div>
     {loading && <p role="status">正在讀取報表工作…</p>}
-    {error && <div role="alert" className="rounded-lg border border-red-200 p-4"><p>{error}</p><button className="mt-2 min-h-12 rounded-lg border px-4" onClick={() => void load()}>重試讀取</button></div>}
+    {error && <div role="alert" className="rounded-lg border border-red-200 p-4"><p>{error}</p><button type="button" className="mt-2 min-h-12 rounded-lg border px-4" onClick={() => void load()}>重試讀取</button></div>}
     {!loading && !error && items.length === 0 && <p className="rounded-lg border p-6">目前範圍內沒有報表工作。</p>}
     <ul className="space-y-3" aria-busy={loading}>
       {(loadedFor === organizationId ? items : []).map(item => <li key={item.id} data-report-id={item.id} className="space-y-3 rounded-xl border bg-white p-4">
@@ -112,11 +112,11 @@ export function ReportDeliveryOperations({ organizationId, timeZone }: { organiz
         {item.reason && <p>{reasons[item.reason] ?? "工作已停止或等待處理"} <code className="break-all text-xs">{item.reason}</code></p>}
         <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2"><div><dt className="text-slate-500">建立時間</dt><dd>{time(item.createdAt)}</dd></div><div><dt className="text-slate-500">最近執行</dt><dd>{time(item.startedAt)}</dd></div><div><dt className="text-slate-500">下次嘗試</dt><dd>{time(item.nextAttemptAt)}</dd></div><div><dt className="text-slate-500">租約到期</dt><dd>{time(item.leaseExpiresAt)}</dd></div><div><dt className="text-slate-500">供應商接受時間</dt><dd>{time(item.acceptedAt)}</dd></div><div><dt className="text-slate-500">最近核對</dt><dd>{time(item.reconciledAt)}</dd></div></dl>
         <p className="break-all text-xs text-slate-500">工作：{item.id}<br />追蹤編號：{item.requestId ?? "舊工作未提供"}</p>
-        <div className="flex flex-wrap gap-3"><button className="min-h-12 rounded-lg border px-4 disabled:opacity-50" disabled={!item.canRetry || !!busy || loading} onClick={() => void mutate(item, "retry")}>重試已確認未接受的工作</button><button className="min-h-12 rounded-lg border px-4 disabled:opacity-50" disabled={!item.canReconcile || !!busy || loading} onClick={() => void mutate(item, "reconcile")}>核對供應商結果</button></div>
+        <div className="flex flex-wrap gap-3"><button type="button" className="min-h-12 rounded-lg border px-4 disabled:opacity-50" disabled={!item.canRetry || !!busy || loading} onClick={() => void mutate(item, "retry")}>重試已確認未接受的工作</button><button type="button" className="min-h-12 rounded-lg border px-4 disabled:opacity-50" disabled={!item.canReconcile || !!busy || loading} onClick={() => void mutate(item, "reconcile")}>核對供應商結果</button></div>
         {!item.canRetry && <p className="text-sm text-slate-500">僅具管理權限、未達上限且已有可信未接受證據的工作可重試。</p>}
         {item.effectState === "UNKNOWN" && <p className="text-sm">請由平台管理員核對供應商結果；無法取得可信證據時會維持停發。</p>}
       </li>)}
     </ul>
-    {next && <button className="min-h-12 rounded-lg border px-4 disabled:opacity-50" disabled={loading || !!busy} onClick={() => void load(next)}>載入更多</button>}
+    {next && <button type="button" className="min-h-12 rounded-lg border px-4 disabled:opacity-50" disabled={loading || !!busy} onClick={() => void load(next)}>載入更多</button>}
   </section>;
 }

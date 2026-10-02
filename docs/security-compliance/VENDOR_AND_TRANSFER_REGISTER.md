@@ -16,6 +16,6 @@
 
 ## 2026-09-30 v2.0 同步（本機，未發布）
 
-各商家 Messaging OA、Login、MINI App、Pay 按渠道及商戶獨立記錄用途、資格、憑證參照、契約、資料區域、次受託、配額、撤權與退出。平台 OA 另列未啟用的未來選項，不沿用商家好友或推定可遷移 subject。第三方 POS／供應商／承運者新增委託、授權交易、附件存取、保存與事故責任。
+各商家 Messaging OA、Login、MINI App、Pay 按渠道及商戶獨立記錄用途、資格、憑證參照、契約、資料區域、次受託、配額、撤權與退出。平台 OA 是本輪新平台通知的唯一 sender，另列 environment／provider／destination registry；各店 Pay 清冊独立，不沿用商家好友或推定可遷移 subject。第三方 POS／供應商／承運者新增委託、授權交易、附件存取、保存與事故責任。
 
 本輪未查核最新官方規則或簽約資料，現況 UNKNOWN／NEEDS_LEGAL_REVIEW；集中見 E19–E22，沒有真實渠道發送。

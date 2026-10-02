@@ -46,3 +46,21 @@ test("native contracts cannot use server actions as a dependency escape", () => 
     ]);
   } finally { rmSync(root, { recursive: true }); }
 });
+
+test("Expo build configuration stays server-owned but runtime imports of plugins are rejected", () => {
+  const root = mkdtempSync(join(tmpdir(), "awesome-expo-boundary-"));
+  try {
+    mkdirSync(join(root, "apps/mobile/plugins"), { recursive: true });
+    writeFileSync(join(root, "apps/mobile/app.config.ts"), 'import "./plugins/local-loopback.cjs";');
+    writeFileSync(join(root, "apps/mobile/plugins/local-loopback.cjs"), 'require("node:fs"); process.env.BUILD_ACCESS_TOKEN;');
+    writeFileSync(join(root, "apps/mobile/index.ts"), 'export const ready = true;');
+    expect(scanBoundaries(root).findings).toEqual([]);
+    writeFileSync(join(root, "apps/mobile/index.ts"), 'import "./plugins/local-loopback.cjs";');
+    expect(scanBoundaries(root).findings).toEqual([
+      { entry: "apps/mobile/index.ts", path: "apps/mobile/plugins/local-loopback.cjs", classification: "SERVER_DEPENDENCY_IN_CLIENT" },
+      { entry: "apps/mobile/index.ts", path: "apps/mobile/plugins/local-loopback.cjs", classification: "SECRET_ENV_IN_CLIENT" },
+    ]);
+    writeFileSync(join(root, "apps/mobile/index.ts"), 'import "./app.config";');
+    expect(scanBoundaries(root).findings).toHaveLength(2);
+  } finally { rmSync(root, { recursive: true }); }
+});

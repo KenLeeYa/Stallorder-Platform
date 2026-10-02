@@ -81,7 +81,7 @@ export function PrivacyRequestPanel({ trackingToken, organizationId, locale = "z
       <button className="min-h-11 rounded border px-4" disabled={busy || !policy} type="submit">{busy ? text.working : text.submit}</button>
     </form>}
     {!receipt && <details><summary className="min-h-11 cursor-pointer py-2">{text.recover}</summary><form onSubmit={recover} className="space-y-3">
-      <label className="block">{text.fullReceipt}<input value={savedReceipt} onChange={(event) => setSavedReceipt(event.target.value)} required autoComplete="off" maxLength={100} className="min-h-11 w-full rounded border p-2" /></label>
+      <label className="block">{text.fullReceipt}<input type="text" value={savedReceipt} onChange={(event) => setSavedReceipt(event.target.value)} required autoComplete="off" maxLength={100} className="min-h-11 w-full rounded border p-2" /></label>
       <button type="submit" disabled={busy} className="min-h-11 rounded border px-4">{text.lookup}</button>
     </form></details>}
   </section>;

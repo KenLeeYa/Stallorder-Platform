@@ -1,5 +1,6 @@
 import {beforeEach,expect,it,vi} from 'vitest';
-const state=vi.hoisted(()=>({settings:{} as any,calls:[] as {method:string;url:string;body:any}[],revision:'r1',endpoint:'',active:false,secretReads:0}));
+type FixtureSettings = { displayName: string; notifyConfirmed: boolean; notifyReady: boolean; notifyCancelled: boolean; webhookManagement: { version: number; localMock: boolean; messagingChannelId: string; senderPolicy: 'MERCHANT_OA' | 'PLATFORM_OA'; tested?: { digest: string } } };
+const state=vi.hoisted(()=>({settings:{} as FixtureSettings,calls:[] as {method:string;url:string;body:unknown}[],revision:'r1',endpoint:'',active:false,secretReads:0}));
 const ids=vi.hoisted(()=>({integration:'73333333-3333-4333-8333-333333333333',organization:'71111111-1111-4111-8111-111111111111',stall:'72222222-2222-4222-8222-222222222222',actor:'74444444-4444-4444-8444-444444444444'}));
 vi.mock('@/lib/prisma',()=>{const db={$queryRaw:vi.fn(async()=>[{id:ids.integration,organization_id:ids.organization,stall_id:ids.stall,stall_name:'SIMULATED',status:'ACTIVE',environment:'local',provider_id:'9990001',oa_destination:'USIMULATED',secret_reference:'75555555-5555-4555-8555-555555555555',settings_json:state.settings}]),$executeRaw:vi.fn(async(_strings,...values)=>{state.settings=JSON.parse(values[0]);return 1;})};return{prisma:{...db,$transaction:vi.fn(async callback=>callback(db))}};});
 vi.mock('@/server/notifications/notification-secrets',()=>({readNotificationSecret:vi.fn(async()=>{state.secretReads++;return JSON.stringify({channelAccessToken:'SIMULATED-ACCESS-TOKEN',messagingChannelSecret:'SIMULATED-MESSAGING-SECRET',loginChannelSecret:'SIMULATED-LOGIN-SECRET'});})}));
@@ -24,17 +25,17 @@ it('rejects arbitrary or non-canonical callbacks without fetching them',()=>{
  expect(state.calls).toEqual([]);expect(state.secretReads).toBe(0);
 });
 it('returns masked binding, records tested diff, requires explicit apply, and reads back inactive Mock settings',async()=>{
- const listed=await listLegacyWebhookManagement();const target=listed.integrations[0] as any;
+ const listed=await listLegacyWebhookManagement();const target=listed.integrations[0];if(!target || !("channelBinding" in target) || !("channelLabel" in target))throw Error("Expected configured integration");
  expect(JSON.stringify(listed)).not.toContain('9990004');expect(JSON.stringify(listed)).not.toContain('75555555-5555');expect(target.channelLabel).toBe('••••0004');
  const test={operation:'TEST' as const,organizationId:ids.organization,stallId:ids.stall,integrationId:ids.integration,environment:'local' as const,expectedVersion:0,channelBinding:target.channelBinding,callbackUrl:'https://example.test/api/webhooks/line/'+ids.integration,senderPolicy:'PLATFORM_OA' as const};
- const tested=await manageLegacyWebhook(test,ids.actor);expect(tested.state).toBe('TESTED');expect(state.calls.map(c=>c.method)).toEqual(['GET','POST']);expect(state.endpoint).toBe('');expect(state.settings.webhookManagement.senderPolicy).toBe('MERCHANT_OA');
- const apply={operation:'APPLY' as const,organizationId:ids.organization,stallId:ids.stall,integrationId:ids.integration,environment:'local' as const,expectedVersion:1,channelBinding:target.channelBinding,testedDigest:(tested as any).testedDigest};
+ const tested=await manageLegacyWebhook(test,ids.actor);expect(tested.state).toBe('TESTED');if(tested.state !== 'TESTED')throw Error('Expected TESTED result');expect(state.calls.map(c=>c.method)).toEqual(['GET','POST']);expect(state.endpoint).toBe('');expect(state.settings.webhookManagement.senderPolicy).toBe('MERCHANT_OA');
+ const apply={operation:'APPLY' as const,organizationId:ids.organization,stallId:ids.stall,integrationId:ids.integration,environment:'local' as const,expectedVersion:1,channelBinding:target.channelBinding,testedDigest:tested.testedDigest};
  const callCount=state.calls.length;await expect(manageLegacyWebhook({...apply,testedDigest:'b'.repeat(64)},ids.actor)).rejects.toThrow('FRESH_TEST_REQUIRED');await expect(manageLegacyWebhook(apply,'76666666-6666-4666-8666-666666666666')).rejects.toThrow('FRESH_TEST_REQUIRED');expect(state.calls).toHaveLength(callCount);
- const applied=await manageLegacyWebhook(apply,ids.actor);expect(applied.state).toBe('APPLIED');expect((applied as any).remoteActive).toBe(false);expect(state.calls.map(c=>c.method)).toEqual(['GET','POST','GET','PUT','GET']);expect(state.settings.webhookManagement).toMatchObject({version:3,senderPolicy:'PLATFORM_OA',callbackUrl:test.callbackUrl});expect(state.settings.webhookManagement.tested).toBeUndefined();
+ const applied=await manageLegacyWebhook(apply,ids.actor);expect(applied.state).toBe('APPLIED');if(applied.state !== 'APPLIED')throw Error('Expected APPLIED result');expect(applied.remoteActive).toBe(false);expect(state.calls.map(c=>c.method)).toEqual(['GET','POST','GET','PUT','GET']);expect(state.settings.webhookManagement).toMatchObject({version:3,senderPolicy:'PLATFORM_OA',callbackUrl:test.callbackUrl});expect(state.settings.webhookManagement.tested).toBeUndefined();
  await expect(manageLegacyWebhook(apply,ids.actor)).rejects.toThrow('TARGET_OR_VERSION_CHANGED');expect(state.calls.every(c=>c.url.startsWith('https://api.line.me/v2/bot/channel/webhook/'))).toBe(true);
 });
 it('rejects channel changes and active remote state before a provider mutation',async()=>{
- const target=(await listLegacyWebhookManagement()).integrations[0] as any;const command={operation:'TEST' as const,organizationId:ids.organization,stallId:ids.stall,integrationId:ids.integration,environment:'local' as const,expectedVersion:0,channelBinding:'b'.repeat(64),callbackUrl:'https://example.test/api/webhooks/line/'+ids.integration,senderPolicy:'MERCHANT_OA' as const};
+ const target=(await listLegacyWebhookManagement()).integrations[0];if(!target || !("channelBinding" in target))throw Error("Expected configured integration");const command={operation:'TEST' as const,organizationId:ids.organization,stallId:ids.stall,integrationId:ids.integration,environment:'local' as const,expectedVersion:0,channelBinding:'b'.repeat(64),callbackUrl:'https://example.test/api/webhooks/line/'+ids.integration,senderPolicy:'MERCHANT_OA' as const};
  await expect(manageLegacyWebhook(command,ids.actor)).rejects.toThrow('TARGET_OR_VERSION_CHANGED');expect(state.secretReads).toBe(0);
  state.active=true;await expect(manageLegacyWebhook({...command,channelBinding:target.channelBinding},ids.actor)).rejects.toThrow();expect(state.calls.map(c=>c.method)).toEqual(['GET']);
 });
@@ -42,7 +43,7 @@ it('rejects channel changes and active remote state before a provider mutation',
 it('masks noncanonical provider endpoints in read and tested diff without leaking credentials',async()=>{
  state.endpoint='https://SENSITIVE_USER:SENSITIVE_PASSWORD@example.test/path?SENSITIVE_QUERY=1';
  const read=await readLegacyWebhookManagement(ids.integration);expect(read).toMatchObject({state:'READ',remoteActive:false,status:'ACTIVE',localMockAvailable:true});expect(JSON.stringify(read)).not.toContain('SENSITIVE');
- const target=(await listLegacyWebhookManagement()).integrations[0] as any;
+ const target=(await listLegacyWebhookManagement()).integrations[0];if(!target || !("channelBinding" in target))throw Error("Expected configured integration");
  const tested=await manageLegacyWebhook({operation:'TEST',organizationId:ids.organization,stallId:ids.stall,integrationId:ids.integration,environment:'local',expectedVersion:0,channelBinding:target.channelBinding,callbackUrl:'https://example.test/api/webhooks/line/'+ids.integration,senderPolicy:'MERCHANT_OA'},ids.actor);
  expect(JSON.stringify(tested)).not.toContain('SENSITIVE');expect(state.calls.map(c=>c.method)).toEqual(['GET','GET','POST']);
 });

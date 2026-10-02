@@ -4,7 +4,7 @@ import {test,expect,type Page} from '@playwright/test';
 import type {PrismaClient} from '@prisma/client';
 import {establishLocalTestSession,gotoLocalPath} from '../local-navigation';
 import {openGuardedDatabase} from '../../docs/awesome-optimization/qa/live-fixture-guard.mjs';
-import {preserveOriginals} from '../../.superpowers/sdd/2026-10-01-awesome-optimization/batch-4b/preserve-originals.mjs';
+import {preserveOriginals} from '../../docs/awesome-optimization/qa/preserve-originals.mjs';
 let db:PrismaClient;
 const base='.superpowers/sdd/2026-10-01-awesome-optimization/batch-4b',d=base+'/fix-1',label=process.env.B4B_FIX_LABEL!,f=JSON.parse(readFileSync(base+'/operations-3-ui-fixtures.json','utf8')),historic=JSON.parse(readFileSync(d+'/historical-result.json','utf8'));
 const proof:{checks:unknown[];[key:string]:unknown}={checks:[],classification:'ACTUAL_MOUNTED_LOCAL_SYNTHETIC_SESSION_NOT_OAUTH'};

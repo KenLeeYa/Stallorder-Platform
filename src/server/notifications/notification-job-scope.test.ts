@@ -1,10 +1,11 @@
+import type { Prisma } from "@prisma/client";
 import { beforeEach,describe,expect,it,vi } from "vitest";
 const state=vi.hoisted(()=>({writes:[] as {sql:string;values:unknown[]}[],selected:false}));
 const secret=vi.hoisted(()=>vi.fn());
 const id="11111111-1111-4111-8111-111111111111";
 vi.mock("@/lib/prisma",()=>{
  const db={
-  $queryRaw:vi.fn(async(strings:any,...values:unknown[])=>{const sql=Array.isArray(strings)?strings.join('?'):strings.sql;
+  $queryRaw:vi.fn(async(strings:TemplateStringsArray | Prisma.Sql,...values:unknown[])=>{const sql='sql' in strings?strings.sql:strings.join('?');
    if(sql.includes('order by created_at limit 50'))return[];
    if(sql.includes('select id::text from public.notification_jobs')){state.selected=true;return[{id:'11111111-1111-4111-8111-111111111111'}];}
    if(sql.includes('select * from public.notification_jobs'))return[{id:'11111111-1111-4111-8111-111111111111',legacy_intent_json:{version:1,purpose:'COMMERCE',organizationId:id,stallId:id,orderId:id,integrationId:id,contactLinkId:id,recipientReference:id,recipientHash:'synthetic',providerId:null,environment:null,destination:null,secretRevision:null,loginChannelId:null,messagingChannelId:null,policy:'MERCHANT_OA',notifyConfirmed:true,notifyReady:true,notifyCancelled:true,templateVersion:1},order_id:id,organization_id:id,stall_id:id,integration_id:id,contact_link_id:id}];

@@ -1,13 +1,44 @@
-import {test,after} from 'node:test';
-import assert from 'node:assert/strict';
-import {loadEnvFile} from 'node:process';
-import {writeFileSync,existsSync} from 'node:fs';
-import {openGuardedDatabase,verifyLiveFixture} from './live-fixture-guard.mjs';
-import {assertApplicationOverlaySchema} from './application-schema-overlay.mjs';
-loadEnvFile('.env.local');const db=await openGuardedDatabase(),checks=[];
-const receipt=`.superpowers/sdd/2026-10-01-awesome-optimization/batch-3/overlay-${process.env.BATCH3_RECEIPT_LABEL??'red'}.json`;
-if(existsSync(receipt))throw Error('BATCH3_OVERLAY_RECEIPT_EXISTS');
-after(async()=>{await db.$disconnect();writeFileSync(receipt,JSON.stringify({checks,at:new Date().toISOString(),mutations:0},null,2)+'\n',{flag:'wx'});});
-test('named additive version0 projection preserves original201 cases and frozen digest',async()=>{const r=await verifyLiveFixture(db);assert.equal(r.fixed.counts.merchantApplication,201);assert.equal(r.receipt.liveCorpusDigest,'f04f523f7f97c1173e97fcb57a659b1afff446a8754f8c4f05950dacbfeb8396');checks.push({case:'additive compatibility',status:'PASS'});});
-test('unreviewed schema refuses the named overlay',()=>{assert.throws(()=>assertApplicationOverlaySchema(Buffer.from('synthetic different schema')),/SCHEMA_UNEXPECTED/);checks.push({case:'unexpected schema',status:'PASS'});});
-for(const [name,alter]of [['wrong default',row=>({...row,draftVersion:1})],['unexpected field',row=>({...row,unexpectedColumn:'synthetic'})],['old fact drift',row=>({...row,merchantName:'synthetic controlled drift'})]])test(`${name} refuses original corpus read without mutation`,async()=>{const fake=new Proxy(db,{get(target,key){if(key!=='merchantApplication')return target[key];return{findMany:async args=>{const rows=await target[key].findMany(args);return rows.map((r,n)=>n?r:alter(r));}};}});await assert.rejects(verifyLiveFixture(fake),/AWESOME_QA_.*(DRIFT|SCHEMA|DEFAULT)/);checks.push({case:name,status:'PASS'});});
+import { test, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import * as reviewed from './application-schema-overlay.mjs';
+
+const hash = bytes => createHash('sha256').update(bytes).digest('hex');
+const source = readFileSync(new URL('./application-schema-overlay.mjs', import.meta.url), 'utf8');
+const currentFields = JSON.parse(/const currentFields=(\[[^;]+\]);/.exec(source)[1]);
+const legacyFields = JSON.parse(/const legacyFields=(\[[^;]+\]);/.exec(source)[1]);
+const schema = 'synthetic contract schema, not historical live fixture evidence';
+// Exercise the unchanged strict projection algorithm against an explicitly synthetic schema pin.
+// Historical schema/corpus proofs remain separate; never refresh their production helper hashes.
+const fixtureSource = source
+  .replace(/export const overlaySchemaSha256='[a-f0-9]+';/, `export const overlaySchemaSha256='${hash(schema)}';`)
+  .replace("bytes=readFileSync('prisma/schema.prisma')", `bytes=Buffer.from(${JSON.stringify(schema)})`);
+const fixture = await import(`data:text/javascript;base64,${Buffer.from(fixtureSource).toString('base64')}`);
+const row = Object.fromEntries(currentFields.map(key => [key, key === 'draftVersion' ? 0 : `synthetic-${key}`]));
+const original = Object.fromEntries(legacyFields.map(key => [key, row[key]]));
+
+test('reviewed historical schema pin remains exact and rejects different bytes', () => {
+  expect(reviewed.applicationOverlayVersion).toBe('merchant-application-draft-version-v1');
+  expect(reviewed.overlaySchemaSha256).toBe('0687ed869af58e1c87de319035bc922279963bd4fde8bc131ec8c451e924e29e');
+  const bytes = readFileSync('prisma/schema.prisma');
+  if (hash(bytes) === reviewed.overlaySchemaSha256) expect(() => reviewed.assertApplicationOverlaySchema(bytes)).not.toThrow();
+  else expect(() => reviewed.assertApplicationOverlaySchema(bytes)).toThrow(/SCHEMA_UNEXPECTED/);
+  expect(() => reviewed.assertApplicationOverlaySchema(Buffer.from(schema))).toThrow(/SCHEMA_UNEXPECTED/);
+});
+
+test('synthetic named schema rejects byte drift and preserves every original fact', () => {
+  expect(() => fixture.assertApplicationOverlaySchema()).not.toThrow();
+  expect(() => fixture.assertApplicationOverlaySchema(Buffer.from(schema + '\n'))).toThrow(/SCHEMA_UNEXPECTED/);
+  expect(fixture.projectLegacyApplications([row])).toEqual([original]);
+  const changed = fixture.projectLegacyApplications([{ ...row, merchantName: 'changed original fact' }]);
+  expect(changed).not.toEqual([original]);
+  expect(changed[0].merchantName).toBe('changed original fact');
+});
+
+test('synthetic projection rejects default, unknown, missing and reordered fields', () => {
+  expect(() => fixture.projectLegacyApplications([{ ...row, draftVersion: 1 }])).toThrow(/DEFAULT_DRIFT/);
+  expect(() => fixture.projectLegacyApplications([{ ...row, unknownColumn: true }])).toThrow(/SCHEMA_UNEXPECTED/);
+  const missing = { ...row }; delete missing.merchantName;
+  expect(() => fixture.projectLegacyApplications([missing])).toThrow(/SCHEMA_UNEXPECTED/);
+  expect(() => fixture.projectLegacyApplications([Object.fromEntries(Object.entries(row).reverse())])).toThrow(/SCHEMA_UNEXPECTED/);
+});

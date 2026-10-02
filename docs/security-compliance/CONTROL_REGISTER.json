@@ -2542,7 +2542,7 @@
     },
     {
       "id": "T71",
-      "requirement": "A 店簽章有效的 webhook 不得以 B 店 destination／order 更新或觸發通知；錯簽章、重播、停用 channel 被拒。",
+      "requirement": "平台 webhook 必須核對簽章、destination、environment 與 active binding；事件不得跨租戶更新訂單或觸發通知，錯簽章及停用被拒。",
       "applicability": "REQUIRED_WHEN_CAPABILITY_EXISTS",
       "owner": "工程/資安；外部 owner 待 E19-E22 核定",
       "codeStatus": "INTEGRATION_REVIEW_REQUIRED",
@@ -2564,7 +2564,7 @@
     },
     {
       "id": "T72",
-      "requirement": "A 店 token／secret／Pay merchant 不可被 B 店或支援帳號讀取、借用、套用；輪替後舊版本停止生效。",
+      "requirement": "商家或支援帳號不可讀取、借用平台 OA token／secret，也不可套用另一店 Pay merchant；輪替後舊版本停止生效。",
       "applicability": "REQUIRED_WHEN_CAPABILITY_EXISTS",
       "owner": "工程/資安；外部 owner 待 E19-E22 核定",
       "codeStatus": "INTEGRATION_REVIEW_REQUIRED",
@@ -2674,7 +2674,7 @@
     },
     {
       "id": "T77",
-      "requirement": "平台 OA 試點切換與回退只能在明確授權和功能旗標下執行；未具資格時保持各店 OA，過渡不雙發、不洩漏。",
+      "requirement": "平台 OA rollout 與回退只能在明確授權、環境 binding 和功能旗標下執行；未具資格停止新平台發送，不以任意商家 OA 代發，過渡不雙發、不洩漏。",
       "applicability": "CONDITIONAL_FUTURE_PLATFORM_OA",
       "owner": "工程/資安；外部 owner 待 E19-E22 核定",
       "codeStatus": "INTEGRATION_REVIEW_REQUIRED",

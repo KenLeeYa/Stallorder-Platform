@@ -1,76 +1,9 @@
 {
-  "observedAt": "2026-09-13T07:36:07.816Z",
+  "observedAt": "2026-10-02T15:32:45.054Z",
   "tool": "repository-known-credential-pattern-scan-v1",
-  "scanned": 7243,
-  "bundleScanned": true,
-  "candidates": [
-    {
-      "file": ".next/dev/server/vendor-chunks/jose.js",
-      "line": 70,
-      "kind": "PRIVATE_KEY",
-      "fingerprint": "3021d90eb9437b2d"
-    },
-    {
-      "file": ".next/dev/server/vendor-chunks/jose.js",
-      "line": 330,
-      "kind": "PRIVATE_KEY",
-      "fingerprint": "3021d90eb9437b2d"
-    },
-    {
-      "file": ".next/server/chunks/node_modules_jose_dist_webapi_jwks_remote_15uivci.js",
-      "line": 1,
-      "kind": "PRIVATE_KEY",
-      "fingerprint": "3021d90eb9437b2d"
-    },
-    {
-      "file": ".next/server/chunks/node_modules_jose_dist_webapi_jwks_remote_15uivci.js.map",
-      "line": 1,
-      "kind": "PRIVATE_KEY",
-      "fingerprint": "3021d90eb9437b2d"
-    },
-    {
-      "file": ".next/server/chunks/ssr/src_server_auth_oauth_0uw1_cx._.js.map",
-      "line": 1,
-      "kind": "PRIVATE_KEY",
-      "fingerprint": "3021d90eb9437b2d"
-    },
-    {
-      "file": ".next/server/chunks/ssr/src_server_auth_oauth_20eyslf._.js.map",
-      "line": 1,
-      "kind": "PRIVATE_KEY",
-      "fingerprint": "3021d90eb9437b2d"
-    },
-    {
-      "file": ".next/server/chunks/ssr/_17eblx9._.js",
-      "line": 2,
-      "kind": "PRIVATE_KEY",
-      "fingerprint": "3021d90eb9437b2d"
-    },
-    {
-      "file": ".next/server/chunks/ssr/_17eblx9._.js.map",
-      "line": 1,
-      "kind": "PRIVATE_KEY",
-      "fingerprint": "3021d90eb9437b2d"
-    },
-    {
-      "file": ".next/server/chunks/[root-of-the-server]__0gqyn5_._.js.map",
-      "line": 1,
-      "kind": "PRIVATE_KEY",
-      "fingerprint": "3021d90eb9437b2d"
-    },
-    {
-      "file": ".next/server/chunks/_1sqpzr0._.js",
-      "line": 19,
-      "kind": "PRIVATE_KEY",
-      "fingerprint": "3021d90eb9437b2d"
-    },
-    {
-      "file": ".next/server/chunks/_1sqpzr0._.js.map",
-      "line": 1,
-      "kind": "PRIVATE_KEY",
-      "fingerprint": "3021d90eb9437b2d"
-    }
-  ],
-  "status": "REVIEW_REQUIRED",
+  "scanned": 2939,
+  "bundleScanned": false,
+  "candidates": [],
+  "status": "PASS_KNOWN_PATTERNS_ONLY",
   "limits": "Not a proof of no secrets or PII. Provider logs, arbitrary tokens, runtime values and historical Git objects need independent review."
 }

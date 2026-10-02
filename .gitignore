@@ -71,3 +71,10 @@ next-env.d.ts
 /docs/security-compliance/lint-results.json
 /docs/security-compliance/*.log
 /e2e/docs/security-compliance/
+
+# Workspace dependencies and local release receipts
+**/node_modules/
+/dependency-install.log
+/.release-evidence/
+
+/.superpowers/

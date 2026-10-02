@@ -18,7 +18,7 @@ const presentationSource = readFileSync(fileURLToPath(new URL(
 describe("StaffOrderBoard presentation characterization", () => {
   it("keeps the parent composition-only and delegates orchestration to the controller", () => {
     expect(boardSource).toContain("useStaffOrderBoardController(props)");
-    expect(boardSource).toContain("<StaffOrderBoardPresentation {...presentation} queueRedesignEnabled={props.queueRedesignEnabled ?? false} />");
+    expect(boardSource).toContain("<StaffOrderBoardPresentation {...presentation} queueRedesignEnabled={props.queueRedesignEnabled ?? false} notificationIdentity={props.notificationIdentity} />");
     expect(boardSource).not.toMatch(/use(?:Callback|Effect|Memo|Ref|State)\(/);
     expect(boardSource).not.toContain("fetch(");
     expect(boardSource).not.toContain("localStorage");

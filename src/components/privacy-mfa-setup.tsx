@@ -32,8 +32,8 @@ export function PrivacyMfaSetup({ locale }: { locale: string }) {
         {/* Provider-generated SVG is rendered as an image, never inserted as markup. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={factor.qr.startsWith("data:image/svg+xml") ? factor.qr : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(factor.qr)}`} width={240} height={240} alt={text.mfaQr} />
-        <label className="block">{text.mfaCode}<input name="code" required inputMode="numeric" pattern="[0-9]{6}" autoComplete="one-time-code" className="min-h-11 rounded border p-2" /></label>
-        <button disabled={busy} className="min-h-11 rounded border px-4">{text.mfaConfirm}</button>
+        <label className="block">{text.mfaCode}<input type="text" maxLength={6} name="code" required inputMode="numeric" pattern="[0-9]{6}" autoComplete="one-time-code" className="min-h-11 rounded border p-2" /></label>
+        <button type="submit" disabled={busy} className="min-h-11 rounded border px-4">{text.mfaConfirm}</button>
       </form>}
   </details>;
 }

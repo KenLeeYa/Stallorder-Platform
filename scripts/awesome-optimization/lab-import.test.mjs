@@ -18,7 +18,7 @@ for (const surface of ["admin", "merchant"]) {
       vi.stubEnv("RESPONSIVE_QA_RUN", invalid === "flag" ? "false" : "true");
       vi.stubEnv("PLAYWRIGHT_APP_URL", invalid === "app" ? "http://127.0.0.1:3023" : "http://127.0.0.1:3026");
       vi.stubEnv("APP_BASE_URL", "http://127.0.0.1:3026");
-      vi.stubEnv("DATABASE_URL", `postgresql://synthetic:synthetic@127.0.0.1:${invalid === "database" ? "55722" : "56822"}/postgres`);
+      vi.stubEnv("DATABASE_URL", `postgresql://placeholder:placeholder@127.0.0.1:${invalid === "database" ? "55722" : "56822"}/postgres`);
       vi.stubEnv("PRIMARY_SUPABASE_URL", "http://127.0.0.1:56821");
       const request = vi.fn(() => { throw new Error("Unexpected network"); });
       vi.stubGlobal("fetch", request);

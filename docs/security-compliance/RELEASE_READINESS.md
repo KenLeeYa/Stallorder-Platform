@@ -1,3 +1,5 @@
+> 2026-10-02：已進入整合工作樹準備發布；下方 no push／本機限定敘述屬 09-13／09-30 歷史收據。本輪仍未取得正式部署與全流程收據，不宣稱已發布。新合規 OFF、刪除 dry-run、外部缺口與 DR migration 門檻保持有效。詳見 [整合安全契約](INTEGRATION_CONTRACT_20261002.md)。
+
 # 發布就緒與分批計畫
 **決策：本機審查候選；新合規功能 OFF。Production/DR NO-GO。** 本次沒有push/PR/merge/deploy/remote migration/雲端設定/對外通知。不存在本次正式啟用證據，不宣稱法遵或安全認證。
 
@@ -18,7 +20,7 @@
 ## DR影響
 現在的獨立clone不會改變另一個DR工作區、遠端main或provider狀態，已符合「不影響才更新」的本機前提。未來將本分支合併後**會改變DR schema/replication scope與發布tree**；它不是零DR影響的直接可發布更新。不得將本次檔案直接混入34737455830或其他舊Plan。
 
-發布前鎖定main/staging相同tree、Plan/前置收據、Vercel實際project/team/alias/backend/commit及健康回復target。先DR expand、確認135張分類與local step-up隔離，再Primary相容expand、lag/replica identity/sequence驗證。唯一remote writer與Primary可用性要求沿用AGENTS及2026-09-12事故runbook。
+發布前鎖定main/staging相同tree、Plan/前置收據、Vercel實際project/team/alias/backend/commit及健康回復target。先DR expand、確認144張整合分類（[2026-10-02 清冊](../DR_INTEGRATED_TABLE_CLASSIFICATION_20261002.md)）與local step-up隔離，再Primary相容expand、lag/replica identity/sequence驗證。唯一remote writer與Primary可用性要求沿用AGENTS及2026-09-12事故runbook。
 
 ## 復原
 優先關閉feature/dispatcher並撤銷短效grant；不刪新案件、audit或ledger，不以回滾全部schema作一般復原。APP向後相容讀取既有欄位，新欄位nullable；實際刪除不可逆，復原備份前必須重套刪除/撤銷清單，不能把已刪個資復活。不能rollback安全修正重新開啟已確認漏洞。資料writer切換只能走既有failback，不能直接改兩側環境變數。
@@ -31,6 +33,6 @@
 
 本輪只完成下載需求同步及 QA 啟動環境檔修正，23 個聚焦測試通過；並未完成新增 T71–T80。原 Phase 00–15 的歷史 local 證據不等於本輪整合驗收。卡點依序：固定與改版相容的整合候選 → 補齊原實作缺口及 T71–T80 → Staging／provider／硬體驗收 → 五項 migration 與 replication 兼容檢查／新 DR Plan → 正式門檻及核心流程。
 
-目前目標是各商家自有 OA 發訊；OA 通知、Mini Store、LINE Pay 三開關獨立。平台 OA 僅為未來明確選用的受控遷移，不是現況或預設。此規則優先於 09-29 Assessment 的平台單一 OA 假設。
+2026-10-02 整合契約：新平台通知採單一攤點通 PLATFORM_OA，既有 LEGACY owner 保留隔離；各店 LINE Pay 獨立收款。通知、MINI 與 Pay 分別控制，並驗證整體與子旗標依賴／在途訂單。09-30 各店 OA 現況假設已被本輪使用者指令取代；歷史證據不重標 PASS。詳見 [整合安全契約](INTEGRATION_CONTRACT_20261002.md)。
 
 外部項目見 E01–E22；本輪不啟用平台 OA，不更動 Primary／DR。細節見 [同步報告](ASSESSMENT_REFRESH_20260930.md)。

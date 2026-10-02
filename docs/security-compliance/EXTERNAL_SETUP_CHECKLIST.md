@@ -16,7 +16,7 @@
 | E09 支付商 T47–52/55–56 | 每個provider各自sandbox merchant、raw-body簽章、幣別/金額、通知/查單、退款累計與對帳；平台費與商家收款分開。 | 商家/PSP核准；資格、交易及退款費待核 | 實測扣款timeout後查單、重送/亂序、退款對象與帳本；未知規格adapter保持disabled。輪替憑證採雙讀回讀；不重扣或刪ledger復原。BLOCKED |
 | E10 外送/通知/發票 T25/47/52/69 | LINE OA/Login scope、foodpanda/Uber Eats/物流、mail、電子發票各自商用資格、DPA、環境key/callback、deliverability。 | 每個商家/provider owner；各別費用 | 不互用簽章規格；先sandbox、verified inbox/outbox/readback、抑制/撤回佇列，再具名pilot。停dispatcher/credential，保存待查效果。BLOCKED |
 | E11 完整恢復 T31/63 | 備份/Storage bytes/Auth設定/PITR、獨立較新的刪除與撤銷feed；指定隔離restore project及egress/worker停用。 | DBA＋資安；備份/PITR/演練費用待核 | 本機已還原DB且撤銷session/device/step-up；files、Auth服務設定、較新feed及雲端RPO/RTO尚未證明。未通過不得開流量；保留備份與原writer。BLOCKED |
-| E12 DR協調 T64–67 | DR工作區owner、main/staging exact tree、5個新expand migrations、135-table分類、publication/DDL/sequence/lag、環境本地step-up表。 | 唯一release writer；既有環境費用另核 | 先DR相容schema再Primary，fresh Plan/來源hash/健康/回復artifact；舊Plan 34737455830不適用新tree。每步readback；不修改另一工作區當前部署。BLOCKED |
+| E12 DR協調 T64–67 | DR工作區owner、main/staging exact tree、5個新expand migrations、144-table 整合分類（[2026-10-02 清冊](../DR_INTEGRATED_TABLE_CLASSIFICATION_20261002.md)）、publication/DDL/sequence/lag、環境本地step-up表。 | 唯一release writer；既有環境費用另核 | 先DR相容schema再Primary，fresh Plan/來源hash/健康/回復artifact；舊Plan 34737455830不適用新tree。每步readback；不修改另一工作區當前部署。BLOCKED |
 | E13 DNS/WAF/egress T36–40/45 | Cloudflare zone/access/DNSSEC/CAA/TLS、Vercel direct URL、可信proxy headers、來源IP/NAT配額、外連allowlist。 | 網域/網路owner；方案費可能 | 偽造forwarded header、IPv6/metadata/redirect/DNS變動、同NAT真實負载。應用不依賴WAF代替授權；rollback保留origin防護。BLOCKED |
 | E14 裝置 T54/57–62 | Star/iPad/webPRNT/CloudPRNT/Bluetooth/門市LAN、printer/device credentials與開櫃資格。 | 商家＋硬體owner；實機/憑證/門市時間成本 | 真機claim/lease/ACK丟失、rotation、離線重送/換店/lock screen、獨立no-sale權限。停該device、保留pending交易，不以列印失敗改付款。BLOCKED |
 | E15 事件與告警 T28/34/46/68–69 | 具名事故負責人、客服/主管機關窗口、契約時限、補報與書面送達；due/backlog巡檢排程與告警通道。 | 法務/資安/客服；on-call/通知費用 | 本次事件狀態機/期限已實作；自動提醒與archive告警dispatcher尚待接通。演練真實收件證据前不稱已通報；保留知悉時間及原始版本。BLOCKED |
@@ -32,7 +32,7 @@
 
 | ID | 用途／控制與精確待辦 | 環境／權限與費用 | 驗證／復原 | 狀態 |
 |---|---|---|---|---|
-| E19 | T71–77：逐商家 OA/Login/MINI App 清冊、sender 綁定、收件資格、秘密版本、webhook 精確允許 URL；平台 OA 預設關閉 | 指定測試 channel；商家與平台管理者最小權限；資格／配額成本待核 | raw body、跨店拒絕、遠端 test/apply/readback、八組開關、撤權重試；失敗停發並保留站內查單，不雙發 | BLOCKED |
+| E19 | T71–77：平台 OA/Login/MINI App 環境清冊、唯一 sender 綁定、租戶收件資格、秘密版本、webhook 精確允許 URL；新能力未驗證前關閉 | 指定測試 channel；商家與平台管理者最小權限；資格／配額成本待核 | raw body、跨店拒絕、遠端 test/apply/readback、八組開關、撤權重試；失敗停發並保留站內查單，不雙發 | BLOCKED |
 | E20 | T72/T78：各店 Pay sandbox merchant、環境、Confirm／查詢／退款授權 | 各商家測試商戶；正式資格與費率待核；不得用另一店憑證 | 跨店、逾時後查單、退款併發及對帳；停止新 attempt，不刪舊交易 | BLOCKED |
 | E21 | T76/T80：更新告知／同意、DPA、資料區域、ePOD 留存與分享；核現行 PlanVersion、稅務及退款保存 | 法務／會計／業務 owner；專業核對費用待確認 | 官方法源／版本／生效日、簽約與實際欄位對照；未核定不擴大資料用途／更改費率 | NEEDS_LEGAL_ACCOUNTING_REVIEW |
 | E22 | T79/T80：指定門市裝置、第三方 POS／承運者 scope、任務版本及授權測試資料 | 隔離測試環境／實機及商用合作權限；硬體及渠道費用待核 | 取餐併發、重派後舊裝置與附件拒絕；撤銷測試綁定，保留必要交易證據 | BLOCKED |

@@ -2,6 +2,10 @@ export const environmentLocalTables = Object.freeze([
   "backend_runtime_state",
   "replication_health_snapshots",
   "security_step_up_grants",
+  // Sandbox attempts contain environment-bound return state and credential references.
+  // Production paymentRuntime rejects them; never promote them into a DR live ledger.
+  "line_platform_payment_attempts",
+  "line_platform_payment_operations",
 ]);
 
 export const replicationColumnExclusions = Object.freeze({
@@ -49,6 +53,12 @@ export const replicatedPublicTables = Object.freeze([
   "kitchen_station_assignments",
   "kitchen_stations",
   "line_link_sessions",
+  "line_platform_friendships",
+  "line_platform_member_audit",
+  "line_platform_members",
+  "line_platform_order_owners",
+  "line_platform_pickup_credentials",
+  "line_platform_stalls",
   "line_webhook_events",
   "manual_payment_records",
   "market_events",
@@ -60,6 +70,8 @@ export const replicatedPublicTables = Object.freeze([
   "notification_integrations",
   "notification_jobs",
   "notification_outbox",
+  "notification_preferences",
+  "notification_read_receipts",
   "offline_order_sync_receipts",
   "offline_permits",
   "offline_stall_runtime_policy",
@@ -103,6 +115,7 @@ export const replicatedPublicTables = Object.freeze([
   "product_bundle_choice_groups",
   "product_bundle_choices",
   "product_categories",
+  "product_feedback",
   "product_groups",
   "product_note_group_assignments",
   "product_note_group_translations",

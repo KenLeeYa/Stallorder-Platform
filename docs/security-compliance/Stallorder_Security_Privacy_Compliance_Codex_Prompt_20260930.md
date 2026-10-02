@@ -1,3 +1,5 @@
+> 保存的 2026-09-30 需求快照；本輪平台 OA 優先契約見 [INTEGRATION_CONTRACT_20261002.md](INTEGRATION_CONTRACT_20261002.md)。下方歷史架構假設不得覆寫目前使用者指令；來源原樣另存 inputs。
+
 # Stallorder／Stellorder 攤點通：個資、資安、稽核與法遵完整 Codex Prompt
 
 版本：2.0｜原版：2026-09-13｜架構更新：2026-09-30（Asia/Taipei）

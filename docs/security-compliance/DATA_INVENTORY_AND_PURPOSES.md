@@ -19,7 +19,7 @@
 
 ## 2026-09-30 v2.0 同步（本機，未發布）
 
-目前目標是各商家自有 OA 發訊；OA 通知、Mini Store、LINE Pay 三開關獨立。平台 OA 僅為未來明確選用的受控遷移，不是現況或預設。此規則優先於 09-29 Assessment 的平台單一 OA 假設。
+2026-10-02 整合契約：新平台通知採單一攤點通 PLATFORM_OA，既有 LEGACY owner 保留隔離；各店 LINE Pay 獨立收款。通知、MINI 與 Pay 分別控制，並驗證整體與子旗標依賴／在途訂單。09-30 各店 OA 現況假設已被本輪使用者指令取代；歷史證據不重標 PASS。詳見 [整合安全契約](INTEGRATION_CONTRACT_20261002.md)。
 
 新增待盤點：channel-scoped subject、merchant/stall/channel 綁定與版本、sender_mode、收件資格、服務通知目的／獨立行銷同意、模板版本、attempt/provider receipt、遠端 webhook 遮蔽差異。不同 channel 的 user ID、email 或電話不自動合併；sender 切換不重寫歷史事件與同意。秘密只記錄參照／版本，禁止報告含明文。
 

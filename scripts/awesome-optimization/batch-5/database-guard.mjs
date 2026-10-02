@@ -6,12 +6,13 @@ import {assertLegacyNotificationCatalogue} from '../../../docs/awesome-optimizat
 export const evidence='.superpowers/sdd/2026-10-01-awesome-optimization/batch-5';
 export const sha=b=>createHash('sha256').update(b).digest('hex');
 export const plain=v=>JSON.parse(JSON.stringify(v));
-export function assertPreClient(env,source,pins,read=readFileSync){
+export function assertPreClient(env,source,pins,read=readFileSync,reviewedSchemaSha256='0b566b681454042f6c658b246a1c543d89e24a0b6a878495e02909a03dd7ed42'){
  assertResponsiveQaTarget(env);assert.ok(!env.VERCEL&&!env.VERCEL_ENV&&!env.CI,'NATIVE_HOSTED_TARGET_DENIED');
  for(const key of ['DATABASE_URL','DIRECT_URL','DR_DATABASE_URL','DR_DIRECT_URL']){if(!env[key]){assert.ok(!['DATABASE_URL','DIRECT_URL'].includes(key),'NATIVE_DATABASE_REQUIRED');continue;}const u=new URL(env[key]);assert.ok(['postgres:','postgresql:'].includes(u.protocol)&&['127.0.0.1','localhost'].includes(u.hostname)&&u.port==='56822'&&u.pathname==='/postgres','NATIVE_DATABASE_TARGET_DENIED');}
  assert.match(env.B5_ROOT_SOURCE??'',/^[a-f0-9]{64}$/);assert.equal(source,env.B5_ROOT_SOURCE,'NATIVE_SOURCE_DRIFT');
  for(const [file,expected]of Object.entries(pins))assert.equal(sha(read(file)),expected,'NATIVE_INPUT_DRIFT '+file);
- assert.equal(sha(read('prisma/schema.prisma')),'0b566b681454042f6c658b246a1c543d89e24a0b6a878495e02909a03dd7ed42','NATIVE_SCHEMA_DRIFT');
+ assert.match(reviewedSchemaSha256,/^[a-f0-9]{64}$/);
+ assert.equal(sha(read('prisma/schema.prisma')),reviewedSchemaSha256,'NATIVE_SCHEMA_DRIFT');
 }
 export async function openNativeDatabase(){
  const pins=JSON.parse(readFileSync(evidence+'/database-helper-pins-v1.json','utf8'));assert.equal(sha(readFileSync(evidence+'/database-helper-pins-v1.json')),'d6b685c86b374dc46b409dde7d5784d18f272bcdf21137453fbcabfd89c46cfc');

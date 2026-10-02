@@ -30,7 +30,7 @@ flowchart LR
 
 ## 2026-09-30 v2.0 同步（本機，未發布）
 
-目前目標是各商家自有 OA 發訊；OA 通知、Mini Store、LINE Pay 三開關獨立。平台 OA 僅為未來明確選用的受控遷移，不是現況或預設。此規則優先於 09-29 Assessment 的平台單一 OA 假設。
+2026-10-02 整合契約：新平台通知採單一攤點通 PLATFORM_OA，既有 LEGACY owner 保留隔離；各店 LINE Pay 獨立收款。通知、MINI 與 Pay 分別控制，並驗證整體與子旗標依賴／在途訂單。09-30 各店 OA 現況假設已被本輪使用者指令取代；歷史證據不重標 PASS。詳見 [整合安全契約](INTEGRATION_CONTRACT_20261002.md)。
 
 目標通知流：商家 channel → raw-body 簽章及 destination／綁定驗證 → 去重 Inbox → 有 scope 的交易 → 固定 sender/channel/recipient/version/purpose 的 Outbox → worker 再授權 → 同店 OA。遠端 webhook 管理是獨立特權控制面，需測試／套用分離及遠端讀回；Pay 的 merchant、憑證、對帳不使用 OA 授權。以上是待驗目標，不是目前全數已實作。
 

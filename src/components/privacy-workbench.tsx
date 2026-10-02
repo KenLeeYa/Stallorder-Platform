@@ -47,7 +47,7 @@ export function PrivacyWorkbench({ organizationId, locale, mfaAvailable }: { org
   }
   return <section className="mx-auto max-w-3xl space-y-4 p-4"><h2 className="text-xl font-semibold">{text.workbench}</h2>
     {mfaAvailable ? <PrivacyMfaSetup locale={locale} /> : <p role="status">{text.mfaUnavailableNotice}</p>}
-    {mfaAvailable && <label className="block">{text.sensitiveCode}<input value={code} onChange={(event) => setCode(event.target.value)} inputMode="numeric" autoComplete="one-time-code" maxLength={6} className="mt-1 min-h-11 w-full rounded border p-2" /></label>}
+    {mfaAvailable && <label className="block">{text.sensitiveCode}<input type="text" value={code} onChange={(event) => setCode(event.target.value)} inputMode="numeric" autoComplete="one-time-code" maxLength={6} className="mt-1 min-h-11 w-full rounded border p-2" /></label>}
     {error && <p role="alert">{error}</p>}{rows.length === 0 && <p>{text.empty}</p>}
     {result && <div role="status" className="space-y-2 rounded border p-3 break-words">
       <p>{result.mode === "DRY_RUN" ? text.previewDone : text.recorded}</p>
@@ -59,9 +59,9 @@ export function PrivacyWorkbench({ organizationId, locale, mfaAvailable }: { org
     </div>}
     {rows.map((row) => <article key={row.id} className="space-y-3 rounded-xl border p-4 break-words"><p>{row.id}</p>
       <p>{text.types[row.request_type as keyof typeof text.types]} · {text.states[row.status as keyof typeof text.states]}</p><p>{text.due}: {new Date(row.due_at).toLocaleString(locale, { timeZone: "Asia/Taipei" })}</p>
-      <div className="flex flex-wrap gap-2"><button disabled={busy || !mfaAvailable} className="min-h-11 rounded border px-3" onClick={() => run({ action: "DETAIL", id: row.id })}>{text.detail}</button>
-        {["ACCESS", "COPY"].includes(row.request_type) && ["APPROVED", "EXECUTING"].includes(row.status) && <button disabled={busy || !mfaAvailable} className="min-h-11 rounded border px-3" onClick={() => run({ action: "EXPORT", id: row.id, expectedVersion: row.version })}>{text.prepareCopy}</button>}
-        {row.request_type === "DELETE" && <button disabled={busy} className="min-h-11 rounded border px-3" onClick={() => run({ action: "DELETE_PREVIEW", id: row.id, expectedVersion: row.version })}>{text.previewDelete}</button>}
+      <div className="flex flex-wrap gap-2"><button type="button" disabled={busy || !mfaAvailable} className="min-h-11 rounded border px-3" onClick={() => run({ action: "DETAIL", id: row.id })}>{text.detail}</button>
+        {["ACCESS", "COPY"].includes(row.request_type) && ["APPROVED", "EXECUTING"].includes(row.status) && <button type="button" disabled={busy || !mfaAvailable} className="min-h-11 rounded border px-3" onClick={() => run({ action: "EXPORT", id: row.id, expectedVersion: row.version })}>{text.prepareCopy}</button>}
+        {row.request_type === "DELETE" && <button type="button" disabled={busy} className="min-h-11 rounded border px-3" onClick={() => run({ action: "DELETE_PREVIEW", id: row.id, expectedVersion: row.version })}>{text.previewDelete}</button>}
       </div>
       {Object.keys(text.states).some((state) => canTransition(row.status, state) && state !== "COMPLETED" && (state !== "APPROVED" || mfaAvailable)) && <form onSubmit={(event) => update(event, row)} className="space-y-2">
         <label className="block">{text.update}<select name="status" className="min-h-11 w-full rounded border p-2">{Object.entries(text.states).filter(([value]) => value !== "COMPLETED" && (value !== "APPROVED" || mfaAvailable) && canTransition(row.status, value)).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
@@ -74,17 +74,17 @@ export function PrivacyWorkbench({ organizationId, locale, mfaAvailable }: { org
           <label className="block">{text.extensionDays}<input name="days" type="number" min={1} max={["ACCESS", "COPY"].includes(row.request_type) ? 15 : 30} required className="min-h-11 w-full rounded border p-2" /></label>
           <label className="block">{text.extensionReason}<textarea name="reason" minLength={3} maxLength={2000} required className="w-full rounded border p-2" /></label>
           <label className="block">{text.notifiedAt}<input name="notifiedAt" type="datetime-local" required className="min-h-11 w-full rounded border p-2" /></label>
-          <label className="block">{text.deliveryEvidence}<input name="evidence" minLength={8} maxLength={300} required className="min-h-11 w-full rounded border p-2" /></label>
-          <button disabled={busy} className="min-h-11 rounded border px-4">{text.saveExtension}</button>
+          <label className="block">{text.deliveryEvidence}<input type="text" name="evidence" minLength={8} maxLength={300} required className="min-h-11 w-full rounded border p-2" /></label>
+          <button type="submit" disabled={busy} className="min-h-11 rounded border px-4">{text.saveExtension}</button>
         </form></details>}
       {["COMPLAINT", "CORRECT", "STOP", "MARKETING_STOP"].includes(row.request_type) && ["APPROVED", "EXECUTING"].includes(row.status) && <details><summary className="min-h-11 py-2">{text.resultEntry}</summary>
         <form className="space-y-2" onSubmit={(event) => { event.preventDefault(); const data = new FormData(event.currentTarget); run({ action: "RECORD_RESULT", id: row.id, expectedVersion: row.version, reason: data.get("reason"), executionEvidence: data.get("evidence") }); }}>
           <p>{text.resultInstruction}</p>
           <label className="block">{text.resultReason}<textarea name="reason" minLength={3} maxLength={2000} required className="w-full rounded border p-2" /></label>
-          <label className="block">{text.resultEvidence}<input name="evidence" minLength={8} maxLength={300} required className="min-h-11 w-full rounded border p-2" /></label>
-          <button disabled={busy} className="min-h-11 rounded border px-4">{text.saveResult}</button>
+          <label className="block">{text.resultEvidence}<input type="text" name="evidence" minLength={8} maxLength={300} required className="min-h-11 w-full rounded border p-2" /></label>
+          <button type="submit" disabled={busy} className="min-h-11 rounded border px-4">{text.saveResult}</button>
         </form></details>}
       </article>)}
-    <div className="flex gap-3"><button className="min-h-11 rounded border px-4" disabled={page === 1 || busy} onClick={() => setPage(page - 1)}>{text.previous}</button><button className="min-h-11 rounded border px-4" disabled={rows.length < 5 || busy} onClick={() => setPage(page + 1)}>{text.next}</button></div>
+    <div className="flex gap-3"><button type="button" className="min-h-11 rounded border px-4" disabled={page === 1 || busy} onClick={() => setPage(page - 1)}>{text.previous}</button><button type="button" className="min-h-11 rounded border px-4" disabled={rows.length < 5 || busy} onClick={() => setPage(page + 1)}>{text.next}</button></div>
   </section>;
 }

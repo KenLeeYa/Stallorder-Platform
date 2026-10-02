@@ -58,7 +58,7 @@ describe("DR failover operation helpers", () => {
   });
 
   it("replicates the offline recovery idempotency records exactly once", () => {
-    expect(replicatedPublicTables).toHaveLength(135);
+    expect(replicatedPublicTables).toHaveLength(144);
     expect(replicatedPublicTables).toEqual(expect.arrayContaining([
       "privacy_requests", "privacy_request_events", "privacy_policy_versions", "privacy_exports",
       "privacy_legal_holds", "privacy_deletion_tasks", "privacy_deletion_tombstones", "retention_policy_versions",

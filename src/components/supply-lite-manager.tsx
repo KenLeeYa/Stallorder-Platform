@@ -544,7 +544,7 @@ function SupplyLiteWorkspace({
       <section className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
         <h2 className="flex items-center gap-2 text-lg font-semibold"><TrendingUp className="h-5 w-5 text-teal-700" />商品配方毛利</h2>
         <p className="mt-2 text-sm text-amber-900">尚未建立配方：{missingRecipeCount} 件</p>
-        <SupplyListControls label="商品配方毛利" searchLabel="搜尋毛利商品" search={productSearch} onSearch={(value) => { setProductSearch(value); setProductPage(1); }} page={visibleProductPage} onPage={setProductPage} count={matchingProducts.length} total={dashboard.productCosts.length} />
+        <SupplyListControls label="商品配方毛利" searchLabel="搜尋毛利商品" maxSearchLength={80} search={productSearch} onSearch={(value) => { setProductSearch(value); setProductPage(1); }} page={visibleProductPage} onPage={setProductPage} count={matchingProducts.length} total={dashboard.productCosts.length} />
         {!matchingProducts.length ? <p className="mt-3 text-sm text-stone-600">{dashboard.productCosts.length ? "找不到符合的商品，請調整搜尋。" : "目前沒有商品。"}</p> : null}
         <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{visibleProducts.map((product) => <article key={product.productId} className={`rounded-lg border p-3 ${product.recipeComplete ? "border-stone-200" : "border-amber-300 bg-amber-50"}`}><div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{product.productName}</p><p className="text-xs text-stone-500">售價 ${product.sellingPrice.toLocaleString("zh-TW")} · 配方成本 ${product.recipeCostAmount.toLocaleString("zh-TW")}</p></div><strong className={product.grossProfit >= 0 ? "text-teal-700" : "text-red-700"}>{(product.grossMarginBasisPoints / 100).toFixed(1)}%</strong></div><p className="mt-2 text-sm">單份毛利 ${product.grossProfit.toLocaleString("zh-TW")}</p>{!product.recipeComplete ? <p className="mt-2 text-xs font-semibold text-amber-900">尚未建立配方，毛利不可採信。</p> : null}</article>)}</div>
       </section>
@@ -610,7 +610,7 @@ function SupplyLiteWorkspace({
 
       <section className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
         <h2 className="text-lg font-semibold text-stone-950">商品配方項目</h2>
-        <SupplyListControls label="商品配方項目" searchLabel="搜尋配方商品或食材" search={recipeSearch} onSearch={(value) => { setRecipeSearch(value); setRecipePage(1); }} page={visibleRecipePage} onPage={setRecipePage} count={matchingRecipes.length} total={dashboard.recipeComponents.length} />
+        <SupplyListControls label="商品配方項目" searchLabel="搜尋配方商品或食材" maxSearchLength={201} search={recipeSearch} onSearch={(value) => { setRecipeSearch(value); setRecipePage(1); }} page={visibleRecipePage} onPage={setRecipePage} count={matchingRecipes.length} total={dashboard.recipeComponents.length} />
         <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {visibleRecipes.map((component) => (
             <button type="button" key={component.id} data-testid={`manage-supply-recipe-${component.id}`} onClick={() => openRecordDialog("recipe", component.id, `${productNames.get(component.productId) ?? "商品"}－${ingredientNames.get(component.ingredientId) ?? "品項"}`)} className="group flex min-h-24 w-full items-center justify-between gap-3 rounded-lg border border-stone-200 p-3 text-left transition hover:border-teal-600 hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200">
@@ -658,9 +658,10 @@ function SupplyMoreControls({ label, total, count, onMore, onCollapse }: {
   </div>;
 }
 
-function SupplyListControls({ label, searchLabel, search, onSearch, page, onPage, count, total }: {
+function SupplyListControls({ label, searchLabel, maxSearchLength, search, onSearch, page, onPage, count, total }: {
   label: string;
   searchLabel: string;
+  maxSearchLength: number;
   search: string;
   onSearch: (value: string) => void;
   page: number;
@@ -673,7 +674,7 @@ function SupplyListControls({ label, searchLabel, search, onSearch, page, onPage
     <div className="flex flex-wrap items-end gap-2">
       <label className="min-w-0 flex-1 text-sm font-medium text-stone-700">
         {searchLabel}
-        <input type="search" value={search} onChange={(event) => onSearch(event.target.value)} className="mt-1 min-h-11 w-full rounded-lg border border-stone-300 bg-white px-3 text-base text-stone-950" />
+        <input type="search" maxLength={maxSearchLength} value={search} onChange={(event) => onSearch(event.target.value)} className="mt-1 min-h-11 w-full rounded-lg border border-stone-300 bg-white px-3 text-base text-stone-950" />
       </label>
       {search ? <button type="button" onClick={() => onSearch("")} aria-label={`清除${label}搜尋`} className="min-h-11 rounded-lg border border-stone-300 px-3 text-sm">清除搜尋</button> : null}
     </div>

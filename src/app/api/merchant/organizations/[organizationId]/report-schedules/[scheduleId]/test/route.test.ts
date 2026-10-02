@@ -58,7 +58,7 @@ describe("測試報表排程 API 攤位授權", () => {
     expect(mocks.authorize).toHaveBeenCalledWith(
       expect.any(Request), organizationId, "MANAGE_REPORT_SCHEDULES", true,
     );
-    expect(mocks.createTestReportDelivery).toHaveBeenCalledWith(scheduleId, organizationId);
+    expect(mocks.createTestReportDelivery).toHaveBeenCalledWith(scheduleId, organizationId, expect.any(Date), "request-1");
   });
 });
 

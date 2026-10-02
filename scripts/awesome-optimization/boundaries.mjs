@@ -31,7 +31,10 @@ export function scanBoundaries(root) {
   const sources = new Map(files.map((file) => [resolve(root, file), readFileSync(join(root, file), "utf8")]));
   const asts = new Map([...sources].map(([path, source]) => [path, ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true)]));
   const findings = [];
-  const entries = files.filter((file) => hasDirective(asts.get(resolve(root, file)), "use client") || file.startsWith("apps/mobile/") || file.startsWith("packages/"));
+  // Expo configuration/plugins run during builds, but remain in the graph so runtime imports are checked.
+  const entries = files.filter((file) => hasDirective(asts.get(resolve(root, file)), "use client")
+    || (file.startsWith("apps/mobile/") && !/^apps\/mobile\/(?:app\.config\.[cm]?[jt]s|plugins\/)/u.test(file))
+    || file.startsWith("packages/"));
   const checked = new Set();
   const visit = (path, entry) => {
     const visitKey = `${entry}:${path}`;
