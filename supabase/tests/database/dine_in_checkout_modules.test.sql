@@ -4,6 +4,8 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 select plan(20);
 
+\ir ../../fixtures/public-intake-open-calendar-test.sql
+
 select ok(
   (select count(*) = 4 and bool_and(relrowsecurity)
    from pg_class

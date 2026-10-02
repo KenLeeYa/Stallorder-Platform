@@ -4,6 +4,8 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 select plan(17);
 
+\ir ../../fixtures/public-intake-open-calendar-test.sql
+
 select ok(
   exists (
     select 1 from pg_enum enum_value

@@ -599,7 +599,12 @@ describe("Production workflow approval contract", () => {
   });
 
   it("keeps main and the live LINE QA branch on controlled deployments", () => {
-    expect(vercel.git.deploymentEnabled).toEqual({ main: false, "codex/line-platform-oa-v2-20260927": false });
+    expect(vercel.git.deploymentEnabled).toEqual({
+      main: false,
+      staging: false,
+      "codex/integrated-production-20261002": false,
+      "codex/line-platform-oa-v2-20260927": false,
+    });
   });
 
   it("pairs privileged Supabase access and disables inherited paid providers for LINE QA", () => {

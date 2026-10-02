@@ -367,7 +367,7 @@ select throws_ok(
       '9a200000-0000-4000-8000-000000000001', 'LINE', 'ORDER_CANCELLED',
       (select secret_id from line_test_secrets where name = 'other-recipient')
     )$$,
-  'P0001', 'NOTIFICATION_INTEGRATION_SCOPE_MISMATCH',
+  'P0001', 'LEGACY_NOTIFICATION_SCOPE_MISMATCH',
   'notification jobs cannot cross stall scope'
 );
 

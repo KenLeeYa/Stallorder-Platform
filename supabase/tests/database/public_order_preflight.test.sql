@@ -4,6 +4,8 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 select plan(19);
 
+\ir ../../fixtures/public-intake-open-calendar-test.sql
+
 select has_function(
   'public',
   'public_order_preflight',
