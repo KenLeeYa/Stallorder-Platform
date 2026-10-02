@@ -31,3 +31,12 @@
 - Primary 通知已讀回填已接入發布流程、位於 schema Apply 後及 Edge／應用更新前。專用 clone runner 的七項實際測試通過，交易回滾並讀回 runtime 狀態不變；正式回填尚未執行。
 - 原有 staging environment 指向正式 DR 的 Supabase project，不能寫入候選測試資料。PR366 的隔離 Staging 方案另列，尚待新的限時付費測試授權；原 PR365 授權不延用。
 - 完整倉庫依賴掃描有七項漏洞，屬未發布的 Native／Expo 相依鏈；不得宣稱完整倉庫或 Native 安全通過。正式 Web 的獨立 artifact 範圍仍需依賴閉包及部署產物證據，不得只以路徑搜尋代替放行。
+
+### 01:00 後的驗證進展
+
+- CI `37035622324`（`f1a42cd7`）已通過全新資料庫遷移、pgTAP、資料庫 lint 及建置；完整 E2E／最終 CI 尚未確認通過。八個正向 SQL 測試直接建立交易內營業時段，避免 pg_prove 容器讀不到 tests 外的 fixture；關店負案仍保留。
+- Web Install Scope Proof `37038019736`（`3ff28154`）通過：實際安裝 661 套件，root 29 production／21 development 依賴及 contracts 0.1.0 保留，選定範圍漏洞數零。原 npm SBOM 保留，另產補充 contracts 的清單並逐一核對實際安裝與依賴邊；未稱原 npm 工具輸出完整。
+- 新增 fresh Web artifact 的已知 Native 依賴排除檢查，綁定 HEAD、tree、source、lock、驗證工具及 build ID，仍須 Linux 本次建置驗證。通用 Next 動態 loader 安全另列 `INCOMPLETE`／`NOT_PROVEN`；這不是整個倉庫或所有 runtime 安全通過。
+- Preview 清理改為保存精確資源收據與六小時期限，刪後確認不存在；失敗保留 `RECOVERY_REQUIRED`。十項聚焦測試通過，Vercel 58.3.0 CLI endpoint／response shape 已來源核對，真實 provider 清理尚未執行。隔離資源授權仍待答覆，建立前還需獨立到期保障。
+- staff POS／LINE／外送 E2E 正向流程補上本機限定的營業時間快照與 finally 還原；六案例可列出、lint 通過，尚未計為實際 E2E 通過。
+- 正式站保持既有部署；最近登入／店員登入 HTTP 200，受保護 health 401。這些讀回不代替正式帳號與有效取餐／公開下單的完整驗收。

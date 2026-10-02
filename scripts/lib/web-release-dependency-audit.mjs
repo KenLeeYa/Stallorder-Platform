@@ -4,6 +4,7 @@ import {existsSync,readFileSync,readdirSync,realpathSync,statSync} from 'node:fs
 import {dirname,join,relative,resolve,sep} from 'node:path';
 import {builtinModules} from 'node:module';
 import ts from 'typescript';
+import {verifyWebInstallScope} from '../verify-web-install-scope.mjs';
 
 const hash=value=>createHash('sha256').update(value).digest('hex');
 const nativePackage=name=>/^(?:expo(?:$|-)|@expo\/|react-native(?:$|-)|@react-native\/|node-forge$|decode-uri-component$|query-string$)/.test(name);
@@ -127,7 +128,8 @@ export function verifyManifestReferences(root,nextFiles,traced){
 export function auditPackageSet(sbom,lock){
  if(sbom.bomFormat!=='CycloneDX'||!Array.isArray(sbom.components)||!sbom.components.length)reject('WEB_SBOM_INVALID');
  const set=new Set();
- for(const component of sbom.components){
+ for(const rawComponent of sbom.components){
+  const component={...rawComponent,name:rawComponent.group?`${rawComponent.group}/${rawComponent.name}`:rawComponent.name};
   if(!component.name||!component.version||nativePackage(component.name))reject('WEB_SBOM_NATIVE_OR_INVALID');
   if(!Object.values(lock.packages??{}).some(p=>!p.link&&p.version===component.version&&(p.name===component.name||p.resolved?.includes(`/${component.name.split('/').at(-1)}-/`)))){
    const suffix=`node_modules/${component.name}`;
@@ -139,7 +141,7 @@ export function auditPackageSet(sbom,lock){
 }
 export function sourceSnapshot(root){
  const paths=['src','packages/contracts','public','prisma','supabase/functions/_shared'].flatMap(p=>files(join(root,p)))
-  .concat(['package.json','package-lock.json','next.config.ts','tsconfig.json','postcss.config.mjs'].map(p=>join(root,p)))
+  .concat(['package.json','package-lock.json','next.config.ts','tsconfig.json','postcss.config.mjs','vercel.json','scripts/lib/web-release-dependency-audit.mjs','scripts/web-release-dependency-audit.mjs','scripts/verify-web-install-scope.mjs','.github/workflows/web-install-scope.yml'].map(p=>join(root,p)))
   .filter(p=>existsSync(p)).sort();
  if(!paths.length)reject('WEB_SOURCE_EMPTY');
  const digest=hash(paths.map(p=>`${relative(root,p).replaceAll('\\','/')}\0${hash(readFileSync(p))}`).join('\n'));
@@ -214,4 +216,13 @@ export function npmJson(root,args){
  const result=process.platform==='win32'?spawnSync(process.env.ComSpec??'cmd.exe',['/d','/s','/c',`npm ${args.join(' ')}`],{cwd:root,encoding:'utf8',maxBuffer:16*1024*1024}):spawnSync('npm',args,{cwd:root,encoding:'utf8',maxBuffer:16*1024*1024});
  let value;try{value=JSON.parse(result.stdout);}catch{reject('NPM_AUDIT_OUTPUT_INVALID');}
  return {status:result.status,value};
+}
+
+/** A physical known-Native-chain exclusion proof; generic loader safety stays separate. */
+export function verifyKnownNativeExclusion(root,baseline,audit,sbom){
+ const installed=verifyWebInstallScope(root,sbom);
+ const general=verifyWebArtifact(root,baseline,audit,sbom);
+ const genericLoaders=general.problems.filter(problem=>problem.code==='UNKNOWN_COMPILED_IMPORT');
+ const problems=general.problems.filter(problem=>problem.code!=='UNKNOWN_COMPILED_IMPORT');
+ return {...general,scope:'WEB_KNOWN_NATIVE_DEPENDENCY_EXCLUSION',status:problems.length?'INCOMPLETE':'PASS',problems,installation:installed,auditSha256:hash(JSON.stringify(audit)),sbomSha256:hash(JSON.stringify(sbom)),generalArtifactAnalysis:{status:general.status,unreviewedGenericLoaders:genericLoaders},runtimeLoaderSafety:'NOT_PROVEN',nativeRelease:'NOT_AUTHORIZED_NOT_PUBLISHED'};
 }

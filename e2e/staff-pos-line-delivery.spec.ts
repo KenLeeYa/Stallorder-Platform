@@ -24,6 +24,8 @@ let cashShiftId = "";
 let createdCashShiftId = "";
 type AuthCookies = Awaited<ReturnType<BrowserContext["cookies"]>>;
 let ownerAuthCookies: AuthCookies | null = null;
+let localFixtureAllowed = false;
+let originalBusinessHours: Array<{ id: string; opensAt: string; closesAt: string; isClosed: boolean; lastOrderAt: string | null; updatedAt: Date }> = [];
 
 async function login(page: Page) {
   const next = "/merchant/dashboard?organizationId=11111111-1111-4111-8111-111111111111";
@@ -60,6 +62,15 @@ async function login(page: Page) {
 }
 
 test.beforeAll(async () => {
+  const database = new URL(process.env.DATABASE_URL ?? "postgresql://invalid");
+  if (!["localhost", "127.0.0.1", "[::1]"].includes(database.hostname)) {
+    throw new Error("STAFF_POS_CALENDAR_FIXTURE_REQUIRES_LOCAL_DATABASE");
+  }
+  originalBusinessHours = await prisma.stallBusinessHour.findMany({
+    where: { stallId },
+    select: { id: true, opensAt: true, closesAt: true, isClosed: true, lastOrderAt: true, updatedAt: true },
+  });
+  if (originalBusinessHours.length !== 7) throw new Error("STAFF_POS_CALENDAR_FIXTURE_HOURS_INCOMPLETE");
   const [settings, owner] = await Promise.all([
     prisma.stallOrderingSettings.findUniqueOrThrow({
       where: { stallId },
@@ -79,6 +90,12 @@ test.beforeAll(async () => {
   originalStaffDeliveryEnabled = settings.staffDeliveryEnabled;
   originalDineInEnabled = settings.dineInEnabled;
   originalTakeoutPreorderEnabled = settings.takeoutPreorderEnabled;
+  localFixtureAllowed = true;
+  // Positive public DELIVERY journeys need an explicit calendar; equal midnight means 24 hours.
+  await prisma.stallBusinessHour.updateMany({
+    where: { stallId },
+    data: { opensAt: "00:00", closesAt: "00:00", isClosed: false, lastOrderAt: null },
+  });
   await prisma.stallOrderingSettings.update({
     where: { stallId },
     data: {
@@ -110,6 +127,8 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
+  if (!localFixtureAllowed) { await prisma.$disconnect(); return; }
+  try {
   if (createdOrderIds.length > 0) {
     await prisma.order.deleteMany({ where: { id: { in: createdOrderIds } } });
   }
@@ -128,7 +147,13 @@ test.afterAll(async () => {
       takeoutPreorderEnabled: originalTakeoutPreorderEnabled,
     },
   });
-  await prisma.$disconnect();
+  } finally {
+    try {
+      await Promise.all(originalBusinessHours.map(({ id, ...data }) =>
+        prisma.stallBusinessHour.update({ where: { id }, data }),
+      ));
+    } finally { await prisma.$disconnect(); }
+  }
 });
 
 test("內用顧客名稱與桌位欄位在桌面版對齊", async ({ page }, testInfo) => {

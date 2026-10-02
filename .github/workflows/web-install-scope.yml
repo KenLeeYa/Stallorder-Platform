@@ -11,6 +11,13 @@ jobs:
   verify-clean-install:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+      DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_web_artifact_fixture
+      ALLOW_DEMO_SEED: "false"
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
@@ -34,6 +41,12 @@ jobs:
           npm sbom --workspaces=false --package-lock-only --sbom-format cyclonedx > web-scope-evidence/npm-root-sbom.json
           node scripts/verify-web-install-scope.mjs --supplement-sbom web-scope-evidence/npm-root-sbom.json web-scope-evidence/sbom.json > web-scope-evidence/sbom-supplement.json
           node scripts/verify-web-install-scope.mjs --sbom web-scope-evidence/sbom.json > web-scope-evidence/installed-sbom-coverage.json
+      - name: Bind a new Web build to this source and lock
+        run: node scripts/web-release-dependency-audit.mjs prepare web-scope-evidence/prebuild.json
+      - name: Build the isolated Web dependency scope
+        run: npm run build
+      - name: Verify the new artifact excludes known Native dependencies
+        run: node scripts/web-release-dependency-audit.mjs verify-known-native web-scope-evidence/prebuild.json web-scope-evidence/sbom.json web-scope-evidence/audit.json
       - name: Preserve scope evidence without claiming deployment verification
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
