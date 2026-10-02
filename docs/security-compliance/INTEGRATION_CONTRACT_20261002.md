@@ -1,5 +1,9 @@
 # 2026-10-02 整合安全契約與發布狀態
 
+## 通知已讀資料的 Primary-only 回填
+
+`20261001120000_personal_notification_inbox.sql` 只建立 schema，不在 DR-first Apply 寫入 replicated 資料。原申請通知的 `read_at` 不刪除；Primary schema 完成後、對外啟用新通知中心前，必須核對真正 Primary project／連線，再執行 `supabase/fixtures/primary_notification_read_receipts_backfill.sql`。fixture 核對目前 backend 為 PRIMARY／ACTIVE_WRITER／writes_enabled，複製非空歷史已讀時間，以 ON CONFLICT DO NOTHING 保留既有 receipt；交易內確認無缺漏，提交後讀回 `missing_legacy_read_receipts=0` 並封存收據。不能在 DR 執行，不能把 static fixture 測試視為已完成遠端回填；由 Primary 寫入後依 publication 同步 DR，另驗 DR 讀回。
+
 ## 本輪範圍與證據邊界
 
 使用者要求將本機候選與安全架構工作區尚未完成項目整合，完成驗證後發布。安全來源為 `c31a5d9b379086b04360430aa71564b083a99292` 與 `de2096b1333906ae513742b304b60a3583551d02`；整合工作樹為 `integrated-production-20261002`。此文件記錄整合契約，不是發布收據。歷史 local PASS、Preview 實機證據不自動轉為本次 Staging／Production PASS；最終 commit、tree、Plan、部署及實際流程回讀由本輪發布收據補齊。

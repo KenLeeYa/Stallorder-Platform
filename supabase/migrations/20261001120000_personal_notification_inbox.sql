@@ -41,7 +41,7 @@ CREATE TRIGGER backend_writable_guard BEFORE INSERT OR UPDATE OR DELETE ON publi
   FOR EACH STATEMENT EXECUTE FUNCTION app_private.enforce_backend_writable();
 CREATE TRIGGER backend_writable_guard BEFORE INSERT OR UPDATE OR DELETE ON public.notification_preferences
   FOR EACH STATEMENT EXECUTE FUNCTION app_private.enforce_backend_writable();
-INSERT INTO public.notification_read_receipts(profile_id,application_notification_id,read_at)
-SELECT profile_id,id,read_at FROM public.merchant_application_notifications WHERE read_at IS NOT NULL
-ON CONFLICT(profile_id,application_notification_id) DO NOTHING;
+-- Replicated-data backfill is Primary-only after schema Apply; never run on DR.
+-- Execute supabase/fixtures/primary_notification_read_receipts_backfill.sql
+-- and verify zero missing legacy receipts before exposing the new inbox.
 COMMIT;

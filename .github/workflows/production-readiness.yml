@@ -334,6 +334,12 @@ jobs:
           psql --dbname "$SUPABASE_CI_DATABASE_URL" \
             --no-psqlrc --set ON_ERROR_STOP=1 \
             --file scripts/sql/backfill-product-availability-deadlines.sql
+      - name: Backfill legacy notification read receipts on the verified Primary writer
+        if: inputs.apply_migrations
+        run: |
+          psql --dbname "$SUPABASE_CI_DATABASE_URL" \
+            --no-psqlrc --set ON_ERROR_STOP=1 \
+            --file supabase/fixtures/primary_notification_read_receipts_backfill.sql
       - name: Deploy Production Edge Functions
         if: inputs.apply_migrations
         env:
