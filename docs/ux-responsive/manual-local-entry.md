@@ -1,5 +1,9 @@
 # Responsive 3026 手動 QA 入口
 
+**2026-10-02 本輪商品／通知／LINE模擬更新：** [LINE本機模擬](http://127.0.0.1:3026/local-qa/line)，完整本輪驗證與限制見[商品與接單防護收據](../awesome-optimization/UI_AND_ORDER_GUARDS_20261002.md)。
+
+**2026-10-02 目前入口已恢复：** [登入](http://127.0.0.1:3026/login)、[店員](http://127.0.0.1:3026/staff/aming-chicken)、[外送](http://127.0.0.1:3026/store/aming-01?view=delivery)。最新建置、營業時間卡控實測、保留程序、3026 proxy／3027 upstream 與有界旗標期限請以[本次驗收收據](../awesome-optimization/BUSINESS_HOURS_QA_20261002.md)為準。下文2026-10-01 build、啟動方式與旗標時段是歷史紀錄，已被本次收據取代；不要在目前listener上重複啟動舊指令。
+
 這是隔離本機候選，不是正式站。工作樹為 `C:/Users/KY/.codex/worktrees/responsive-cross-device/Stallorder-Platform`，分支 `codex/responsive-cross-device-20260930`；目標 app `http://127.0.0.1:3026`、Supabase API `127.0.0.1:56821`、DB `127.0.0.1:56822`。2026-10-01 03:35（台北）讀回 app 正以被測來源 `951da26`／BUILD_ID `JkhAOmjpcVnrPc59NHe-l` 運行；候選收據見[合併 QA 證據](b3-final-qa-evidence.md)。目前的測試資料是**首輪整批後、120 個已知任務精確修復**的本機資料，不是 B3.2 當時的不可變全欄位凍結快照。請勿把手測所得當作舊配對效能的新樣本。
 
 開 `http://127.0.0.1:3026/login`，使用此隔離 lab 既有 seed 使用者登入：商家 `owner@stallorder.test` → `/merchant/dashboard`；店員 `staff@stallorder.test` → `/staff/aming-chicken`，從「店員點餐」進 POS；廚房 `kitchen@stallorder.test` → `/kitchen?stall=aming-chicken`；平台管理員 `platform.admin@stallorder.test` → `/admin/billing`。匿名顧客菜單可用 `/store/aming-01?view=menu`；`/mini` 顯示目前真實的供應商設定需求狀態，並無真 LINE 登入或付款。四個角色共用的**本機 seed 測試密碼**定義在 [prisma/seed.ts:722](../../prisma/seed.ts)；請從該受控檔案讀取，不要為取密碼重跑 seed。私有密碼、QR token 及付款憑證不寫在此文件；需要建立有效 QR 訂單時只用此 lab 內受控 QR 頁與測試資料，勿複製到其他環境。

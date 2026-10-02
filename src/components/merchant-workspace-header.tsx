@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import Link from "next/link";
 import {
   BarChart3,
+  Bell,
   BriefcaseBusiness,
   Boxes,
   Building2,
@@ -29,6 +30,9 @@ import { buildWorkModeDestinations } from "@/lib/work-mode";
 import { useMerchantMessages } from "@/lib/messages/merchant-client";
 import type { WorkspaceOrganization } from "@/lib/workspace";
 import type { WorkspaceRouteContext } from "@/lib/workspace-route-context";
+import { NotificationUnreadStatus } from "@/components/notification-inbox";
+import { inboxScopeParams } from "@/lib/notification-inbox-contract";
+import { workspaceNavigationMessage } from "@/lib/messages/workspace-navigation";
 
 export function MerchantWorkspaceHeader({
   workspaces,
@@ -38,6 +42,7 @@ export function MerchantWorkspaceHeader({
   showGrowth = false,
   showPayments = false,
   showSupply = false,
+  notificationIdentity,
 }: {
   workspaces: WorkspaceOrganization[];
   displayName: string;
@@ -46,6 +51,7 @@ export function MerchantWorkspaceHeader({
   showGrowth?: boolean;
   showPayments?: boolean;
   showSupply?: boolean;
+  notificationIdentity?: string;
 }) {
   const { m, locale } = useMerchantMessages();
   const organizationId = routeContext.organizationId ?? workspaces[0]?.id ?? "";
@@ -120,6 +126,11 @@ export function MerchantWorkspaceHeader({
   ];
   if (owner) navigation.push({ href: orgHref("/merchant/catalog"), label: m("共用商品"), icon: Package, group: "merchants", primary: true });
   if (owner || workspace?.roles.includes("FINANCE_VIEWER")) navigation.push({ href: orgHref("/merchant/reports/overview"), label: m("攤位報表"), icon: FileChartColumn, group: "operations", primary: true });
+  if (workspace && can("VIEW_BILLING") && notificationIdentity) {
+    const scope = { kind: "ORGANIZATION" as const, organizationId: workspace.id };
+    navigation.push({ href: `/notifications?${inboxScopeParams(scope)}`, label: workspaceNavigationMessage(locale, "notifications"), icon: Bell, group: "operations", primary: true,
+      badge: <NotificationUnreadStatus scope={scope} identity={notificationIdentity} /> });
+  }
   if (can("VIEW_REPORTS")) navigation.push({ href: orgHref("/merchant/operating-profit"), label: m("營業損益與成本"), icon: ChartNoAxesCombined, group: "finance" });
   if (showSupply && can("MANAGE_SHARED_PRODUCTS")) navigation.push({ href: orgHref("/merchant/supply"), label: m("庫存與配方"), icon: Boxes, group: "merchants" });
   if (can("MANAGE_ATTENDANCE") || workspace?.stalls.some(stall => stall.roles.some(role => hasPermission(role, "MANAGE_ATTENDANCE")))) navigation.push({ href: orgHref("/merchant/workforce"), label: m("員工排班與薪資"), icon: BriefcaseBusiness, group: "operations" });
@@ -129,6 +140,7 @@ export function MerchantWorkspaceHeader({
   if (showPayments && can("MANAGE_PAYMENT_INTEGRATIONS")) navigation.push({ href: orgHref("/merchant/payments"), label: m("付款與金流"), icon: WalletCards, group: "finance" });
   if (can("MANAGE_ORGANIZATION") || can("MANAGE_DELIVERY_INTEGRATIONS") || can("MANAGE_PAYMENT_INTEGRATIONS") || can("MANAGE_LINE_INTEGRATION")) navigation.push({ href: orgHref("/merchant/integrations"), label: m("整合設定中心"), icon: Cable, group: "settings" });
   navigation.push({ href: "/merchant/account/security", label: m("帳號與安全性"), icon: ShieldCheck, group: "audit" });
+  navigation.push({ href: orgHref("/feedback"), label: "產品回饋", icon: ScrollText, group: "settings" });
 
   return (
     <>

@@ -145,3 +145,33 @@ docker ps -a --filter "label=com.supabase.cli.project=$testProject" --format '{{
 - `stallorder-responsive-20260930` 的 DB、Kong、Auth、REST、Realtime、Edge Runtime、Storage 七個容器仍 Up（有 healthcheck 者 healthy），專用 API/DB 端口為 `56821/56822`。先前 host Functions PID `24156` 在本次讀回已不在；Edge Runtime 容器與完整 129 案中的真 Edge 建單路徑仍已實際運作。無需啟用 OAuth mock `56831`；本輪讀回無其 listener。原有 `3023` listener PID `49312` 與 `55722` 另一組資料未操作。
 - 匿名 HTTP 讀回 `/login`、`/store/aming-01?view=menu`、`/mini` 為 200，未登入 `/merchant/dashboard` 及 `/admin/billing` 為 307 回登入；未登入 `/api/health` 為 401，不能把它當公開健康頁或當作真 QR 已成功下單。已驗證的各角色登入、KDS/POS/QR 工作流與限流等待以[合併 QA 收據](ux-responsive/b3-final-qa-evidence.md)為準。`DUAL_ORDER_INTAKE_ENABLED` 在此 lab 的 GLOBAL 有界覆寫至 **2026-10-01 08:20:50 台北**到期；之後需由平台管理員在 3026 用[手動入口指南](ux-responsive/manual-local-entry.md)的既有稽核 API 明確續六小時並讀回，不能把 app listener 存活當成雙路進單持續可用。
 - 本輪只保留 3026 app 和上述七個必要容器／資料，Playwright 的臨時 3026 server 及 OAuth mock 已停止。繼續手測先核對 3026 owner、七個容器 label/健康、`56821/56822`、旗標到期時間，使用**與 3023 分開**的瀏覽器 profile。需要重建時先停止本輪 3026 實際程序樹、確認 `.next` 無 consumer，再執行 `node scripts/build-responsive-qa.mjs` 並讀回新 HEAD/tree/BUILD_ID；前景啟動指令和 role 入口見手動指南。手測完畢且無其他依賴後，只停止核對過的 3026 程序與此 project 的七個容器；保留容器、volumes、資料及原 3023/55722，不 reset/prune。
+
+## 2026-10-01 Awesome／跨裝置整合：目前活躍依賴
+
+- 目前 owner 為本對話 root 與其串行 Awesome 實作代理；工作樹 C:/Users/KY/.codex/worktrees/responsive-cross-device/Stallorder-Platform，branch codex/responsive-cross-device-20260930、HEAD87230e266281472a71fd764d616be1adf788c635。此次改動尚未提交或發布；前節的旧App PID/build/source為歷史收據，不能拿來啟停或判定目前QA。
+- 使用者要求 Awesome 先完成，再整合跨裝置改版全面驗證；除非必要統一一組Docker。維持 stallorder-responsive-20260930 的七個DB/Kong/Auth/REST/Realtime/Storage/Edge容器，API56821／DB56822／唯一App3026；不用第二DB、舊catalog55722或LINEv3。2026-10-01T12:06:02Z實際讀回只有此七個容器、記憶體可用6282MiB；原3023/3036/55722/56922無listener。收據 docs/awesome-optimization/evidence/single-environment-batch4a-preproposal-20261001.json。
+- B3最後App38104/parent31984已由B4a owner核對後停止；目前在B4a Inbox結構／API／實際測試階段，App會在fresh source/build binding後由solewriter重啟。App暫時無listener不表示此DB閒置：B4a DB/migration/tests以及後續4b→4c→5→6→7有活躍依賴，不得由別任務只憑listener0停止。
+- 目前已按Ruling28/35在同一DB一次套用new personalInbox migration，未改原StaffPush worker/status/producer；本機source/schema與現況以 docs/awesome-optimization/EXECUTION_STATE.json 及本輪不可變收據為準。根生產檢查屬唯讀，無provider/Production/DR/Git寫入。
+- 本輪必要的Mock HTTP僅單一測試callback內的短生命週期127.0.0.1 ephemeral socket，finally停止；不是新增常駐App或Docker環境。測試後仍須核對實際port/process/project與活躍消費者，停止本次無依賴的精確程序／容器並保留資料。先前使用者要求的人工QA例外於最後交接重新記錄tested source/build及端口，不沿用舊版本成功；AVD/Gradle/臨時Mock不用時亦停止精確owner，禁用reset/prune/globalstop。
+
+### 2026-10-02 R106：Awesome B6a 必要服務裁剪
+
+- B5 Native 建置／AVD 因記憶體門檻未達暫停，仍未完成；目前無 3026／5037 listener。串行 B6a owner 確認偏好、意見回饋、登入與 Prisma 路徑不呼叫 Edge Functions。
+- 僅停止核對過 project label 的 Edge Runtime `8c65cd60bd23`，退出碼 0、讀回 Running=false；保留容器、映像、volume 與資料。其餘六個 DB/Kong/Auth/REST/Realtime/Storage 容器沿用同一組 `56821/56822`，供 B6a 活躍測試。
+- 收據 [edge-service-hold-b6a-20261002.json](awesome-optimization/evidence/edge-service-hold-b6a-20261002.json)。停用前容器內用量約 667.4 MiB；停用後主機可用 4153 MiB，未宣稱立即回收等量主機記憶體。
+- 公開 Circuit B 下單測試需要時，先核對完整 ID／project label，再只執行 `docker start 8c65cd60bd23` 並讀回，重新封存當批容器 allowlist。禁止沿用歷史七容器 gate 作為目前六容器身分證明；不新增環境、不操作其他工作區資料。
+- 本節記錄時間 2026-10-01T12:39:43.192Z，為當下活躍依賴告示；各階段實際結果與剩餘缺口分開回報，尚非Awesome／跨裝置／正式發布完成。
+# 2026-10-02 R109 manual QA retention update
+
+User explicitly requested usable local manual test environment. The only running Docker project is `stallorder-responsive-20260930`: DB56822/API56821, six existing dependencies plus exact Edge8c65cd60bd23 restored for customer ordering. Only create-order-session owned file synced by pinned LF SHA, no broad functions copy. All seven read back running, health checks where available healthy. Do not stop these while retained manual QA is active; no second lab, no prune/reset/data deletion.
+
+Current App3026 is loopback source-IP proxy wrapper23584, private Next3027 PID24424, fresh buildFuWga8IkNOjvtzXvUJfQJ. Reverify full process command/worktree and listeners before exact stop; PIDs are receipts, not permanent IDs. Resume only after checking both ports free using `node .superpowers/sdd/2026-10-01-awesome-optimization/business-hours-fix/start-manual.cjs` in responsive-cross-device worktree with matching build provenance. See docs/awesome-optimization/BUSINESS_HOURS_QA_20261002.md for accepted flows, bounded flag expiry, cleanup and pending coverage. 3023/55722 untouched.
+
+
+### 2026-10-02 R110 latest retained manual QA
+
+Latest accepted build `2Xirm6xoT0aep5OWw_1Kj`, sourceSHA71ba843186738a8fd11450b8297611b8224497d8c46506d98aebf88b22fd9008. User-requested manual environment remains running: loopback proxy3026 PID38584, private Next3027 PID22940 (verified direct parent38584 and next start exact command). Earlier wrappers28832/38640 and their verified Next children31808/34108 stopped before rebuilding; no build ran over live .next. PIDs are receipts; verify current full command/worktree/listeners before stopping or resuming.
+
+Docker running allowlist remains the same exact `stallorder-responsive-20260930` sevencontainers DBd11af555754b /Edge8c65cd60bd23 /Kong834e5c2e2fdb /Authf3f4c381b5ce /RESTff08863f5f62 /Realtimee43bd044746f /Storage018e329a66c1, API56821/DB56822; labels/project identity previously pinned and names/running state reread. No new Docker project, no reset/prune/volume removal, no3023/55722 action. Retention is an explicit owner manual QA exception; stop these exact services when the owner ends testing and no active dependent task remains.
+
+Resume: in `C:/Users/KY/.codex/worktrees/responsive-cross-device/Stallorder-Platform`, only after verifying exact project/volumes, both app ports free and accepted .next provenance matching the desired source, run `node .superpowers/sdd/2026-10-01-awesome-optimization/business-hours-fix/start-manual.cjs`. Use a separate browser profile from3023 (cookies are not port-scoped). Do not blindly reuse historical PID or older manual-entry direct3026 Next command. Readback route/body and process target before declaring ready. Original intake flag expiry2026-10-03 00:53:24.637Taipei stays bounded; no automatic renewal. Final flows and mock limitations: docs/awesome-optimization/UI_AND_ORDER_GUARDS_20261002.md.

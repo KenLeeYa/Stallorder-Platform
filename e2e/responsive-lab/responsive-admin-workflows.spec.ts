@@ -4,6 +4,8 @@ import { expect, test } from "@playwright/test";
 import { assertResponsiveQaTarget } from "../../scripts/responsive-qa-target.mjs";
 import { gotoLocalPath, loginLocalTestAccount } from "../local-navigation";
 
+assertResponsiveQaTarget(process.env);
+
 const prisma = new PrismaClient();
 const password = "StallOrderDemo!2026";
 const organizationId = "11111111-1111-4111-8111-111111111111";
@@ -12,8 +14,6 @@ let applicationId = "";
 let connectionId = "";
 let planFixtureId = "";
 let applicationNumber = "";
-
-assertResponsiveQaTarget(process.env);
 
 test.describe.configure({ mode: "serial" });
 

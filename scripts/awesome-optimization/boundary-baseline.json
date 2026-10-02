@@ -1,0 +1,14 @@
+[
+  {
+    "classification": "SERVER_DEPENDENCY_IN_CLIENT",
+    "entry": "src/app/store/[identifier]/storefront-mode-nav.tsx",
+    "path": "src/lib/prisma.ts",
+    "sourceHashes": {
+      "src/app/store/[identifier]/storefront-mode-nav.tsx": "fbc509d6e266ed253030f21e7db0a4b40d31bc950d923875c4a24652f37d7de4",
+      "src/lib/public-storefront.ts": "76c2b515c740bbf960ef4f7202805eee4c51dd371d44adaf4b7624e1dc46bc0d",
+      "src/lib/prisma.ts": "3cad8a72e37937ef7fab191d124761927990aa2b93fbaa94790afd2347e47b0f"
+    },
+    "status": "BASELINE_STATIC_DEBT",
+    "reason": "Existing pure path helper shares a server-containing module; runtime bundle exposure unproven. Any changed source or different edge fails; not a universal browser security pass."
+  }
+]

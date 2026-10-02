@@ -186,9 +186,9 @@ export function useQrOrderFlowController({
   const sessionExpiryDialogOpen = !editMode && sessionReady
     && (sessionTimePhase === "EXPIRING" || sessionTimePhase === "EXPIRED");
   const cartDialogOpen = cartOpen && !sessionExpiryDialogOpen;
-  const specialClosureActive = session?.specialClosure?.isActive === true;
+  const specialClosureActive = activeOrderingMode !== "PREORDER" && session?.specialClosure?.isActive === true;
   const outsideBusinessHours = !editMode
-    && entryChannel === "QR"
+    && activeOrderingMode !== "PREORDER"
     && (session?.orderingOpenNow ?? usableInitialMenu?.orderingOpenNow) === false;
   const orderingEnabled = orderingAvailability === "AVAILABLE"
     && sessionReady

@@ -2,6 +2,7 @@ import type { AppLocale } from "@/lib/app-locale";
 
 const row = (zh: string, en: string, ja: string, ko: string, vi: string, th: string): Record<AppLocale, string> => ({ "zh-TW": zh, en, ja, ko, vi, th });
 const messages = {
+  notifications: row("通知中心", "Notifications", "通知", "알림", "Thông báo", "การแจ้งเตือน"),
   otherSource: row("其他來源", "Other source", "その他の注文元", "기타 경로", "Nguồn khác", "แหล่งอื่น"),
   all: row("所有功能", "All functions", "すべての機能", "모든 기능", "Tất cả chức năng", "ฟังก์ชันทั้งหมด"),
   search: row("搜尋功能", "Find a function", "機能を検索", "기능 검색", "Tìm chức năng", "ค้นหาฟังก์ชัน"),

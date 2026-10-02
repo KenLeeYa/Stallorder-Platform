@@ -1,0 +1,13 @@
+import {test,after} from 'node:test';
+import assert from 'node:assert/strict';
+import {loadEnvFile} from 'node:process';
+import {writeFileSync,existsSync} from 'node:fs';
+import {openGuardedDatabase,verifyLiveFixture} from './live-fixture-guard.mjs';
+import {assertApplicationOverlaySchema} from './application-schema-overlay.mjs';
+loadEnvFile('.env.local');const db=await openGuardedDatabase(),checks=[];
+const receipt=`.superpowers/sdd/2026-10-01-awesome-optimization/batch-3/overlay-${process.env.BATCH3_RECEIPT_LABEL??'red'}.json`;
+if(existsSync(receipt))throw Error('BATCH3_OVERLAY_RECEIPT_EXISTS');
+after(async()=>{await db.$disconnect();writeFileSync(receipt,JSON.stringify({checks,at:new Date().toISOString(),mutations:0},null,2)+'\n',{flag:'wx'});});
+test('named additive version0 projection preserves original201 cases and frozen digest',async()=>{const r=await verifyLiveFixture(db);assert.equal(r.fixed.counts.merchantApplication,201);assert.equal(r.receipt.liveCorpusDigest,'f04f523f7f97c1173e97fcb57a659b1afff446a8754f8c4f05950dacbfeb8396');checks.push({case:'additive compatibility',status:'PASS'});});
+test('unreviewed schema refuses the named overlay',()=>{assert.throws(()=>assertApplicationOverlaySchema(Buffer.from('synthetic different schema')),/SCHEMA_UNEXPECTED/);checks.push({case:'unexpected schema',status:'PASS'});});
+for(const [name,alter]of [['wrong default',row=>({...row,draftVersion:1})],['unexpected field',row=>({...row,unexpectedColumn:'synthetic'})],['old fact drift',row=>({...row,merchantName:'synthetic controlled drift'})]])test(`${name} refuses original corpus read without mutation`,async()=>{const fake=new Proxy(db,{get(target,key){if(key!=='merchantApplication')return target[key];return{findMany:async args=>{const rows=await target[key].findMany(args);return rows.map((r,n)=>n?r:alter(r));}};}});await assert.rejects(verifyLiveFixture(fake),/AWESOME_QA_.*(DRIFT|SCHEMA|DEFAULT)/);checks.push({case:name,status:'PASS'});});

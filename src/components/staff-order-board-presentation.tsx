@@ -2,6 +2,8 @@
 
 import { StaffOrderEditProductPicker, type ConfiguredEditProduct } from "@/components/staff-order-edit-product-picker";
 import { LinePlatformPickupPanel } from "@/components/line-platform-pickup-panel";
+import { NotificationUnreadStatus } from "@/components/notification-inbox";
+import { inboxScopeParams } from "@/lib/notification-inbox-contract";
 import type { OrderItemStatus, OrderStatus, UserRole } from "@prisma/client";
 import { useEffect, useState } from "react";
 import { useClientReady } from "./use-client-ready";
@@ -12,6 +14,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   CheckCheck,
+  Bell,
   CheckCircle2,
   ChefHat,
   ChevronDown,
@@ -184,6 +187,7 @@ type Actions = {
 };
 
 export type StaffOrderBoardPresentationProps = {
+  notificationIdentity?: string;
   queueRedesignEnabled?: boolean;
   stall: Stall;
   account: { displayName: string; role: UserRole; profileId: string };
@@ -269,6 +273,7 @@ export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationPr
     <main inert={!clientReady} aria-busy={!clientReady} className={`mx-auto min-h-screen w-full px-4 py-3 ${fullViewportBoard ? "md:px-3" : "max-w-[1600px] md:px-6 md:py-5 xl:px-8"}`}>
       <div data-testid="staff-primary-workspace" className={fullViewportBoard ? "md:flex md:h-[calc(100dvh-1.5rem)] md:min-h-0 md:flex-col" : undefined}>
       <StaffOrderBoardToolbar
+        notificationIdentity={props.notificationIdentity}
         queueRedesignEnabled={props.queueRedesignEnabled}
         stall={stall}
         account={account}
@@ -407,6 +412,7 @@ export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationPr
 type StaffOrderBoardToolbarProps = Pick<
   StaffOrderBoardPresentationProps,
   | "orders"
+  | "notificationIdentity"
   | "queueRedesignEnabled"
   | "stall"
   | "account"
@@ -438,6 +444,7 @@ type StaffOrderBoardToolbarProps = Pick<
 };
 
 function StaffOrderBoardToolbar({
+  notificationIdentity,
   stall,
   account,
   orders,
@@ -533,6 +540,7 @@ function StaffOrderBoardToolbar({
         <div data-testid="staff-function-order-group" className="md:contents flex items-center gap-2 border-r border-stone-200 pr-2">
           {orderCatalog && hasPermission(role, "CREATE_ORDERS") ? <button type="button" title={t("staff.action.createOrder")} disabled={!clientReady || posConfigurationLoading} onClick={() => void actions.onOpenComposer()} className={`${staffFunctionTileClass} md:order-3 bg-teal-800 text-white disabled:cursor-wait disabled:opacity-60`}><ShoppingCart className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.createOrder")}</span></button> : null}
           {hasPermission(role, "CHECKOUT_ORDERS") ? <button type="button" data-testid="staff-pickup-code-lookup" disabled={!clientReady} title={t("staff.action.pickupLookup")} onClick={actions.onOpenPickupLookup} className={`${staffFunctionTileClass} md:order-4 border border-stone-300 bg-white text-stone-700`}><KeyRound className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.pickupLookup")}</span></button> : null}
+          {notificationIdentity && hasPermission(role, "VIEW_ORDERS") ? <Link href={`/notifications?${inboxScopeParams({ kind: "STALL", stallSlug: stall.slug })}`} aria-label="通知中心" title="通知中心" className={`${staffFunctionTileClass} relative md:order-[14] border border-stone-300 bg-white text-stone-700`}><Bell className={staffFunctionIconClass} aria-hidden="true" /><NotificationUnreadStatus scope={{ kind: "STALL", stallSlug: stall.slug }} identity={notificationIdentity} /></Link> : null}
           {hasPermission(role, "CHECKOUT_ORDERS") ? <LinePlatformPickupPanel stallSlug={stall.slug} orders={orders} onCompleted={actions.onRefresh} /> : null}
           {modules.dineIn ? <Link href={`/staff/${stall.slug}/floor`} title={t("staff.action.floor")} className={`${staffFunctionTileClass} md:order-5 border border-stone-300 bg-white text-stone-700`}><MapPinned className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.floor")}</span></Link> : null}
           {hasPermission(role, "MANAGE_CASH_SHIFT") ? <Link data-secondary-tool="true" href={`/staff/${stall.slug}/cash`} title={t("staff.action.cashShift")} className={`${staffFunctionTileClass} md:order-7 border border-stone-300 bg-white text-stone-700`}><WalletCards className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.cashShift")}</span></Link> : null}

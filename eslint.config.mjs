@@ -9,6 +9,8 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
+    // Review scratch and extracted third-party artifacts are not product inputs.
+    ".superpowers/**",
     "out/**",
     "build/**",
     "playwright-report/**",

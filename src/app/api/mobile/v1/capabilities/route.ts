@@ -1,0 +1,2 @@
+import {authorizeMobileApiRequest} from "@/server/mobile/authorization";
+export async function GET(request:Request){const auth=await authorizeMobileApiRequest(request);if(!auth.ok)return auth.response;return Response.json({version:"v1",operationsRead:1,inbox:1,adminApplications:auth.principal.user.platformRole==="PLATFORM_ADMIN"?1:null},{headers:{"cache-control":"private, no-store","x-request-id":auth.requestId}});}

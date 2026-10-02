@@ -61,6 +61,15 @@ const workspace: WorkspaceOrganization = {
 };
 
 describe("MerchantWorkspaceHeader mobile layout", () => {
+  it("places the authorized organization's inbox in the function strip without enabling billing management", () => {
+    renderToStaticMarkup(<MessageTestProvider initialLocale="zh-TW"><MerchantWorkspaceHeader workspaces={[workspace]} displayName="店主" routeContext={{ organizationId: workspace.id, stallId: null }} showBilling={false} notificationIdentity="session-key" /></MessageTestProvider>);
+    expect(captured.items.find(item => item.label === "通知中心")?.href).toBe("/notifications?kind=ORGANIZATION&organizationId=organization-1");
+    expect(captured.items.some(item => item.href.startsWith("/merchant/billing?"))).toBe(false);
+  });
+  it("does not show an organization inbox to a staff-only workspace", () => {
+    renderToStaticMarkup(<MessageTestProvider initialLocale="zh-TW"><MerchantWorkspaceHeader workspaces={[{ ...workspace, roles: ["STAFF"] }]} displayName="店員" routeContext={{ organizationId: workspace.id, stallId: null }} showBilling={false} notificationIdentity="session-key" /></MessageTestProvider>);
+    expect(captured.items.some(item => item.label === "通知中心")).toBe(false);
+  });
   it("keeps compact mode and stall tools visible without a collapsible selector panel", () => {
     const html = renderToStaticMarkup(
       <MessageTestProvider initialLocale="zh-TW">

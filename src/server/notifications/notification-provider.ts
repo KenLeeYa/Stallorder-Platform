@@ -15,6 +15,7 @@ export class NotificationProviderError extends Error {
   constructor(
     readonly code: string,
     readonly retryable: boolean,
+    readonly acceptance: "REJECTED" | "UNKNOWN" = "REJECTED",
   ) {
     super(code);
     this.name = "NotificationProviderError";

@@ -64,7 +64,11 @@ function microsInput(micros: string) {
   return String(Number(micros) / 1_000_000);
 }
 
-export function SupplyLiteManager({
+export function SupplyLiteManager(props: { organizationId: string; initialDashboard: SupplyDashboard }) {
+  return <SupplyLiteWorkspace key={props.organizationId} {...props} />;
+}
+
+function SupplyLiteWorkspace({
   organizationId,
   initialDashboard,
 }: {
@@ -72,6 +76,11 @@ export function SupplyLiteManager({
   initialDashboard: SupplyDashboard;
 }) {
   const [dashboard, setDashboard] = useState(initialDashboard);
+  const [productSearch, setProductSearch] = useState("");
+  const [productPage, setProductPage] = useState(1);
+  const [recipeSearch, setRecipeSearch] = useState("");
+  const [recipePage, setRecipePage] = useState(1);
+  const [visibleCounts, setVisibleCounts] = useState<Partial<Record<"inventoryLots" | "ingredients" | "suppliers" | "locations" | "purchaseOrders" | "recentMovements", number>>>({});
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -194,6 +203,9 @@ export function SupplyLiteManager({
         return false;
       }
       setDashboard(payload);
+      setProductPage(1);
+      setRecipePage(1);
+      setVisibleCounts({});
       setMessage(successMessage);
       return true;
     } catch {
@@ -359,6 +371,28 @@ export function SupplyLiteManager({
   }
 
   const lowStockCount = dashboard.ingredients.filter((item) => item.lowStock).length;
+  const lotWarnings = dashboard.inventoryLots.reduce((counts, lot) => {
+    if (!lot.expiresOn) return counts;
+    const days = Math.ceil((Date.parse(`${lot.expiresOn}T00:00:00Z`) - Date.parse(`${dashboard.asOfDate}T00:00:00Z`)) / 86_400_000);
+    if (days < 0) counts.expired += 1;
+    else if (days <= 7) counts.expiring += 1;
+    return counts;
+  }, { expired: 0, expiring: 0 });
+  const listControls = (key: keyof typeof visibleCounts, label: string) => <SupplyMoreControls
+    label={label} total={dashboard[key].length} count={visibleCounts[key] ?? 6}
+    onMore={() => setVisibleCounts((current) => ({ ...current, [key]: (current[key] ?? 6) + 6 }))}
+    onCollapse={() => setVisibleCounts((current) => ({ ...current, [key]: 6 }))}
+  />;
+  const matchingProducts = dashboard.productCosts.filter((product) =>
+    product.productName.toLocaleLowerCase().includes(productSearch.trim().toLocaleLowerCase()));
+  const visibleProductPage = Math.min(productPage, Math.max(1, Math.ceil(matchingProducts.length / 6)));
+  const visibleProducts = matchingProducts.slice((visibleProductPage - 1) * 6, visibleProductPage * 6);
+  const missingRecipeCount = dashboard.productCosts.filter((product) => !product.recipeComplete).length;
+  const matchingRecipes = dashboard.recipeComponents.filter((component) =>
+    `${productNames.get(component.productId) ?? "未知商品"} ${ingredientNames.get(component.ingredientId) ?? "未知品項"}`
+      .toLocaleLowerCase().includes(recipeSearch.trim().toLocaleLowerCase()));
+  const visibleRecipePage = Math.min(recipePage, Math.max(1, Math.ceil(matchingRecipes.length / 6)));
+  const visibleRecipes = matchingRecipes.slice((visibleRecipePage - 1) * 6, visibleRecipePage * 6);
   return (
     <div className="space-y-6">
       <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
@@ -509,23 +543,29 @@ export function SupplyLiteManager({
 
       <section className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
         <h2 className="flex items-center gap-2 text-lg font-semibold"><TrendingUp className="h-5 w-5 text-teal-700" />商品配方毛利</h2>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{dashboard.productCosts.map((product) => <article key={product.productId} className={`rounded-lg border p-3 ${product.recipeComplete ? "border-stone-200" : "border-amber-300 bg-amber-50"}`}><div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{product.productName}</p><p className="text-xs text-stone-500">售價 ${product.sellingPrice.toLocaleString("zh-TW")} · 配方成本 ${product.recipeCostAmount.toLocaleString("zh-TW")}</p></div><strong className={product.grossProfit >= 0 ? "text-teal-700" : "text-red-700"}>{(product.grossMarginBasisPoints / 100).toFixed(1)}%</strong></div><p className="mt-2 text-sm">單份毛利 ${product.grossProfit.toLocaleString("zh-TW")}</p>{!product.recipeComplete ? <p className="mt-2 text-xs font-semibold text-amber-900">尚未建立配方，毛利不可採信。</p> : null}</article>)}</div>
+        <p className="mt-2 text-sm text-amber-900">尚未建立配方：{missingRecipeCount} 件</p>
+        <SupplyListControls label="商品配方毛利" searchLabel="搜尋毛利商品" search={productSearch} onSearch={(value) => { setProductSearch(value); setProductPage(1); }} page={visibleProductPage} onPage={setProductPage} count={matchingProducts.length} total={dashboard.productCosts.length} />
+        {!matchingProducts.length ? <p className="mt-3 text-sm text-stone-600">{dashboard.productCosts.length ? "找不到符合的商品，請調整搜尋。" : "目前沒有商品。"}</p> : null}
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{visibleProducts.map((product) => <article key={product.productId} className={`rounded-lg border p-3 ${product.recipeComplete ? "border-stone-200" : "border-amber-300 bg-amber-50"}`}><div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{product.productName}</p><p className="text-xs text-stone-500">售價 ${product.sellingPrice.toLocaleString("zh-TW")} · 配方成本 ${product.recipeCostAmount.toLocaleString("zh-TW")}</p></div><strong className={product.grossProfit >= 0 ? "text-teal-700" : "text-red-700"}>{(product.grossMarginBasisPoints / 100).toFixed(1)}%</strong></div><p className="mt-2 text-sm">單份毛利 ${product.grossProfit.toLocaleString("zh-TW")}</p>{!product.recipeComplete ? <p className="mt-2 text-xs font-semibold text-amber-900">尚未建立配方，毛利不可採信。</p> : null}</article>)}</div>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">
-        <article className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm"><h2 className="text-lg font-semibold">批號與新鮮度</h2><div className="mt-3 space-y-2">{dashboard.inventoryLots.map((lot) => { const days = lot.expiresOn ? Math.ceil((Date.parse(`${lot.expiresOn}T00:00:00Z`) - Date.parse(`${dashboard.asOfDate}T00:00:00Z`)) / 86_400_000) : null; return <div key={lot.id} className={`rounded-lg border p-3 text-sm ${days !== null && days < 0 ? "border-red-300 bg-red-50" : days !== null && days <= 7 ? "border-amber-300 bg-amber-50" : "border-stone-200"}`}><div className="flex justify-between gap-2"><strong>{ingredientNames.get(lot.ingredientId) ?? "未知品項"} · {lot.lotNumber}</strong><span>{units(lot.remainingQuantityMicros)}</span></div><p className="mt-1 text-stone-600">{lot.expiresOn ? `有效日期 ${lot.expiresOn}${days !== null ? `（${days < 0 ? `逾期 ${Math.abs(days)} 天` : `剩 ${days} 天`}）` : ""}` : "未設定有效日期"}</p></div>; })}{!dashboard.inventoryLots.length ? <p className="text-sm text-stone-600">尚無批號庫存。</p> : null}</div></article>
+        <article className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm"><h2 className="text-lg font-semibold">批號與新鮮度</h2>{listControls("inventoryLots", "批號與新鮮度")}<p className="mt-2 text-sm text-amber-900">已逾期：{lotWarnings.expired} 批 · 7 天內到期：{lotWarnings.expiring} 批</p><div className="mt-3 space-y-2">{dashboard.inventoryLots.slice(0, visibleCounts.inventoryLots ?? 6).map((lot) => { const days = lot.expiresOn ? Math.ceil((Date.parse(`${lot.expiresOn}T00:00:00Z`) - Date.parse(`${dashboard.asOfDate}T00:00:00Z`)) / 86_400_000) : null; return <div key={lot.id} className={`rounded-lg border p-3 text-sm ${days !== null && days < 0 ? "border-red-300 bg-red-50" : days !== null && days <= 7 ? "border-amber-300 bg-amber-50" : "border-stone-200"}`}><div className="flex justify-between gap-2"><strong>{ingredientNames.get(lot.ingredientId) ?? "未知品項"} · {lot.lotNumber}</strong><span>{units(lot.remainingQuantityMicros)}</span></div><p className="mt-1 text-stone-600">{lot.expiresOn ? `有效日期 ${lot.expiresOn}${days !== null ? `（${days < 0 ? `逾期 ${Math.abs(days)} 天` : `剩 ${days} 天`}）` : ""}` : "未設定有效日期"}</p></div>; })}{!dashboard.inventoryLots.length ? <p className="text-sm text-stone-600">尚無批號庫存。</p> : null}</div></article>
         <article className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
           <h2 className="text-lg font-semibold">最近進貨單</h2>
+          {listControls("purchaseOrders", "最近進貨單")}
           <p className="mt-1 text-xs leading-5 text-stone-500">已入帳紀錄不可直接修改或刪除；若內容有誤，請新增可追溯的庫存調整。</p>
-          <div className="mt-3 space-y-2">{dashboard.purchaseOrders.map((order) => <div key={order.id} className="rounded-lg border border-stone-200 p-3 text-sm"><div className="flex justify-between gap-3"><strong>{order.documentNumber}</strong><strong>${order.totalAmount.toLocaleString("zh-TW")}</strong></div><p className="mt-1 text-stone-600">{order.supplierName} · {order.orderedOn} · {order.lineCount} 項</p></div>)}{!dashboard.purchaseOrders.length ? <p className="text-sm text-stone-600">尚無進貨單。</p> : null}</div>
+          <div className="mt-3 space-y-2">{dashboard.purchaseOrders.slice(0, visibleCounts.purchaseOrders ?? 6).map((order) => <div key={order.id} className="rounded-lg border border-stone-200 p-3 text-sm"><div className="flex justify-between gap-3"><strong>{order.documentNumber}</strong><strong>${order.totalAmount.toLocaleString("zh-TW")}</strong></div><p className="mt-1 text-stone-600">{order.supplierName} · {order.orderedOn} · {order.lineCount} 項</p></div>)}{!dashboard.purchaseOrders.length ? <p className="text-sm text-stone-600">尚無進貨單。</p> : null}</div>
         </article>
       </section>
 
       <section className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
         <h2 className="text-lg font-semibold text-stone-950">食材、包材、耗材與器具庫存</h2>
+        {listControls("ingredients", "食材、包材、耗材與器具庫存")}
+        <p className="mt-2 text-sm text-amber-900">低庫存：{lowStockCount} 件</p>
         {dashboard.ingredients.length ? (
           <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {dashboard.ingredients.map((ingredient) => (
+            {dashboard.ingredients.slice(0, visibleCounts.ingredients ?? 6).map((ingredient) => (
               <button type="button" key={ingredient.id} data-testid={`manage-supply-ingredient-${ingredient.id}`} onClick={() => openRecordDialog("ingredient", ingredient.id, ingredient.name)} className={`group w-full rounded-lg border p-3 text-left transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200 ${ingredient.lowStock ? "border-amber-300 bg-amber-50 hover:border-amber-500" : "border-stone-200 hover:border-teal-600 hover:bg-teal-50"}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div><p className="font-semibold text-stone-950">{ingredient.name}</p><p className="text-xs text-stone-500">{itemTypeLabels[ingredient.itemType] ?? ingredient.itemType} · {ingredient.code}</p></div>
@@ -541,8 +581,9 @@ export function SupplyLiteManager({
       <section className="grid gap-4 lg:grid-cols-2">
         <article className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
           <h2 className="text-lg font-semibold text-stone-950">進貨廠商</h2>
+          {listControls("suppliers", "進貨廠商")}
           <div className="mt-3 space-y-3">
-            {dashboard.suppliers.map((supplier) => (
+            {dashboard.suppliers.slice(0, visibleCounts.suppliers ?? 6).map((supplier) => (
               <button type="button" key={supplier.id} data-testid={`manage-supply-supplier-${supplier.id}`} onClick={() => openRecordDialog("supplier", supplier.id, supplier.name)} className="group flex min-h-20 w-full items-center justify-between gap-3 rounded-lg border border-stone-200 p-3 text-left transition hover:border-teal-600 hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200">
                 <span><span className="block font-semibold text-stone-950">{supplier.name}</span><span className="mt-1 block text-xs text-stone-500">{supplier.code} · 付款 {supplier.paymentTermsDays} 天 · 到貨 {supplier.leadTimeDays} 天</span></span>
                 <ChevronRight className="h-6 w-6 shrink-0 text-stone-400 group-hover:text-teal-700" aria-hidden="true" />
@@ -554,8 +595,9 @@ export function SupplyLiteManager({
 
         <article className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
           <h2 className="text-lg font-semibold text-stone-950">庫位</h2>
+          {listControls("locations", "庫位")}
           <div className="mt-3 space-y-3">
-            {dashboard.locations.map((location) => (
+            {dashboard.locations.slice(0, visibleCounts.locations ?? 6).map((location) => (
               <button type="button" key={location.id} data-testid={`manage-supply-location-${location.id}`} onClick={() => openRecordDialog("location", location.id, location.name)} className="group flex min-h-20 w-full items-center justify-between gap-3 rounded-lg border border-stone-200 p-3 text-left transition hover:border-teal-600 hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200">
                 <span><span className="block font-semibold text-stone-950">{location.name}</span><span className="mt-1 block text-xs text-stone-500">{location.code} · {locationTypeLabels[location.locationType] ?? location.locationType}{location.stallId ? ` · ${stallNames.get(location.stallId) ?? "未知攤位"}` : ""}</span></span>
                 <ChevronRight className="h-6 w-6 shrink-0 text-stone-400 group-hover:text-teal-700" aria-hidden="true" />
@@ -568,22 +610,24 @@ export function SupplyLiteManager({
 
       <section className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
         <h2 className="text-lg font-semibold text-stone-950">商品配方項目</h2>
+        <SupplyListControls label="商品配方項目" searchLabel="搜尋配方商品或食材" search={recipeSearch} onSearch={(value) => { setRecipeSearch(value); setRecipePage(1); }} page={visibleRecipePage} onPage={setRecipePage} count={matchingRecipes.length} total={dashboard.recipeComponents.length} />
         <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {dashboard.recipeComponents.map((component) => (
+          {visibleRecipes.map((component) => (
             <button type="button" key={component.id} data-testid={`manage-supply-recipe-${component.id}`} onClick={() => openRecordDialog("recipe", component.id, `${productNames.get(component.productId) ?? "商品"}－${ingredientNames.get(component.ingredientId) ?? "品項"}`)} className="group flex min-h-24 w-full items-center justify-between gap-3 rounded-lg border border-stone-200 p-3 text-left transition hover:border-teal-600 hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200">
               <span><span className="block font-semibold text-stone-950">{productNames.get(component.productId) ?? "未知商品"}</span><span className="mt-1 block text-sm text-stone-600">{ingredientNames.get(component.ingredientId) ?? "未知品項"} · {units(component.quantityMicros)} · 耗損 {(component.wasteBasisPoints / 100).toFixed(2)}%</span></span>
               <ChevronRight className="h-6 w-6 shrink-0 text-stone-400 group-hover:text-teal-700" aria-hidden="true" />
             </button>
           ))}
-          {!dashboard.recipeComponents.length ? <p className="text-sm text-stone-600">尚無商品配方項目。</p> : null}
+          {!matchingRecipes.length ? <p className="text-sm text-stone-600">{dashboard.recipeComponents.length ? "找不到符合的配方，請調整搜尋。" : "尚無商品配方項目。"}</p> : null}
         </div>
       </section>
 
       <section className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
         <h2 className="text-lg font-semibold text-stone-950">最近庫存流水</h2>
+        {listControls("recentMovements", "最近庫存流水")}
         <p className="mt-1 text-xs leading-5 text-stone-500">已入帳紀錄不可直接修改或刪除；盤點差異請新增一筆調整以保留稽核軌跡。</p>
         <div className="mt-3 space-y-2">
-          {dashboard.recentMovements.map((movement) => (
+          {dashboard.recentMovements.slice(0, visibleCounts.recentMovements ?? 6).map((movement) => (
             <article key={movement.id} className="grid gap-1 rounded-lg border border-stone-200 p-3 text-sm sm:grid-cols-[minmax(0,1fr)_auto]">
               <div><p className="font-semibold text-stone-900">{ingredientNames.get(movement.ingredientId) ?? "未知原料"} · {locationNames.get(movement.locationId) ?? "未知庫位"}</p><p className="text-stone-600">{movementLabels[movement.movementType] ?? movement.movementType}：{movement.reason}</p></div>
               <div className="sm:text-right"><p className={`font-semibold ${movement.quantityDeltaMicros.startsWith("-") ? "text-red-700" : "text-teal-700"}`}>{movement.quantityDeltaMicros.startsWith("-") ? "" : "+"}{units(movement.quantityDeltaMicros)}</p><time className="text-xs text-stone-500" dateTime={movement.createdAt}>{new Intl.DateTimeFormat("zh-TW", { dateStyle: "short", timeStyle: "short", timeZone: "Asia/Taipei" }).format(new Date(movement.createdAt))}</time></div>
@@ -594,6 +638,54 @@ export function SupplyLiteManager({
       </section>
     </div>
   );
+}
+
+function SupplyMoreControls({ label, total, count, onMore, onCollapse }: {
+  label: string;
+  total: number;
+  count: number;
+  onMore: () => void;
+  onCollapse: () => void;
+}) {
+  return <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+    <p role="status" className="text-sm text-stone-600">目前清單 {total} 件 · 顯示 {Math.min(count, total)} 件</p>
+    <div className="flex flex-wrap gap-2">
+      {total > 6 ? <>
+        <button type="button" aria-label={`顯示更多${label}`} disabled={count >= total} onClick={onMore} className="min-h-11 rounded-lg border border-stone-300 px-3 text-sm disabled:opacity-40">顯示更多</button>
+        <button type="button" aria-label={`收合${label}`} disabled={count <= 6} onClick={onCollapse} className="min-h-11 rounded-lg border border-stone-300 px-3 text-sm disabled:opacity-40">收合</button>
+      </> : null}
+    </div>
+  </div>;
+}
+
+function SupplyListControls({ label, searchLabel, search, onSearch, page, onPage, count, total }: {
+  label: string;
+  searchLabel: string;
+  search: string;
+  onSearch: (value: string) => void;
+  page: number;
+  onPage: (value: number) => void;
+  count: number;
+  total: number;
+}) {
+  const pages = Math.max(1, Math.ceil(count / 6));
+  return <div className="mt-3 space-y-3">
+    <div className="flex flex-wrap items-end gap-2">
+      <label className="min-w-0 flex-1 text-sm font-medium text-stone-700">
+        {searchLabel}
+        <input type="search" value={search} onChange={(event) => onSearch(event.target.value)} className="mt-1 min-h-11 w-full rounded-lg border border-stone-300 bg-white px-3 text-base text-stone-950" />
+      </label>
+      {search ? <button type="button" onClick={() => onSearch("")} aria-label={`清除${label}搜尋`} className="min-h-11 rounded-lg border border-stone-300 px-3 text-sm">清除搜尋</button> : null}
+    </div>
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <p role="status" className="text-sm text-stone-600">目前清單 {total} 件 · 符合 {count} 件{count ? ` · 顯示 ${(page - 1) * 6 + 1}–${Math.min(page * 6, count)} 件` : ""}</p>
+      <nav aria-label={`${label}分頁`} className="flex items-center gap-2">
+        <button type="button" aria-label={`${label}上一頁`} disabled={page <= 1} onClick={() => onPage(page - 1)} className="min-h-11 rounded-lg border border-stone-300 px-3 text-sm disabled:opacity-40">上一頁</button>
+        <span className="text-sm text-stone-600">{page} / {pages}</span>
+        <button type="button" aria-label={`${label}下一頁`} disabled={page >= pages} onClick={() => onPage(page + 1)} className="min-h-11 rounded-lg border border-stone-300 px-3 text-sm disabled:opacity-40">下一頁</button>
+      </nav>
+    </div>
+  </div>;
 }
 
 function SupplyItemIdentityFields({

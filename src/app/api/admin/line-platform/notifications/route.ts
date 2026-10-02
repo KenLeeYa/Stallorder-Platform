@@ -10,6 +10,13 @@ import { retryPlatformNotification } from "@/server/line-platform/notification-w
 export async function GET(request: Request) {
   const authorization = await authorizePlatformAdminApiRequest(request);
   if (!authorization.ok) return authorization.response;
+  if (new URL(request.url).searchParams.get("mode") === "LEGACY") {
+    const jobs = await prisma.$queryRaw`select j.id::text,j.organization_id::text,j.order_id::text,j.stall_id::text,s.name as stall_name,
+      j.template_code,j.outcome,j.attempt_count,j.last_error_code,j.sent_at,j.next_attempt_at
+      from public.notification_jobs j join public.stalls s on s.id=j.stall_id
+      where j.delivery_mode='LEGACY' order by j.created_at desc limit 100`;
+    return Response.json({ mode: "LEGACY", enabled: false, jobs }, { headers: { "cache-control": "no-store" } });
+  }
   const config = getLinePlatformRuntime();
   if (!config) return Response.json({ configured: false }, { headers: { "cache-control": "no-store" } });
   const integrations = await prisma.$queryRaw`select id::text,status,quota_limit,quota_usage,quota_checked_at,paused_until,settings_json->>'lastWorkerError' as worker_error from public.notification_integrations where sender_scope='PLATFORM_OA' and environment=${config.environment}`;
@@ -18,7 +25,7 @@ export async function GET(request: Request) {
     from public.notification_jobs j join public.stalls s on s.id=j.stall_id where j.delivery_mode='PLATFORM_OA' and j.environment=${config.environment} order by j.created_at desc limit 100`;
   return Response.json({ configured: true,enabled: config.notificationsEnabled,integrations,queue,jobs }, { headers: { "cache-control": "no-store" } });
 }
-const command = z.discriminatedUnion("operation", [z.object({ operation: z.literal("SYNC_REGISTRY") }).strict(), z.object({ operation: z.literal("RETRY"),jobId: z.string().uuid(),stallId: z.string().uuid(),reason: z.string().trim().min(2).max(200) }).strict()]);
+const command = z.discriminatedUnion("operation", [z.object({ operation: z.literal("RECONCILE_LEGACY"),jobId: z.string().uuid(),organizationId: z.string().uuid(),stallId: z.string().uuid() }).strict(), z.object({ operation: z.literal("SYNC_REGISTRY") }).strict(), z.object({ operation: z.literal("RETRY"),jobId: z.string().uuid(),stallId: z.string().uuid(),reason: z.string().trim().min(2).max(200) }).strict()]);
 export async function POST(request: Request) {
   const authorization = await authorizePlatformAdminApiRequest(request);
   if (!authorization.ok) return authorization.response;
@@ -27,6 +34,15 @@ export async function POST(request: Request) {
   if (body.error) return body.error;
   const parsed = command.safeParse(body.data);
   if (!parsed.success) return Response.json({ error: "INVALID_REQUEST" }, { status: 400 });
+  if (parsed.data.operation === "RECONCILE_LEGACY") {
+    const input = parsed.data;
+    const [job] = await prisma.$queryRaw<Array<{ outcome: string }>>`select outcome from public.notification_jobs
+      where id=${input.jobId}::uuid and organization_id=${input.organizationId}::uuid and stall_id=${input.stallId}::uuid
+      and delivery_mode='LEGACY' and outcome='MANUAL_REVIEW'`;
+    if (!job) return Response.json({ error: "NOT_FOUND" }, { status: 404 });
+    return Response.json({ state: "EVIDENCE_REQUIRED", outcome: job.outcome, resent: false,
+      message: "目前沒有可驗證的服務商查詢證據；保留待人工確認狀態，不會補送。" }, { headers: { "cache-control": "no-store" } });
+  }
   try {
     const config = getLinePlatformRuntime();
     if (!config) return Response.json({ error: "NOT_CONFIGURED" }, { status: 409 });

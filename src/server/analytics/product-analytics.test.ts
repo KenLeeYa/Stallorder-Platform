@@ -1,0 +1,12 @@
+import {afterEach,beforeEach,expect,it,vi} from "vitest";
+import type {SessionPrincipal} from "@/lib/auth";
+const h=vi.hoisted(()=>({session:vi.fn(),prefs:vi.fn()}));
+vi.mock("@/lib/prisma",()=>({prisma:{authSession:{findFirst:h.session},notificationPreference:{findUnique:h.prefs}}}));
+import {noopAnalytics} from "./analytics-adapter";
+import {productAnalytics} from "./product-analytics";
+const principal={sessionId:"session-a",user:{id:"actor-a"}} as SessionPrincipal,event={event:"feedback_submitted",surface:1,kind:1,outcome:1};
+beforeEach(()=>{vi.clearAllMocks();h.session.mockResolvedValue({profileSessionVersion:2,profile:{isActive:true,sessionVersion:2}});h.prefs.mockResolvedValue({analyticsConsent:true});});
+afterEach(()=>vi.restoreAllMocks());
+it("checks current session and persisted actor consent before the zero-network Noop",async()=>{const capture=vi.spyOn(noopAnalytics,"capture"),network=vi.spyOn(globalThis,"fetch");await productAnalytics.capture(principal,event);expect(h.session).toHaveBeenCalledWith({where:{id:"session-a",profileId:"actor-a",revokedAt:null,expiresAt:{gt:expect.any(Date)}},include:{profile:true}});expect(h.prefs).toHaveBeenCalledWith({where:{profileId:"actor-a"},select:{analyticsConsent:true}});expect(capture).toHaveBeenCalledTimes(1);expect(network).not.toHaveBeenCalled();});
+it.each([null,{profileSessionVersion:1,profile:{isActive:true,sessionVersion:2}},{profileSessionVersion:2,profile:{isActive:false,sessionVersion:2}}])("treats revoked/inactive/obsolete sessions as OFF",async session=>{const capture=vi.spyOn(noopAnalytics,"capture");h.session.mockResolvedValue(session);await productAnalytics.capture(principal,event);expect(capture).not.toHaveBeenCalled();expect(h.prefs).not.toHaveBeenCalled();});
+it.each([null,{analyticsConsent:false}])("does not transfer A's consent to B or assume a default ON row",async prefs=>{const capture=vi.spyOn(noopAnalytics,"capture");h.prefs.mockResolvedValue(prefs);await productAnalytics.capture({...principal,sessionId:"session-b",user:{...principal.user,id:"actor-b"}},event);expect(h.prefs).toHaveBeenCalledWith({where:{profileId:"actor-b"},select:{analyticsConsent:true}});expect(capture).not.toHaveBeenCalled();});

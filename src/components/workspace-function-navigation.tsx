@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronRight, LayoutGrid, Search, type LucideIcon } from "lucide-react";
@@ -14,6 +14,7 @@ export type WorkspaceFunction = {
   icon: LucideIcon;
   group: WorkspaceNavigationGroup;
   primary?: boolean;
+  badge?: ReactNode;
 };
 
 /** Receives only authorized destinations. This component never grants access. */
@@ -36,7 +37,7 @@ export function WorkspaceFunctionNavigation({ items, locale, label, testId, side
   const link = (item: WorkspaceFunction, close: boolean, toolbar = false) => <Link key={item.href} href={item.href} prefetch={false}
     title={item.label} aria-label={item.label} onClick={close && (!responsive || pathname === item.href.split("?")[0]) ? () => setOpen(false) : undefined} aria-current={current === item ? "page" : undefined}
     data-primary={toolbar ? primary.includes(item) : undefined}
-    className={`workspace-function-link${toolbar ? " workspace-toolbar-function" : ""}`}><item.icon aria-hidden="true" className="h-5 w-5 shrink-0" /><span>{item.label}</span></Link>;
+    className={`workspace-function-link relative${toolbar ? " workspace-toolbar-function" : ""}`}><item.icon aria-hidden="true" className="h-5 w-5 shrink-0" /><span>{item.label}</span>{item.badge}</Link>;
   const directory = <>
     <label className="mb-2 block text-sm font-semibold" htmlFor={searchId}>{message(locale, "search")}</label>
     <div className="relative"><Search aria-hidden="true" className="pointer-events-none absolute left-3 top-3.5 h-4 w-4" />

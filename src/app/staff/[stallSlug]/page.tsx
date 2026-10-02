@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { Suspense } from "react";
 import { RouteLoadingSkeleton } from "@/components/route-loading-skeleton";
 import { LazyStaffOrderBoard } from "@/components/lazy-staff-order-board";
@@ -87,6 +88,7 @@ async function StaffOrderContent({ stall, principal, role, roles, timing }: Staf
   return (
     <>
       <LazyStaffOrderBoard
+        notificationIdentity={createHash("sha256").update(JSON.stringify([principal.user.id, principal.sessionId, stall.slug])).digest("hex")}
         queueRedesignEnabled={queueRedesignEnabled}
         stall={{
           id: stall.id,

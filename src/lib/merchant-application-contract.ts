@@ -88,11 +88,15 @@ const submissionFieldsSchema = merchantApplicationFieldsSchema.extend({
 export const merchantApplicationCommandSchema = z.discriminatedUnion("intent", [
   z.object({
     intent: z.literal("SAVE_DRAFT"),
+    applicationId: z.string().uuid().nullable(),
+    expectedDraftVersion: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
     currentStep: z.number().int().min(1).max(4),
-    data: merchantApplicationFieldsSchema.partial(),
+    data: merchantApplicationFieldsSchema.omit({ termsAccepted: true, privacyAccepted: true, dataProcessingAccepted: true, informationConfirmed: true }).partial(),
   }).strict(),
   z.object({
     intent: z.literal("SUBMIT"),
+    applicationId: z.string().uuid(),
+    expectedDraftVersion: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
     currentStep: z.literal(4),
     data: submissionFieldsSchema,
   }).strict(),

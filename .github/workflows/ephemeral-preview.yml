@@ -9,6 +9,20 @@ on:
       - ready_for_review
       - closed
   workflow_dispatch:
+    inputs:
+      approve_external_preview:
+        description: Approve isolated Preview resource mutations (also requires Preview environment approval)
+        type: boolean
+        default: false
+      operation:
+        description: Validate a manual Preview or clean exact historical PR-owned resources
+        type: choice
+        options: [validate, cleanup]
+        default: validate
+      cleanup_pr_number:
+        description: Exact closed PR number for manual cleanup only
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -20,10 +34,10 @@ concurrency:
 jobs:
   validate:
     if: >-
-      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'workflow_dispatch' &&
+      inputs.approve_external_preview == true &&
+      inputs.operation == 'validate' &&
       (
-        github.event.action != 'closed' &&
-        github.event.pull_request.head.repo.full_name == github.repository &&
         !(
           github.event.pull_request.number == 365 &&
           github.event.pull_request.head.ref == 'codex/line-platform-oa-v2-20260927' &&
@@ -43,14 +57,20 @@ jobs:
       NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
       ALLOW_DEMO_SEED: "false"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
           cache: npm
 
-      - uses: supabase/setup-cli@v1
+      - name: Verify actual Preview required-reviewers protection
+        id: preview-approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/awesome-optimization/preview-approval.mjs
+
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1 branch
         with:
           version: 2.109.1
 
@@ -622,7 +642,7 @@ jobs:
         run: npm run preview:delivery-smoke
 
       - name: Clean reusable Preview-only fixture state
-        if: always() && env.EPHEMERAL_DATABASE_URL != ''
+        if: always() && steps.preview-approval.outcome == 'success' && env.EPHEMERAL_DATABASE_URL != ''
         run: |
           supabase db query \
             --db-url "$EPHEMERAL_DATABASE_URL" \
@@ -642,7 +662,7 @@ jobs:
             --log-level error
 
       - name: Remove manual Vercel Preview
-        if: always() && github.event_name == 'workflow_dispatch' && steps.vercel-preview.outputs.deployment_id != ''
+        if: always() && steps.preview-approval.outcome == 'success' && github.event_name == 'workflow_dispatch' && steps.vercel-preview.outputs.deployment_id != ''
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
@@ -652,7 +672,7 @@ jobs:
             --token "$VERCEL_TOKEN" || true
 
       - name: Remove manual Preview Branch
-        if: always() && github.event_name == 'workflow_dispatch'
+        if: always() && steps.preview-approval.outcome == 'success' && github.event_name == 'workflow_dispatch'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
@@ -663,25 +683,52 @@ jobs:
 
   cleanup:
     if: >-
-      github.event_name == 'pull_request' &&
-      github.event.action == 'closed' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      github.event_name == 'workflow_dispatch' &&
+      inputs.approve_external_preview == true &&
+      inputs.operation == 'cleanup' &&
+      inputs.cleanup_pr_number != ''
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
     environment:
       name: Preview
     env:
       DO_NOT_TRACK: "1"
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_PARENT_PROJECT_REF: ${{ vars.SUPABASE_PARENT_PROJECT_REF }}
-      PREVIEW_BRANCH_NAME: pr-${{ github.event.pull_request.number }}-oauth-delivery
-      PREVIEW_RESOURCE_KEY: pr-${{ github.event.pull_request.number }}
+      PREVIEW_BRANCH_NAME: pr-${{ inputs.cleanup_pr_number }}-oauth-delivery
+      PREVIEW_RESOURCE_KEY: pr-${{ inputs.cleanup_pr_number }}
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Validate exact cleanup owner
+        env:
+          CLEANUP_PR_NUMBER: ${{ inputs.cleanup_pr_number }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [[ "$CLEANUP_PR_NUMBER" =~ ^[1-9][0-9]{0,6}$ ]] || exit 1
+          test "$PREVIEW_RESOURCE_KEY" = "pr-$CLEANUP_PR_NUMBER" || exit 1
+          test "$PREVIEW_BRANCH_NAME" = "pr-$CLEANUP_PR_NUMBER-oauth-delivery" || exit 1
+          pull_request="$(curl --fail --silent --show-error --max-time 30 \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/pulls/$CLEANUP_PR_NUMBER")"
+          jq -e --arg repository "$GITHUB_REPOSITORY" --argjson number "$CLEANUP_PR_NUMBER" \
+            '.state == "closed" and .number == $number and .head.repo.full_name == $repository' \
+            <<<"$pull_request" >/dev/null || exit 1
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
 
-      - uses: supabase/setup-cli@v1
+      - name: Verify actual Preview required-reviewers protection
+        id: preview-approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/awesome-optimization/preview-approval.mjs
+
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1 branch
         with:
           version: 2.109.1
 

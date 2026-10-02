@@ -1,15 +1,14 @@
 import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { logEvent, recordAuditEvent } from "@/lib/audit";
-import { lineIntegrationSecretsSchema, lineWebhookBodySchema } from "@/lib/line-notification-contract";
+import { lineIntegrationSecretsSchema, lineIntegrationSettingsSchema, lineWebhookBodySchema } from "@/lib/line-notification-contract";
 import { prisma } from "@/lib/prisma";
 import { checkPublicRateLimit } from "@/lib/rate-limit";
 import { createRequestId, hashClientIp, hashToken } from "@/lib/security";
-import { verifyLineWebhookSignature } from "@/server/notifications/line-security";
+import { readLineWebhookBytes, verifyLineWebhookSignature } from "@/server/notifications/line-security";
 import { deleteNotificationSecret, readNotificationSecret } from "@/server/notifications/notification-secrets";
 import {
   BoundedTextReadError,
-  readBoundedText,
 } from "@/server/delivery-platforms/bounded-text-reader";
 
 export const dynamic = "force-dynamic";
@@ -36,9 +35,9 @@ export async function POST(request: Request, context: RouteContext) {
   });
   if (!limit.allowed) return response({ error: "RATE_LIMITED" }, 429, requestId, limit.retryAfterSeconds);
 
-  let rawBody: string;
+  let rawBody: Uint8Array;
   try {
-    rawBody = await readBoundedText(request, 64_000);
+    rawBody = await readLineWebhookBytes(request, 64_000);
   } catch (error) {
     const status = error instanceof BoundedTextReadError
       && (error.reason === "BODY_TOO_LARGE" || error.reason === "INVALID_CONTENT_LENGTH")
@@ -50,6 +49,14 @@ export async function POST(request: Request, context: RouteContext) {
     where: { id: integrationId, provider: "LINE", status: "ACTIVE", stallId: { not: null } },
   });
   if (!integration?.secretReference || !integration.organizationId || !integration.stallId) return response({ error: "NOT_FOUND" }, 404, requestId);
+
+  const settings = lineIntegrationSettingsSchema.safeParse(integration.settingsJson);
+  const [binding] = await prisma.$queryRaw<Array<{ sender_scope: string; provider_id: string | null; oa_destination: string | null }>>`
+    select sender_scope,provider_id,oa_destination from public.notification_integrations where id=${integration.id}::uuid`;
+  if (!settings.success || !settings.data.webhookManagement?.messagingChannelId
+    || binding?.sender_scope !== "LEGACY" || !binding.provider_id || !binding.oa_destination) {
+    return response({ error: "MESSAGING_BINDING_REQUIRED" }, 404, requestId);
+  }
 
   try {
     const secretValue = await readNotificationSecret(integration.secretReference);
@@ -63,40 +70,39 @@ export async function POST(request: Request, context: RouteContext) {
     }
     let webhookBody: unknown;
     try {
-      webhookBody = JSON.parse(rawBody);
+      webhookBody = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(rawBody));
     } catch {
       return response({ error: "INVALID_JSON" }, 400, requestId);
     }
     const parsed = lineWebhookBodySchema.safeParse(webhookBody);
     if (!parsed.success) return response({ error: "INVALID_EVENT" }, 400, requestId);
+    if (parsed.data.destination !== binding.oa_destination) return response({ error: "DESTINATION_MISMATCH" }, 403, requestId);
 
-    let revokedCount = 0;
-    for (const event of parsed.data.events) {
-      const providerEventHash = hashToken(`${integration.id}:${event.webhookEventId ?? JSON.stringify(event)}`);
-      try {
-        const storedEvent = await prisma.lineWebhookEvent.create({
-          data: {
-            organizationId: integration.organizationId,
-            stallId: integration.stallId!,
-            integrationId: integration.id,
-            providerEventHash,
-            eventType: event.type,
-          },
+    const revokedCount = await prisma.$transaction(async transaction => {
+      const [current] = await transaction.$queryRaw<Array<{ organization_id: string; stall_id: string; secret_reference: string | null; settings_json: unknown; status: string; provider: string; sender_scope: string; provider_id: string | null; oa_destination: string | null }>>`
+        select organization_id,stall_id,secret_reference,settings_json,status,provider,sender_scope,provider_id,oa_destination
+        from public.notification_integrations where id=${integration.id}::uuid for update`;
+      const currentSettings = lineIntegrationSettingsSchema.safeParse(current?.settings_json);
+      if (!current || current.status !== "ACTIVE" || current.provider !== "LINE" || current.sender_scope !== "LEGACY"
+        || current.organization_id !== integration.organizationId || current.stall_id !== integration.stallId
+        || current.secret_reference !== integration.secretReference || current.provider_id !== binding.provider_id
+        || current.oa_destination !== binding.oa_destination || !currentSettings.success
+        || currentSettings.data.webhookManagement?.messagingChannelId !== settings.data.webhookManagement?.messagingChannelId) return null;
+      let count = 0;
+      for (const event of parsed.data.events) {
+        const providerEventHash = hashToken(`${integration.id}:${event.webhookEventId ?? JSON.stringify(event)}`);
+        const stored = await transaction.lineWebhookEvent.createMany({
+          data: [{ organizationId: integration.organizationId!, stallId: integration.stallId!, integrationId: integration.id,
+            providerEventHash, eventType: event.type, processedAt: new Date() }],
+          skipDuplicates: true,
         });
-        if (event.type === "unfollow" && event.source?.userId) {
-          revokedCount += await revokeProviderContacts(
-            integration.id,
-            hashToken(event.source.userId),
-          );
+        if (stored.count && event.type === "unfollow" && event.source?.userId) {
+          count += await revokeProviderContacts(transaction, integration.id, hashToken(event.source.userId));
         }
-        await prisma.lineWebhookEvent.update({
-          where: { id: storedEvent.id },
-          data: { processedAt: new Date() },
-        });
-      } catch (error) {
-        if (!isUniqueConstraint(error)) throw error;
       }
-    }
+      return count;
+    });
+    if (revokedCount === null) return response({ error: "MESSAGING_BINDING_CHANGED" }, 403, requestId);
 
     if (revokedCount > 0) {
       await recordAuditEvent({
@@ -121,32 +127,24 @@ export async function POST(request: Request, context: RouteContext) {
   }
 }
 
-async function revokeProviderContacts(integrationId: string, providerUserIdHash: string) {
-  return prisma.$transaction(async (transaction) => {
-    const links = await transaction.customerContactLink.findMany({
-      where: { integrationId, provider: "LINE", providerUserIdHash, consentStatus: "GRANTED" },
-      select: { id: true, providerUserSecretReference: true },
-    });
-    if (links.length === 0) return 0;
-    const linkIds = links.map((link) => link.id);
-    await transaction.customerContactLink.updateMany({
-      where: { id: { in: linkIds }, consentStatus: "GRANTED" },
-      data: { consentStatus: "REVOKED", revokedAt: new Date() },
-    });
-    await transaction.notificationJob.updateMany({
-      where: { contactLinkId: { in: linkIds }, status: { in: ["PENDING", "FAILED"] } },
-      data: { status: "CANCELLED", nextAttemptAt: null, lastErrorCode: "CONSENT_REVOKED" },
-    });
-    await Promise.all(links.map((link) => deleteNotificationSecret(
-      link.providerUserSecretReference,
-      transaction,
-    )));
-    return links.length;
+async function revokeProviderContacts(transaction: Prisma.TransactionClient, integrationId: string, providerUserIdHash: string) {
+  const links = await transaction.customerContactLink.findMany({
+    where: { integrationId, provider: "LINE", providerUserIdHash, consentStatus: "GRANTED" },
+    select: { id: true, providerUserSecretReference: true },
   });
-}
-
-function isUniqueConstraint(error: unknown) {
-  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+  if (links.length === 0) return 0;
+  const linkIds = links.map(link => link.id);
+  await transaction.customerContactLink.updateMany({
+    where: { id: { in: linkIds }, consentStatus: "GRANTED" },
+    data: { consentStatus: "REVOKED", revokedAt: new Date() },
+  });
+  await transaction.$executeRaw`update public.notification_jobs j set status='CANCELLED',outcome='SUPPRESSED',
+    next_attempt_at=null,last_error_code='CONSENT_REVOKED' where contact_link_id in (${Prisma.join(linkIds.map(id => Prisma.sql`${id}::uuid`))})
+    and delivery_mode='LEGACY' and status in ('PENDING','FAILED') and outcome in ('QUEUED','RETRY_SCHEDULED')
+    and first_request_at is null and legacy_intent_json is not null
+    and not exists(select 1 from public.line_platform_order_owners owner where owner.order_id=j.order_id)`;
+  await Promise.all(links.map(link => deleteNotificationSecret(link.providerUserSecretReference, transaction)));
+  return links.length;
 }
 
 function response(body: unknown, status: number, requestId: string, retryAfter?: number) {

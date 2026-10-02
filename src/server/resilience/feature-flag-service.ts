@@ -20,6 +20,11 @@ const flagSnapshotCache = new Map<string, {
 }>();
 
 export const resilienceFeatureFlagCodes = [
+  "MOBILE_APP_ENABLED",
+  "MOBILE_PLATFORM_ADMIN_ENABLED",
+  "MOBILE_PUSH_ENABLED",
+  "MOBILE_OFFLINE_POS_ENABLED",
+  "MOBILE_DIRECT_PRINT_ENABLED",
   "DUAL_ORDER_INTAKE_ENABLED",
   "DR_READ_ROUTING_ENABLED",
   "DR_FAILOVER_ENABLED",
@@ -129,6 +134,11 @@ export function assertResilienceFeatureFlagActivationAllowed(
 }
 
 export const resilienceFeatureFlagDefaults: Record<ResilienceFeatureFlagCode, boolean> = {
+  MOBILE_APP_ENABLED: false,
+  MOBILE_PLATFORM_ADMIN_ENABLED: false,
+  MOBILE_PUSH_ENABLED: false,
+  MOBILE_OFFLINE_POS_ENABLED: false,
+  MOBILE_DIRECT_PRINT_ENABLED: false,
   DUAL_ORDER_INTAKE_ENABLED: false,
   DR_READ_ROUTING_ENABLED: false,
   DR_FAILOVER_ENABLED: false,

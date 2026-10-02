@@ -3,6 +3,7 @@ import { OnboardingForm } from "@/components/onboarding-form";
 import { OnboardingShell } from "@/components/onboarding-shell";
 import { getPagePrincipal } from "@/lib/auth";
 import { hasActiveOAuthIdentity } from "@/server/auth/oauth/profile-identity";
+import { createOperationsScope } from "@/server/operations-read-scope";
 import {
   loadOnboardingData,
   serializeApplicationInitialValues,
@@ -19,5 +20,6 @@ export default async function EditMerchantApplicationPage() {
   const data = await loadOnboardingData(principal.user.id, principal.user.email);
   if (data.workspacePath) redirect(data.workspacePath);
   if (data.application?.status !== "NEEDS_INFO") redirect(data.application ? "/onboarding/status" : "/onboarding");
-  return <OnboardingShell><OnboardingForm authenticatedProfile={data.profile} initialValues={serializeApplicationInitialValues(data.application)} trial={data.trial} businessTypeOptions={data.businessTypeOptions} needsInfoNote={data.application.publicReviewNote} /></OnboardingShell>;
+  const scope = createOperationsScope(principal);
+  return <OnboardingShell><OnboardingForm scopeKey={`onboarding-edit:${scope.principalKey}:${scope.sessionEpoch}`} authenticatedProfile={data.profile} initialValues={serializeApplicationInitialValues(data.application)} trial={data.trial} businessTypeOptions={data.businessTypeOptions} needsInfoNote={data.application.publicReviewNote} /></OnboardingShell>;
 }

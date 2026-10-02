@@ -36,6 +36,6 @@ export async function deleteNotificationSecret(
 ) {
   if (!secretId) return;
   await database.$queryRaw(Prisma.sql`
-    select public.delete_notification_secret(${secretId}::uuid)
+    select public.delete_notification_secret(${secretId}::uuid)::text
   `);
 }

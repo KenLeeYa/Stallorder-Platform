@@ -62,6 +62,7 @@ export function AdminBillingHeader({ displayName, moduleVisibility = { delivery:
   }));
 
   if (linePlatformEnabled) navigation.push({ href: "/admin/line-platform", label: m("Platform LINE notifications"), icon: MessageCircle, group: "operations" });
+  navigation.push({ href: "/admin/feedback", label: "產品回饋", icon: MessageCircle, group: "operations" });
 
   return (
     <>

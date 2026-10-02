@@ -6,6 +6,8 @@ import { assertResponsiveQaTarget } from "../../scripts/responsive-qa-target.mjs
 import { catalogCsvHeaders } from "../../src/lib/catalog-csv-client";
 import { gotoLocalPath, loginLocalTestAccount } from "../local-navigation";
 
+assertResponsiveQaTarget(process.env);
+
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
 const password = "StallOrderDemo!2026";
@@ -16,8 +18,6 @@ let fixtureQrId = "";
 let fixtureQrToken = "";
 let originalStall: { orderingState: "OPEN" | "PAUSED" | "CLOSED"; isSoldOut: boolean };
 let originalHours: Awaited<ReturnType<typeof prisma.stallBusinessHour.findMany>>;
-
-assertResponsiveQaTarget(process.env);
 
 test.describe.configure({ mode: "serial" });
 

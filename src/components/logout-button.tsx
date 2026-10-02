@@ -6,6 +6,7 @@ import { LogOut } from "lucide-react";
 import { useAppLocale } from "@/components/locale-provider";
 import { SessionKeepAlive } from "@/components/session-keep-alive";
 import { csrfHeaders } from "@/lib/csrf-client";
+import { invalidateOperationsAuthority } from "@/lib/operations-query";
 
 export function LogoutButton({ offlineStallId, destination = "/login" }: { offlineStallId?: string; destination?: "/login" | "/mini" } = {}) {
   const router = useRouter();
@@ -21,6 +22,7 @@ export function LogoutButton({ offlineStallId, destination = "/login" }: { offli
         return;
       }
     }
+    invalidateOperationsAuthority();
     setIsSubmitting(true);
     const response = await fetch("/api/auth/logout", { method: "POST", headers: csrfHeaders() });
     if (response.ok) {

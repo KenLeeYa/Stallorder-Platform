@@ -1,10 +1,12 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useForm, useWatch, type Resolver } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { Building2, Check, ChevronLeft, ChevronRight, ClipboardCheck, MapPin, RefreshCw, Save, UserRound } from "lucide-react";
 import { useAppLocale } from "@/components/locale-provider";
 import { PublicIdentifierInputHint } from "@/components/public-identifier-input-hint";
+import { retryAfterDeadline } from "@/lib/operations-query";
 import { csrfHeaders } from "@/lib/csrf-client";
 import type { AppLocale } from "@/lib/app-locale";
 import type { MerchantBusinessTypeOptionDto } from "@/lib/merchant-business-type-options";
@@ -22,8 +24,13 @@ import {
 import { onboardingMessages } from "@/lib/messages/onboarding";
 import { PHONE_INPUT_PATTERN } from "@/lib/phone-input-pattern";
 import { taiwanCityOptions } from "@/lib/taiwan-address";
+import { merchantApplicationFieldsSchema, getMerchantApplicationFieldErrors } from "@/lib/merchant-application-contract";
 
 type InitialValues = {
+  id?: string;
+  draftVersion?: number;
+  updatedAt?: string | Date;
+  status?: string;
   phone?: string | null;
   lineId?: string | null;
   preferredContactMethod?: "PHONE" | "LINE" | "EMAIL" | null;
@@ -94,21 +101,28 @@ const steps: Array<{ labelKey: OnboardingMessageKey; icon: typeof UserRound }> =
   { labelKey: "stepConsent", icon: ClipboardCheck },
 ];
 
-export function OnboardingForm({
-  authenticatedProfile,
-  initialValues,
-  trial,
-  businessTypeOptions,
-  needsInfoNote,
-  isReapplication = false,
-}: {
+type OnboardingFormProps = {
   authenticatedProfile: { displayName: string; email: string | null; avatarUrl: string | null };
   initialValues?: InitialValues | null;
   trial: Trial;
   businessTypeOptions?: MerchantBusinessTypeOptionDto[];
   needsInfoNote?: string | null;
   isReapplication?: boolean;
-}) {
+  scopeKey?: string;
+};
+
+export function OnboardingForm(props: OnboardingFormProps) {
+  return <OnboardingFormSession key={props.scopeKey ?? props.authenticatedProfile.email} {...props} />;
+}
+
+function OnboardingFormSession({
+  authenticatedProfile,
+  initialValues,
+  trial,
+  businessTypeOptions,
+  needsInfoNote,
+  isReapplication = false,
+}: OnboardingFormProps) {
   const router = useRouter();
   const { locale } = useAppLocale();
   const t = (key: OnboardingMessageKey, values?: Record<string, string | number>) => onboardingMessages.get(locale, key, values);
@@ -123,7 +137,7 @@ export function OnboardingForm({
   const [isGeneratingSlug, setIsGeneratingSlug] = useState(false);
   const [slugSuggestionError, setSlugSuggestionError] = useState("");
   const slugSuggestionRequestRef = useRef(0);
-  const [state, setState] = useState<FormState>({
+  const defaultValues: FormState = {
     phone: initialValues?.phone ?? "",
     lineId: initialValues?.lineId ?? "",
     preferredContactMethod: initialValues?.preferredContactMethod ?? "PHONE",
@@ -147,10 +161,96 @@ export function OnboardingForm({
     privacyAccepted: false,
     dataProcessingAccepted: false,
     informationConfirmed: false,
-  });
+  };
+  const form = useForm<FormState>({ defaultValues, shouldUnregister: false, resolver: onboardingResolver });
+  const state = useWatch({ control: form.control }) as FormState;
+  const live = useRef(false);
+  const revision = useRef(0);
+  const savedRevision = useRef(0);
+  const confirmed = useRef({ id: isReapplication ? null : initialValues?.id ?? null, version: isReapplication ? 0 : initialValues?.draftVersion ?? 0 });
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pending = useRef<{ values: FormState; step: number; revision: number } | null>(null);
+  const inFlight = useRef<Promise<boolean> | null>(null);
+  const paused = useRef(false);
+  const retryAt = useRef(0);
+  const [retryDeadline, setRetryDeadline] = useState(0);
+  const savedStep = useRef(initialValues?.currentStep ?? 1);
+  const conflictGeneration = useRef(0);
+  const serverDraftGeneration = useRef(0);
+  const [conflictRead, setConflictRead] = useState<"loading" | "error" | "ready">("loading");
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState(!isReapplication && initialValues?.updatedAt ? new Date(initialValues.updatedAt).toISOString() : "");
+  const [conflict, setConflict] = useState(false);
+  const [serverDraft, setServerDraft] = useState<InitialValues | null>(null);
+  const [selectedChanges, setSelectedChanges] = useState<Partial<Record<keyof FormState, boolean>>>({});
+  const [denied, setDenied] = useState(false);
+  const [offline, setOffline] = useState(false);
+  const savedValues = useRef<FormState>(defaultValues);
+  const originalValues = useRef<FormState>(defaultValues);
+
+  useEffect(() => {
+    live.current = true;
+    paused.current = false;
+    for (const name of Object.keys(defaultValues) as Array<keyof FormState>) form.register(name);
+    const onOffline = () => setOffline(true);
+    const onOnline = () => setOffline(false);
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (revision.current > savedRevision.current) { event.preventDefault(); event.returnValue = ""; }
+    };
+    const beforeLink = (event: MouseEvent) => {
+      const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
+      if (link && revision.current > savedRevision.current && !window.confirm(t("leaveUnsaved"))) { event.preventDefault(); event.stopPropagation(); }
+    };
+    queueMicrotask(() => { if (live.current) setOffline(!navigator.onLine); });
+    window.addEventListener("offline", onOffline);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("beforeunload", beforeUnload);
+    document.addEventListener("click", beforeLink, true);
+    return () => {
+      live.current = false; paused.current = true; pending.current = null;
+      conflictGeneration.current += 1; retryAt.current = 0;
+      slugSuggestionRequestRef.current += 1;
+      if (timer.current) clearTimeout(timer.current);
+      window.removeEventListener("offline", onOffline);
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("beforeunload", beforeUnload);
+      document.removeEventListener("click", beforeLink, true);
+    };
+    // The keyed session owns its initial defaults and registered fields.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.register]);
+
+  useEffect(() => {
+    if (!dirty || paused.current || offline || retryAt.current) return;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => { void saveDraft(step, false); }, 750);
+    return () => { if (timer.current) clearTimeout(timer.current); };
+    // Save snapshots use getValues; receiving a save never resets active input.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, dirty, step, offline]);
+
+  useEffect(() => {
+    if (isReapplication || !initialValues?.id || initialValues.draftVersion === confirmed.current.version) return;
+    if (revision.current > savedRevision.current || inFlight.current) { void showConflict(); return; }
+    const values = valuesFromDraft(defaultValues, initialValues);
+    form.reset(values); savedValues.current = values; savedStep.current = initialValues.currentStep ?? 1;
+    confirmed.current = { id: initialValues.id, version: initialValues.draftVersion ?? 0 };
+    setSavedAt(initialValues.updatedAt ? new Date(initialValues.updatedAt).toISOString() : "");
+    // A server refresh may replace only a clean form; dirty forms require reconciliation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialValues?.id, initialValues?.draftVersion]);
+
+  function replaceValues(values: FormState) {
+    for (const key of Object.keys(values) as Array<keyof FormState>) form.setValue(key, values[key], { shouldDirty: true });
+    revision.current += 1;
+    setDirty(true); setNotice("");
+  }
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setState((current) => ({ ...current, [key]: value }));
+    form.setValue(key as keyof FormState, value, { shouldDirty: true });
+    revision.current += 1;
+    setDirty(true); setNotice("");
     setFieldErrors((current) => {
       if (!current[key]) return current;
       const next = { ...current };
@@ -162,13 +262,7 @@ export function OnboardingForm({
   function updateMerchantName(merchantName: string) {
     slugSuggestionRequestRef.current += 1;
     setIsGeneratingSlug(false);
-    setState((current) => ({
-      ...current,
-      merchantName,
-      requestedSlug: isSlugManuallyEdited
-        ? current.requestedSlug
-        : "",
-    }));
+    replaceValues({ ...form.getValues(), merchantName, requestedSlug: isSlugManuallyEdited ? form.getValues("requestedSlug") : "" });
     setSlugState("idle");
     setSlugSuggestionError("");
     clearFieldErrors(["merchantName", ...(isSlugManuallyEdited ? [] : ["requestedSlug" as const])]);
@@ -206,19 +300,19 @@ export function OnboardingForm({
       if (!response.ok || typeof result.suggestion !== "string") {
         throw new Error(t("slugSuggestionError"));
       }
-      if (slugSuggestionRequestRef.current !== requestVersion) return;
-      setState((current) => ({ ...current, requestedSlug: result.suggestion }));
+      if (!live.current || slugSuggestionRequestRef.current !== requestVersion) return;
+      update("requestedSlug", result.suggestion);
       setSlugState("idle");
       clearFieldErrors(["requestedSlug"]);
     } catch (suggestionError) {
-      if (slugSuggestionRequestRef.current !== requestVersion) return;
+      if (!live.current || slugSuggestionRequestRef.current !== requestVersion) return;
       setSlugSuggestionError(
         suggestionError instanceof Error
           ? suggestionError.message
           : t("slugSuggestionManual"),
       );
     } finally {
-      if (slugSuggestionRequestRef.current === requestVersion) setIsGeneratingSlug(false);
+      if (live.current && slugSuggestionRequestRef.current === requestVersion) setIsGeneratingSlug(false);
     }
   }
 
@@ -247,7 +341,7 @@ export function OnboardingForm({
     const message = nativeValidationMessage(target.name, target, locale);
     setFieldErrors((current) => ({ ...current, [target.name]: message }));
     setError(t("checkFields"));
-    requestAnimationFrame(() => formRef.current?.querySelector<HTMLElement>(":invalid")?.focus());
+    requestAnimationFrame(() => formRef.current?.querySelector<HTMLElement>("input:invalid, select:invalid, textarea:invalid")?.focus());
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -255,6 +349,11 @@ export function OnboardingForm({
     setError("");
     setNotice("");
     if (step < 4) {
+      const names = Object.keys(draftPayload(state, step)) as Array<keyof FormState>;
+      if (!(await form.trigger(names))) {
+        const errors = Object.fromEntries(names.filter(name => form.getFieldState(name).error).map(name => [name, form.getFieldState(name).error?.message ?? t("checkFields")])) as FieldErrors;
+        setFieldErrors(errors); setError(t("checkFields")); focusFirstInvalidField(formRef.current, errors); return;
+      }
       const saved = await saveDraft(step);
       if (saved) {
         const nextStep = Math.min(4, step + 1);
@@ -272,13 +371,22 @@ export function OnboardingForm({
     }
     setIsSubmitting(true);
     try {
+      if (paused.current || !(await saveDraft(4)) || !confirmed.current.id) return;
+      const applicationId = confirmed.current.id;
+      const valid = merchantApplicationFieldsSchema.safeParse(completePayload(form.getValues()));
+      if (!valid.success) { showResponseError({ fieldErrors: getMerchantApplicationFieldErrors(valid.error) }, t("checkFields")); return; }
       const response = await fetch("/api/onboarding", {
         method: "POST",
         headers: csrfHeaders(),
-        body: JSON.stringify({ intent: "SUBMIT", currentStep: 4, data: completePayload(state) }),
+        body: JSON.stringify({ intent: "SUBMIT", applicationId, expectedDraftVersion: confirmed.current.version, currentStep: 4, data: completePayload(form.getValues()) }),
       });
       const result = await response.json();
+      if (!live.current) return;
       if (!response.ok) {
+        if (response.status === 429) { retainRateLimit(response); return; }
+        if (response.status === 409 && await recoverSubmission(applicationId)) return;
+        if (response.status === 409) { await showConflict(); return; }
+        if (response.status === 401 || response.status === 403) { setDenied(true); paused.current = true; return; }
         showResponseError(result, t("submitError"));
         if (result.next) router.push(result.next);
         return;
@@ -286,37 +394,116 @@ export function OnboardingForm({
       router.push(result.next ?? "/onboarding/status");
       router.refresh();
     } catch {
+      if (!live.current) return;
+      if (confirmed.current.id && await recoverSubmission(confirmed.current.id)) return;
       setError(t("networkError"));
     } finally {
-      setIsSubmitting(false);
+      if (live.current) setIsSubmitting(false);
     }
   }
 
-  async function saveDraft(currentStep: number) {
-    setIsSubmitting(true);
-    try {
-      const response = await fetch("/api/onboarding", {
-        method: "POST",
-        headers: csrfHeaders(),
-        body: JSON.stringify({
-          intent: "SAVE_DRAFT",
-          currentStep,
-          data: draftPayload(state, currentStep),
-        }),
-      });
-      const result = await response.json();
-      if (!response.ok) {
-        showResponseError(result, t("saveError"));
-        if (result.next) router.push(result.next);
+  function retainRateLimit(response: Response) {
+    retryAt.current = Math.max(retryAt.current, retryAfterDeadline(response.headers.get("retry-after")) ?? Date.now() + 60_000);
+    setRetryDeadline(retryAt.current); setNotice(""); pending.current = null;
+    if (timer.current) clearTimeout(timer.current);
+  }
+
+  async function saveDraft(currentStep: number, explicit = true) {
+    if (timer.current) clearTimeout(timer.current);
+    if (paused.current || !live.current || !navigator.onLine) return false;
+    if (retryAt.current) {
+      if (!explicit || Date.now() < retryAt.current) return false;
+      retryAt.current = 0; setRetryDeadline(0);
+    }
+    pending.current = { values: form.getValues(), step: currentStep, revision: revision.current };
+    if (inFlight.current) return inFlight.current;
+    const pump = async () => {
+      setSaving(true);
+      let accepted = true;
+      try {
+        while (pending.current && live.current && !paused.current) {
+          const snapshot = pending.current; pending.current = null;
+          const data = draftSnapshot(snapshot.values);
+          const parsed = merchantApplicationFieldsSchema.partial().safeParse(data);
+          const clearedRequired = (["phone", "merchantName", "contactName", "businessPhone", "businessAddress", "city", "stallName", "stallLocation", "requestedSlug"] as const).some(name => savedValues.current[name].trim() && !snapshot.values[name].trim());
+          if (!parsed.success || clearedRequired) { accepted = false; setError(t("checkFields")); if (!parsed.success) showResponseError({ fieldErrors: getMerchantApplicationFieldErrors(parsed.error) }, t("checkFields")); break; }
+          if (confirmed.current.id && savedStep.current === snapshot.step && JSON.stringify(data) === JSON.stringify(draftSnapshot(savedValues.current))) {
+            savedRevision.current = snapshot.revision; setDirty(revision.current !== snapshot.revision); continue;
+          }
+          const response = await fetch("/api/onboarding", { method: "POST", headers: csrfHeaders(), body: JSON.stringify({ intent: "SAVE_DRAFT", applicationId: confirmed.current.id, expectedDraftVersion: confirmed.current.version, currentStep: snapshot.step, data: parsed.data }) });
+          const result = await response.json();
+          if (!live.current) return false;
+          if (!response.ok) {
+            accepted = false; pending.current = null;
+            if (response.status === 429) retainRateLimit(response);
+            else if (response.status === 409) await showConflict();
+            else if (response.status === 401 || response.status === 403) { paused.current = true; setDenied(true); }
+            else showResponseError(result, t("saveError"));
+            break;
+          }
+          if (!result.application?.id || !Number.isSafeInteger(result.application.draftVersion)) throw new Error("Invalid draft receipt");
+          confirmed.current = { id: result.application.id, version: result.application.draftVersion };
+          savedRevision.current = snapshot.revision;
+          savedValues.current = snapshot.values; savedStep.current = snapshot.step;
+          setSavedAt(result.application.updatedAt);
+          setDirty(revision.current !== snapshot.revision);
+          setNotice(t("draftSaved")); setError("");
+        }
+        return accepted && live.current && !paused.current;
+      } catch {
+        if (live.current) setError(t("networkError"));
+        pending.current = null;
         return false;
+      } finally {
+        inFlight.current = null;
+        if (live.current) setSaving(false);
       }
-      setNotice(t("draftSaved"));
-      return true;
-    } catch {
-      setError(t("networkError"));
-      return false;
-    } finally {
-      setIsSubmitting(false);
+    };
+    inFlight.current = Promise.resolve().then(pump);
+    return inFlight.current;
+  }
+
+  async function recoverSubmission(applicationId: string) {
+    try {
+      const response = await fetch("/api/onboarding", { cache: "no-store" });
+      const result = await response.json();
+      if (!live.current || !response.ok) return false;
+      if (result.application?.id === applicationId && ["SUBMITTED", "PENDING_REVIEW", "APPROVED"].includes(result.application.status)) {
+        savedRevision.current = revision.current; setDirty(false); router.push("/onboarding/status"); router.refresh(); return true;
+      }
+    } catch { /* Remain uncertain until the applicant can read the canonical state. */ }
+    return false;
+  }
+
+  async function showConflict() {
+    const generation = ++conflictGeneration.current;
+    serverDraftGeneration.current = 0;
+    paused.current = true; pending.current = null; setConflict(true); setServerDraft(null); setSelectedChanges({}); setConflictRead("loading"); setNotice(""); setError("");
+    if (timer.current) clearTimeout(timer.current);
+    try {
+      const response = await fetch("/api/onboarding", { cache: "no-store" });
+      const result = await response.json();
+      if (!live.current || generation !== conflictGeneration.current) return;
+      if (response.status === 401 || response.status === 403) { setDenied(true); return; }
+      if (!response.ok || !result.application?.id || !Number.isSafeInteger(result.application.draftVersion)) { setConflictRead("error"); return; }
+      serverDraftGeneration.current = generation; setServerDraft(result.application); setConflictRead("ready");
+    } catch { if (live.current && generation === conflictGeneration.current) setConflictRead("error"); }
+  }
+
+  function loadCurrent(reconcile = false) {
+    if (conflictRead !== "ready" || serverDraftGeneration.current !== conflictGeneration.current || !serverDraft || !["DRAFT", "NEEDS_INFO"].includes(serverDraft.status ?? "")) return;
+    const local = form.getValues();
+    const values = valuesFromDraft(defaultValues, serverDraft);
+    form.reset(values); savedValues.current = values; savedStep.current = serverDraft.currentStep ?? 1;
+    confirmed.current = { id: serverDraft.id ?? null, version: serverDraft.draftVersion ?? 0 };
+    setSavedAt(serverDraft.updatedAt ? new Date(serverDraft.updatedAt).toISOString() : "");
+    setStep(Math.min(serverDraft.currentStep ?? 1, 4));
+    savedRevision.current = revision.current;
+    conflictGeneration.current += 1; serverDraftGeneration.current = 0; setServerDraft(null); setSelectedChanges({});
+    setDirty(false); setConflict(false); paused.current = false; setError("");
+    if (reconcile) {
+      const chosen = Object.fromEntries(Object.entries(selectedChanges).filter(([, keep]) => keep).map(([key]) => [key, local[key as keyof FormState]]));
+      replaceValues({ ...values, ...chosen });
     }
   }
 
@@ -332,9 +519,11 @@ export function OnboardingForm({
       return;
     }
     setSlugState("checking");
+    const requestVersion = ++slugSuggestionRequestRef.current;
     try {
       const response = await fetch(`/api/onboarding?slug=${encodeURIComponent(slug)}`, { cache: "no-store" });
       const result = await response.json();
+      if (!live.current || slugSuggestionRequestRef.current !== requestVersion) return;
       const available = response.ok && result.available;
       setSlugState(available ? "available" : "taken");
       setFieldErrors((current) => {
@@ -344,11 +533,16 @@ export function OnboardingForm({
         return next;
       });
     } catch {
-      setSlugState("idle");
+      if (live.current && slugSuggestionRequestRef.current === requestVersion) setSlugState("idle");
     }
   }
 
   const ActiveIcon = steps[step - 1].icon;
+  const differences = serverDraft ? (Object.keys(merchantApplicationFieldLabels) as Array<keyof FormState>).filter(key => {
+    const fresh = valuesFromDraft(defaultValues, serverDraft);
+    return JSON.stringify(state[key]) !== JSON.stringify(fresh[key]);
+  }).slice(0, 24) : [];
+  if (denied) return <p role="alert" className="p-6">{t("accessChanged")}</p>;
   return (
     <form ref={formRef} onSubmit={submit} onInvalid={handleInvalid} className="mx-auto max-w-3xl border-y border-stone-200 bg-white py-6 sm:border sm:p-6">
       <header className="border-b border-stone-200 pb-5">
@@ -380,25 +574,37 @@ export function OnboardingForm({
 
       {isReapplication ? <p role="status" className="mt-5 border-l-4 border-teal-600 bg-teal-50 px-4 py-3 text-sm text-teal-950">{t("reapplyHistory")}</p> : null}
       {needsInfoNote ? <p className="mt-5 border-l-4 border-amber-500 bg-amber-50 px-4 py-3 text-sm text-amber-950">{t("needsInfo", { note: needsInfoNote })}</p> : null}
+      <p role="status" data-testid="onboarding-save-state" className="mt-4 text-sm text-stone-600">
+        {offline ? t("offlineUnsaved") : saving ? t("savingDraft") : dirty ? t("unsavedDraft") : savedAt ? t("savedTimestamp", { time: `${savedAt.slice(0, 19).replace("T", " ")} UTC` }) : t("draftNotSaved")}
+        {dirty && savedAt ? ` ${t("lastSaved", { time: `${savedAt.slice(0, 19).replace("T", " ")} UTC` })}` : ""}
+      </p>
+      {retryDeadline ? <p role="alert" data-testid="onboarding-rate-limit" className="mt-4 text-sm text-amber-900">{t("rateLimitUntil", { time: new Date(retryDeadline).toISOString().replace("T", " ").slice(0, 19) + " UTC" })}</p> : null}
+      {conflict ? <section role="alert" aria-label={t("conflictTitle")} className="mt-4 border border-amber-500 p-4">
+        <h2 className="font-semibold">{t("conflictTitle")}</h2><p className="mt-2 text-sm">{t("conflictHelp")}</p>
+        <p data-testid="onboarding-conflict-read" className="mt-2 text-sm">{conflictRead === "loading" ? t("conflictLoading") : conflictRead === "error" ? t("conflictReadError") : ""}</p>
+        <button type="button" onClick={() => void showConflict()} className="min-h-12 px-3">{t("reloadDraft")}</button>
+        {serverDraft ? <ul className="mt-3 space-y-2">{differences.map(key => <li key={key} className="break-words text-sm"><label style={{ minHeight: "max(48px, 3.5rem)" }} className="flex min-h-12 items-center gap-2"><input type="checkbox" checked={selectedChanges[key] ?? false} onChange={event => setSelectedChanges(current => ({ ...current, [key]: event.target.checked }))} />{merchantApplicationFieldLabels[key]}: {t("localValue")} {String(state[key]).slice(0, 120)} / {t("serverValue")} {String(valuesFromDraft(defaultValues, serverDraft)[key]).slice(0, 120)}</label></li>)}</ul> : null}
+        {serverDraft && ["DRAFT", "NEEDS_INFO"].includes(serverDraft.status ?? "") ? <div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => loadCurrent()} className="min-h-12 border px-3">{t("loadCurrent")}</button><button type="button" disabled={!Object.values(selectedChanges).some(Boolean)} onClick={() => loadCurrent(true)} className="min-h-12 border px-3 disabled:opacity-50">{t("reconcileSelected")}</button></div> : serverDraft ? <button type="button" onClick={() => router.push("/onboarding/status")} className="min-h-12 border px-3">{t("viewCurrentStatus")}</button> : null}
+      </section> : null}
 
-      <section className="min-h-[420px] py-6">
+      <fieldset disabled={isSubmitting} className="min-h-[420px] py-6">
         {step === 1 ? <ApplicantStep locale={locale} profile={authenticatedProfile} state={state} update={update} fieldErrors={fieldErrors} /> : null}
         {step === 2 ? <MerchantStep locale={locale} state={state} update={update} updateMerchantName={updateMerchantName} fieldErrors={fieldErrors} businessTypeOptions={businessTypeOptions ?? []} /> : null}
         {step === 3 ? <StallStep locale={locale} state={state} update={update} updateRequestedSlug={updateRequestedSlug} regenerateRequestedSlug={regenerateRequestedSlug} isSlugManuallyEdited={isSlugManuallyEdited} isGeneratingSlug={isGeneratingSlug} slugSuggestionError={slugSuggestionError} fieldErrors={fieldErrors} slugState={slugState} checkSlug={checkSlug} /> : null}
-        {step === 4 ? <ConsentStep locale={locale} state={state} update={update} fieldErrors={fieldErrors} trial={trial} /> : null}
-      </section>
+        {step === 4 ? <><section className="mb-5 border-b pb-4"><h2 className="font-semibold">{t("applicationSummary")}</h2><dl className="mt-2 grid gap-2 text-sm"><div><dt>{t("fieldMerchantName")}</dt><dd className="break-words">{state.merchantName}</dd></div><div><dt>{t("fieldStallName")}</dt><dd className="break-words">{state.stallName}</dd></div><div><dt>{t("fieldAddress")}</dt><dd className="break-words">{state.businessAddress}</dd></div></dl>{needsInfoNote ? <p className="mt-2 text-sm">{t("changedFields")}: {(Object.keys(state) as Array<keyof FormState>).filter(key => state[key] !== originalValues.current[key]).map(key => merchantApplicationFieldLabels[key]).join("、") || t("noChanges")}</p> : null}</section><ConsentStep locale={locale} state={state} update={update} fieldErrors={fieldErrors} trial={trial} /></> : null}
+      </fieldset>
 
       {error ? <p role="alert" className="mb-4 text-sm font-medium text-red-700">{error}</p> : null}
       {notice ? <p role="status" className="mb-4 text-sm font-medium text-teal-800">{notice}</p> : null}
       <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-200 pt-5">
-        <button type="button" disabled={step === 1 || isSubmitting} onClick={() => setStep((current) => Math.max(1, current - 1))} className="inline-flex min-h-11 items-center gap-2 px-3 text-sm font-semibold text-stone-700 disabled:opacity-40">
+        <button type="button" disabled={step === 1 || isSubmitting} onClick={() => setStep((current) => Math.max(1, current - 1))} className="inline-flex min-h-12 items-center gap-2 px-3 text-sm font-semibold text-stone-700 disabled:opacity-40">
           <ChevronLeft className="h-4 w-4" />{t("previous")}
         </button>
         <div className="flex flex-wrap gap-2">
-          <button type="button" disabled={isSubmitting} onClick={() => void saveDraft(step)} className="inline-flex min-h-11 items-center gap-2 border border-stone-300 px-4 text-sm font-semibold disabled:opacity-50">
+          <button type="button" disabled={isSubmitting || conflict || offline} onClick={() => void saveDraft(step)} className="inline-flex min-h-12 items-center gap-2 border border-stone-300 px-4 text-sm font-semibold disabled:opacity-50">
             <Save className="h-4 w-4" />{t("saveDraft")}
           </button>
-          <button type="submit" disabled={isSubmitting} className="inline-flex min-h-11 items-center gap-2 bg-teal-700 px-5 text-sm font-semibold text-white disabled:opacity-50">
+          <button type="submit" disabled={isSubmitting || conflict || offline} className="inline-flex min-h-12 items-center gap-2 bg-teal-700 px-5 text-sm font-semibold text-white disabled:opacity-50">
             {step < 4 ? <>{t("next")}<ChevronRight className="h-4 w-4" /></> : isSubmitting ? t("submitting") : t("submit")}
           </button>
         </div>
@@ -511,7 +717,7 @@ function StallStep({
         type="button"
         disabled={isGeneratingSlug || state.merchantName.trim().length < 2}
         onClick={regenerateRequestedSlug}
-        className="inline-flex min-h-10 items-center gap-2 rounded-md border border-stone-300 bg-white px-3 text-xs font-semibold text-stone-800 disabled:opacity-50"
+        className="inline-flex min-h-12 items-center gap-2 rounded-md border border-stone-300 bg-white px-3 text-xs font-semibold text-stone-800 disabled:opacity-50"
       >
         <RefreshCw className="h-3.5 w-3.5" />
         {t("slugRegenerate")}
@@ -559,10 +765,10 @@ function ConsentStep({ locale, state, update, fieldErrors, trial }: StepProps & 
 }
 
 type StepProps = { locale: AppLocale; state: FormState; fieldErrors: FieldErrors; update<K extends keyof FormState>(key: K, value: FormState[K]): void };
-const inputClass = "min-h-11 w-full border border-stone-300 bg-white px-3 py-2 text-sm outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100";
+const inputClass = "min-h-12 w-full border border-stone-300 bg-white px-3 py-2 text-sm outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-100";
 
 function Field({ field, label, error, full, children }: { field: keyof FormState; label: string; error?: string; full?: boolean; children: React.ReactNode }) {
-  return <label className={`block text-sm font-medium text-stone-800 ${full ? "md:col-span-2" : ""}`}><span className="mb-1.5 block">{label}</span>{children}{error ? <span id={fieldErrorId(field)} role="alert" className="mt-1.5 block text-xs font-medium text-red-700">{error}</span> : null}</label>;
+  return <label className={`block text-sm font-medium text-stone-800 ${full ? "md:col-span-2" : ""}`}><span id={`onboarding-${field}-label`} className="mb-1.5 block">{label}</span>{children}{error ? <span id={fieldErrorId(field)} role="alert" className="mt-1.5 block text-xs font-medium text-red-700">{error}</span> : null}</label>;
 }
 
 function Toggle({ id, label, description, checked, onChange }: { id: string; label: string; description: string; checked: boolean; onChange(value: boolean): void }) {
@@ -576,11 +782,37 @@ function Toggle({ id, label, description, checked, onChange }: { id: string; lab
 }
 
 function Consent({ field, label, checked, error, onChange }: { field: keyof FormState; label: string; checked: boolean; error?: string; onChange(value: boolean): void }) {
-  return <div><label className="flex items-start gap-3 text-sm"><input {...fieldValidationProps(field, error ? { [field]: error } : {})} required type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="mt-0.5 h-5 w-5 accent-teal-700" /><span>{label}</span></label>{error ? <p id={fieldErrorId(field)} role="alert" className="ml-8 mt-1 text-xs font-medium text-red-700">{error}</p> : null}</div>;
+  return <div><label style={{ minHeight: "max(48px, 3.5rem)" }} className="flex min-h-12 items-start gap-3 text-sm"><input {...fieldValidationProps(field, error ? { [field]: error } : {})} required type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="mt-0.5 h-5 w-5 accent-teal-700" /><span id={`onboarding-${field}-label`}>{label}</span></label>{error ? <p id={fieldErrorId(field)} role="alert" className="ml-8 mt-1 text-xs font-medium text-red-700">{error}</p> : null}</div>;
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
   return <div><dt className="text-stone-500">{label}</dt><dd className="font-semibold text-stone-900">{value}</dd></div>;
+}
+
+const onboardingResolver: Resolver<FormState> = (values, _context, options) => {
+  const parsed = merchantApplicationFieldsSchema.safeParse(completePayload(values));
+  if (parsed.success) return { values, errors: {} };
+  const messages = getMerchantApplicationFieldErrors(parsed.error);
+  const names = options.names ?? Object.keys(values);
+  const errors = Object.fromEntries(Object.entries(messages).filter(([name]) => names.includes(name as keyof FormState)).map(([name, message]) => [name, { type: "validation", message }]));
+  return Object.keys(errors).length ? { values: {}, errors } : { values, errors: {} };
+};
+
+function draftSnapshot(state: FormState) {
+  // Legal consent is reaffirmed by SUBMIT, never cleared by an in-progress edit.
+  return { ...draftPayload(state, 1), ...draftPayload(state, 2), ...draftPayload(state, 3), requestedPlanCode: state.requestedPlanCode };
+}
+
+function valuesFromDraft(defaults: FormState, draft: InitialValues): FormState {
+  const values = { ...defaults };
+  for (const name of Object.keys(defaults) as Array<keyof FormState>) {
+    const value = (draft as Record<string, unknown>)[name];
+    if (value === undefined) continue;
+    if (name === "estimatedDailyOrders") values.estimatedDailyOrders = value === null ? "" : String(value);
+    else if (name === "expectedStartDate") values.expectedStartDate = typeof value === "string" ? value.slice(0, 10) : "";
+    else Object.assign(values, { [name]: value ?? (typeof defaults[name] === "string" ? "" : defaults[name]) });
+  }
+  return values;
 }
 
 function draftPayload(state: FormState, step: number) {
@@ -646,6 +878,7 @@ function fieldValidationProps(field: keyof FormState, fieldErrors: FieldErrors, 
   const error = fieldErrors[field];
   return {
     name: field,
+    "aria-labelledby": `onboarding-${field}-label`,
     "aria-invalid": error ? true : undefined,
     "aria-describedby": [describedBy, error ? fieldErrorId(field) : null].filter(Boolean).join(" ") || undefined,
   };
