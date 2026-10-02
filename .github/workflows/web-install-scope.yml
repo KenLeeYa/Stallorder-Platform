@@ -1,0 +1,40 @@
+name: Web Install Scope Proof
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-clean-install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+          cache: npm
+      - name: Use the reviewed npm workspace selector version
+        run: npm install --global npm@11.16.0
+      - name: Install only Web root and shared contracts with development dependencies
+        run: npm ci --workspace packages/contracts --include-workspace-root --include=dev
+      - name: Verify actual installed package and workspace boundaries
+        run: |
+          mkdir -p web-scope-evidence
+          node scripts/verify-web-install-scope.mjs > web-scope-evidence/installed.json
+          node --version > web-scope-evidence/node-version.txt
+          npm --version > web-scope-evidence/npm-version.txt
+      - name: Audit the same Web and contracts dependency scope
+        run: npm audit --workspace packages/contracts --include-workspace-root --audit-level=moderate --json > web-scope-evidence/audit.json
+      - name: Record dependency inventory for the same scope
+        run: npm sbom --workspace packages/contracts --include-workspace-root --sbom-format cyclonedx > web-scope-evidence/sbom.json
+      - name: Preserve scope evidence without claiming deployment verification
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: web-install-scope-${{ github.run_id }}
+          path: web-scope-evidence/
+          if-no-files-found: warn
