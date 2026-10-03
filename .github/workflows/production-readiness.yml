@@ -337,7 +337,9 @@ jobs:
               --meta "git_commit=${GITHUB_SHA}" \
               -e "ABUSE_HASH_SECRET=${ABUSE_HASH_SECRET}" \
               -e "TOKEN_DERIVATION_SECRET=${TOKEN_DERIVATION_SECRET}" \
-              -e "TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY}"
+              -e "TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY}" \
+              -e "COMPLIANCE_ENABLED=false" \
+              -e "COMPLIANCE_DELETION_DRY_RUN=true"
           )"
           [[ "$deployment" == https://*.vercel.app ]] || {
             echo "::error::Vercel deployment URL was not returned."
