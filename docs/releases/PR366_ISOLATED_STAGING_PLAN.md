@@ -124,3 +124,5 @@ CI `37099582769`（`2a04964b`）在一小時 job 時限被取消，只完成八�
 完整run37123787205在整批瀏覽器執行前精確取消，runner local Supabase cleanup成功；原因是獨立QA盤點發現本次受影響的供應設定錯誤恢復與persisted改單案例僅在歷史專用lab profile存在。新增標準CI聚焦案例沿正常登入、真API及DB讀回，商品429／500／斷網只注入精確transport以驗證UI輸入與忙碌狀態；改單用run-owned資料驗證成功／重播、付款／製作拒絕與stock trigger交易rollback。未啟用治理、LINE或Native，也未將歷史全部lab升為新gate。這些案例仍待重新執行完整CI，不計為runtime PASS。
 
 完整run37124778164（860b3e0c）226 passed、7 failed、78 skipped，resilience與audit未執行。先前429兩案與新供應錯誤恢復已PASS。套餐case仍碰到5個ACTIVE retained fixture，改以案例限定MULTI_STALL與updatedAt CAS還原，真指派及DBcount保留。6個新改單case在auth/me401停止：trace證實正式Secure auth cookies由Chromium localhost HTTP攜帶，但Playwright APIRequestContext不帶；必須改成真瀏覽器same-origin fetch，不改cookie、認證、CSRF或限流。內容API尚未執行，不計改單驗證通過。聚焦local profile追加新2spec，仍無paid provider步驟且FULL命令不變；聚焦成功後須重新取得同tree完整CI。
+
+Focused run37126898925（4b530aa8）22 passed、3 failed；四項STAFF_POS改單已PASS。兩外送fixture在變更origin時被OFFLINE_ORDER_IDENTITY_IMMUTABLE拒絕，改為初次INSERT設定來源及外送身分，不停用trigger。套餐在明確MULTI_STALL下仍使用舊single-mode count0與switch語義，改為實際checkbox count1/check，原DB指派與CAS還原保留。兩檔獨立審查無confirmed P1/P2，lint/tsc通過；新runtime、完整CI、配對Preview及正式發布仍待驗證。Runner local cleanup成功，無第二組paid資源。

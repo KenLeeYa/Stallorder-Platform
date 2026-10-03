@@ -48,14 +48,16 @@ test.afterAll(async () => {
   } finally { await db.$disconnect(); }
 });
 
-async function fixture() {
+async function fixture(source: "STAFF_POS" | "QR_MENU" | "LINE_DELIVERY" = "STAFF_POS") {
   const id = randomUUID();
   const order = await db.order.create({ data: {
     id, organizationId: org, stallId: stall, orderNo: `EDIT-${id.slice(0, 8)}`,
     trackingTokenHash: createHash("sha256").update(id).digest("hex"), idempotencyKey: randomUUID(),
-    source: "STAFF_POS", origin: "ONLINE_STAFF", isTest: true, customerName: marker,
+    source, origin: source === "STAFF_POS" ? "ONLINE_STAFF" : "ONLINE_QR", isTest: true, customerName: marker,
+    ...(source === "STAFF_POS" ? {} : { fulfillmentType: "DELIVERY" as const,
+      customerPhone: "0912345678", deliveryAddress: "本機合成測試地址，請勿外送" }),
     deviceHash: createHash("sha256").update(marker).digest("hex"), confirmationExpiresAt: new Date(Date.now() + 3600000),
-    status: "CONFIRMED", paymentStatus: "UNPAID", subtotal: 200, total: 200,
+    status: source === "STAFF_POS" ? "CONFIRMED" : "WAITING_CONFIRMATION", paymentStatus: "UNPAID", subtotal: 200, total: 200,
     items: { create: { organizationId: org, stallId: stall, productId, sourceLineIndex: 1,
       name: marker, baseUnitPrice: 100, unitPrice: 100, quantity: 2, status: "PENDING" } },
   }, include: { items: true } });
@@ -140,11 +142,7 @@ test("real stock constraint rolls back item writes, order totals, events, tasks 
 for (const source of ["QR_MENU", "LINE_DELIVERY"] as const) {
   test(`staff adjusts persisted ${source} delivery and records the public amendment`, async ({ page }) => {
     await login(page);
-    const seed = await fixture();
-    const order = await db.order.update({ where: { id: seed.id }, data: {
-      source, fulfillmentType: "DELIVERY", origin: "ONLINE_QR", status: "WAITING_CONFIRMATION",
-      customerPhone: "0912345678", deliveryAddress: "本機合成測試地址，請勿外送",
-    }, include: { items: true } });
+    const order = await fixture(source);
     const before = await snapshot(order.id);
     const customerMessage = `${marker} 缺貨調整：保留一份`;
     const response = await patch(page, order.id, {

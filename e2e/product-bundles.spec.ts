@@ -101,7 +101,7 @@ test("商家可建立套餐、選擇群組與一般商品選項", async ({ page 
   await componentEditor.getByLabel("預設售價").fill("30");
   await expect(
     componentEditor.getByRole("checkbox", { name: "阿明鹽酥雞", exact: true }),
-  ).toHaveCount(0);
+  ).toHaveCount(1);
   await componentEditor
     .getByRole("button", { name: "儲存", exact: true })
     .click();
@@ -123,13 +123,13 @@ test("商家可建立套餐、選擇群組與一般商品選項", async ({ page 
   await expect(productEditor.getByLabel("商品類型")).toHaveValue("BUNDLE");
   await expect(
     productEditor.getByRole("checkbox", { name: "阿明鹽酥雞", exact: true }),
-  ).toHaveCount(0);
+  ).toHaveCount(1);
   await productEditor.getByLabel("套餐組合價").fill("180");
   // Use explicit multi-store assignment regardless of retained test-owned stalls.
-  const bundleAssignment = productEditor.getByRole("switch", { name: "阿明鹽酥雞", exact: true });
+  const bundleAssignment = productEditor.getByRole("checkbox", { name: "阿明鹽酥雞", exact: true });
   await expect(bundleAssignment).toHaveCount(1);
-  if (await bundleAssignment.getAttribute("aria-checked") === "false") await bundleAssignment.click();
-  await expect(bundleAssignment).toHaveAttribute("aria-checked", "true");
+  await bundleAssignment.check();
+  await expect(bundleAssignment).toBeChecked();
   await productEditor
     .getByRole("button", { name: "儲存", exact: true })
     .click();
