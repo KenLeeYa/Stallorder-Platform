@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
-import { establishLocalTestSession, gotoLocalPath } from "./local-navigation";
+import { establishLocalTestSession, gotoLocalPath, openSharedCatalogManagement } from "./local-navigation";
 import { prepareCatalogNavigationFixture } from "./catalog-navigation-fixture";
 
 const prisma = new PrismaClient();
@@ -20,6 +20,7 @@ for (const width of [1440, 768, 390, 320]) {
     const owner = await prisma.profile.findUniqueOrThrow({ where: { email: "owner@stallorder.test" } });
     await establishLocalTestSession(page, prisma, owner.id);
     await gotoLocalPath(page, catalogPath);
+    await openSharedCatalogManagement(page);
     await page.waitForLoadState("networkidle");
     await page.getByTestId("open-reusable-note-navigator").filter({ visible: true }).click();
     const navigator = page.getByTestId("reusable-note-navigator-dialog");

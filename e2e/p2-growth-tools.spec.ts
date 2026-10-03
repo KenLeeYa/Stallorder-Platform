@@ -273,7 +273,10 @@ async function cleanup() {
 }
 
 async function login(page: Page, email: string) {
-  await page.goto("/login");
+  const next = email === "staff@stallorder.test"
+    ? "/staff/aming-chicken"
+    : `/merchant/dashboard?organizationId=${organizationId}`;
+  await page.goto(`/login?next=${encodeURIComponent(next)}`);
   await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
   await page.getByLabel("電子郵件").fill(email);
   await page.getByLabel("密碼").fill(password);

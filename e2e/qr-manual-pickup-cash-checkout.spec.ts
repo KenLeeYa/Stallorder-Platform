@@ -510,7 +510,7 @@ async function resolveCreatedRecordIds() {
 }
 
 async function login(page: Page) {
-  await loginLocalTestAccount(page, "staff@stallorder.test", password);
+  await loginLocalTestAccount(page, "staff@stallorder.test", password, "/staff/aming-chicken");
   await expect(page).toHaveURL(/\/staff\//, { timeout: 30_000 });
 }
 

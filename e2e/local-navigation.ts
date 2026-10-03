@@ -206,11 +206,15 @@ export async function loginLocalTestAccount(
   page: Page,
   email: string,
   password: string,
+  destination?: string,
 ) {
+  if (destination !== undefined && (
+    !destination.startsWith("/") || destination.startsWith("//") || destination.length > 500
+  )) throw new Error("E2E_LOCAL_LOGIN_DESTINATION_INVALID");
   await gotoLocalPath(page, "/login");
   const origin = new URL(page.url()).origin;
   const response = await page.context().request.post("/api/auth/login", {
-    data: { email, password },
+    data: { email, password, ...(destination === undefined ? {} : { next: destination }) },
     headers: {
       origin,
       referer: page.url(),
@@ -227,6 +231,9 @@ export async function loginLocalTestAccount(
     body.next.startsWith("//")
   ) {
     throw new Error("E2E_LOCAL_LOGIN_DESTINATION_INVALID");
+  }
+  if (destination !== undefined && body.next !== destination) {
+    throw new Error("E2E_LOCAL_LOGIN_DESTINATION_MISMATCH");
   }
   await gotoLocalPath(page, body.next);
   return body.next;

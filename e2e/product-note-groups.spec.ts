@@ -274,6 +274,9 @@ async function acknowledgeSettingsFeedback(
 }
 
 async function openNoteGroupNavigator(page: Page) {
+  if (await page.getByRole("button", { name: "完整管理／新增商品", exact: true }).isVisible()) {
+    await openSharedCatalogManagement(page);
+  }
   const singleNotes = page.getByTestId("reusable-note-navigator-dialog");
   if (await singleNotes.isVisible()) {
     await singleNotes.getByRole("button", { name: "關閉", exact: true }).click();

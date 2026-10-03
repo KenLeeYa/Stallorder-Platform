@@ -1,9 +1,10 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { calendarDateInTimeZone } from "../src/lib/date-time";
+import { prisma } from "../src/lib/prisma";
 
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
-const stallId = "22222222-2222-4222-8222-222222222222";
+test.afterAll(async () => { await prisma.$disconnect(); });
 const reportDateTo = new Date();
 const reportQuery = new URLSearchParams({
   organizationId,
@@ -21,6 +22,8 @@ test("報表會依手機與平板寬度呈現緊密 Dashboard", async ({ page })
   test.setTimeout(120_000);
   await page.setViewportSize({ width: 390, height: 844 });
   await login(page);
+  const authorizedStallIds = (await prisma.stall.findMany({ where: { organizationId, isActive: true }, select: { id: true } })).map(row => row.id).sort();
+  expect(authorizedStallIds).toContain("22222222-2222-4222-8222-222222222222");
 
   for (const viewport of viewportCases) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
@@ -86,7 +89,8 @@ test("報表會依手機與平板寬度呈現緊密 Dashboard", async ({ page })
         dateFrom: new FormData(form as HTMLFormElement).get("dateFrom"),
       }));
       expect(appliedFilter).toEqual({ stallIds: [], dateFrom: "2026-01-01" });
-      expect(exportCapture.payload).toMatchObject({ stallIds: [stallId], dateFrom: "2026-01-01" });
+      expect(exportCapture.payload?.dateFrom).toBe("2026-01-01");
+      expect(exportCapture.payload?.stallIds.slice().sort()).toEqual(authorizedStallIds);
       await page.unroute("**/api/merchant/reports/export");
     }
 

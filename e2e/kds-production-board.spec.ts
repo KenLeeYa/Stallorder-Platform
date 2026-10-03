@@ -23,6 +23,13 @@ async function login(page: Page, email: string) {
   await page.waitForURL((url) => url.pathname !== "/login", { waitUntil: "load", timeout: 30_000 });
 }
 
+async function selectOrderFromQueue(page: Page) {
+  const queueOrder = page.getByTestId("kitchen-order-queue-button")
+    .filter({ hasText: `#${orderNo}`, visible: true });
+  await expect(queueOrder).toHaveCount(1);
+  await queueOrder.click();
+}
+
 async function waitForReactHydration(control: Locator) {
   await expect.poll(() => control.evaluate((element) => (
     Object.keys(element).some((key) => (
@@ -108,7 +115,7 @@ test("KDS ready 補讀快照時不套用延遲舊回應", async ({ page }) => {
     await route.fulfill({ response, json: { ...stale, tasks: [], futureReservations: [], alertOrderIds: [] } });
   });
   await login(page, "kitchen@stallorder.test");
-  await page.getByTestId("kitchen-order-queue-button").filter({ hasText: `#${orderNo}` }).first().click();
+  await selectOrderFromQueue(page);
   const orderCard = page.getByRole("article").filter({ hasText: `#${orderNo}` });
   await expect(orderCard).toBeVisible();
   await expect(page.getByText("即時連線", { exact: true })).toBeVisible();
@@ -154,7 +161,7 @@ test("KDS 慢舊回應不能覆寫較新的廚房事件快照", async ({ page })
     await route.fulfill({ response, json: { ...stale, tasks: [], futureReservations: [], alertOrderIds: [] } });
   });
   await login(page, "kitchen@stallorder.test");
-  await page.getByTestId("kitchen-order-queue-button").filter({ hasText: `#${orderNo}` }).first().click();
+  await selectOrderFromQueue(page);
   const orderCard = page.getByRole("article").filter({ hasText: `#${orderNo}` });
   await expect(orderCard).toBeVisible();
   await page.evaluate((orderNumber) => {
@@ -181,7 +188,7 @@ for (const viewport of [{ name: "平板", width: 768, height: 1024 }, { name: "�
 test(`KDS ${viewport.name} board GET 撤權後移除舊卡與命令，授權新快照才恢復`, async ({ page }) => {
   await page.setViewportSize({ width: viewport.width, height: viewport.height });
   await login(page, "kitchen@stallorder.test");
-  await page.getByTestId("kitchen-order-queue-button").filter({ hasText: `#${orderNo}` }).click();
+  await selectOrderFromQueue(page);
   const orderCard = page.getByRole("article").filter({ hasText: `#${orderNo}` });
   await expect(orderCard).toBeVisible();
   let revoked = true;
@@ -202,7 +209,7 @@ test(`KDS ${viewport.name} board GET 撤權後移除舊卡與命令，授權新�
   ));
   await refresh.click();
   await authorizedResponse;
-  const restoredQueueOrder = page.getByTestId("kitchen-order-queue-button").filter({ hasText: `#${orderNo}` });
+  const restoredQueueOrder = page.getByTestId("kitchen-order-queue-button").filter({ hasText: `#${orderNo}`, visible: true });
   await expect(restoredQueueOrder).toBeVisible();
   await restoredQueueOrder.click();
   await expect(orderCard).toBeVisible();
@@ -258,7 +265,7 @@ test("廚房角色可在手機 KDS 操作且只取得安全欄位", async ({ pag
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   blockKitchenStream = false;
   await expect(page.getByText("即時連線", { exact: true })).toBeVisible({ timeout: 10_000 });
-  await page.getByTestId("kitchen-order-queue-button").filter({ hasText: `#${orderNo}` }).click();
+  await selectOrderFromQueue(page);
   const orderCard = page.getByRole("article").filter({ hasText: "#" + orderNo });
   await expect(orderCard.getByText("等候警示", { exact: true })).toBeVisible();
   await expect(orderCard.getByText("取餐 738", { exact: true })).toBeVisible();
@@ -376,7 +383,7 @@ test("攤位管理者可進入工作站與 KDS 設定", async ({ page }) => {
   await login(page, "owner@stallorder.test");
   await page.setViewportSize({ width: 320, height: 360 });
   await page.goto("/kitchen?stall=aming-chicken");
-  await page.getByTestId("kitchen-order-queue-button").filter({ hasText: `#${orderNo}` }).click();
+  await selectOrderFromQueue(page);
   const orderCard = page.getByRole("article").filter({ hasText: `#${orderNo}` });
   const cancelButton = orderCard.getByRole("button", { name: "取消", exact: true });
   await cancelButton.focus();

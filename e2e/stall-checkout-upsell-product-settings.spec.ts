@@ -31,7 +31,7 @@ test("共享商品編輯頁可依攤位設定推薦加點", async ({ page }) => 
   await productActions.getByRole("button", { name: "編輯商品", exact: true }).click();
 
   let editor = page.getByRole("dialog", { name: "編輯商品", exact: true });
-  const upsellSwitch = editor.getByTestId("shared-product-upsell-switch");
+  const upsellSwitch = editor.locator('[data-testid="shared-product-upsell-switch"][data-stall-id="22222222-2222-4222-8222-222222222222"]');
   await expect(editor.getByText("結帳前加點推薦", { exact: true })).toBeVisible();
   await expect(upsellSwitch).toBeVisible();
 
@@ -49,7 +49,7 @@ test("共享商品編輯頁可依攤位設定推薦加點", async ({ page }) => 
   const reopenedActions = await openSharedCatalogProductActions(page, "香酥雞排");
   await reopenedActions.getByRole("button", { name: "編輯商品", exact: true }).click();
   editor = page.getByRole("dialog", { name: "編輯商品", exact: true });
-  const persistedSwitch = editor.getByTestId("shared-product-upsell-switch");
+  const persistedSwitch = editor.locator('[data-testid="shared-product-upsell-switch"][data-stall-id="22222222-2222-4222-8222-222222222222"]');
   await expect(persistedSwitch).toHaveAttribute(
     "aria-checked",
     originalState === "true" ? "false" : "true",

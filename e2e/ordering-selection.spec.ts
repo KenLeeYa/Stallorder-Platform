@@ -1,7 +1,49 @@
 import { expect, test } from "@playwright/test";
+import { PrismaClient } from "@prisma/client";
 import { continueQrCheckout } from "./local-navigation";
+import { createOpenQrFixture } from "./open-qr-fixture";
 
 test.use({ serviceWorkers: "block" });
+
+const organizationId = "11111111-1111-4111-8111-111111111111";
+const stallId = "22222222-2222-4222-8222-222222222222";
+let deliveryFixture: Awaited<ReturnType<typeof createOpenQrFixture>> | undefined;
+let restoreDelivery: (() => Promise<void>) | undefined;
+
+test.beforeEach(async ({}, testInfo) => {
+  if (!testInfo.title.includes("DELIVERY")) return;
+  const databaseUrl = new URL(process.env.DATABASE_URL ?? "");
+  if (!["127.0.0.1", "localhost"].includes(databaseUrl.hostname)) throw new Error("LOCAL_QA_ONLY");
+  const prisma = new PrismaClient();
+  try {
+    const settings = await prisma.stallOrderingSettings.findUniqueOrThrow({ where: { stallId } });
+    if (settings.organizationId !== organizationId) throw new Error("DELIVERY_FIXTURE_SCOPE_MISMATCH");
+    const appliedAt = new Date();
+    const applied = await prisma.stallOrderingSettings.updateMany({
+      where: { stallId, organizationId, updatedAt: settings.updatedAt },
+      data: { deliveryModuleEnabled: true, updatedAt: appliedAt },
+    });
+    if (applied.count !== 1) throw new Error("DELIVERY_FIXTURE_PREPARE_DRIFT");
+    restoreDelivery = async () => {
+      const restore = new PrismaClient();
+      try {
+        const result = await restore.stallOrderingSettings.updateMany({
+          where: { stallId, organizationId, updatedAt: appliedAt, deliveryModuleEnabled: true },
+          data: { deliveryModuleEnabled: settings.deliveryModuleEnabled, updatedAt: settings.updatedAt },
+        });
+        if (result.count !== 1) throw new Error("DELIVERY_FIXTURE_RESTORE_DRIFT");
+      } finally { await restore.$disconnect(); }
+    };
+    deliveryFixture = await createOpenQrFixture({ organizationId, stallId, tokenPrefix: "selection-delivery", label: "選項外送介面測試" });
+  } finally { await prisma.$disconnect(); }
+});
+
+test.afterEach(async () => {
+  try { await deliveryFixture?.restore(); } finally {
+    deliveryFixture = undefined;
+    try { await restoreDelivery?.(); } finally { restoreDelivery = undefined; }
+  }
+});
 
 // Real customer components with deterministic session responses; no orders are submitted.
 for (const orderingMode of ["DEFAULT", "PREORDER", "DELIVERY"] as const) {
@@ -45,7 +87,7 @@ for (const orderingMode of ["DEFAULT", "PREORDER", "DELIVERY"] as const) {
     }));
     await page.goto(orderingMode === "DEFAULT"
       ? "/q/selection-e2e-DEFAULT"
-      : orderingMode === "PREORDER" ? "/s/aming-chicken" : "/q/selection-e2e-DELIVERY");
+      : orderingMode === "PREORDER" ? "/s/aming-chicken" : "/store/aming-chicken?view=delivery");
     await expect(page.getByRole("heading", { name: "勾選介面測試攤位" })).toBeVisible();
     if (orderingMode === "PREORDER") await page.getByRole("button", { name: "套用這個時間", exact: true }).click();
     await page.getByTestId("qr-open-product-configurator").click();

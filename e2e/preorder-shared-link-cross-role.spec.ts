@@ -814,10 +814,13 @@ async function resolveCreatedRecords() {
 }
 
 async function login(page: Page, email: string) {
-  await page.goto("/login");
+  const next = email === "kitchen@stallorder.test"
+    ? "/kitchen?stall=aming-chicken"
+    : "/staff/aming-chicken";
+  await page.goto(`/login?next=${encodeURIComponent(next)}`);
   const origin = new URL(page.url()).origin;
   const loginResponse = await page.context().request.post("/api/auth/login", {
-    data: { email, password },
+    data: { email, password, next },
     headers: {
       origin,
       referer: page.url(),

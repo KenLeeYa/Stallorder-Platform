@@ -94,3 +94,11 @@ CI `37099582769`（`2a04964b`）在一小時 job 時限被取消，只完成八�
 重建前的完整 fixture 預查另確認：Supply 代碼與單位不符 DB 大寫／UOM 約束、通知類型不在 DB 白名單、seed 未提供行程地點。修正限定測試 helper：合法代碼／`G`、既有合法通知類型加 synthetic metadata、精確 child 的專用地點與 13 筆行程同交易建立並記錄 IDs。測試直接讀取真 migration 約束；80 項聚焦測試由作者與獨立審查者各自通過，Production guardrails 3190 檔案／173 migrations 通過。不修改正式 seed 或放寬資料庫保護，尚無第二組遠端 PASS 收據。
 
 本次首次升級的 Production candidate 明確覆寫 build/runtime `LINE_PLATFORM_ENABLED=false` 與 `LINE_PLATFORM_NOTIFICATIONS_ENABLED=false`，不修改共用設定或 legacy OA。獨立來源檢查確認新 platform order owner／pilot／integration 不由 migration 自動填入，故此次不建立平台通知工作；11 項部署契約測試通過。這不代表未來啟用 OA 後回復舊 worker 已安全：舊 worker 不區分 delivery mode，屆時必須另做工作隔離。Vercel alias 回復仍不會還原 migration、backfill 或 Edge。
+
+## 2026-10-03 完整 CI 37112408500 回歸原因
+
+候選 1f45a32c 的完整八批 E2E 已完成：192 passed、28 failed、1 flaky、78 skipped；整體 FAIL，Production-mode resilience 未執行。lint、型別、unit、173 migrations、pgTAP、DB lint、guardrails、建置通過，不能取代 E2E。第二組付費 Preview 與正式／DR 更新均尚未開始。
+
+失敗證據定位改版後 portal 明細／可見 KDS queue、完整商品管理入口、900px 平板斷點，以及保留稽核 fixture 後多攤位登入與報表 scope。測試沿真實登入 API 指定正常角色 next，保留認證、權限及結果斷言；公開外送改用實際 store 入口，該項 session/menu 仍 mock，真營業時間送單驗證待 Preview。結帳實收欄受 18px 根字級影響變為108px，新增100px上限，不改付款邏輯。
+
+隱私正向案例原先固定 DB55992、origin3093，且要求啟用此輪明確 OFF 的治理能力。OFF profile 應驗證不可用且不洩漏／不寫入，enabled 正向驗證保留為明確選用的隔離 profile，不宣稱此輪已通過。全部改動尚待新 CI；此輪單 worker 隔離 runner 無其他同攤位 writer，本機156-migration手動環境不升級、不重置。

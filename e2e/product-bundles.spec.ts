@@ -98,6 +98,7 @@ test("商家可建立套餐、選擇群組與一般商品選項", async ({ page 
     where: { productId: unavailableComponent.id },
   });
   await page.reload();
+  await openSharedCatalogManagement(page);
 
   await page.getByRole("button", { name: "新增套餐", exact: true }).click();
   const productEditor = page.getByRole("dialog", { name: "新增套餐" });

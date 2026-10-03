@@ -218,7 +218,7 @@ test("內用顧客名稱與桌位欄位在桌面版對齊", async ({ page }, tes
         "/api/stalls/aming-chicken/pos-configuration",
       ) && response.request().method() === "GET",
   );
-  await page.getByRole("button", { name: "店員點餐" }).click();
+  await page.getByRole("button", { name: "店員點餐", exact: true }).click();
   expect((await configurationResponsePromise).status()).toBe(200);
 
   const dialog = page.getByRole("dialog", { name: "店員點餐" });
@@ -346,7 +346,7 @@ test("店員內用與外送使用獨立設定，且建立訂單時重新驗證",
           "/api/stalls/aming-chicken/pos-configuration",
         ) && response.request().method() === "GET",
     );
-    await page.getByRole("button", { name: "店員點餐" }).click();
+    await page.getByRole("button", { name: "店員點餐", exact: true }).click();
     const initialConfiguration = await initialConfigurationPromise;
     expect(initialConfiguration.status()).toBe(200);
     expect((await initialConfiguration.json()).modules).toMatchObject({
@@ -431,7 +431,7 @@ test("店員內用與外送使用獨立設定，且建立訂單時重新驗證",
           "/api/stalls/aming-chicken/pos-configuration",
         ) && response.request().method() === "GET",
     );
-    await page.getByRole("button", { name: "店員點餐" }).click();
+    await page.getByRole("button", { name: "店員點餐", exact: true }).click();
     const refreshedConfiguration = await refreshedConfigurationPromise;
     expect(refreshedConfiguration.status()).toBe(200);
     expect((await refreshedConfiguration.json()).modules).toMatchObject({
@@ -515,14 +515,14 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
   expect(
     Math.abs(staffOrderBox!.height - floorPlanBox!.height),
   ).toBeLessThanOrEqual(1);
-  await expect(page.getByRole("button", { name: "店員點餐" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "店員點餐", exact: true })).toBeVisible();
   const configurationResponsePromise = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname.endsWith(
         "/api/stalls/aming-chicken/pos-configuration",
       ) && response.request().method() === "GET",
   );
-  await page.getByRole("button", { name: "店員點餐" }).click();
+  await page.getByRole("button", { name: "店員點餐", exact: true }).click();
   const configurationResponse = await configurationResponsePromise;
   expect(configurationResponse.status()).toBe(200);
   const configuration = (await configurationResponse.json()) as {
@@ -912,7 +912,7 @@ test("店員可將同商品不同註記分列加入購物車，並移除選錯�
   await login(page);
   await page.goto("/staff/aming-chicken");
   await dismissStaffStartReminder(page);
-  await page.getByRole("button", { name: "店員點餐" }).click();
+  await page.getByRole("button", { name: "店員點餐", exact: true }).click();
 
   const dialog = page.getByRole("dialog", { name: "店員點餐" });
   const product = dialog

@@ -442,9 +442,10 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
   await staffOrder
     .getByRole("button", { name: "查看明細", exact: true })
     .click();
-  const staffDetails = staffMain.getByTestId("staff-order-mobile-detail");
+  const staffDialog = staffPage.getByRole("dialog", { name: `訂單 ${orderNo}`, exact: true });
+  const staffDetails = staffDialog.getByTestId("staff-order-mobile-detail");
   const staffActions = staffDetails.getByTestId("staff-order-actions-pane");
-  await expect(staffDetails).toContainText(`訂單 ${orderNo}`);
+  await expect(staffDialog).toBeVisible();
   const confirmationResponse = staffPage.waitForResponse((response) => {
     if (
       !new URL(response.url()).pathname.includes(
@@ -475,6 +476,8 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
     testInfo,
     "03-staff-order-confirmed",
   );
+  await staffDialog.getByRole("button", { name: "關閉", exact: true }).click();
+  await expect(staffDialog).toHaveCount(0);
   await verifyCompactViewport(staffPage, [
     staffOrder,
     staffOrder.getByText("待製作", { exact: true }).first(),
@@ -528,11 +531,13 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
     name: "查看明細",
     exact: true,
   });
-  if (await reopenDetails.isVisible()) await reopenDetails.click();
+  await reopenDetails.click();
+  await expect(staffDialog).toBeVisible();
   await expect(staffDetails.getByText("餐點完成", { exact: true })).toHaveCount(
     expectedLineCount,
     { timeout: 10_000 },
   );
+  await staffDialog.getByRole("button", { name: "關閉", exact: true }).click();
   await staffPage.getByRole("link", { name: "桌位平面圖" }).click();
   await expect(staffPage).toHaveURL(/\/staff\/aming-chicken\/floor/);
   await expect(
@@ -559,19 +564,16 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
   await expect(
     staffOrder.getByText("待結帳／交付", { exact: true }),
   ).toBeVisible();
-  const summaryCheckoutButton = staffOrder
-    .getByRole("button", { name: "結帳收款", exact: true })
-    .first();
-  await expect(summaryCheckoutButton).toBeVisible();
   const returnedOrderDetailsButton = staffOrder.getByRole("button", {
     name: "查看明細",
     exact: true,
   });
   await waitForReactHydration(returnedOrderDetailsButton);
   await returnedOrderDetailsButton.click();
-  await expect(staffDetails).toContainText(`訂單 ${orderNo}`);
+  await expect(staffDialog).toBeVisible();
   await expect(staffDetails.getByText("已出餐", { exact: true })).toHaveCount(expectedLineCount);
   await expect(staffDetails.getByLabel("3 位數取餐碼")).toHaveCount(0);
+  await expect(staffActions.getByRole("button", { name: "結帳收款", exact: true })).toBeVisible();
   await staffActions.getByRole("button", { name: "結帳收款", exact: true }).click();
 
   const checkout = staffPage.getByRole("dialog", { name: "結帳收款" });
@@ -630,7 +632,8 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
   expect((await checkoutResponse).status()).toBe(200);
   await expect(staffOrder).toBeVisible();
   await expect(staffOrder.getByText("已付款", { exact: true })).toBeVisible();
-  await expect(staffDetails).toContainText(`訂單 ${orderNo}`);
+  await staffOrder.getByRole("button", { name: "查看明細", exact: true }).click();
+  await expect(staffDialog).toBeVisible();
   const finalizeButton = staffActions.getByRole("button", {
     name: "完成訂單",
     exact: true,

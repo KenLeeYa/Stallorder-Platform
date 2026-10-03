@@ -363,14 +363,18 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
         staffPage.getByTestId("staff-sticky-header").getByRole("heading"),
       ).toContainText(stallName);
       await searchStaffOrders(staffPage, orderNo);
-      const staffOrder = staffPage
+      const staffOrder = staffPage.getByRole("main")
         .getByRole("article")
         .filter({ hasText: `訂單 ${orderNo}` });
       await expect(staffOrder).toBeVisible();
       await expect(staffOrder).toContainText(`訂單 ${orderNo}`);
       await expect(staffOrder).toContainText("外帶");
-      await expect(staffOrder).toContainText(productName);
-      const confirmOrder = staffOrder.getByRole("button", {
+      await staffOrder.getByRole("button", { name: "查看明細", exact: true }).click();
+      const staffDialog = staffPage.getByRole("dialog", { name: `訂單 ${orderNo}`, exact: true });
+      await expect(staffDialog).toBeVisible();
+      const staffDetails = staffDialog.getByTestId("staff-order-mobile-detail");
+      await expect(staffDetails).toContainText(productName);
+      const confirmOrder = staffDetails.getByTestId("staff-order-actions-pane").getByRole("button", {
         name: "確認接單",
         exact: true,
       });
@@ -393,6 +397,8 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
       });
       await expect(staffOrder).toContainText("待製作");
       await expect(confirmOrder).toHaveCount(0);
+      await staffDialog.getByRole("button", { name: "關閉", exact: true }).click();
+      await expect(staffDialog).toHaveCount(0);
 
       await expect
         .poll(async () =>
