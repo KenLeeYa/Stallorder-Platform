@@ -40,3 +40,11 @@ seed 測試身分為 `owner@stallorder.test`、`staff@stallorder.test`、`kitche
 現有 `staff-pos-line-delivery.spec.ts`、商品與響應式測試可作驗收來源，但含本機 Prisma／精確 target fixture 的測試不可直接換 URL／連線指向遠端。移植前須加精確 child／owner guard、限時測試資料與還原收據，不改正式 seed，不掩蓋閉店負案。`catalog-note-settings-feedback-responsive.spec.ts` 僅覆蓋部分設定介面，不能替代商品 edit-return 驗收。
 
 目前 workflow 的 pgTAP、readonly smoke、OAuth／delivery synthetic smoke 仍缺上述完整 browser cases 與安全的 child fixture；狀態為 PENDING。先前本機／mock／CI 結果不自動轉為本次配對 Preview PASS。6 小時外部期限清理須在獲准且建立資源前由協調者配置；workflow 的收據與 finally 清理不等同獨立到期保障。
+
+## 2026-10-03 測試準備進度
+
+已補上精確 provider／DB 綁定檢查、密集清單與 QR fixture，以及實際角色登入、商品儲存讀回、現金開班／POS 與營業／休息階段的測試程式。這是準備結果，尚無本次遠端執行結果。未完成的通知已讀、發票及跨午夜等案例仍不得計為通過。
+
+公開點餐 Web 與 child Edge 共用本次生成的隔離雜湊密鑰；Turnstile 僅使用明確 test 模式的官方測試設定，不能計為真實驗證服務測試。QR、session 與 tracking token 只存 runner checkout 外的私有暫存目錄，不上傳 artifact，結束時移除。營業時間階段還原核對 open／closed 收據連續性及精確 updatedAt，失敗路徑交由 child finally 清除，不宣稱條件還原已通過。
+
+到期清理 heartbeat `pr366` 已設定；尚未建立 child 或 Preview，尚無 owner 收據或新增雲端資源費用。資源建立前須綁定最新可接受的 CI／Web 證據，並記錄唯一 manual run 與六小時期限。
