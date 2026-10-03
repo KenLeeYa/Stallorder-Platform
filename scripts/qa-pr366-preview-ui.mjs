@@ -2,6 +2,7 @@ import { readFileSync, mkdirSync, writeFileSync, realpathSync, existsSync } from
 import { createHash, randomUUID } from 'node:crypto';
 import { resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { validateHeaderValue } from 'node:http';
 
 // A coordinator-produced provider readback is required; never infer a child from a URL.
 export function assertTarget(receipt, binding, now = Date.now()) {
@@ -32,11 +33,22 @@ export function assertTarget(receipt, binding, now = Date.now()) {
   return url.origin;
 }
 
+export function normalizePreviewBypassSecret(value) {
+  if (value === undefined || value === null || value === '') return '';
+  if (typeof value !== 'string') throw Error('PREVIEW_BYPASS_HEADER_INVALID');
+  const secret = value.trim();
+  if (!secret) throw Error('PREVIEW_BYPASS_HEADER_INVALID');
+  try { validateHeaderValue('x-vercel-protection-bypass', secret); }
+  catch { throw Error('PREVIEW_BYPASS_HEADER_INVALID'); }
+  return secret;
+}
+
 export function requestPolicy(requestUrl, origin, method, navigation, bypassSecret) {
   const sameOrigin = new URL(requestUrl).origin === origin;
   void method; void navigation;
-  return { abort: !sameOrigin,
-    headers: sameOrigin && bypassSecret ? { 'x-vercel-protection-bypass': bypassSecret } : {} };
+  if (!sameOrigin) return { abort: true, headers: {} };
+  const secret = normalizePreviewBypassSecret(bypassSecret);
+  return { abort: false, headers: secret ? { 'x-vercel-protection-bypass': secret } : {} };
 }
 
 export async function routePreviewRequest(route, origin, bypassSecret) {

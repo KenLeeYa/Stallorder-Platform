@@ -89,3 +89,18 @@ test("all Preview resource jobs read actual approval rules before mutations; alw
   const ci = yaml.load(readFileSync(".github/workflows/ci.yml", "utf8"));
   for (const step of ci.jobs.verify.steps.filter((step) => step.uses)) expect(step.uses).toMatch(/@[a-f0-9]{40}(?:\s|$)/u);
 });
+
+test("optional Vercel bypass is validated before paid child creation without blocking DB-only runs", () => {
+  const steps = workflow.jobs.validate.steps;
+  const index = steps.findIndex(step => step.name === "Validate optional Vercel bypass header before paid resource creation");
+  expect(index).toBeGreaterThan(steps.findIndex(step => step.name === "Install dependencies"));
+  expect(index).toBeLessThan(steps.findIndex(step => step.name === "Create or reuse data-less Preview Branch"));
+  expect(steps[index].env.PREVIEW_BYPASS_SECRET).toBe("${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}");
+  for (const variable of ["VERCEL_TOKEN", "VERCEL_ORG_ID", "VERCEL_PROJECT_ID"]) {
+    expect(steps[index].run).toContain('[ -n "${' + variable + ':-}" ]');
+  }
+  expect(steps[index].run).toContain('normalizePreviewBypassSecret(process.env.PREVIEW_BYPASS_SECRET)');
+  expect(steps[index].run).toContain('process.env.PREVIEW_GIT_BRANCH === "codex/integrated-production-20261002" && !secret');
+  expect(steps[index].run).toContain('PREVIEW_BYPASS_HEADER_REQUIRED');
+  expect(steps[index].run).not.toMatch(/console\.|set -x|echo.*SECRET/u);
+});

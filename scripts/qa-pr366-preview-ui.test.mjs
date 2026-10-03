@@ -113,3 +113,25 @@ test('future preorder accepts only actual canonical future slot and closed-curre
   expect(assertPreorderFixture(future, binding, now)).toBe(future);
   for (const patch of [{ childRef: 'production' }, { currentHoursClosed: false }, { canonicalSlots: [] }, { scheduledPickupAt: '2026-10-03T09:00:00Z' }, { tomorrow: '2026-10-05' }, { after: { settings: { takeoutPreorderEnabled: false }, hours: future.after.hours } }]) expect(() => assertPreorderFixture({ ...future, ...patch }, binding, now)).toThrow('PREORDER_FIXTURE_DENIED');
 });
+
+
+test('bypass header trims surrounding whitespace without exposing invalid values', () => {
+  const origin = 'https://isolated.vercel.app';
+  expect(requestPolicy(origin, origin, 'GET', false, ' \r\nsynthetic-token\n ')).toEqual({
+    abort: false, headers: { 'x-vercel-protection-bypass': 'synthetic-token' },
+  });
+  for (const value of ['synthetic\r\ninjected', 'synthetic\0token', 'synthetic\u0100token', ' \r\n ']) {
+    expect(() => requestPolicy(origin, origin, 'GET', false, value)).toThrow(/^PREVIEW_BYPASS_HEADER_INVALID$/);
+  }
+  expect(requestPolicy('https://foreign.example', origin, 'GET', true, 'synthetic\r\ninvalid'))
+    .toEqual({ abort: true, headers: {} });
+});
+
+test('invalid bypass values fail before a browser route sends any header', async () => {
+  const origin = 'https://isolated.vercel.app';
+  const route = { request: () => ({ url: () => `${origin}/asset`, method: () => 'GET',
+    isNavigationRequest: () => false, headers: () => ({}) }), fetch: vi.fn(), fulfill: vi.fn(), abort: vi.fn() };
+  await expect(routePreviewRequest(route, origin, 'synthetic\r\ninjected')).rejects.toThrow(/^PREVIEW_BYPASS_HEADER_INVALID$/);
+  expect(route.fetch).not.toHaveBeenCalled();
+  expect(route.fulfill).not.toHaveBeenCalled();
+});
