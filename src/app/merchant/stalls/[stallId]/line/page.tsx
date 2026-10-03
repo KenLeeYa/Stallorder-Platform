@@ -7,6 +7,7 @@ import { hasPermission } from "@/lib/rbac";
 import { getRequestMerchantMessages } from "@/lib/messages/merchant-server";
 import { requireWorkspacePage } from "@/lib/workspace";
 import { getLineIntegrationManagerData } from "@/server/notifications/line-integration-service";
+import { EntitlementError } from "@/server/billing/entitlement-service";
 
 type PageProps = { params: Promise<{ stallId: string }> };
 
@@ -19,7 +20,13 @@ export default async function LineIntegrationPage({ params }: PageProps) {
   if (!workspace || !stall) notFound();
   const roles = [...new Set([...workspace.roles, ...stall.roles])];
   if (!roles.some((role) => hasPermission(role, "MANAGE_LINE_INTEGRATION"))) notFound();
-  const data = await getLineIntegrationManagerData(workspace.id, stallId);
+  let data;
+  try {
+    data = await getLineIntegrationManagerData(workspace.id, stallId);
+  } catch (error) {
+    if (error instanceof EntitlementError) notFound();
+    throw error;
+  }
   const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "http://localhost:3000";
 
   return (

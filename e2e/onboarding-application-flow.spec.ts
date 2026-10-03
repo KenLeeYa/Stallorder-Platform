@@ -165,6 +165,7 @@ test.describe("商家申請表單流程", () => {
     const submitResponse = page.waitForResponse((response) => (
       response.url().endsWith("/api/onboarding")
       && response.request().method() === "POST"
+      && response.request().postDataJSON()?.intent === "SUBMIT"
     ));
     await page.getByRole("button", { name: "送出商家申請" }).click();
     expect((await submitResponse).status()).toBe(201);
