@@ -72,14 +72,25 @@ async function snapshot(id: string) {
 async function patch(page: Page, id: string, data: object) {
   const csrf = (await page.context().cookies()).find(cookie => cookie.name === "stallorder_csrf")?.value;
   expect(csrf).toBeTruthy();
-  return page.request.patch(`/api/stalls/aming-chicken/orders/${id}/content`, {
-    headers: { origin: new URL(page.url()).origin, "x-csrf-token": csrf! }, data,
-  });
+  // Chromium accepts Secure cookies on loopback HTTP; APIRequestContext does not.
+  const result = await page.evaluate(async ({ id, data, csrf }) => {
+    const response = await fetch(`/api/stalls/aming-chicken/orders/${id}/content`, {
+      method: "PATCH", credentials: "same-origin",
+      headers: { "content-type": "application/json", "x-csrf-token": csrf! },
+      body: JSON.stringify(data),
+    });
+    return { status: response.status, body: await response.json() };
+  }, { id, data, csrf });
+  return { status: () => result.status, json: async () => result.body };
 }
 async function login(page: Page) {
   await loginLocalTestAccount(page, email, "StallOrderDemo!2026", "/staff/aming-chicken");
-  const me = await page.request.get("/api/auth/me"); expect(me.status()).toBe(200);
-  expect((await me.json()).user.id).toBe(actorId);
+  const me = await page.evaluate(async () => {
+    const response = await fetch("/api/auth/me", { credentials: "same-origin", cache: "no-store" });
+    return { status: response.status, body: await response.json() };
+  });
+  expect(me.status).toBe(200);
+  expect(me.body.user.id).toBe(actorId);
 }
 
 test("persisted staff edit succeeds once and replay creates no extra stock, tasks or print jobs", async ({ page }) => {

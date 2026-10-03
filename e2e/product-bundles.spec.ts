@@ -65,6 +65,23 @@ test("商家可建立套餐、選擇群組與一般商品選項", async ({ page 
   const bundleName = `套餐 QA ${Date.now()}`;
   const choiceGroupName = "主餐任選";
   const unavailableComponentName = `未分派套餐元件 QA ${Date.now()}`;
+  const database = new URL(process.env.DATABASE_URL ?? "");
+  if (!["postgres:", "postgresql:"].includes(database.protocol)
+    || !["localhost", "127.0.0.1"].includes(database.hostname)
+    || !/^\d+$/.test(database.port) || Number(database.port) < 1024 || Number(database.port) > 65535
+    || database.pathname !== "/postgres") throw new Error("LOCAL_BUNDLE_QA_ONLY");
+  const originalOrganization = await prisma.organization.findUniqueOrThrow({
+    where: { id: organizationId }, select: { operatingMode: true, updatedAt: true },
+  });
+  let modeUpdatedAt: Date | null = null;
+  if (originalOrganization.operatingMode !== "MULTI_STALL") {
+    expect((await prisma.organization.updateMany({
+      where: { id: organizationId, operatingMode: originalOrganization.operatingMode, updatedAt: originalOrganization.updatedAt },
+      data: { operatingMode: "MULTI_STALL" },
+    })).count).toBe(1);
+    modeUpdatedAt = (await prisma.organization.findUniqueOrThrow({ where: { id: organizationId }, select: { updatedAt: true } })).updatedAt;
+  }
+  try {
 
   await login(page);
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
@@ -108,24 +125,11 @@ test("商家可建立套餐、選擇群組與一般商品選項", async ({ page 
     productEditor.getByRole("checkbox", { name: "阿明鹽酥雞", exact: true }),
   ).toHaveCount(0);
   await productEditor.getByLabel("套餐組合價").fill("180");
-  // Assignment controls follow the organization operating mode, not retained fixture stall counts.
+  // Use explicit multi-store assignment regardless of retained test-owned stalls.
   const bundleAssignment = productEditor.getByRole("switch", { name: "阿明鹽酥雞", exact: true });
-  const organization = await prisma.organization.findUniqueOrThrow({
-    where: { id: organizationId },
-    select: { operatingMode: true },
-  });
-  if (organization.operatingMode === "MULTI_STALL") {
-    await expect(bundleAssignment).toHaveCount(1);
-    if (await bundleAssignment.getAttribute("aria-checked") === "false") await bundleAssignment.click();
-    await expect(bundleAssignment).toHaveAttribute("aria-checked", "true");
-  } else {
-    expect(organization.operatingMode).toBe("SINGLE_STALL");
-    expect(await prisma.stall.findMany({
-      where: { organizationId, isActive: true },
-      select: { id: true },
-    })).toEqual([{ id: stallId }]);
-    await expect(bundleAssignment).toHaveCount(0);
-  }
+  await expect(bundleAssignment).toHaveCount(1);
+  if (await bundleAssignment.getAttribute("aria-checked") === "false") await bundleAssignment.click();
+  await expect(bundleAssignment).toHaveAttribute("aria-checked", "true");
   await productEditor
     .getByRole("button", { name: "儲存", exact: true })
     .click();
@@ -255,6 +259,14 @@ test("商家可建立套餐、選擇群組與一般商品選項", async ({ page 
   page.once("dialog", (dialog) => dialog.accept());
   await selectCatalogProductAction(page, unavailableComponentName, "刪除商品");
   await acknowledgeSuccessFeedback(page, "商品已刪除，歷史訂單快照已保留。");
+  } finally {
+    if (modeUpdatedAt) {
+      expect((await prisma.organization.updateMany({
+        where: { id: organizationId, operatingMode: "MULTI_STALL", updatedAt: modeUpdatedAt },
+        data: { operatingMode: originalOrganization.operatingMode },
+      })).count).toBe(1);
+    }
+  }
 });
 
 test("手機版套餐操作列與商品編輯器不超出畫面", async ({ page }) => {
