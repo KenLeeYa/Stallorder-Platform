@@ -1,5 +1,5 @@
 import {afterEach,describe,expect,it} from 'vitest';
-import {mkdtempSync,mkdirSync,writeFileSync,rmSync,unlinkSync,utimesSync,symlinkSync} from 'node:fs';
+import {mkdtempSync,mkdirSync,writeFileSync,rmSync,unlinkSync,utimesSync,symlinkSync,readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {createHash} from 'node:crypto';
@@ -31,6 +31,14 @@ describe('Web artifact dependency scope',()=>{
  it('rejects native SBOM entries and packages absent from locked closure',()=>{expect(()=>auditPackageSet({...sbom,components:[{name:'expo',version:'57'}]},{packages:{}})).toThrow('NATIVE');expect(()=>auditPackageSet(sbom,{packages:{}})).toThrow('LOCK_MISMATCH');});
  it('identifies unknown dynamic loaders and literal native imports with the AST',()=>{expect(inspectImports("import(name);require(target);import 'expo';",'test.js')).toMatchObject({imports:['expo'],unknown:[{kind:'import'},{kind:'require'}]});});
  it('binds a synthetic fresh artifact to source, HEAD, lock and every trace',()=>{const f=fixture();expect(f.verify()).toMatchObject({status:'PASS',traces:1,tracedFiles:1,buildId:'synthetic-build',head:f.baseline.head,lockSha256:f.baseline.lockSha256});expect(f.verify().artifactSha256).toMatch(/^[a-f0-9]{64}$/);});
+ it('artifact receipt preserves NON_PASS audit under exact exception rather than relabeling it',()=>{
+  const f=fixture(),policy=JSON.parse(readFileSync(new URL('../web-release-audit-exception.json',import.meta.url))),lock=JSON.parse(readFileSync(new URL('../../package-lock.json',import.meta.url)));
+  policy.expiresAt='2099-01-01T00:00:00Z';lock.packages['node_modules/safe']={version:'1.0.0'};policy.lockSha256=createHash('sha256').update(JSON.stringify(lock)).digest('hex');
+  f.write('package-lock.json',JSON.stringify(lock));const baseline=prepareWebAudit(f.root);baseline.oldBuildId=null;utimesSync(join(f.root,'.next/BUILD_ID'),new Date(),new Date(Date.parse(baseline.preparedAt)+1000));
+  const accepted={auditReportVersion:2,metadata:{vulnerabilities:policy.counts},vulnerabilities:Object.fromEntries(Object.entries(policy.packages).map(([name,p])=>[name,{name,severity:'high',isDirect:p.isDirect,nodes:[p.node],effects:p.effects,range:p.range,via:name==='braces'?[{source:1240992,url:'https://github.com/advisories/GHSA-vfj7-8cjw-p6xm',name:'braces',dependency:'braces',severity:'high',range:'<=3.0.3'}]:p.via}]))};
+  expect(verifyWebArtifact(f.root,baseline,accepted,sbom,{policy,lock})).toMatchObject({rootAudit:'NON_PASS',auditReleaseDecision:'USER_ACCEPTED_EXACT_EXCEPTION'});
+  expect(verifyWebArtifact(f.root,baseline,audit,sbom)).toMatchObject({rootAudit:'PASS',auditReleaseDecision:'ZERO_VULNERABILITIES'});
+ });
  it('does not claim Deno-only Edge helpers are part of Web publication',()=>{const f=fixture();f.write('supabase/functions/_shared/supabase.ts',"import 'npm:@supabase/supabase-js@2.110.2';");f.baseline=prepareWebAudit(f.root);f.baseline.oldBuildId=null;utimesSync(join(f.root,'.next/BUILD_ID'),new Date(),new Date(Date.parse(f.baseline.preparedAt)+1000));expect(verifyWebArtifact(f.root,f.baseline,audit,sbom)).toMatchObject({status:'PASS',sourceScope:{edgeFunctions:'NOT_VERIFIED_DENO_QA_REQUIRED'}});});
  it('a Web import reaching shared Edge code is still checked against Web audited packages',()=>{const f=fixture();f.write('src/page.ts',"import '../supabase/functions/_shared/reachable';");f.write('supabase/functions/_shared/reachable.ts',"import './nested';");f.write('supabase/functions/_shared/nested.ts',"import 'npm:zod@4.2.1';");f.baseline=prepareWebAudit(f.root);f.baseline.oldBuildId=null;utimesSync(join(f.root,'.next/BUILD_ID'),new Date(),new Date(Date.parse(f.baseline.preparedAt)+1000));expect(verifyWebArtifact(f.root,f.baseline,audit,sbom)).toMatchObject({status:'INCOMPLETE',problems:expect.arrayContaining([{path:expect.stringContaining('nested.ts'),code:'SOURCE_PACKAGE_OUTSIDE_AUDITED_CLOSURE'}])});});
  it('rejects product-source drift after prepare',()=>{const f=fixture();f.write('src/page.ts','export const changed=true;');expect(f.verify).toThrow('WEB_SOURCE_CHANGED');});

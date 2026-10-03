@@ -3,6 +3,12 @@ import { createHash } from 'node:crypto';
 import { assertDatabaseTarget, buildCalendarHours, createDatabaseFixtures, runDatabaseFixture } from './qa-pr366-preview-db-fixtures.mjs';
 import { isWithinBusinessHours } from '../src/lib/business-hours';
 const now = Date.parse('2026-10-03T10:00:00Z');
+function syntheticDatabaseUrl(host, username = 'postgres', port = '5432', tls = true) {
+  const url = new URL(`postgresql://${host}/postgres`);
+  url.username = username; url.password = 'synthetic-test-only'; url.port = port;
+  if (tls) url.searchParams.set('sslmode', 'require');
+  return url.href;
+}
 function fixture() {
   const receipt = { resourceKey: 'manual-123', parent: 'eyuctbnlvnbnivwasvqr', project: 'prj_uoG4FNJIgnF1LdKRiXnfRaieXnUP', team: 'team_MMfsiG94K9Zy3e6w7Ccc9xY4', gitBranch: 'codex/integrated-production-20261002', expiresAt: new Date(now + 60_000).toISOString(), status: 'CAPTURED', branches: [{ id: 'child123' }], deployments: [{ id: 'dpl123', target: 'preview' }] };
   const binding = { origin: 'https://dedicated-test.vercel.app', resourceKey: receipt.resourceKey, providerReadback: 'VERIFIED', sha: 'a'.repeat(40), tree: 'b'.repeat(40), childRef: 'child123', deploymentId: 'dpl123', productionAlias: false, dataLess: true };
@@ -13,14 +19,14 @@ function fixture() {
 function dbFixture() {
   const target = fixture();
   target.binding.readback.database = { projectRef: 'child123', host: 'db.child123.supabase.co', database: 'postgres', ownerResourceKey: 'manual-123' };
-  return { ...target, databaseUrl: 'postgresql://postgres:test-only@db.child123.supabase.co:5432/postgres?sslmode=require' };
+  return { ...target, databaseUrl: syntheticDatabaseUrl('db.child123.supabase.co') };
 }
 
 test.each([
-  'postgresql://postgres:test@db.eyuctbnlvnbnivwasvqr.supabase.co/postgres?sslmode=require',
-  'postgresql://postgres:test@localhost:5432/postgres?sslmode=require',
-  'postgresql://postgres.child123:test@pooler.supabase.com/postgres?sslmode=require',
-  'postgresql://postgres:test@db.child123.supabase.co/postgres',
+  syntheticDatabaseUrl('db.eyuctbnlvnbnivwasvqr.supabase.co'),
+  syntheticDatabaseUrl('localhost'),
+  syntheticDatabaseUrl('pooler.supabase.com', 'postgres.child123'),
+  syntheticDatabaseUrl('db.child123.supabase.co', 'postgres', '5432', false),
 ])('rejects any URL outside direct verified encrypted child', url => {
   const { receipt, binding } = dbFixture();
   expect(() => assertDatabaseTarget(receipt, binding, url, now)).toThrow('DATABASE_TARGET_DENIED');
@@ -38,7 +44,7 @@ test('accepts provider-issued pooler only with exact child user and identity fin
   const host = 'aws-0-test.pooler.supabase.com';
   binding.readback.database = { projectRef: 'child123', host, database: 'postgres', ownerResourceKey: 'manual-123',
     username: 'postgres.child123', port: 6543, identityFingerprint: createHash('sha256').update(`${host}:6543/postgres|postgres.child123`).digest('hex') };
-  const url = `postgresql://postgres.child123:test@${host}:6543/postgres?sslmode=require`;
+  const url = syntheticDatabaseUrl(host, 'postgres.child123', '6543');
   expect(assertDatabaseTarget(receipt, binding, url, now)).toBe(url);
   binding.readback.database.identityFingerprint = 'invalid';
   expect(() => assertDatabaseTarget(receipt, binding, url, now)).toThrow('DATABASE_TARGET_DENIED');

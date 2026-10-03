@@ -1,0 +1,73 @@
+{
+  "id": "WEB-20261003-BRACES-USER-ACCEPTED",
+  "expiresAt": "2026-10-05T00:00:00+08:00",
+  "advisory": "GHSA-vfj7-8cjw-p6xm",
+  "authorization": "User explicitly authorized this release with the known high-risk development dependency unpatched on 2026-10-03.",
+  "scope": "Web release only; no Native release; original audit remains NON_PASS",
+  "lockSha256": "ff74a3a96c79d6deaabc94f36b7a3bfb45022d9d585e328ed6b3ee7d50d3f228",
+  "counts": {
+    "info": 0,
+    "low": 0,
+    "moderate": 0,
+    "high": 5,
+    "critical": 0,
+    "total": 5
+  },
+  "packages": {
+    "@next/eslint-plugin-next": {
+      "node": "node_modules/@next/eslint-plugin-next",
+      "version": "16.3.6",
+      "isDirect": false,
+      "range": ">=14.3.0-canary.0",
+      "effects": [
+        "eslint-config-next"
+      ],
+      "via": [
+        "fast-glob"
+      ]
+    },
+    "braces": {
+      "node": "node_modules/braces",
+      "version": "3.0.3",
+      "isDirect": false,
+      "range": "*",
+      "effects": [
+        "micromatch"
+      ]
+    },
+    "eslint-config-next": {
+      "node": "node_modules/eslint-config-next",
+      "version": "16.3.6",
+      "isDirect": true,
+      "range": ">=14.3.0-canary.0",
+      "effects": [],
+      "via": [
+        "@next/eslint-plugin-next"
+      ]
+    },
+    "fast-glob": {
+      "node": "node_modules/fast-glob",
+      "version": "3.3.1",
+      "isDirect": false,
+      "range": "*",
+      "effects": [
+        "@next/eslint-plugin-next"
+      ],
+      "via": [
+        "micromatch"
+      ]
+    },
+    "micromatch": {
+      "node": "node_modules/micromatch",
+      "version": "4.0.8",
+      "isDirect": false,
+      "range": ">=0.2.0",
+      "effects": [
+        "fast-glob"
+      ],
+      "via": [
+        "braces"
+      ]
+    }
+  }
+}

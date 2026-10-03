@@ -27,10 +27,26 @@ export function inspectImports(source,path){
  };visit(ast);return {imports,unknown,parseErrors:ast.parseDiagnostics.length};
 }
 function packageName(specifier){return specifier.startsWith('@')?specifier.split('/').slice(0,2).join('/'):specifier.split('/')[0];}
-export function assertRootAudit(audit){
+export function assertRootAudit(audit,exception,now=Date.now()){
  if(audit.error||!audit.metadata?.vulnerabilities||!audit.vulnerabilities)reject('WEB_ROOT_AUDIT_INVALID');
+ if(exception){
+  if(!Number.isFinite(Date.parse(exception.policy.expiresAt))||now>Date.parse(exception.policy.expiresAt))reject('WEB_AUDIT_EXCEPTION_EXPIRED');
+  if(exception.policy.advisory!=='GHSA-vfj7-8cjw-p6xm'||exception.policy.lockSha256!==hash(JSON.stringify(exception.lock)))reject('WEB_AUDIT_EXCEPTION_LOCK_MISMATCH');
+  if(audit.auditReportVersion!==2||JSON.stringify(audit.metadata.vulnerabilities)!==JSON.stringify(exception.policy.counts))reject('WEB_AUDIT_EXCEPTION_UNREVIEWED');
+  const names=Object.keys(exception.policy.packages).sort();
+  if(JSON.stringify(Object.keys(audit.vulnerabilities).sort())!==JSON.stringify(names))reject('WEB_AUDIT_EXCEPTION_UNREVIEWED');
+  for(const name of names){const expected=exception.policy.packages[name],actual=audit.vulnerabilities[name];
+   if(exception.lock.packages[expected.node]?.version!==expected.version||!exception.lock.packages[expected.node]?.integrity||actual.name!==name||actual.severity!=='high'||actual.isDirect!==expected.isDirect
+    ||JSON.stringify(actual.nodes)!==JSON.stringify([expected.node])||JSON.stringify(actual.effects)!==JSON.stringify(expected.effects)||actual.range!==expected.range)reject('WEB_AUDIT_EXCEPTION_UNREVIEWED');
+   if(name==='braces'){
+    if(actual.via.length!==1||actual.via[0].source!==1240992||actual.via[0].url!=='https://github.com/advisories/GHSA-vfj7-8cjw-p6xm'||actual.via[0].name!=='braces'||actual.via[0].dependency!=='braces'||actual.via[0].severity!=='high'||actual.via[0].range!=='<=3.0.3')reject('WEB_AUDIT_EXCEPTION_UNREVIEWED');
+   }else if(JSON.stringify(actual.via)!==JSON.stringify(expected.via))reject('WEB_AUDIT_EXCEPTION_UNREVIEWED');
+  }
+  return;
+ }
  if(Object.keys(audit.vulnerabilities).length||audit.metadata.vulnerabilities.total!==0)reject('WEB_ROOT_AUDIT_VULNERABILITIES');
 }
+export function rootAuditDisposition(exception){return {rootAudit:exception?'NON_PASS':'PASS',auditReleaseDecision:exception?'USER_ACCEPTED_EXACT_EXCEPTION':'ZERO_VULNERABILITIES'};}
 export function parseClientReferenceManifest(source,path='client-reference-manifest.js'){
  const ast=ts.createSourceFile(path,source,ts.ScriptTarget.Latest,true);
  if(ast.parseDiagnostics.length||ast.statements.length!==2)reject('WEB_MANIFEST_NOT_LITERAL');
@@ -142,7 +158,7 @@ export function auditPackageSet(sbom,lock){
 }
 export function sourceSnapshot(root){
  const paths=['src','packages/contracts','public','prisma','supabase/functions/_shared'].flatMap(p=>files(join(root,p)))
-  .concat(['package.json','package-lock.json','next.config.ts','tsconfig.json','postcss.config.mjs','vercel.json','scripts/lib/web-release-dependency-audit.mjs','scripts/web-release-dependency-audit.mjs','scripts/verify-web-install-scope.mjs','.github/workflows/web-install-scope.yml','scripts/verify-web-release-scope.mjs','scripts/verify-web-release-plan.mjs','.github/workflows/ci.yml','.github/workflows/production-readiness.yml','.github/workflows/production-application-release.yml'].map(p=>join(root,p)))
+  .concat(['package.json','package-lock.json','next.config.ts','tsconfig.json','postcss.config.mjs','vercel.json','scripts/lib/web-release-dependency-audit.mjs','scripts/web-release-dependency-audit.mjs','scripts/verify-web-install-scope.mjs','.github/workflows/web-install-scope.yml','scripts/verify-web-release-scope.mjs','scripts/verify-web-release-plan.mjs','scripts/web-release-audit-exception.json','scripts/production-release-target.mjs','scripts/qa-pr366-preview-binding.mjs','scripts/production-readiness.mjs','scripts/lib/runtime-test-key-policy.mjs','.github/workflows/ci.yml','.github/workflows/production-readiness.yml','.github/workflows/production-application-release.yml'].map(p=>join(root,p)))
   .filter(p=>existsSync(p)).sort();
  if(!paths.length)reject('WEB_SOURCE_EMPTY');
  const digest=hash(paths.map(p=>`${relative(root,p).replaceAll('\\','/')}\0${hash(readFileSync(p))}`).join('\n'));
@@ -220,8 +236,8 @@ export function verifyGeneratedPrisma(root,packages){
  return {path:'node_modules/.prisma/client',name:pkg.name,version:pkg.version,schemaSha256:hash(schema),formatterSha256:hash(readFileSync(cli)),formatterWasmSha256:hash(readFileSync(wasm)),generatorSha256:hash(readFileSync(generator)),sourceSchemaSha256:hash(readFileSync(join(root,'prisma/schema.prisma'))),generatedFiles:generatedFiles.length,generatedFilesSha256:hash(generatedFiles.sort().map(path=>`${relative(generatedReal,path)}\0${hash(readFileSync(path))}`).join('\n'))};
 }
 
-export function verifyWebArtifact(root,baseline,audit,sbom){
- assertRootAudit(audit);
+export function verifyWebArtifact(root,baseline,audit,sbom,exception){
+ assertRootAudit(audit,exception);
  if(baseline.version!==1||baseline.scope!=='WEB_PRODUCTION_ROOT_AND_BUILD_DEPENDENCIES'||!Number.isFinite(Date.parse(baseline.preparedAt)))reject('WEB_PREBUILD_RECEIPT_INVALID');
  const current=sourceSnapshot(root);
  for(const key of ['head','tree','sourceSha256','lockSha256'])if(current[key]!==baseline[key])reject('WEB_SOURCE_CHANGED_'+key);
@@ -325,7 +341,7 @@ export function verifyWebArtifact(root,baseline,audit,sbom){
  }
  const manifestClosure=verifyManifestReferences(root,nextFiles,traced);
  const artifactInputs=[...new Set([...nextFiles,...traces,...traced,buildPath])].sort().map(p=>`${relative(root,p).replaceAll('\\','/')}\0${hash(readFileSync(p))}`);
- const receipt={version:1,scope:baseline.scope,...current,buildId,traces:traces.length,tracedFiles:traced.size,artifactSha256:hash(artifactInputs.join('\n')),rootAudit:'PASS',manifestClosure,generatedPrisma,sourceScope:{roots:['src','packages/contracts'],scannedFiles:scannedSources.size,edgeFunctions:'NOT_VERIFIED_DENO_QA_REQUIRED'},status:problems.length?'INCOMPLETE':'PASS',problems};
+ const receipt={version:1,scope:baseline.scope,...current,buildId,traces:traces.length,tracedFiles:traced.size,artifactSha256:hash(artifactInputs.join('\n')),...rootAuditDisposition(exception),manifestClosure,generatedPrisma,sourceScope:{roots:['src','packages/contracts'],scannedFiles:scannedSources.size,edgeFunctions:'NOT_VERIFIED_DENO_QA_REQUIRED'},status:problems.length?'INCOMPLETE':'PASS',problems};
  return receipt;
 }
 export function npmJson(root,args){
@@ -335,10 +351,10 @@ export function npmJson(root,args){
 }
 
 /** A physical known-Native-chain exclusion proof; generic loader safety stays separate. */
-export function verifyKnownNativeExclusion(root,baseline,audit,sbom){
+export function verifyKnownNativeExclusion(root,baseline,audit,sbom,exception){
  const installed=verifyWebInstallScope(root,sbom);
- const general=verifyWebArtifact(root,baseline,audit,sbom);
+ const general=verifyWebArtifact(root,baseline,audit,sbom,exception);
  const genericLoaders=general.problems.filter(problem=>problem.code==='UNKNOWN_COMPILED_IMPORT');
  const problems=general.problems.filter(problem=>problem.code!=='UNKNOWN_COMPILED_IMPORT');
- return {...general,scope:'WEB_KNOWN_NATIVE_DEPENDENCY_EXCLUSION',status:problems.length?'INCOMPLETE':'PASS',problems,installation:installed,auditSha256:hash(JSON.stringify(audit)),sbomSha256:hash(JSON.stringify(sbom)),generalArtifactAnalysis:{status:general.status,unreviewedGenericLoaders:genericLoaders},runtimeLoaderSafety:'NOT_PROVEN',nativeRelease:'NOT_AUTHORIZED_NOT_PUBLISHED'};
+ return {...general,scope:'WEB_KNOWN_NATIVE_DEPENDENCY_EXCLUSION',status:problems.length?'INCOMPLETE':'PASS',problems,installation:installed,auditSha256:hash(JSON.stringify(audit)),sbomSha256:hash(JSON.stringify(sbom)),generalArtifactAnalysis:{status:general.status,rootAudit:general.rootAudit,auditReleaseDecision:general.auditReleaseDecision,unreviewedGenericLoaders:genericLoaders},runtimeLoaderSafety:'NOT_PROVEN',nativeRelease:'NOT_AUTHORIZED_NOT_PUBLISHED'};
 }

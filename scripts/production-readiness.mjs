@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { hasBlockingDestructiveSql } from "./lib/destructive-sql.mjs";
+import { hasUnsafeRuntimeTestKeys } from "./lib/runtime-test-key-policy.mjs";
 
 const root = process.cwd();
 const failures = [];
@@ -109,7 +110,7 @@ const runtimeConfigurationFiles = files.filter((file) =>
 for (const file of runtimeConfigurationFiles) {
   const content = read(file);
   requireCondition(
-    !/TURNSTILE_ALLOW_TEST_KEYS\s*[:=]\s*["']?true/i.test(content),
+    !hasUnsafeRuntimeTestKeys(file, content),
     `Turnstile test keys are enabled in runtime configuration: ${file}`,
   );
   requireCondition(

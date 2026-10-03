@@ -33,8 +33,13 @@ export function runWebReleaseScope(root,evidenceDirectory){
   const diagnostic=command(['audit','--json'],'full-repository-audit.json'),full=parse(diagnostic);
   write('full-repository-diagnostic.json',{status:full.error||!full.metadata?.vulnerabilities||!full.vulnerabilities?'INCOMPLETE':diagnostic.status===0&&full.metadata.vulnerabilities.total===0&&Object.keys(full.vulnerabilities).length===0?'PASS':'NON_PASS',vulnerabilities:full.metadata?.vulnerabilities??null,scope:'FULL_REPOSITORY_DIAGNOSTIC_ONLY',nativeRelease:'NOT_AUTHORIZED_NOT_PUBLISHED'});
   const audited=command(['audit','--workspace','packages/contracts','--include-workspace-root','--include=dev','--audit-level=moderate','--json'],'audit.json'),audit=parse(audited);
-  if(audited.status!==0)throw new Error('WEB_RELEASE_SELECTED_AUDIT_NON_PASS');
-  assertRootAudit(audit);
+  const policyBytes=readFileSync(new URL('./web-release-audit-exception.json',import.meta.url)),policy=JSON.parse(policyBytes),exception={policy,lock:JSON.parse(readFileSync(resolve(actualRoot,'package-lock.json'),'utf8'))};
+  const auditExceptionPolicySha256=createHash('sha256').update(policyBytes).digest('hex');
+  if(![0,1].includes(audited.status))throw new Error('WEB_RELEASE_SELECTED_AUDIT_UNREVIEWED_EXIT');
+  const usedException=audited.status===1,acceptedException=usedException?exception:undefined;
+  assertRootAudit(audit,acceptedException);
+  const selectedAuditStatus=usedException?'NON_PASS':'PASS',auditDecision=usedException?'USER_ACCEPTED_EXACT_EXCEPTION':'ZERO_VULNERABILITIES';
+  write('selected-audit-decision.json',{auditStatus:selectedAuditStatus,releaseDecision:auditDecision,policyId:usedException?policy.id:null,policySha256:auditExceptionPolicySha256,advisory:usedException?policy.advisory:null});
   const raw=command(['sbom','--workspaces=false','--package-lock-only','--sbom-format','cyclonedx'],'npm-root-sbom.json');
   if(raw.status!==0)throw new Error('WEB_RELEASE_RAW_SBOM_NON_PASS');
   const supplemented=supplementSharedWorkspaceSbom(actualRoot,parse(raw));
@@ -42,11 +47,12 @@ export function runWebReleaseScope(root,evidenceDirectory){
   write('installed-sbom-coverage.json',verifyWebInstallScope(actualRoot,supplemented.sbom));
   const baseline=prepareWebAudit(actualRoot);write('prebuild.json',baseline);
   if(command(['run','build'],'build.log').status!==0)throw new Error('WEB_RELEASE_BUILD_NON_PASS');
-  const receipt=verifyKnownNativeExclusion(actualRoot,baseline,audit,supplemented.sbom);
+  const receipt=verifyKnownNativeExclusion(actualRoot,baseline,audit,supplemented.sbom,acceptedException);
   write('artifact.json',receipt);
   if(receipt.status!=='PASS')throw new Error('WEB_RELEASE_ARTIFACT_NON_PASS');
   const verifierSha256=createHash('sha256').update(['./verify-web-release-scope.mjs','./verify-web-install-scope.mjs','./lib/web-release-dependency-audit.mjs'].map(path=>path+'\0'+readFileSync(new URL(path,import.meta.url),'utf8')).join('\n')).digest('hex');
   const result={selector:'npm ci --workspace packages/contracts --include-workspace-root --include=dev',npmVersion:'11.16.0',verifierSha256,status:'PASS',scope:'WEB_KNOWN_NATIVE_DEPENDENCY_EXCLUSION',head:receipt.head,tree:receipt.tree,sourceSha256:receipt.sourceSha256,lockSha256:receipt.lockSha256,artifactSha256:receipt.artifactSha256,buildId:receipt.buildId,installedGraphSha256:receipt.installation.installedGraphSha256,installedPackages:receipt.installation.installedPackages,fullRepositoryDiagnostic:'SEPARATE_NOT_A_RELEASE_PASS',runtimeLoaderSafety:'NOT_PROVEN',deployment:'NOT_DEPLOYED'};
+  result.auditExceptionPolicySha256=auditExceptionPolicySha256;result.selectedAuditStatus=selectedAuditStatus;result.auditDecision=auditDecision;
   write('result.json',result);return result;
  }catch(error){write('failure.json',{status:'INCOMPLETE',code:error.message,deployment:'NOT_DEPLOYED'});throw error;}
 }

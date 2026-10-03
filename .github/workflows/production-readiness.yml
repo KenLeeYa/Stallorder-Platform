@@ -304,6 +304,21 @@ jobs:
       - name: Install pinned Vercel CLI
         if: inputs.apply_migrations
         run: npm install --global vercel@56.3.1
+      - name: Capture verified healthy Primary recovery target before remote changes
+        if: inputs.apply_migrations
+        env:
+          RELEASE_HEALTHY_DEPLOYMENT_ID: dpl_Cx8GfP12KuFHcCgtnZ7SXxzt4AYZ
+          RELEASE_HEALTHY_SHA: 5cc15c6a6189cfd56e127676bc5228e9ffd2ff56
+          PRODUCTION_BASE_URL: ${{ vars.APP_BASE_URL }}
+          PRODUCTION_TEST_QR_REQUIRED: "true"
+          PRODUCTION_TEST_QR_URL: ${{ secrets.PRODUCTION_TEST_QR_URL }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/production-target
+          node scripts/production-release-target.mjs baseline artifacts/production-target/baseline.json >> "$GITHUB_ENV"
+          npm run production:smoke
       - name: Build approved Production deployment without assigning domains
         if: inputs.apply_migrations
         env:
@@ -329,6 +344,9 @@ jobs:
             exit 1
           }
           echo "APPROVED_PRODUCTION_DEPLOYMENT=$deployment" >> "$GITHUB_ENV"
+      - name: Read back approved Production candidate before migration or promotion
+        if: inputs.apply_migrations
+        run: node scripts/production-release-target.mjs candidate artifacts/production-target/candidate.json artifacts/production-target/baseline.json
       - name: Apply pending migrations
         if: inputs.apply_migrations && !inputs.include_all_migrations
         run: supabase db push --db-url "$SUPABASE_CI_DATABASE_URL"
@@ -433,12 +451,16 @@ jobs:
           rollback_on_error() {
             if [ "$promoted" = "true" ]; then
               echo "::warning::Production smoke failed; rolling back the Vercel alias."
-              vercel rollback --yes --token "$VERCEL_TOKEN"
+              vercel rollback "$RELEASE_ROLLBACK_DEPLOYMENT" --yes --token "$VERCEL_TOKEN"
+              node scripts/production-release-target.mjs recovered artifacts/production-target/recovery.json artifacts/production-target/baseline.json
+              npm run production:smoke
             fi
           }
           trap rollback_on_error ERR
-          vercel promote "$APPROVED_PRODUCTION_DEPLOYMENT" --yes --token "$VERCEL_TOKEN"
+          node scripts/production-release-target.mjs recovered artifacts/production-target/pre-promote.json artifacts/production-target/baseline.json
           promoted=true
+          vercel promote "$APPROVED_PRODUCTION_DEPLOYMENT" --yes --token "$VERCEL_TOKEN"
+          node scripts/production-release-target.mjs promoted artifacts/production-target/promoted.json artifacts/production-target/baseline.json
           npm run production:smoke
           trap - ERR
       - name: Create immutable successful Production migration evidence
@@ -454,4 +476,13 @@ jobs:
           name: production-primary-migration-${{ github.run_id }}
           path: artifacts/production-primary-migration-evidence.json
           if-no-files-found: error
+          retention-days: 30
+
+      - name: Preserve Primary target and recovery readbacks
+        if: always() && inputs.apply_migrations
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-target-${{ github.run_id }}
+          path: artifacts/production-target/*.json
+          if-no-files-found: warn
           retention-days: 30

@@ -55,4 +55,14 @@ seed 測試身分為 `owner@stallorder.test`、`staff@stallorder.test`、`kitche
 
 受影響鏈為 `eslint-config-next@16.3.6 → @next/eslint-plugin-next@16.3.6 → fast-glob@3.3.1 → micromatch@4.0.8 → braces@3.0.3`。[官方公告 GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) 將 `braces <=3.0.3` 列為 high，尚無 patched version。本次 npm metadata 讀回 braces 最新仍為 3.0.3，Next plugin 16.3.8 與 fast-glob 3.3.3 也仍使用受影響鏈，不能以一般 patch 升級解除阻擋。
 
-這是開發／建置依賴的實際 audit 失敗，不能直接聲稱正式 runtime 已遭利用，也不能以 runtime 排除證據偽稱目前全 Web install gate 通過。不忽略 advisory、不冒用其他套件名稱或更改 audit 成功判定；此輪不建立第三方 ESLint fork。隔離資源建立及正式發布維持待辦，等待有可驗證的依賴修補方案。測試 harness／本機回歸可以完成準備，但不計為遠端 Preview 或 Production 驗收。
+這是開發／建置依賴的實際 audit 失敗，不能直接聲稱正式 runtime 已遭利用，也不能以 runtime 排除證據偽稱目前全 Web install gate 通過。測試 harness／本機回歸不計為遠端 Preview 或 Production 驗收。
+
+## 2026-10-03 使用者核准的發布例外
+
+使用者指示「先略過高風險漏洞，先更新正式環境」。本次對已回報的 `GHSA-vfj7-8cjw-p6xm`／`braces@3.0.3` 開發依賴鏈採用明確發布例外；漏洞仍未修復，原始 audit 的非通過結果持續保留。例外須限定公告、版本、依賴鏈與本次鎖定檔，並在發布證據中記錄，不能將其他漏洞或 audit 執行錯誤一併忽略。
+
+其餘必要 CI、資料庫遷移、隔離環境實際流程、精確目標與回復方案、正式部署讀回及受影響流程驗證照常執行。尚未建立隔離資源、尚未發布正式站；治理設定仍 OFF／dry-run。
+
+例外期限為台北時間 2026-10-05 00:00，超過期限不自動延長。例外收據保留 `rootAudit: NON_PASS`，以另一欄記錄核准決策，並綁定當前政策雜湊及 Plan／Apply。此輪 126 項發布例外、目標讀回與隔離設定聚焦測試通過；另有實際合成產物收據回歸通過，均不是遠端發布證據。最新 CI 的測試網址假憑證與隔離 Turnstile 設定識別已修正，正式秘密掃描與正式測試金鑰禁用規則保留。
+
+Production migration 發布流程新增實際 team／project／source／完整 alias 讀回，先確認已核實的健康部署，再以精確部署 ID 回復；候選若在 migration 前改動 Primary 身分或 alias 即阻擋。此回復只涵蓋 Vercel 應用 alias，不聲稱回復資料庫或 Edge Functions。CodeQL 告警判讀另見 `PR366_CODEQL_TRIAGE_20261003.md`，告警未 dismiss、未聲稱全安全通過。
