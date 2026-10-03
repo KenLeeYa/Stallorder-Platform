@@ -29,7 +29,12 @@ describe("Production workflow approval contract", () => {
     expect(applicationRelease).toContain("node scripts/verify-web-release-plan.mjs approved-application-plan/production-application-web-scope.json web-release-evidence/result.json");
     const runner = read("scripts/verify-web-release-scope.mjs");
     expect(runner).toContain("SEPARATE_NOT_A_RELEASE_PASS");
-    expect(runner).toContain("SELECTED_AUDIT_NON_PASS");
+    expect(runner).toContain("if(![0,1].includes(audited.status))throw new Error('WEB_RELEASE_SELECTED_AUDIT_UNREVIEWED_EXIT')");
+    expect(runner).toContain("acceptedException=usedException?exception:undefined");
+    expect(runner).toContain("assertRootAudit(audit,acceptedException)");
+    expect(runner).toContain("selectedAuditStatus=usedException?'NON_PASS':'PASS'");
+    expect(runner).toContain("auditDecision=usedException?'USER_ACCEPTED_EXACT_EXCEPTION':'ZERO_VULNERABILITIES'");
+    expect(runner).toContain("write('selected-audit-decision.json'");
   });
 
   it("keeps main Git pushes in Plan mode and gates Apply with a matching receipt", () => {
