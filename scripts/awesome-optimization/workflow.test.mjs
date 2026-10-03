@@ -6,8 +6,17 @@ const workflow = yaml.load(readFileSync(".github/workflows/ephemeral-preview.yml
 test("ordinary PR cannot enter any Preview resource or secrets job", () => {
   expect(workflow.permissions).toEqual({ contents: "read" });
   expect(workflow.on.workflow_dispatch.inputs.approve_external_preview.default).toBe(false);
-  for (const job of Object.values(workflow.jobs)) {
+  for (const [name, job] of Object.entries(workflow.jobs)) {
     expect(job.if).toContain("github.event_name == 'workflow_dispatch' &&");
+    if (name === "regression-local") {
+      expect(job.if).toContain("inputs.approve_external_preview == false &&");
+      expect(job.if).toContain("inputs.operation == 'regression-local'");
+      expect(job.uses).toBe("./.github/workflows/ci.yml");
+      expect(job.secrets).toBeUndefined();
+      expect(job.environment).toBeUndefined();
+      expect(job.steps).toBeUndefined();
+      continue;
+    }
     expect(job.if).toContain("inputs.approve_external_preview == true &&");
     expect(job.environment.name).toBe("Preview");
   }
@@ -65,8 +74,9 @@ test("actual PR366 browser phases stay before cleanup and private handoffs stay 
   expect(steps.indexOf(qa)).toBeLessThan(steps.indexOf(artifact));
 });
 
-test("both Preview jobs read actual approval rules before mutations; always cleanup cannot bypass failure", () => {
-  for (const job of Object.values(workflow.jobs)) {
+test("all Preview resource jobs read actual approval rules before mutations; always cleanup cannot bypass failure", () => {
+  for (const [name, job] of Object.entries(workflow.jobs)) {
+    if (name === "regression-local") continue; // No provider steps; isolation is asserted above.
     const guardIndex = job.steps.findIndex((step) => step.id === "preview-approval");
     expect(guardIndex).toBeGreaterThan(0);
     expect(job.steps.slice(0, guardIndex).some((step) => step.uses?.startsWith("actions/checkout@"))).toBe(true);

@@ -639,7 +639,9 @@ export async function run(receipt, binding, outDir) {
           expect(await staffPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
         }
         await staffPage.setViewportSize({ width: 390, height: 900 });
-        await staffPage.getByRole('button', { name: '店員點餐', exact: true }).click();
+        const openPos = staffPage.getByRole('button', { name: '店員點餐', exact: true }).filter({ visible: true });
+        await expect(openPos).toHaveCount(1);
+        await openPos.click();
         const pos = staffPage.getByRole('dialog', { name: '店員點餐', exact: true });
         const card = pos.getByTestId('staff-product-card').filter({ hasText: fixture.name });
         await expect(card).toHaveCount(1); await card.getByRole('button', { name: `增加 ${fixture.name}`, exact: true }).click();
