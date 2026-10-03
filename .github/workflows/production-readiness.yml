@@ -464,6 +464,7 @@ jobs:
           }
           trap rollback_on_error ERR
           node scripts/production-release-target.mjs recovered artifacts/production-target/pre-promote.json artifacts/production-target/baseline.json
+          npm run production:smoke
           promoted=true
           vercel promote "$APPROVED_PRODUCTION_DEPLOYMENT" --yes --token "$VERCEL_TOKEN"
           node scripts/production-release-target.mjs promoted artifacts/production-target/promoted.json artifacts/production-target/baseline.json

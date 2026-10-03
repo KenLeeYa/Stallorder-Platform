@@ -478,6 +478,22 @@ describe("Production workflow approval contract", () => {
     expect(job).not.toContain("--no-verify-jwt");
   });
 
+  it("checks the existing compiled recovery deployment against updated DB and Edge before promotion", () => {
+    const step = readiness.slice(readiness.indexOf("name: Promote approved deployment and smoke Production"));
+    const recovered = step.indexOf("production-target/pre-promote.json");
+    const smoke = step.indexOf("npm run production:smoke", recovered);
+    const promote = step.indexOf('vercel promote "$APPROVED_PRODUCTION_DEPLOYMENT"');
+    expect(recovered).toBeGreaterThan(-1);
+    expect(smoke).toBeGreaterThan(recovered);
+    expect(smoke).toBeLessThan(step.indexOf("promoted=true"));
+    expect(smoke).toBeLessThan(promote);
+    expect(step).toContain('PRODUCTION_TEST_QR_REQUIRED: "true"');
+    expect(step).toContain("set -euo pipefail");
+    expect(readiness.indexOf("name: Verify deployed Production Edge Functions")).toBeLessThan(
+      readiness.indexOf("name: Promote approved deployment and smoke Production"),
+    );
+  });
+
   it("requires successful DR schema evidence before Primary migration evidence", () => {
     const verifyDrSchema = readiness.indexOf(
       "name: Verify DR schema completed before the Production Plan or Apply",
