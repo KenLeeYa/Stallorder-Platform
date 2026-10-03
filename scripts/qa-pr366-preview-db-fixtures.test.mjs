@@ -289,9 +289,10 @@ test('seed reuse restore refuses any changed field instead of deleting or overwr
   await expect(tool.restoreSupplyModule(evidence)).rejects.toThrow('CONCURRENT_CHANGE'); expect(write).not.toHaveBeenCalled();
 });
 test('fixture diagnostics expose only exact safe codes, never raw DB messages or URLs', () => {
-  expect(fixtureFailureCode({ code: 'P2002', message: 'postgresql://user:secret@db/' })).toBe('P2002');
+  const diagnosticUrl = syntheticDatabaseUrl('db.synthetic-test.invalid');
+  expect(fixtureFailureCode({ code: 'P2002', message: diagnosticUrl })).toBe('P2002');
   expect(fixtureFailureCode(Error('FIXTURE_EXISTING_MODULE_OVERRIDE_REQUIRES_REVIEW'))).toBe('FIXTURE_EXISTING_MODULE_OVERRIDE_REQUIRES_REVIEW');
-  for (const error of [Error('postgresql://user:secret@db/'), { code: 'P2002 secret' }, Error('FIXTURE_DENIED\nsecret')])
+  for (const error of [Error(diagnosticUrl), { code: 'P2002 secret' }, Error('FIXTURE_DENIED\nsecret')])
     expect(fixtureFailureCode(error)).toBe('UNCLASSIFIED');
 });
 

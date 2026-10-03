@@ -82,3 +82,11 @@ CI `37099582769`（`2a04964b`）在一小時 job 時限被取消，只完成八�
 恢復操作僅 `resume-manual-run`＋原 `cleanup_run_id=37103994917`，先原始 artifact owner／provider 身分讀回，再重用現有 pair；不建立、重新 migration 或部署任何新資源。原 runner expiry `2026-10-03T12:47:12.837Z` 不延長，本機監控仍採較早 `12:44:35Z`，六小時／US$1 不變。
 
 新版候選僅調整測試入口、同組恢復及 QA harness；續跑先驗證產品來源／lock 雜湊與全部 Supabase 來源相同，binding 仍以原部署 SHA/tree 產生，明示新 harness 雜湊，不能聲稱兩個完整 tree 相同。最新候選 CI／Web scope 與正式發布 Plan 仍須重新通過。新增會員真 API 撤權（session 保持有效）與 18 項部署 DB 函式跨午夜 rollback 補證；後者不是 live HTTP 真時鐘午夜切換。
+
+## 2026-10-03 失敗原因與第二次有界驗證
+
+原 run `37103994917` 的 Vercel listing 只有 URL，未提供 deployment ID；精確 provider URL 讀回與 owner 核對已修正。重用同組的 run `37105863807` 在 Supply fixture 初始化停止，未執行瀏覽器案例；當時只留下通用錯誤碼，因此 seed 衝突是來源與回歸測試支持的原因，尚非該遠端執行的完整錯誤讀回。seed 已存在 Supply override，舊 fixture 拒絕任何既有 override；修正僅唯讀沿用欄位及 owner 完全相符的 seed，還原核對整筆未變，不覆寫或刪除。其餘未知／停用／過期／漂移設定仍拒絕。
+
+上述 pair 已清理，獨立 Supabase branch list 只剩 parent，精確 Vercel deployment GET 回傳 404；到期監控已停用。CI `37106601858` 的 unit、型別、DB regression 及 DB lint 通過，Production guardrails 拒絕兩段新測試的合成連線字串，已改用既有 synthetic fixture helper，未放寬秘密掃描。上述均非正式發布完成證據。
+
+使用者在「再建立一組、新增 US$1、最長 6 小時、測完立即清理」的核准問題後指示「確認原因後繼續正式環境更新」。此輪按該具體範圍進行第二次驗證：同時最多一組 data-less child 與配對 Preview，另建精確 owner receipt 及到期監控，不沿用已刪除的 run／資源 ID，不自動延長、不建立第三組。最新必要 CI 與實際流程通過後，依既有授權建立新的 Production／DR Plan、Apply 並讀回正式流程。治理仍 OFF／dry-run，真 LINE／Pay 仍不在本次測試啟用範圍。
