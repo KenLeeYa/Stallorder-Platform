@@ -1,0 +1,378 @@
+warning: in the working copy of 'docs/ux-responsive/accessibility-and-performance.md', LF will be replaced by CRLF the next time Git touches it
+
+> stallorder-platform@0.1.0 build
+> prisma generate && next build
+
+warn The configuration property `package.json#prisma` is deprecated and will be removed in Prisma 7. Please migrate to a Prisma config file (e.g., `prisma.config.ts`).
+For more information, see: https://pris.ly/prisma-config
+
+Prisma schema loaded from prisma\schema.prisma
+
+✔ Generated Prisma Client (v6.19.3) to .\node_modules\@prisma\client in 3.54s
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+Tip: Need your database queries to be 1000x faster? Accelerate offers you that and more: https://pris.ly/tip-2-accelerate
+
+▲ Next.js 16.3.4 (Turbopack)
+- Environments: .env.local
+✓ Running next.config.ts took 1007ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 6.3s
+  Running TypeScript ...
+  Finished TypeScript in 6.1s ...
+  Collecting page data using 15 workers ...
+  Generating static pages using 15 workers (0/114) ...
+  Generating static pages using 15 workers (28/114) 
+  Generating static pages using 15 workers (56/114) 
+  Generating static pages using 15 workers (85/114) 
+✓ Generating static pages using 15 workers (114/114) in 607ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ƒ /_not-found
+├ ƒ /admin/add-ons
+├ ƒ /admin/billing
+├ ƒ /admin/delivery-connections/[connectionId]
+├ ƒ /admin/delivery-integrations
+├ ƒ /admin/delivery-integrations/[requestId]
+├ ƒ /admin/e-invoice
+├ ƒ /admin/entitlements
+├ ƒ /admin/health
+├ ƒ /admin/invoices
+├ ƒ /admin/invoices/[invoiceId]
+├ ƒ /admin/line-platform
+├ ƒ /admin/login-methods
+├ ƒ /admin/merchant-applications
+├ ƒ /admin/merchant-applications/[applicationId]
+├ ƒ /admin/merchant-business-types
+├ ƒ /admin/payment-integrations
+├ ƒ /admin/payments
+├ ƒ /admin/plan-versions
+├ ƒ /admin/plans
+├ ƒ /admin/subscriptions
+├ ƒ /admin/subscriptions/[subscriptionId]
+├ ƒ /admin/usage
+├ ƒ /api/admin/auth/migration-readiness
+├ ƒ /api/admin/billing/feature-flags/[code]
+├ ƒ /api/admin/billing/invoices
+├ ƒ /api/admin/billing/invoices/[invoiceId]
+├ ƒ /api/admin/billing/payg-plan-versions
+├ ƒ /api/admin/billing/payments/[paymentId]
+├ ƒ /api/admin/billing/requests/[requestId]
+├ ƒ /api/admin/billing/subscriptions/[subscriptionId]
+├ ƒ /api/admin/delivery-connections/[connectionId]
+├ ƒ /api/admin/delivery-integrations
+├ ƒ /api/admin/delivery-integrations/[requestId]
+├ ƒ /api/admin/line-platform/notifications
+├ ƒ /api/admin/line-platform/stalls
+├ ƒ /api/admin/merchant-applications/[applicationId]
+├ ƒ /api/admin/merchant-business-types
+├ ƒ /api/admin/merchant-business-types/[optionId]
+├ ƒ /api/admin/organizations/[organizationId]/additional-stalls
+├ ƒ /api/admin/resilience/feature-flags
+├ ƒ /api/admin/resilience/feature-flags/[code]
+├ ƒ /api/admin/users/[userId]/identity-invitations
+├ ƒ /api/admin/users/[userId]/sessions/revoke
+├ ƒ /api/assets/offline-menus/[...objectPath]
+├ ƒ /api/assets/product-images/[...objectPath]
+├ ƒ /api/auth/[provider]/callback
+├ ƒ /api/auth/[provider]/start
+├ ƒ /api/auth/apple/events
+├ ƒ /api/auth/identities
+├ ƒ /api/auth/identities/[provider]
+├ ƒ /api/auth/login
+├ ƒ /api/auth/logout
+├ ƒ /api/auth/logout-all
+├ ƒ /api/auth/me
+├ ƒ /api/auth/mock/authorize
+├ ƒ /api/auth/providers
+├ ƒ /api/auth/refresh
+├ ƒ /api/auth/sessions/[sessionId]
+├ ƒ /api/availability/config
+├ ƒ /api/billing/webhooks/ecpay
+├ ƒ /api/billing/webhooks/newebpay
+├ ƒ /api/client-errors
+├ ƒ /api/cloudprnt/v1/[printerId]
+├ ƒ /api/connectivity
+├ ƒ /api/cron/delivery-jobs
+├ ƒ /api/cron/line-pay-recovery
+├ ƒ /api/cron/notification-jobs
+├ ƒ /api/cron/outbox-dispatch
+├ ƒ /api/cron/payg-close
+├ ƒ /api/cron/process-orders
+├ ƒ /api/cron/replication-health
+├ ƒ /api/cron/report-deliveries
+├ ƒ /api/cron/staff-push
+├ ƒ /api/cron/storage-replication
+├ ƒ /api/health
+├ ƒ /api/health/dependencies
+├ ƒ /api/health/dr
+├ ƒ /api/health/dr/operator
+├ ƒ /api/health/primary
+├ ƒ /api/integrations/foodpanda/webhooks/orders
+├ ƒ /api/integrations/ubereats/webhook
+├ ƒ /api/invitations/[token]/accept
+├ ƒ /api/line-platform/media/[mediaToken]
+├ ƒ /api/line-platform/pickup/[stallSlug]/capability
+├ ƒ /api/line-platform/pickup/[stallSlug]/manage
+├ ƒ /api/line-platform/pickup/[stallSlug]/preview
+├ ƒ /api/line-platform/pickup/[stallSlug]/redeem
+├ ƒ /api/line-platform/pickup/customer/[orderId]
+├ ƒ /api/merchant/dashboard/overview
+├ ƒ /api/merchant/integrations/delivery
+├ ƒ /api/merchant/integrations/delivery/[connectionId]
+├ ƒ /api/merchant/integrations/delivery/[connectionId]/logs
+├ ƒ /api/merchant/integrations/delivery/[connectionId]/menu-mapping
+├ ƒ /api/merchant/integrations/delivery/[connectionId]/orders
+├ ƒ /api/merchant/integrations/delivery/[connectionId]/stores
+├ ƒ /api/merchant/organizations/[organizationId]/alerts/[alertId]
+├ ƒ /api/merchant/organizations/[organizationId]/billing/additional-stall-requests
+├ ƒ /api/merchant/organizations/[organizationId]/billing/payments
+├ ƒ /api/merchant/organizations/[organizationId]/billing/plan-requests
+├ ƒ /api/merchant/organizations/[organizationId]/catalog
+├ ƒ /api/merchant/organizations/[organizationId]/catalog/export
+├ ƒ /api/merchant/organizations/[organizationId]/catalog/image
+├ ƒ /api/merchant/organizations/[organizationId]/catalog/import
+├ ƒ /api/merchant/organizations/[organizationId]/catalog/translate
+├ ƒ /api/merchant/organizations/[organizationId]/catalog/versions
+├ ƒ /api/merchant/organizations/[organizationId]/developer
+├ ƒ /api/merchant/organizations/[organizationId]/e-invoice
+├ ƒ /api/merchant/organizations/[organizationId]/event-growth
+├ ƒ /api/merchant/organizations/[organizationId]/events
+├ ƒ /api/merchant/organizations/[organizationId]/growth
+├ ƒ /api/merchant/organizations/[organizationId]/invitations
+├ ƒ /api/merchant/organizations/[organizationId]/invitations/[invitationId]
+├ ƒ /api/merchant/organizations/[organizationId]/memberships/[membershipId]
+├ ƒ /api/merchant/organizations/[organizationId]/operating-profit
+├ ƒ /api/merchant/organizations/[organizationId]/product-notes
+├ ƒ /api/merchant/organizations/[organizationId]/product-notes/export
+├ ƒ /api/merchant/organizations/[organizationId]/product-notes/import
+├ ƒ /api/merchant/organizations/[organizationId]/profile
+├ ƒ /api/merchant/organizations/[organizationId]/report-schedules
+├ ƒ /api/merchant/organizations/[organizationId]/report-schedules/[scheduleId]
+├ ƒ /api/merchant/organizations/[organizationId]/report-schedules/[scheduleId]/test
+├ ƒ /api/merchant/organizations/[organizationId]/setup
+├ ƒ /api/merchant/organizations/[organizationId]/stalls
+├ ƒ /api/merchant/organizations/[organizationId]/stalls/batch-ordering
+├ ƒ /api/merchant/organizations/[organizationId]/supply
+├ ƒ /api/merchant/organizations/[organizationId]/workforce
+├ ƒ /api/merchant/payment-integrations
+├ ƒ /api/merchant/payment-integrations/mock
+├ ƒ /api/merchant/payment-integrations/operations
+├ ƒ /api/merchant/reports/export
+├ ƒ /api/merchant/stalls/[stallId]
+├ ƒ /api/merchant/stalls/[stallId]/alert-sound
+├ ƒ /api/merchant/stalls/[stallId]/attendance
+├ ƒ /api/merchant/stalls/[stallId]/business-hours
+├ ƒ /api/merchant/stalls/[stallId]/capacity
+├ ƒ /api/merchant/stalls/[stallId]/cover-image
+├ ƒ /api/merchant/stalls/[stallId]/display
+├ ƒ /api/merchant/stalls/[stallId]/line
+├ ƒ /api/merchant/stalls/[stallId]/locations
+├ ƒ /api/merchant/stalls/[stallId]/memberships
+├ ƒ /api/merchant/stalls/[stallId]/memberships/[membershipId]
+├ ƒ /api/merchant/stalls/[stallId]/menu-announcement
+├ ƒ /api/merchant/stalls/[stallId]/modules
+├ ƒ /api/merchant/stalls/[stallId]/notifications
+├ ƒ /api/merchant/stalls/[stallId]/offline
+├ ƒ /api/merchant/stalls/[stallId]/offline/conflicts
+├ ƒ /api/merchant/stalls/[stallId]/products
+├ ƒ /api/merchant/stalls/[stallId]/products/[productId]
+├ ƒ /api/merchant/stalls/[stallId]/schedule
+├ ƒ /api/merchant/stalls/[stallId]/special-closures
+├ ƒ /api/merchant/stalls/[stallId]/templates
+├ ƒ /api/mini/auth/challenge
+├ ƒ /api/mini/auth/exchange
+├ ƒ /api/mini/cart-handoff
+├ ƒ /api/mini/member
+├ ƒ /api/mini/member/friendship
+├ ƒ /api/mini/orders
+├ ƒ /api/mini/orders/claim
+├ ƒ /api/offline/bootstrap
+├ ƒ /api/offline/sync
+├ ƒ /api/offline/sync-status
+├ ƒ /api/onboarding
+├ ƒ /api/onboarding/public-identifier-suggestion
+├ ƒ /api/payments/line-pay/[attemptId]
+├ ƒ /api/payments/line-pay/cancel
+├ ƒ /api/payments/line-pay/checkout
+├ ƒ /api/payments/line-pay/order/[orderId]
+├ ƒ /api/payments/line-pay/return
+├ ƒ /api/public-order/[functionName]
+├ ƒ /api/public/cart-handoff
+├ ƒ /api/public/display/[stallSlug]
+├ ƒ /api/public/display/[stallSlug]/stream
+├ ƒ /api/public/display/q/[displayToken]
+├ ƒ /api/public/display/q/[displayToken]/stream
+├ ƒ /api/public/line/callback
+├ ƒ /api/public/lottery-draw
+├ ƒ /api/public/order-session
+├ ƒ /api/public/orders
+├ ƒ /api/public/orders/[trackingToken]
+├ ƒ /api/public/orders/[trackingToken]/fulfillment-time
+├ ƒ /api/public/orders/[trackingToken]/invoice-preference
+├ ƒ /api/public/orders/[trackingToken]/reorder
+├ ƒ /api/public/orders/claim-proof
+├ ƒ /api/public/stalls/[stallSlug]/menu
+├ ƒ /api/public/stalls/[stallSlug]/schedule
+├ ƒ /api/public/stores/[identifier]/closures
+├ ƒ /api/public/waitlist
+├ ƒ /api/public/waitlist/seating-session
+├ ƒ /api/public/waitlist/status
+├ ƒ /api/push/receipt
+├ ƒ /api/stalls/[stallSlug]/alert-sound
+├ ƒ /api/stalls/[stallSlug]/attendance
+├ ƒ /api/stalls/[stallSlug]/capacity
+├ ƒ /api/stalls/[stallSlug]/cash-shifts
+├ ƒ /api/stalls/[stallSlug]/categories
+├ ƒ /api/stalls/[stallSlug]/categories/[categoryId]
+├ ƒ /api/stalls/[stallSlug]/completed-orders
+├ ƒ /api/stalls/[stallSlug]/kitchen/board
+├ ƒ /api/stalls/[stallSlug]/kitchen/settings
+├ ƒ /api/stalls/[stallSlug]/kitchen/stations
+├ ƒ /api/stalls/[stallSlug]/kitchen/stream
+├ ƒ /api/stalls/[stallSlug]/kitchen/tasks
+├ ƒ /api/stalls/[stallSlug]/offline/bootstrap
+├ ƒ /api/stalls/[stallSlug]/offline/devices
+├ ƒ /api/stalls/[stallSlug]/order-items/batch
+├ ƒ /api/stalls/[stallSlug]/ordering
+├ ƒ /api/stalls/[stallSlug]/orders
+├ ƒ /api/stalls/[stallSlug]/orders/[orderId]
+├ ƒ /api/stalls/[stallSlug]/orders/[orderId]/content
+├ ƒ /api/stalls/[stallSlug]/orders/[orderId]/fulfillment-time
+├ ƒ /api/stalls/[stallSlug]/orders/[orderId]/items
+├ ƒ /api/stalls/[stallSlug]/orders/[orderId]/items/[itemId]
+├ ƒ /api/stalls/[stallSlug]/orders/[orderId]/verify-pickup
+├ ƒ /api/stalls/[stallSlug]/orders/pickup-code
+├ ƒ /api/stalls/[stallSlug]/orders/stream
+├ ƒ /api/stalls/[stallSlug]/pos-configuration
+├ ƒ /api/stalls/[stallSlug]/print-jobs
+├ ƒ /api/stalls/[stallSlug]/products
+├ ƒ /api/stalls/[stallSlug]/products/[productId]
+├ ƒ /api/stalls/[stallSlug]/push
+├ ƒ /api/stalls/[stallSlug]/table-checkout
+├ ƒ /api/stalls/[stallSlug]/tables
+├ ƒ /api/stalls/[stallSlug]/tables/[tableId]/service-state
+├ ƒ /api/stalls/[stallSlug]/waitlist/[entryId]
+├ ƒ /api/stalls/[stallSlug]/workforce
+├ ƒ /api/v1/organizations/[organizationId]/catalog
+├ ƒ /api/version
+├ ƒ /api/webhooks/delivery/[provider]
+├ ƒ /api/webhooks/line-platform
+├ ƒ /api/webhooks/line/[integrationId]
+├ ƒ /attendance/[stallSlug]
+├ ƒ /auth/callback
+├ ƒ /auth/google
+├ ƒ /auth/link/[token]
+├ ƒ /delivery/[stallSlug]
+├ ƒ /display/[stallSlug]
+├ ƒ /display/q/[displayToken]
+├ ƒ /invite/[token]
+├ ƒ /kitchen
+├ ƒ /kitchen/settings
+├ ƒ /kitchen/stations
+├ ƒ /launch
+├ ƒ /login
+├ ƒ /manifest.webmanifest
+├ ƒ /menu/[stallSlug]
+├ ƒ /merchant/[stallSlug]
+├ ƒ /merchant/[stallSlug]/notifications
+├ ƒ /merchant/[stallSlug]/reports
+├ ƒ /merchant/account/security
+├ ƒ /merchant/analytics/advanced
+├ ƒ /merchant/billing
+├ ƒ /merchant/billing/invoices
+├ ƒ /merchant/billing/invoices/[invoiceId]
+├ ƒ /merchant/catalog
+├ ƒ /merchant/catalog/versions
+├ ƒ /merchant/dashboard
+├ ƒ /merchant/developer
+├ ƒ /merchant/enhancements
+├ ƒ /merchant/event-growth
+├ ƒ /merchant/events
+├ ƒ /merchant/growth
+├ ƒ /merchant/integrations
+├ ƒ /merchant/integrations/delivery
+├ ƒ /merchant/integrations/delivery/[connectionId]
+├ ƒ /merchant/integrations/delivery/[connectionId]/logs
+├ ƒ /merchant/integrations/delivery/[connectionId]/menu-mapping
+├ ƒ /merchant/integrations/delivery/[connectionId]/orders
+├ ƒ /merchant/integrations/delivery/[connectionId]/stores
+├ ƒ /merchant/integrations/e-invoice
+├ ƒ /merchant/localization
+├ ƒ /merchant/localization/preview
+├ ƒ /merchant/operating-profit
+├ ƒ /merchant/operations
+├ ƒ /merchant/organization
+├ ƒ /merchant/payments
+├ ƒ /merchant/plans
+├ ƒ /merchant/report-schedules
+├ ƒ /merchant/reports/cash-shifts
+├ ƒ /merchant/reports/orders
+├ ƒ /merchant/reports/overview
+├ ƒ /merchant/reports/payments
+├ ƒ /merchant/reports/products
+├ ƒ /merchant/reports/stalls
+├ ƒ /merchant/setup
+├ ƒ /merchant/stalls
+├ ƒ /merchant/stalls/[stallId]
+├ ƒ /merchant/stalls/[stallId]/attendance
+├ ƒ /merchant/stalls/[stallId]/capacity
+├ ƒ /merchant/stalls/[stallId]/cash-shifts
+├ ƒ /merchant/stalls/[stallId]/dashboard
+├ ƒ /merchant/stalls/[stallId]/display
+├ ƒ /merchant/stalls/[stallId]/kitchen/settings
+├ ƒ /merchant/stalls/[stallId]/kitchen/stations
+├ ƒ /merchant/stalls/[stallId]/line
+├ ƒ /merchant/stalls/[stallId]/locations
+├ ƒ /merchant/stalls/[stallId]/offline
+├ ƒ /merchant/stalls/[stallId]/orders
+├ ƒ /merchant/stalls/[stallId]/products
+├ ƒ /merchant/stalls/[stallId]/qr-print
+├ ƒ /merchant/stalls/[stallId]/schedule
+├ ƒ /merchant/stalls/[stallId]/settings/[section]
+├ ƒ /merchant/stalls/[stallId]/staff
+├ ƒ /merchant/stalls/new
+├ ƒ /merchant/subscription
+├ ƒ /merchant/supply
+├ ƒ /merchant/team
+├ ƒ /merchant/usage
+├ ƒ /merchant/workforce
+├ ƒ /mini
+├ ƒ /mini/help
+├ ƒ /mini/member
+├ ƒ /mini/orders
+├ ƒ /mini/orders/[orderId]
+├ ƒ /mini/store/[identifier]
+├ ƒ /mini/terms
+├ ƒ /offline
+├ ƒ /onboarding
+├ ƒ /onboarding/edit
+├ ƒ /onboarding/status
+├ ƒ /operator/health
+├ ƒ /order/[trackingToken]
+├ ƒ /order/[trackingToken]/reorder
+├ ƒ /q/[qrToken]
+├ ƒ /s/[stallSlug]
+├ ƒ /s/[stallSlug]/schedule
+├ ƒ /select-organization
+├ ƒ /select-stall
+├ ƒ /staff/[stallSlug]
+├ ƒ /staff/[stallSlug]/cash
+├ ƒ /staff/[stallSlug]/floor
+├ ƒ /staff/[stallSlug]/print
+├ ƒ /staff/login
+└ ƒ /store/[identifier]
+
+
+ƒ Proxy (Middleware)
+
+ƒ  (Dynamic)  server-rendered on demand
+
+warning: in the working copy of 'docs/ux-responsive/accessibility-and-performance.md', LF will be replaced by CRLF the next time Git touches it
+{"event":"responsive_qa_build_provenance_written","head":"c1ef63884b7ec731942fe11e0a347f29d9dc174d","tree":"9c58b4fee067919bda9aedd8d94e1588faf23d51","buildId":"rcKKnUtHI8cnstCJFVw4b","worktreeDirty":true}
+(node:30276) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)

@@ -166,6 +166,15 @@ async function createSyntheticSession() {
 }
 
 async function restoreFixture() {
+  // Keep committed synthetic audit evidence; never weaken the database guard.
+  const readAuditEvidence = async () => {
+    const rows = requestId ? await prisma.auditLog.findMany({
+      where: { requestId, organizationId: ORGANIZATION_ID, actorProfileId: PROFILE_ID },
+      orderBy: { id: "asc" },
+    }) : [];
+    return { count: rows.length, sha256: sha256(JSON.stringify(rows)) };
+  };
+  const auditEvidence = await readAuditEvidence();
   await prisma.$transaction(async (transaction) => {
     for (const translation of originalTranslations) {
       await transaction.productTranslation.update({
@@ -182,9 +191,7 @@ async function restoreFixture() {
         },
       });
     }
-    if (requestId) {
-      await transaction.auditLog.deleteMany({ where: { requestId } });
-    }
+
     if (sessionId) {
       await transaction.authSession.deleteMany({ where: { id: sessionId } });
     }
@@ -195,6 +202,11 @@ async function restoreFixture() {
       await transaction.rateLimitBucket.create({ data: bucket });
     }
   });
+  const preserved = await readAuditEvidence();
+  if (preserved.count !== auditEvidence.count || preserved.sha256 !== auditEvidence.sha256) {
+    fail("Synthetic audit evidence changed during fixture restoration.");
+  }
+  process.stdout.write(JSON.stringify({ auditEvidencePreserved: true, ...preserved }) + "\n");
 }
 
 async function requestRaw(path, init) {

@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { ReportDeliveryOperations } from "@/components/report-delivery-operations";
 import { LazyReportScheduleManager } from "@/components/lazy-report-schedule-manager";
 import { FeatureUpgradeNotice } from "@/components/feature-upgrade-notice";
 import { getRequestAppLocale } from "@/lib/app-locale-server";
@@ -18,11 +19,16 @@ export default async function ReportSchedulesPage({ searchParams }: PageProps) {
   const { workspaces } = await requireWorkspacePage();
   if (!organizationId && workspaces.length > 1) redirect("/select-organization");
   const workspace = requireWorkspaceOrganization(workspaces, organizationId);
-  if (!workspace.roles.some((role) => hasPermission(role, "MANAGE_REPORT_SCHEDULES"))) notFound();
+  if (!workspace.roles.some((role) => hasPermission(role, "VIEW_REPORTS"))) notFound();
+  const organization = await prisma.organization.findUniqueOrThrow({ where: { id: workspace.id }, select: { email: true, defaultTimezone: true } });
+  const canManage = workspace.roles.some(role => hasPermission(role, "MANAGE_REPORT_SCHEDULES"));
   const returnStallId = workspace.stalls.some((stall) => stall.id === stallId) ? stallId : undefined;
+  if (!canManage) return <ReportDeliveryOperations key={workspace.id} organizationId={workspace.id} timeZone={organization.defaultTimezone} />;
   const featureAccess = await getFeatureAccess(workspace.id, "SCHEDULED_REPORTS");
   if (!featureAccess.allowed) {
     return (
+      <>
+      <ReportDeliveryOperations key={workspace.id} organizationId={workspace.id} timeZone={organization.defaultTimezone} />
       <FeatureUpgradeNotice
         title={t("schedule.featureTitle")}
         message={featureAccess.message}
@@ -31,20 +37,20 @@ export default async function ReportSchedulesPage({ searchParams }: PageProps) {
         returnLabel={t("schedule.backToStalls")}
         returnStallId={returnStallId}
       />
+      </>
     );
   }
-  const [schedules, organization] = await Promise.all([
-    getReportScheduleManagementData({
+  const schedules = await getReportScheduleManagementData({
       organizationId: workspace.id,
       accessScope: {
         canUseAllStalls: workspace.canUseAllStalls,
         authorizedStallIds: workspace.stalls.map((stall) => stall.id),
       },
-    }),
-    prisma.organization.findUnique({ where: { id: workspace.id }, select: { email: true } }),
-  ]);
+    });
 
   return (
+    <>
+    <ReportDeliveryOperations key={workspace.id} organizationId={workspace.id} timeZone={organization.defaultTimezone} />
     <LazyReportScheduleManager
       organizationId={workspace.id}
       organizationEmail={organization?.email ?? ""}
@@ -53,5 +59,6 @@ export default async function ReportSchedulesPage({ searchParams }: PageProps) {
       deliveryMode={reportDeliveryMode()}
       returnStallId={returnStallId}
     />
+    </>
   );
 }

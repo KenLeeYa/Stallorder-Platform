@@ -30,7 +30,7 @@ describe("staff order item edit boundary", () => {
   });
 
   it.each([
-    ["dine-in QR source", { source: "QR_MENU", fulfillmentType: "DINE_IN" }, "NOT_EDITABLE_SOURCE"],
+    ["external delivery source", { source: "FOODPANDA", fulfillmentType: "DELIVERY" }, "NOT_EDITABLE_SOURCE"],
     ["paid order", { paymentStatus: "PAID" }, "PAYMENT_ALREADY_RECORDED"],
     ["non-confirmed order", { status: "PREPARING" }, "ORDER_ALREADY_STARTED"],
     ["started item", { items: [{ ...editableOrder().items[0], status: "PREPARING" }] }, "ORDER_ALREADY_STARTED"],
@@ -51,6 +51,20 @@ describe("staff order item edit boundary", () => {
       })).toBeNull();
     },
   );
+
+  it.each(["DINE_IN", "DELIVERY"])("allows unpaid QR %s before production, including auto-confirmed QR orders", (fulfillmentType) => {
+    for (const status of ["WAITING_CONFIRMATION", "CONFIRMED"]) {
+      const order = { ...editableOrder(), source: "QR_MENU", fulfillmentType, status };
+      expect(getStaffOrderEditFailure(order)).toBeNull();
+      expect(getStaffOrderEditFailure({ ...order, paymentStatus: "PAID" })).toBe("PAYMENT_ALREADY_RECORDED");
+      expect(getStaffOrderEditFailure({ ...order, status: "PREPARING" })).toBe("ORDER_ALREADY_STARTED");
+    }
+  });
+
+  it("allows the system's LINE delivery order but not unrelated LINE fulfillment types", () => {
+    expect(getStaffOrderEditFailure({ ...editableOrder(), source: "LINE_DELIVERY", fulfillmentType: "DELIVERY", status: "WAITING_CONFIRMATION" })).toBeNull();
+    expect(getStaffOrderEditFailure({ ...editableOrder(), source: "LINE_DELIVERY" })).toBe("NOT_EDITABLE_SOURCE");
+  });
 });
 
 describe("updateStaffOrderItemsSchema", () => {

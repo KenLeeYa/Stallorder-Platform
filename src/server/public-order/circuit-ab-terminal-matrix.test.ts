@@ -54,17 +54,19 @@ type TerminalExpectation = {
 
 runtimeDescribe.sequential("Circuit A / Circuit B DB-backed terminal matrix", () => {
   afterEach(async () => {
+    // Committed evidence is immutable; retain only this run's synthetic audit rows.
+    const auditWhere = { OR: [
+      { requestId: { in: [...createdRequestIds] } },
+      { entityId: { in: [...createdOrderIds] } },
+    ] };
+    const readAuditEvidence = async () => {
+      const rows = await prisma.auditLog.findMany({ where: auditWhere, orderBy: { id: "asc" } });
+      return { count: rows.length, sha256: createHash("sha256").update(JSON.stringify(rows)).digest("hex") };
+    };
+    const auditEvidence = await readAuditEvidence();
     vi.unstubAllEnvs();
     await prisma.publicOrderAttempt.deleteMany({
       where: { requestId: { in: [...createdRequestIds] } },
-    });
-    await prisma.auditLog.deleteMany({
-      where: {
-        OR: [
-          { requestId: { in: [...createdRequestIds] } },
-          { entityId: { in: [...createdOrderIds] } },
-        ],
-      },
     });
     await prisma.operationalEvent.deleteMany({
       where: { entityId: { in: [...createdOrderIds] } },
@@ -89,6 +91,7 @@ runtimeDescribe.sequential("Circuit A / Circuit B DB-backed terminal matrix", ()
     await prisma.stallLocation.deleteMany({
       where: { id: { in: [...createdLocationIds] } },
     });
+    expect(await readAuditEvidence()).toEqual(auditEvidence);
     createdRequestIds.clear();
     createdSessionHashes.clear();
     createdOrderIds.clear();

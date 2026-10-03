@@ -89,6 +89,7 @@ import {
   readTakeoutCustomerMemory,
 } from "@/lib/takeout-customer-memory";
 import { publicOrderMessages } from "@/lib/messages/public-order";
+import { createQrOrderStorage } from "@/lib/qr-order-storage";
 
 export type QrOrderFlowControllerInput = {
   qrToken: string;
@@ -100,6 +101,8 @@ export type QrOrderFlowControllerInput = {
   editTrackingToken?: string | null;
   startNewOrder?: boolean;
   customerMembershipPreview?: boolean;
+  platformCustomerId?: string;
+  platformGuestCartEnabled?: boolean;
 };
 
 export function useQrOrderFlowController({
@@ -112,7 +115,13 @@ export function useQrOrderFlowController({
   editTrackingToken = null,
   startNewOrder = false,
   customerMembershipPreview = false,
+  platformCustomerId,
+  platformGuestCartEnabled = false,
 }: QrOrderFlowControllerInput) {
+  const orderStorage = useMemo(() => createQrOrderStorage(
+    () => window.localStorage,
+    platformCustomerId ? { customerId: platformCustomerId, qrToken } : undefined,
+  ), [platformCustomerId, qrToken]);
   const usableInitialMenu = usableQrInitialMenu(entryChannel, initialMenu);
   const editMode = Boolean(editTrackingToken && usableInitialMenu);
   const initialResolvedLocale = usableInitialMenu
@@ -177,9 +186,9 @@ export function useQrOrderFlowController({
   const sessionExpiryDialogOpen = !editMode && sessionReady
     && (sessionTimePhase === "EXPIRING" || sessionTimePhase === "EXPIRED");
   const cartDialogOpen = cartOpen && !sessionExpiryDialogOpen;
-  const specialClosureActive = session?.specialClosure?.isActive === true;
+  const specialClosureActive = activeOrderingMode !== "PREORDER" && session?.specialClosure?.isActive === true;
   const outsideBusinessHours = !editMode
-    && entryChannel === "QR"
+    && activeOrderingMode !== "PREORDER"
     && (session?.orderingOpenNow ?? usableInitialMenu?.orderingOpenNow) === false;
   const orderingEnabled = orderingAvailability === "AVAILABLE"
     && sessionReady
@@ -215,7 +224,10 @@ export function useQrOrderFlowController({
       ?? ""
   ), [catalogLocale]);
   const focusConfiguredProduct = useCallback((productId: string) => {
-    window.setTimeout(() => document.getElementById(`qr-product-${productId}`)?.focus(), 0);
+    window.setTimeout(() => {
+      const product = document.getElementById(`qr-product-${productId}`);
+      (product?.querySelector<HTMLButtonElement>('[data-testid="qr-open-product-configurator"]:not(:disabled)') ?? product)?.focus();
+    }, 0);
   }, []);
   const requiredSelectionMessage = useCallback((product: Product) => (
     qrOrderMessages[locale].requiredNotes(localizedProduct(product).name)
@@ -336,7 +348,7 @@ export function useQrOrderFlowController({
       entryChannel,
       initialMenu,
       currentScheduledPickupAt: scheduledPickupAtRef.current,
-      loadCartDraft: (resolvedOrderingMode) => window.localStorage.getItem(
+      loadCartDraft: (resolvedOrderingMode) => orderStorage.getItem(
         qrCartStorageKey(qrToken, resolvedOrderingMode),
       ),
     });
@@ -350,7 +362,7 @@ export function useQrOrderFlowController({
       });
       if (transition.kind === "STALE") return;
       if (transition.kind === "RESUME") {
-        persistQrOrderRecovery(window.localStorage, {
+        persistQrOrderRecovery(orderStorage, {
           qrToken,
           trackingToken: transition.trackingToken,
           deviceId: currentDeviceId,
@@ -369,7 +381,7 @@ export function useQrOrderFlowController({
       const cartRecovery = transition.cartRecovery;
       const rememberedCustomer = entryChannel !== "QR"
         && orderSession.stall.fulfillmentType === "TAKEOUT"
-        ? readTakeoutCustomerMemory(window.localStorage, orderSession.stall.slug)
+        ? readTakeoutCustomerMemory(orderStorage, orderSession.stall.slug)
         : null;
       const nextLocale = transition.locale;
       localeRef.current = nextLocale;
@@ -419,6 +431,7 @@ export function useQrOrderFlowController({
     activeOrderingMode,
     entryChannel,
     initialMenu,
+    orderStorage,
     qrToken,
     resetLotteryForSession,
     sessionController,
@@ -485,7 +498,7 @@ export function useQrOrderFlowController({
       setDeviceId(currentDeviceId);
       if (!editMode) {
         const recoveredOrder = await resolveQrOrderRecovery({
-          storage: window.localStorage,
+          storage: orderStorage,
           qrToken,
           startNewOrder,
           validateOrder: ({ trackingToken, deviceId: recoveredDeviceId }) => requestPublicOrder(
@@ -511,7 +524,7 @@ export function useQrOrderFlowController({
         };
         let storedDraft: string | null = null;
         try {
-          storedDraft = window.localStorage.getItem(
+          storedDraft = orderStorage.getItem(
             qrOrderEditDraftStorageKey(editTrackingToken),
           );
         } catch {
@@ -544,7 +557,7 @@ export function useQrOrderFlowController({
     return () => {
       active = false;
     };
-  }, [editMode, editTrackingToken, initialUiLocale, qrToken, requestedLocale, startNewOrder, startOrderSession, usableInitialMenu]);
+  }, [editMode, editTrackingToken, initialUiLocale, orderStorage, qrToken, requestedLocale, startNewOrder, startOrderSession, usableInitialMenu]);
 
   useEffect(() => {
     if (!deviceId) return;
@@ -661,8 +674,8 @@ export function useQrOrderFlowController({
       customerPhone,
       deliveryAddress,
       lines: cartLines,
-    }, () => window.localStorage);
-  }, [activeOrderingMode, cartLines, cartReady, customerName, customerNote, customerPhone, deliveryAddress, editTrackingToken, qrToken, scheduledPickupAt, session]);
+    }, () => orderStorage);
+  }, [activeOrderingMode, cartLines, cartReady, customerName, customerNote, customerPhone, deliveryAddress, editTrackingToken, orderStorage, qrToken, scheduledPickupAt, session]);
 
   useEffect(() => {
     if (
@@ -670,11 +683,11 @@ export function useQrOrderFlowController({
       || entryChannel === "QR"
       || session?.stall.fulfillmentType !== "TAKEOUT"
     ) return;
-    persistTakeoutCustomerMemory(window.localStorage, session.stall.slug, {
+    persistTakeoutCustomerMemory(orderStorage, session.stall.slug, {
       customerName,
       customerPhone,
     });
-  }, [cartReady, customerName, customerPhone, entryChannel, session?.stall.fulfillmentType, session?.stall.slug]);
+  }, [cartReady, customerName, customerPhone, entryChannel, orderStorage, session?.stall.fulfillmentType, session?.stall.slug]);
 
   const totalQuantity = qrCartTotalQuantity(cartLines);
   const activeCartStep = cartLines.length === 0 ? "CART" : cartStep;
@@ -765,9 +778,9 @@ export function useQrOrderFlowController({
         ? qrOrderEditDraftStorageKey(editTrackingToken)
         : qrCartStorageKey(qrToken, activeOrderingMode);
       if (draft) {
-        window.localStorage.setItem(storageKey, serializeQrCartDraft(draft));
+        orderStorage.setItem(storageKey, serializeQrCartDraft(draft));
       } else {
-        window.localStorage.removeItem(storageKey);
+        orderStorage.removeItem(storageKey);
       }
     } catch {
       // Restricted browser storage must not block creation of a fresh session.
@@ -838,12 +851,12 @@ export function useQrOrderFlowController({
         setTurnstileResetKey((value) => value + 1);
       },
       clearPersistedCart: () => {
-        window.localStorage.removeItem(editTrackingToken
+        orderStorage.removeItem(editTrackingToken
           ? qrOrderEditDraftStorageKey(editTrackingToken)
           : qrCartStorageKey(qrToken, activeOrderingMode));
       },
       navigateToOrder: (nextTrackingToken: string) => {
-        persistQrOrderRecovery(window.localStorage, {
+        persistQrOrderRecovery(orderStorage, {
           qrToken,
           trackingToken: nextTrackingToken,
           deviceId,
@@ -875,6 +888,21 @@ export function useQrOrderFlowController({
   const checkoutBlocker = createQrOrderCheckoutModel(checkoutFlowInput()).blocker;
 
   return {
+    platformCartHandoff: {
+      enabled: platformGuestCartEnabled || Boolean(platformCustomerId), customerId: platformCustomerId, qrToken, orderingMode: activeOrderingMode,
+      orderSessionToken: session?.orderSessionToken ?? '', deviceId,
+      allowExport: !cartRestored && !editMode && sessionReady && !platformCustomerId,
+      allowImport: sessionReady && cartReady,
+      draft: buildQrCartDraft({orderingMode:activeOrderingMode,scheduledPickupAt,customerName,customerNote,customerPhone,deliveryAddress,lines:cartLines}),
+      onImport: (raw: string) => {
+        if (!session || !platformCustomerId || !sessionReady || !cartReady) throw new Error('CART_HANDOFF_NOT_READY');
+        const restored=restoreQrOrderSessionCart({raw,session,currentScheduledPickupAt:scheduledPickupAt});
+        if (!restored.restored) throw new Error('CART_HANDOFF_INVALID');
+        setCustomerName(restored.customerName);setCustomerPhone(restored.customerPhone);setCustomerNote(restored.customerNote);setDeliveryAddress(restored.deliveryAddress);
+        setCartLines(restored.lines);setCartRestored(true);setScheduledPickupAt(restored.scheduledPickupAt);scheduledPickupAtRef.current=restored.scheduledPickupAt;
+        setDraftScheduledPickupAt(restored.draftScheduledPickupAt);if(restored.lines.length)setTurnstileRequested(true);
+      },
+    },
     activeCartStep,
     activeOrderingMode,
     entryChannel,

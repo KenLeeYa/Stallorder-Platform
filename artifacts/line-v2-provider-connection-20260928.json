@@ -1,0 +1,23 @@
+{
+  "checkedAt": "2026-09-27T22:49:20.900Z",
+  "codeCommit": "d7d67c7aef0dc408f75d3ce48ed2c5564cf1b157",
+  "messaging": {
+    "channelId": "2011762548",
+    "basicId": "@028sijlm",
+    "senderIdentityVerified": true,
+    "validationHttpStatus": 200,
+    "messagesSent": 0
+  },
+  "paySandbox": {
+    "channelId": "2011753464",
+    "method": "GET",
+    "path": "/v4/payments",
+    "httpStatus": 200,
+    "returnCode": "1150",
+    "returnMessage": "Transaction record not found.",
+    "transactionsCreated": 0,
+    "confirmationTested": false,
+    "refundTested": false
+  },
+  "productionChanged": false
+}

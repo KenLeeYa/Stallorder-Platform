@@ -1,11 +1,15 @@
+import { searchStaffOrders } from "./helpers/staff-search";
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { expect, test, type Page, type Response } from "@playwright/test";
+import { expect, test, type Dialog, type Page, type Response } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { derivePublicOrderTokens } from "../supabase/functions/_shared/crypto";
+import { assertResponsiveQaTarget } from "../scripts/responsive-qa-target.mjs";
+import { generateResponsiveQrToken } from "../scripts/responsive-qa-token.mjs";
 import {
   dismissStaffStartReminder,
+  gotoLocalPath,
   loginLocalTestAccount,
   qrProductSelectionControl,
 } from "./local-navigation";
@@ -15,9 +19,11 @@ assertLocalDatabase();
 
 const prisma = new PrismaClient();
 const organizationId = "11111111-1111-4111-8111-111111111111";
-const stallId = "22222222-2222-4222-8222-222222222222";
-const stallSlug = "aming-chicken";
-const qrToken = "demo-aming-chicken-qr-2026-rotate-me";
+const responsiveMode = process.env.RESPONSIVE_QA_RUN === "true";
+const stallId = responsiveMode ? randomUUID() : "22222222-2222-4222-8222-222222222222";
+const stallSlug = responsiveMode ? `b3-closure-${stallId.slice(0, 8)}` : "aming-chicken";
+const stallName = responsiveMode ? "B3 closure isolated stall" : "阿明鹽酥雞";
+const qrToken = responsiveMode ? generateResponsiveQrToken() : "demo-aming-chicken-qr-2026-rotate-me";
 const password = "StallOrderDemo!2026";
 const runMarker = `單店員 KDS 列印 QA ${Date.now()}-${randomUUID().slice(0, 8)}`;
 const printerName = `${runMarker} 印表機`;
@@ -27,6 +33,7 @@ let cashPaymentOptionId = "";
 let activeCashShiftId = "";
 let createdCashShiftId = "";
 let createdPrinterId = "";
+let createdPrintRuleId = "";
 let originalSettings: {
   kdsModuleEnabled: boolean;
   printModuleEnabled: boolean;
@@ -34,6 +41,8 @@ let originalSettings: {
 const temporarilyDisabledPrinterIds: string[] = [];
 const createdOrderIds: string[] = [];
 const createdClosureIds: string[] = [];
+const ownerEmail = `kds-print-owner-${randomUUID()}@stallorder.test`;
+let ownerProfileId = "";
 
 async function acknowledgeSettingsFeedback(page: Page, message: string) {
   const dialog = page.getByRole("dialog", { name: "操作已完成", exact: true });
@@ -46,6 +55,43 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
   test.describe.configure({ mode: "serial" });
 
   test.beforeAll(async () => {
+    const seedOwner = await prisma.profile.findUniqueOrThrow({
+      where: { email: "owner@stallorder.test" }, select: { passwordHash: true },
+    });
+    if (!seedOwner.passwordHash) throw new Error("KDS_PRINT_OWNER_CREDENTIAL_MISSING");
+    const owner = await prisma.profile.create({ data: {
+      email: ownerEmail, displayName: `${runMarker} owner`,
+      passwordHash: seedOwner.passwordHash, authMigrationRequired: false,
+      organizationMemberships: { create: { organizationId, role: "ORGANIZATION_OWNER", allStalls: true, isPrimaryOwner: false } },
+    }, select: { id: true } });
+    ownerProfileId = owner.id;
+    if (responsiveMode) {
+      const demoProduct = await prisma.product.findFirstOrThrow({
+        where: { organizationId, isActive: true, stallProducts: { some: { stallId: "22222222-2222-4222-8222-222222222222", isEnabled: true, isSoldOut: false } } },
+        orderBy: { sortOrder: "asc" },
+        select: { id: true },
+      });
+      const [staff, kitchen] = await Promise.all([
+        prisma.profile.findUniqueOrThrow({ where: { email: "staff@stallorder.test" }, select: { id: true } }),
+        prisma.profile.findUniqueOrThrow({ where: { email: "kitchen@stallorder.test" }, select: { id: true } }),
+      ]);
+      await prisma.stall.create({ data: {
+        id: stallId, organizationId, name: stallName, slug: stallSlug, code: stallSlug,
+        address: "Synthetic local QA", location: "Synthetic local QA", isActive: true,
+        businessStatus: "OPEN", orderingState: "OPEN", orderingEnabled: true,
+      } });
+      await prisma.stallMembership.createMany({ data: [
+        { organizationId, stallId, profileId: staff.id, role: "STAFF" },
+        { organizationId, stallId, profileId: kitchen.id, role: "KITCHEN" },
+      ] });
+      await prisma.stallProduct.create({ data: { organizationId, stallId, productId: demoProduct.id, isEnabled: true, stockRemaining: 100 } });
+      const station = await prisma.kitchenStation.create({ data: { organizationId, stallId, code: "QA", name: "QA kitchen" } });
+      await prisma.kitchenStationAssignment.create({ data: { organizationId, stallId, stationId: station.id, productId: demoProduct.id } });
+      await prisma.stallBusinessHour.createMany({ data: Array.from({ length: 7 }, (_, dayOfWeek) => ({ organizationId, stallId, dayOfWeek, opensAt: "00:00", closesAt: "00:00", isClosed: false })) });
+      await prisma.stallOrderingSettings.create({ data: { organizationId, stallId, kdsModuleEnabled: true, printModuleEnabled: true, paymentModuleEnabled: true, enabledLocales: ["zh-TW"] } });
+      await prisma.qrCode.create({ data: { organizationId, stallId, token: qrToken, tokenVersion: 1, label: "B3 closure isolated QR", state: "ACTIVE" } });
+      await prisma.paymentOption.create({ data: { organizationId, stallId, code: "CASH", name: "現金", kind: "CASH" } });
+    }
     const [settings, cashOption, staff, openShift, selectedProduct] =
       await Promise.all([
         prisma.stallOrderingSettings.findUniqueOrThrow({
@@ -110,6 +156,12 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       select: { id: true },
     });
     createdPrinterId = printer.id;
+    // Retained (even disabled) rules select rule routing instead of the legacy
+    // default-printer path. Give this fixture an explicit, unfiltered route.
+    createdPrintRuleId = (await prisma.printRule.create({ data: {
+      organizationId, stallId, printerId: createdPrinterId,
+      name: `${runMarker} 專用路由`, trigger: "ORDER_CONFIRMED", autoPrint: false,
+    }, select: { id: true } })).id;
   });
 
   test.afterAll(async () => {
@@ -123,6 +175,9 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
         await prisma.order.deleteMany({
           where: { id: { in: createdOrderIds } },
         });
+      }
+      if (createdPrintRuleId) {
+        await prisma.printRule.deleteMany({ where: { id: createdPrintRuleId } });
       }
       if (createdPrinterId) {
         await prisma.printer.deleteMany({ where: { id: createdPrinterId } });
@@ -144,16 +199,27 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
           where: { id: createdCashShiftId },
         });
       }
+      if (responsiveMode) {
+        await prisma.billingStallUsageSummary.deleteMany({ where: { organizationId, stallId } });
+        await prisma.stall.deleteMany({ where: { id: stallId, auditLogs: { none: {} } } });
+      }
     } finally {
       try {
-        if (originalSettings) {
+        if (originalSettings && !responsiveMode) {
           await prisma.stallOrderingSettings.update({
             where: { stallId },
             data: originalSettings,
           });
         }
       } finally {
-        await prisma.$disconnect();
+        try {
+          if (ownerProfileId) {
+            // Keep the immutable audit actor, but revoke this run-owned access.
+            await prisma.authSession.updateMany({ where: { profileId: ownerProfileId, revokedAt: null }, data: { revokedAt: new Date(), revokeReason: "E2E_FIXTURE_CLEANUP" } });
+            await prisma.organizationMembership.updateMany({ where: { organizationId, profileId: ownerProfileId, role: "ORGANIZATION_OWNER", isPrimaryOwner: false }, data: { isActive: false } });
+            await prisma.profile.update({ where: { id: ownerProfileId }, data: { isActive: false } });
+          }
+        } finally { await prisma.$disconnect(); }
       }
     }
   });
@@ -168,7 +234,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
     });
     try {
       const ownerPage = await ownerContext.newPage();
-      await login(ownerPage, "owner@stallorder.test", /\/merchant\/dashboard/);
+      await login(ownerPage, ownerEmail, /\/merchant\/dashboard/);
       await setModule(ownerPage, "kds", "廚房 KDS", "kdsModuleEnabled", false);
       await expect
         .poll(() =>
@@ -237,7 +303,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       await expect(
         workModeDialog
           .getByTestId("compact-switcher-option")
-          .filter({ hasText: /^廚房/u }),
+          .filter({ hasText: new RegExp(`^廚房 · ${stallName}(?: ·|$)`, "u") }),
       ).toHaveCount(0);
       await workModeDialog
         .getByRole("button", { name: "關閉", exact: true })
@@ -298,9 +364,12 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
 
         if (viewport.width === 768) {
           const groupRows = await functions
-            .locator(":scope > *")
+            .locator("button:visible, a:visible")
             .evaluateAll((elements) =>
-              elements.map((element) => element.getBoundingClientRect().y),
+              elements.map((element) => {
+                const bounds = element.getBoundingClientRect();
+                return bounds.y + bounds.height / 2;
+              }),
             );
           expect(groupRows.every((y) => Math.abs(y - groupRows[0]!) <= 1)).toBe(
             true,
@@ -342,6 +411,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       );
       await staffPage.goto(`/staff/${stallSlug}`);
       await dismissStaffStartReminder(staffPage);
+      await searchStaffOrders(staffPage, order.orderNo);
       const ticket = staffPage
         .getByRole("article")
         .filter({ hasText: order.customerName });
@@ -349,9 +419,21 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       await expect(
         ticket.getByRole("button", { name: /開始製作|餐點完成/u }),
       ).toHaveCount(0);
-      await ticket.getByRole("button", { name: "代結帳", exact: true }).click();
+      await ticket.getByRole("button", { name: "查看明細", exact: true }).click();
+      await staffPage.getByRole("dialog", { name: `訂單 ${order.orderNo}` })
+        .getByRole("button", { name: "代結帳", exact: true }).click();
+      await expect(staffPage.getByRole("dialog", { name: `訂單 ${order.orderNo}` }))
+        .toBeHidden({ timeout: 5_000 });
 
       const checkout = staffPage.getByRole("dialog", { name: "完成訂單" });
+      await checkout.getByRole("button", { name: "關閉結帳視窗" }).click();
+      await expect(checkout).toBeHidden();
+      await expect(ticket).toBeVisible();
+      await ticket.getByRole("button", { name: "查看明細", exact: true }).click();
+      await staffPage.getByRole("dialog", { name: `訂單 ${order.orderNo}` })
+        .getByRole("button", { name: "代結帳", exact: true }).click();
+      await expect(staffPage.getByRole("dialog", { name: `訂單 ${order.orderNo}` }))
+        .toBeHidden({ timeout: 5_000 });
       await checkout.getByRole("button", { name: "現金", exact: true }).click();
       const responsePromise = waitForOrderPatch(staffPage, order.id);
       await checkout
@@ -442,10 +524,12 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       );
       await staffPage.goto(`/staff/${stallSlug}`);
       await dismissStaffStartReminder(staffPage);
+      await searchStaffOrders(staffPage, order.orderNo);
       const ticket = staffPage
         .getByRole("article")
         .filter({ hasText: order.customerName });
-      const finishAndNotify = ticket.getByRole("button", {
+      await ticket.getByRole("button", { name: "查看明細", exact: true }).click();
+      const finishAndNotify = staffPage.getByRole("dialog", { name: `訂單 ${order.orderNo}` }).getByRole("button", {
         name: "餐點完成・通知可取餐",
         exact: true,
       });
@@ -479,6 +563,62 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
     }
   });
 
+  test("手機 QR 外帶顧客到場後可取消並重新開啟結帳", async ({ browser }) => {
+    test.setTimeout(120_000);
+    await prisma.stallOrderingSettings.update({
+      where: { stallId },
+      data: { kdsModuleEnabled: false, printModuleEnabled: false },
+    });
+    const order = await createConfirmedPublicOrder(`${runMarker} 到場結帳`);
+    await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        fulfillmentTimeState: "CUSTOMER_ACTION_REQUIRED",
+        fulfillmentTimeVersion: 1,
+        pendingFulfillmentAt: new Date(Date.now() + 30 * 60_000),
+        fulfillmentTimeResponseExpiresAt: new Date(Date.now() + 20 * 60_000),
+      },
+    });
+
+    const staffContext = await browser.newContext({
+      locale: "zh-TW", timezoneId: "Asia/Taipei",
+      viewport: { width: 390, height: 844 },
+    });
+    try {
+      const staffPage = await staffContext.newPage();
+      await login(staffPage, "staff@stallorder.test", new RegExp(`/staff/${stallSlug}`));
+      await staffPage.goto(`/staff/${stallSlug}`);
+      await dismissStaffStartReminder(staffPage);
+      await searchStaffOrders(staffPage, order.orderNo);
+      const ticket = staffPage.getByRole("article").filter({ hasText: order.customerName });
+      await ticket.getByRole("button", { name: "查看明細", exact: true }).click();
+      const detail = staffPage.getByRole("dialog", { name: `訂單 ${order.orderNo}` });
+      const presentResponse = staffPage.waitForResponse((response) =>
+        new URL(response.url()).pathname.endsWith(`/orders/${order.id}/fulfillment-time`)
+        && response.request().method() === "PATCH");
+      await detail.getByRole("button", { name: "顧客已到店，直接結帳", exact: true }).first().click();
+      expect((await presentResponse).status()).toBe(200);
+      await expect(detail).toBeHidden({ timeout: 5_000 });
+
+      const checkout = staffPage.getByRole("dialog", { name: "結帳收款" });
+      await expect(checkout).toBeVisible();
+      await checkout.getByRole("button", { name: "關閉結帳視窗" }).click();
+      await expect(checkout).toBeHidden();
+      await expect(ticket).toBeVisible();
+      await ticket.getByRole("button", { name: "查看明細", exact: true }).click();
+      await detail.getByRole("button", { name: "結帳收款", exact: true }).first().click();
+      await expect(detail).toBeHidden({ timeout: 5_000 });
+      await checkout.getByRole("button", { name: "現金", exact: true }).click();
+      await expect(checkout.getByRole("button", { name: "確認收款", exact: true })).toBeEnabled();
+      const stored = await prisma.order.findUniqueOrThrow({ where: { id: order.id } });
+      expect(stored.fulfillmentTimeState).toBe("CONFIRMED");
+      expect(stored.fulfillmentTimeVersion).toBe(2);
+      expect(stored.paymentStatus).toBe("UNPAID");
+    } finally {
+      await staffContext.close();
+    }
+  });
+
   test("KDS 關閉但列印開啟時，確認即排入列印且收款後成功自動結單", async ({
     browser,
   }, testInfo) => {
@@ -489,7 +629,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
     });
     try {
       const ownerPage = await ownerContext.newPage();
-      await login(ownerPage, "owner@stallorder.test", /\/merchant\/dashboard/);
+      await login(ownerPage, ownerEmail, /\/merchant\/dashboard/);
       await setModule(ownerPage, "kds", "廚房 KDS", "kdsModuleEnabled", false);
       await setModule(
         ownerPage,
@@ -557,11 +697,16 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       );
       await staffPage.goto(`/staff/${stallSlug}`);
       await dismissStaffStartReminder(staffPage);
+      await searchStaffOrders(staffPage, order.orderNo);
       const ticket = staffPage
         .getByRole("article")
         .filter({ hasText: order.customerName });
       await expect(ticket).toBeVisible();
-      await ticket.getByRole("button", { name: "代結帳", exact: true }).click();
+      await ticket.getByRole("button", { name: "查看明細", exact: true }).click();
+      await staffPage.getByRole("dialog", { name: `訂單 ${order.orderNo}` })
+        .getByRole("button", { name: "代結帳", exact: true }).click();
+      await expect(staffPage.getByRole("dialog", { name: `訂單 ${order.orderNo}` }))
+        .toBeHidden({ timeout: 5_000 });
       const checkout = staffPage.getByRole("dialog", { name: "完成訂單" });
       await checkout.getByRole("button", { name: "現金", exact: true }).click();
       const checkoutResponsePromise = waitForOrderPatch(staffPage, order.id);
@@ -573,14 +718,16 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       await expect(checkoutResponse.json()).resolves.toMatchObject({
         completionPendingPrint: true,
       });
+      await ticket.getByRole("button", { name: "查看明細", exact: true }).click();
+      const pendingDetail = staffPage.getByRole("dialog", { name: `訂單 ${order.orderNo}` });
       await expect(
-        ticket.getByText("已收款，列印完成後自動結單", { exact: true }),
+        pendingDetail.getByText("已收款，列印完成後自動結單", { exact: true }),
       ).toBeVisible();
       await expect(
-        ticket.getByRole("button", { name: "代結帳", exact: true }),
+        pendingDetail.getByRole("button", { name: "代結帳", exact: true }),
       ).toHaveCount(0);
       await expect(
-        ticket.getByRole("button", { name: "完成此桌", exact: true }),
+        pendingDetail.getByRole("button", { name: "完成此桌", exact: true }),
       ).toHaveCount(0);
       await staffPage.screenshot({
         path: testInfo.outputPath("staff-waiting-for-print.png"),
@@ -726,10 +873,13 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       await loginLocalTestAccount(page, "staff@stallorder.test", password);
       await page.goto(`/staff/${stallSlug}`);
       await dismissStaffStartReminder(page);
+      await searchStaffOrders(page, order.orderNo);
       const main = page.locator("#main-content");
       const ticket = main.getByRole("article").filter({ hasText: order.customerName });
-      await expect(ticket).toContainText("列印需要處理");
-      await expect(ticket.getByRole("button", { name: "列印並完成", exact: true })).toHaveCount(0);
+      await ticket.getByRole("button", { name: "查看明細", exact: true }).click();
+      const failedDetail = page.getByRole("dialog", { name: `訂單 ${order.orderNo}` });
+      await expect(failedDetail).toContainText("列印需要處理");
+      await expect(failedDetail.getByRole("button", { name: "列印並完成", exact: true })).toHaveCount(0);
 
       const csrf = (await context.cookies()).find((cookie) => cookie.name === "stallorder_csrf")?.value;
       expect(csrf).toBeTruthy();
@@ -765,6 +915,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       await page.setViewportSize({ width: 1024, height: 768 });
       await page.reload();
       await dismissStaffStartReminder(page);
+      await searchStaffOrders(page, order.orderNo);
       await main.getByTestId("staff-order-list-pane").getByRole("button")
         .filter({ hasText: order.customerName }).click();
       const actions = main.getByTestId("staff-order-actions-pane");
@@ -773,9 +924,11 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       await page.screenshot({ path: testInfo.outputPath("reprint-recovered-tablet.png") });
 
       await page.setViewportSize({ width: 390, height: 844 });
-      const complete = ticket.getByRole("button", { name: "列印並完成", exact: true });
+      await ticket.getByRole("button", { name: "查看明細", exact: true }).click();
+      const recoveredDetail = page.getByRole("dialog", { name: `訂單 ${order.orderNo}` });
+      const complete = recoveredDetail.getByRole("button", { name: "列印並完成", exact: true });
       await expect(complete).toBeEnabled();
-      await expect(ticket).not.toContainText("列印需要處理");
+      await expect(recoveredDetail).not.toContainText("列印需要處理");
       const completedResponse = waitForOrderPatch(page, order.id);
       await complete.click();
       const response = await completedResponse;
@@ -822,10 +975,21 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
     });
     try {
       const ownerPage = await ownerContext.newPage();
-      await login(ownerPage, "owner@stallorder.test", /\/merchant\/dashboard/);
-      await ownerPage.goto(
-        `/merchant/stalls/${stallId}/settings/special-hours`,
-      );
+      await login(ownerPage, ownerEmail, /\/merchant\/dashboard/);
+      // Exercise the real SSR interval: an opener must not accept clicks before hydration.
+      let resumeHydration!: () => void;
+      const hydrationGate = new Promise<void>((resolve) => { resumeHydration = resolve; });
+      await ownerPage.route("**/_next/static/**/*.js", async (route) => {
+        await hydrationGate;
+        await route.continue();
+      });
+      try {
+        await ownerPage.goto(`/merchant/stalls/${stallId}/settings/special-hours`, { waitUntil: "commit" });
+        await expect(ownerPage.getByRole("button", { name: "新增特殊營業日", exact: true })).toBeDisabled();
+      } finally {
+        resumeHydration();
+        await ownerPage.unrouteAll({ behavior: "wait" });
+      }
       await ownerPage
         .getByRole("button", { name: "新增特殊營業日", exact: true })
         .click();
@@ -865,7 +1029,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       });
       try {
         const customerPage = await customerContext.newPage();
-        await customerPage.goto("/store/aming-01?view=menu");
+        await customerPage.goto(`/store/${responsiveMode ? stallSlug : "aming-01"}?view=menu`);
         const publicBanner = customerPage.getByTestId(
           "public-menu-special-closure",
         );
@@ -1015,7 +1179,7 @@ async function createConfirmedPublicOrder(customerName: string) {
         },
       },
     },
-    select: { id: true, customerName: true },
+    select: { id: true, orderNo: true, customerName: true },
   });
   createdOrderIds.push(order.id);
   return { ...order, trackingToken, pickupCode, deviceId };
@@ -1040,20 +1204,34 @@ async function setModule(
   field: "kdsModuleEnabled" | "printModuleEnabled",
   enabled: boolean,
 ) {
-  await page.goto(`/merchant/stalls/${stallId}/settings/${section}`);
+  await gotoLocalPath(page, `/merchant/stalls/${stallId}/settings/${section}`);
   const control = page.getByRole("switch", { name: new RegExp(label, "u") });
   await expect(control).toBeVisible();
   const expected = String(enabled);
-  if ((await control.getAttribute("aria-checked")) !== expected)
+  const current = await control.getAttribute("aria-checked");
+  if (current !== expected)
     await control.click();
+  const confirmations: string[] = [];
+  const handleDialog = async (dialog: Dialog) => {
+    confirmations.push(dialog.message());
+    await dialog.accept();
+  };
+  page.on("dialog", handleDialog);
   const responsePromise = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname.endsWith(
         `/api/merchant/stalls/${stallId}/modules`,
       ) && response.request().method() === "PATCH",
   );
-  await page.getByRole("button", { name: "儲存設定", exact: true }).click();
-  const response = await responsePromise;
+  let response: Response;
+  try {
+    await page.getByRole("button", { name: "儲存設定", exact: true }).click();
+    response = await responsePromise;
+  } finally {
+    page.off("dialog", handleDialog);
+  }
+  expect(confirmations.length).toBeLessThanOrEqual(1);
+  for (const message of confirmations) expect(message).toContain("確定儲存這些變更");
   expect(response.status()).toBe(200);
   expect(response.request().postDataJSON()).toMatchObject({
     operation: "UPDATE_MODULES",
@@ -1075,7 +1253,8 @@ async function setModule(
 }
 
 async function login(page: Page, email: string, destination: RegExp) {
-  await page.goto("/login");
+  const next = email === ownerEmail ? `/merchant/dashboard?organizationId=${organizationId}` : `/staff/${stallSlug}`;
+  await page.goto("/login?next=" + encodeURIComponent(next));
   await page
     .getByRole("button", { name: "使用電子郵件與密碼登入", exact: true })
     .click();
@@ -1143,6 +1322,10 @@ function taipeiDate() {
 }
 
 function assertLocalDatabase() {
+  if (process.env.RESPONSIVE_QA_RUN === "true") {
+    assertResponsiveQaTarget(process.env);
+    return;
+  }
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("E2E 測試需要設定 DATABASE_URL。");
   const hostname = new URL(databaseUrl).hostname;

@@ -73,6 +73,9 @@ Use Taiwan Traditional Chinese for StallOrder user-facing text and status, while
 ## LINE Web authentication
 
 For LINE Web authentication or live PR testing, read `docs/OAUTH_IDENTITY_ARCHITECTURE.md` and `docs/GITHUB_PREVIEW_ENVIRONMENT.md`; run `QA-AUTH-LINE-01` and `QA-AUTH-LINE-02`. Keep strict Web HS256 verification, exact-branch deployment-only TEST credentials, a data-less paired backend, atomic prepared SQL fixtures, real callback/session evidence and verified temporary-resource cleanup. DR is not a test runtime and this workflow does not activate Production.
+## Privacy and security governance
+
+For the 2026-09-13 governance candidate, read `docs/security-compliance/RELEASE_READINESS.md`, `CONTROL_REGISTER.md` and `SECURITY_TEST_MATRIX.md`. Keep `COMPLIANCE_ENABLED=false` and deletion dry-run until the named external and release gates pass. Rights requests are not paid reporting entitlements. Reuse the real order/session scope, never accept client ownership; MFA availability precedes sensitive UI actions. Preserve receipt-based access, 15/30-day limits, immutable policy/audit evidence, legal holds and financial ledgers. An audit row inserted in the current transaction, including a subtransaction, may receive its canonical snapshot; committed rows remain immutable. A partial target deletion or local database restore is not complete erasure/recovery. New migrations and replication classification require a fresh DR Plan in the coordinated release workspace.
 
 ## Staff Web Push and Menu announcements
 

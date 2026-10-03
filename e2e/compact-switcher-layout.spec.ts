@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { dismissStaffStartReminder, gotoLocalPath } from "./local-navigation";
+import { PrismaClient } from "@prisma/client";
+import { prepareSingleActiveStallFixture } from "./single-active-stall-fixture";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const viewports = [
@@ -32,6 +34,10 @@ async function loginAsPlatformAdmin(page: Page) {
 }
 
 test("單一啟用攤位從頁首直接進入 QR 管理", async ({ page }) => {
+  const prisma = new PrismaClient();
+  let restore: (() => Promise<void>) | undefined;
+  try {
+  restore = await prepareSingleActiveStallFixture(prisma);
   await page.setViewportSize({ width: 390, height: 844 });
   await loginAsOwner(page);
   await gotoLocalPath(page, `/merchant/dashboard?organizationId=${organizationId}`);
@@ -44,6 +50,7 @@ test("單一啟用攤位從頁首直接進入 QR 管理", async ({ page }) => {
   await directLink.click();
   await expect(page).toHaveURL(/\/merchant\/aming-chicken$/u);
   await expect(page.getByRole("heading", { name: "阿明鹽酥雞", exact: true })).toBeVisible();
+  } finally { try { await restore?.(); } finally { await prisma.$disconnect(); } }
 });
 
 test("QR 管理在手機維持單欄、平板電腦保留管理側欄與可見商品且 QR 不放大", async ({ page }) => {

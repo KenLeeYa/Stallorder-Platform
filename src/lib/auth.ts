@@ -43,6 +43,7 @@ export type SessionPrincipal = {
 async function findPrincipal(
   token: string | null,
   presentedDeviceId: string | undefined,
+  clientKind: "WEB" | "NATIVE" = "WEB",
 ): Promise<SessionPrincipal | null> {
   if (!token) return null;
 
@@ -51,7 +52,7 @@ async function findPrincipal(
     include: { profile: true },
   });
 
-  if (!session || session.revokedAt) return null;
+  if (!session || session.revokedAt || session.clientKind !== clientKind) return null;
 
   const now = new Date();
   const deviceMatches = authSessionDeviceMatches(session.deviceId, presentedDeviceId);
@@ -103,6 +104,7 @@ async function findPrincipal(
 }
 
 export async function getRequestPrincipal(request: Request) {
+  if (request.headers.has("authorization")) return null;
   return findPrincipal(
     getCookieValue(request, SESSION_COOKIE),
     getSessionDeviceId(request),
@@ -124,6 +126,7 @@ export async function createSession(
     deviceLabel?: string;
     ipHash?: string;
     userAgentHash?: string;
+    clientKind?: "WEB" | "NATIVE";
     rotationFamilyId?: string;
     rotatedFromId?: string;
     familyExpiresAt?: Date;
@@ -158,6 +161,7 @@ export async function createSession(
       expiresAt,
       profileSessionVersion: profile.sessionVersion,
       deviceId: options.deviceId,
+      clientKind: options.clientKind ?? "WEB",
       deviceLabel: options.deviceLabel,
       ipHash: options.ipHash,
       userAgentHash: options.userAgentHash,
@@ -186,16 +190,12 @@ export async function revokeAllProfileSessions(
   });
 }
 
-export async function rotateRequestSession(
-  request: Request,
-  evidence: {
-    deviceId: string;
-    deviceLabel?: string;
-    ipHash?: string;
-    userAgentHash?: string;
-  },
-) {
-  const token = getCookieValue(request, SESSION_COOKIE);
+export async function rotateRequestSession(request: Request, evidence: SessionEvidence) {
+  if (request.headers.has("authorization")) return { status: "INVALID" as const };
+  return rotateSessionToken(getCookieValue(request, SESSION_COOKIE), evidence, "WEB");
+}
+type SessionEvidence = { deviceId: string; deviceLabel?: string; ipHash?: string; userAgentHash?: string };
+export async function rotateSessionToken(token: string | null, evidence: SessionEvidence, clientKind: "WEB" | "NATIVE" = "NATIVE") {
   if (!token) return { status: "INVALID" as const };
   const tokenHash = hashToken(token);
 
@@ -203,14 +203,14 @@ export async function rotateRequestSession(
     await transaction.$queryRaw`
       select id
       from public.auth_sessions
-      where token_hash = ${tokenHash}
+      where id = (select id from public.auth_sessions where rotation_family_id = (select rotation_family_id from public.auth_sessions where token_hash = ${tokenHash}) order by issued_at, id limit 1)
       for update
     `;
     const current = await transaction.authSession.findUnique({
       where: { tokenHash },
       include: { profile: true },
     });
-    if (!current) return { status: "INVALID" as const };
+    if (!current || current.clientKind !== clientKind || !authSessionDeviceMatches(current.deviceId, evidence.deviceId) && clientKind === "NATIVE") return { status: "INVALID" as const };
 
     if (current.revokedAt) {
       if (current.revokeReason === "ROTATED") {
@@ -274,6 +274,7 @@ export async function rotateRequestSession(
         ipHash: evidence.ipHash ?? current.ipHash ?? undefined,
         userAgentHash: evidence.userAgentHash ?? current.userAgentHash ?? undefined,
         rotationFamilyId: current.rotationFamilyId,
+        clientKind: current.clientKind,
         rotatedFromId: current.id,
         familyExpiresAt: nextAuthSessionExpiresAt(firstSession.issuedAt, rotationNow),
       },
@@ -317,21 +318,40 @@ export function setSessionCookies(
   });
 }
 
+export function getMobileBearerToken(request: Request) {
+  if (getCookieValue(request, SESSION_COOKIE)) return null;
+  return /^Bearer ([A-Za-z0-9_-]{43,512})$/.exec(request.headers.get("authorization") ?? "")?.[1] ?? null;
+}
+export function getMobileSessionDeviceId(request: Request) {
+  return normalizeSessionDeviceId(request.headers.get("x-stallorder-device-id") ?? undefined);
+}
+export async function getMobileRefreshProfileId(request: Request) {
+  const token = getMobileBearerToken(request), deviceId = getMobileSessionDeviceId(request);
+  if (!token || !deviceId) return null;
+  const row = await prisma.authSession.findUnique({where:{tokenHash:hashToken(token)},select:{profileId:true,deviceId:true,clientKind:true}});
+  return row?.clientKind === "NATIVE" && row.deviceId === deviceId ? row.profileId : null;
+}
+export async function getMobileRequestPrincipal(request: Request) {
+  const deviceId = getMobileSessionDeviceId(request);
+  if (!deviceId) return null;
+  return findPrincipal(getMobileBearerToken(request), deviceId, "NATIVE");
+}
 export async function revokeRequestSession(request: Request) {
-  const token = getCookieValue(request, SESSION_COOKIE);
-  if (token) {
-    await prisma.$transaction(async (transaction) => {
-      const current = await transaction.authSession.findUnique({
-        where: { tokenHash: hashToken(token) },
-        select: { rotationFamilyId: true },
-      });
-      if (!current) return;
-      await transaction.authSession.updateMany({
-        where: { rotationFamilyId: current.rotationFamilyId, revokedAt: null },
-        data: { revokedAt: new Date(), revokeReason: "LOGOUT" },
-      });
-    });
-  }
+  if (request.headers.has("authorization")) return;
+  return revokeSessionToken(getCookieValue(request, SESSION_COOKIE), "LOGOUT", "WEB", getSessionDeviceId(request));
+}
+export async function revokeSessionToken(token: string | null, reason: string, clientKind: "WEB" | "NATIVE" = "NATIVE", deviceId?: string) {
+  if (!token) return false;
+  const tokenHash = hashToken(token);
+  return prisma.$transaction(async transaction => {
+    // Serialize every ancestor and descendant against the same family root.
+    await transaction.$queryRaw`select id from public.auth_sessions where id = (select id from public.auth_sessions where rotation_family_id = (select rotation_family_id from public.auth_sessions where token_hash = ${tokenHash}) order by issued_at, id limit 1) for update`;
+    const current = await transaction.authSession.findUnique({ where: { tokenHash } });
+    if (!current || current.clientKind !== clientKind || !authSessionDeviceMatches(current.deviceId, deviceId)) return false;
+    if (current.revokedAt && current.revokeReason !== "ROTATED") return false;
+    await transaction.authSession.updateMany({ where: { rotationFamilyId: current.rotationFamilyId, revokedAt: null }, data: { revokedAt: new Date(), revokeReason: reason.slice(0, 120) } });
+    return true;
+  });
 }
 
 export function clearSessionCookies(response: NextResponse) {

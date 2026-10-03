@@ -1,0 +1,426 @@
+{
+  "before": {
+    "startedAt": "2026-09-30T14:16:52.410Z",
+    "finishedAt": "2026-09-30T14:52:15.329Z",
+    "diagnosticCounts": {
+      "console429": 152,
+      "console409": 66,
+      "CSP": 1
+    },
+    "diagnostics": [
+      {
+        "tag": "Staff/warm",
+        "type": "console",
+        "message": "Connecting to 'ws://127.0.0.1:56821/realtime/v1/websocket?apikey=[REDACTED_NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY]&vsn=2.0.0' violates the following Content Security Policy directive: \"connect-src 'self' http://127.0.0.1:56821 http://127.0.0.1:56821 https://challenges.cloudflare.com\". The action has been blocked."
+      }
+    ],
+    "observedExpectedOptional409": 61,
+    "observed429": 18,
+    "tails": {
+      "QR": {
+        "cold": [
+          {
+            "at": "2026-09-30T14:17:01.036Z",
+            "ms": 1781.3,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:16:58.106Z",
+            "ms": 1418,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:17:20.441Z",
+            "ms": 1374.7,
+            "responses": []
+          }
+        ],
+        "warm": [
+          {
+            "at": "2026-09-30T14:33:55.068Z",
+            "ms": 777.7,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:33:53.651Z",
+            "ms": 761.5,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:23:01.372Z",
+            "ms": 740.2,
+            "responses": []
+          }
+        ]
+      },
+      "Staff": {
+        "cold": [
+          {
+            "at": "2026-09-30T14:40:16.927Z",
+            "ms": 1295,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:40:14.604Z",
+            "ms": 1208,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:39:46.542Z",
+            "ms": 1163.3,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          }
+        ],
+        "warm": [
+          {
+            "at": "2026-09-30T14:40:55.201Z",
+            "ms": 1231.8,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:41:01.476Z",
+            "ms": 1142.5,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:40:51.181Z",
+            "ms": 1036.9,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          }
+        ]
+      },
+      "KDS": {
+        "cold": [
+          {
+            "at": "2026-09-30T14:46:06.525Z",
+            "ms": 623.9,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:46:04.817Z",
+            "ms": 597.5,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:48:35.557Z",
+            "ms": 421.1,
+            "responses": []
+          }
+        ],
+        "warm": [
+          {
+            "at": "2026-09-30T14:49:48.518Z",
+            "ms": 624.3,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:49:51.785Z",
+            "ms": 622.4,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:49:50.162Z",
+            "ms": 599.5,
+            "responses": []
+          }
+        ]
+      },
+      "Report": {
+        "cold": [
+          {
+            "at": "2026-09-30T14:51:28.002Z",
+            "ms": 340.7,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:31.960Z",
+            "ms": 339.3,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:29.788Z",
+            "ms": 330,
+            "responses": []
+          }
+        ],
+        "warm": [
+          {
+            "at": "2026-09-30T14:51:40.870Z",
+            "ms": 441,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:41.763Z",
+            "ms": 190.9,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:38.148Z",
+            "ms": 183.2,
+            "responses": []
+          }
+        ]
+      }
+    }
+  },
+  "after": {
+    "startedAt": "2026-09-30T14:55:34.252Z",
+    "finishedAt": "2026-09-30T15:25:45.201Z",
+    "diagnosticCounts": {
+      "console429": 134,
+      "console409": 65,
+      "CSP": 1
+    },
+    "diagnostics": [
+      {
+        "tag": "Staff/warm",
+        "type": "console",
+        "message": "Connecting to 'ws://127.0.0.1:56821/realtime/v1/websocket?apikey=[REDACTED_NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY]&vsn=2.0.0' violates the following Content Security Policy directive: \"connect-src 'self' http://127.0.0.1:56821 http://127.0.0.1:56821 https://challenges.cloudflare.com\". The action has been blocked."
+      }
+    ],
+    "observedExpectedOptional409": 60,
+    "observed429": 11,
+    "tails": {
+      "QR": {
+        "cold": [
+          {
+            "at": "2026-09-30T15:01:35.176Z",
+            "ms": 1434,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T15:01:28.112Z",
+            "ms": 1432.4,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T15:01:31.662Z",
+            "ms": 1388.8,
+            "responses": []
+          }
+        ],
+        "warm": [
+          {
+            "at": "2026-09-30T15:01:43.258Z",
+            "ms": 2873,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T15:01:39.984Z",
+            "ms": 2295.1,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T15:01:38.625Z",
+            "ms": 1355.9,
+            "responses": []
+          }
+        ]
+      },
+      "Staff": {
+        "cold": [
+          {
+            "at": "2026-09-30T15:18:45.725Z",
+            "ms": 3964.5,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T15:19:05.410Z",
+            "ms": 3866.8,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T15:19:10.431Z",
+            "ms": 2913.4,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          }
+        ],
+        "warm": [
+          {
+            "at": "2026-09-30T15:23:09.618Z",
+            "ms": 1184.3,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T15:23:15.643Z",
+            "ms": 1084.1,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T15:23:11.832Z",
+            "ms": 1020.7,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          }
+        ]
+      },
+      "KDS": {
+        "cold": [
+          {
+            "at": "2026-09-30T15:23:45.901Z",
+            "ms": 769.8,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T15:23:39.962Z",
+            "ms": 617.7,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T15:23:36.952Z",
+            "ms": 451,
+            "responses": []
+          }
+        ],
+        "warm": [
+          {
+            "at": "2026-09-30T15:24:33.213Z",
+            "ms": 582.9,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T15:24:15.961Z",
+            "ms": 482.9,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T15:24:45.801Z",
+            "ms": 468.7,
+            "responses": []
+          }
+        ]
+      },
+      "Report": {
+        "cold": [
+          {
+            "at": "2026-09-30T15:24:55.727Z",
+            "ms": 393.6,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T15:24:52.716Z",
+            "ms": 390.5,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T15:24:56.327Z",
+            "ms": 377.8,
+            "responses": []
+          }
+        ],
+        "warm": [
+          {
+            "at": "2026-09-30T15:25:08.938Z",
+            "ms": 486.1,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T15:25:07.278Z",
+            "ms": 485,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T15:25:06.094Z",
+            "ms": 243.4,
+            "responses": []
+          }
+        ]
+      }
+    }
+  }
+}

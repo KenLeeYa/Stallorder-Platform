@@ -1,0 +1,28 @@
+{
+  "observedAt": "2026-09-13T07:16:29.278Z",
+  "container": "supabase_db_stallorder-compliance-20260913",
+  "port": 55992,
+  "scope": "SYNTHETIC_DATABASE_RESTORE_ONLY",
+  "status": "PASS",
+  "checks": {
+    "database": "privacy_restore",
+    "orders": 11,
+    "orderTotal": 1905,
+    "tombstones": 4,
+    "erasedOrders": 1,
+    "activeSessions": 0,
+    "activeSupportGrants": 0,
+    "unconsumedStepUpGrants": 0,
+    "activeOfflineDevices": 0,
+    "enabledPrinters": 0
+  },
+  "externalDispatches": 0,
+  "excluded": [
+    "pg_cron and cron schema",
+    "Storage object bytes",
+    "provider Auth configuration",
+    "newer independent deletion/revocation feed",
+    "external key revocation",
+    "Production RPO/RTO"
+  ]
+}

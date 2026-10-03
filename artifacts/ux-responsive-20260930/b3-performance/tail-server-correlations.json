@@ -1,0 +1,284 @@
+[
+  {
+    "route": "QR",
+    "cache": "warm",
+    "index": 6,
+    "at": "2026-09-30T15:01:43.258Z",
+    "ms": 2873,
+    "responseErrors": [],
+    "serverEventsWithinTimedInterval": [
+      {
+        "timestamp": "2026-09-30T15:01:43.298Z",
+        "level": "info",
+        "event": "request_completed",
+        "route": "/q/:qrToken",
+        "requestId": "2447fa2a-5c96-4375-9022-dba7ccb37b9c",
+        "status": 200,
+        "totalMs": 35.6,
+        "dbMs": 35.4,
+        "renderMs": 35.6
+      }
+    ],
+    "limitation": "Temporal correlation only: no browser resource waterfall or per-interaction phase trace was collected; this does not attribute the tail to server, network, hydration or actionability."
+  },
+  {
+    "route": "QR",
+    "cache": "warm",
+    "index": 3,
+    "at": "2026-09-30T15:01:39.984Z",
+    "ms": 2295.1,
+    "responseErrors": [],
+    "serverEventsWithinTimedInterval": [
+      {
+        "timestamp": "2026-09-30T15:01:41.225Z",
+        "level": "info",
+        "event": "request_completed",
+        "route": "/q/:qrToken",
+        "requestId": "b5dd7483-1f3f-43a8-b394-e8488ff3b7a3",
+        "status": 200,
+        "totalMs": 205.2,
+        "dbMs": 205,
+        "renderMs": 205.2
+      }
+    ],
+    "limitation": "Temporal correlation only: no browser resource waterfall or per-interaction phase trace was collected; this does not attribute the tail to server, network, hydration or actionability."
+  },
+  {
+    "route": "QR",
+    "cache": "warm",
+    "index": 2,
+    "at": "2026-09-30T15:01:38.625Z",
+    "ms": 1355.9,
+    "responseErrors": [],
+    "serverEventsWithinTimedInterval": [
+      {
+        "timestamp": "2026-09-30T15:01:38.661Z",
+        "level": "info",
+        "event": "request_completed",
+        "route": "/q/:qrToken",
+        "requestId": "5398212d-34a8-4af9-92e2-8a2787532de9",
+        "status": 200,
+        "totalMs": 32.2,
+        "dbMs": 32,
+        "renderMs": 32.2
+      }
+    ],
+    "limitation": "Temporal correlation only: no browser resource waterfall or per-interaction phase trace was collected; this does not attribute the tail to server, network, hydration or actionability."
+  },
+  {
+    "route": "Staff",
+    "cache": "cold",
+    "index": 21,
+    "at": "2026-09-30T15:18:45.725Z",
+    "ms": 3964.5,
+    "responseErrors": [
+      {
+        "status": 409,
+        "path": "/api/stalls/aming-chicken/attendance",
+        "retryAfter": null,
+        "preflightCode": "ATTENDANCE_DISABLED",
+        "expectedOptionalModuleResponse": true
+      }
+    ],
+    "serverEventsWithinTimedInterval": [
+      {
+        "timestamp": "2026-09-30T15:18:47.546Z",
+        "level": "info",
+        "event": "request_completed",
+        "route": "/staff/:stallSlug",
+        "requestId": "89fc3cae-1c15-4969-91ae-566e3d5fd6ae",
+        "status": 200,
+        "totalMs": 1816.9,
+        "dbQueryCount": 17,
+        "dbMs": 1816.6,
+        "authMs": 195.4
+      }
+    ],
+    "limitation": "Temporal correlation only: no browser resource waterfall or per-interaction phase trace was collected; this does not attribute the tail to server, network, hydration or actionability."
+  },
+  {
+    "route": "Staff",
+    "cache": "cold",
+    "index": 29,
+    "at": "2026-09-30T15:19:05.410Z",
+    "ms": 3866.8,
+    "responseErrors": [
+      {
+        "status": 409,
+        "path": "/api/stalls/aming-chicken/attendance",
+        "retryAfter": null,
+        "preflightCode": "ATTENDANCE_DISABLED",
+        "expectedOptionalModuleResponse": true
+      }
+    ],
+    "serverEventsWithinTimedInterval": [
+      {
+        "timestamp": "2026-09-30T15:19:06.542Z",
+        "level": "info",
+        "event": "request_completed",
+        "route": "/staff/:stallSlug",
+        "requestId": "4caff63b-ca15-45f2-8f37-12ebdf8d0fca",
+        "status": 200,
+        "totalMs": 1128.6,
+        "dbQueryCount": 17,
+        "dbMs": 1127.8,
+        "authMs": 224.2
+      }
+    ],
+    "limitation": "Temporal correlation only: no browser resource waterfall or per-interaction phase trace was collected; this does not attribute the tail to server, network, hydration or actionability."
+  },
+  {
+    "route": "Staff",
+    "cache": "cold",
+    "index": 30,
+    "at": "2026-09-30T15:19:10.431Z",
+    "ms": 2913.4,
+    "responseErrors": [
+      {
+        "status": 409,
+        "path": "/api/stalls/aming-chicken/attendance",
+        "retryAfter": null,
+        "preflightCode": "ATTENDANCE_DISABLED",
+        "expectedOptionalModuleResponse": true
+      }
+    ],
+    "serverEventsWithinTimedInterval": [
+      {
+        "timestamp": "2026-09-30T15:19:11.092Z",
+        "level": "info",
+        "event": "request_completed",
+        "route": "/staff/:stallSlug",
+        "requestId": "e579e4d0-2043-47c3-944a-b7b253339d9d",
+        "status": 200,
+        "totalMs": 656.9,
+        "dbQueryCount": 17,
+        "dbMs": 656.5,
+        "authMs": 76.6
+      }
+    ],
+    "limitation": "Temporal correlation only: no browser resource waterfall or per-interaction phase trace was collected; this does not attribute the tail to server, network, hydration or actionability."
+  },
+  {
+    "route": "Report",
+    "cache": "warm",
+    "index": 16,
+    "at": "2026-09-30T15:25:08.938Z",
+    "ms": 486.1,
+    "responseErrors": [],
+    "serverEventsWithinTimedInterval": [
+      {
+        "timestamp": "2026-09-30T15:25:08.983Z",
+        "level": "info",
+        "event": "DATABASE_READ_ROUTED",
+        "operation": "cancellation_reason_report",
+        "policy": "DR_PREFERRED_EVENTUAL",
+        "target": "PRIMARY",
+        "reason": "FEATURE_DISABLED"
+      },
+      {
+        "timestamp": "2026-09-30T15:25:08.983Z",
+        "level": "info",
+        "event": "DATABASE_READ_ROUTED",
+        "operation": "hourly_sales_report",
+        "policy": "DR_PREFERRED_EVENTUAL",
+        "target": "PRIMARY",
+        "reason": "FEATURE_DISABLED"
+      },
+      {
+        "timestamp": "2026-09-30T15:25:08.990Z",
+        "level": "info",
+        "event": "request_completed",
+        "route": "/merchant/reports/overview",
+        "requestId": "a790ef8f-21b7-4796-8a80-9bcc4085ee71",
+        "status": 200,
+        "totalMs": 46.8,
+        "dbQueryCount": 9,
+        "dbMs": 46.6,
+        "authMs": 13.4
+      }
+    ],
+    "limitation": "Temporal correlation only: no browser resource waterfall or per-interaction phase trace was collected; this does not attribute the tail to server, network, hydration or actionability."
+  },
+  {
+    "route": "Report",
+    "cache": "warm",
+    "index": 8,
+    "at": "2026-09-30T15:25:07.278Z",
+    "ms": 485,
+    "responseErrors": [],
+    "serverEventsWithinTimedInterval": [
+      {
+        "timestamp": "2026-09-30T15:25:07.325Z",
+        "level": "info",
+        "event": "DATABASE_READ_ROUTED",
+        "operation": "hourly_sales_report",
+        "policy": "DR_PREFERRED_EVENTUAL",
+        "target": "PRIMARY",
+        "reason": "FEATURE_DISABLED"
+      },
+      {
+        "timestamp": "2026-09-30T15:25:07.325Z",
+        "level": "info",
+        "event": "DATABASE_READ_ROUTED",
+        "operation": "cancellation_reason_report",
+        "policy": "DR_PREFERRED_EVENTUAL",
+        "target": "PRIMARY",
+        "reason": "FEATURE_DISABLED"
+      },
+      {
+        "timestamp": "2026-09-30T15:25:07.329Z",
+        "level": "info",
+        "event": "request_completed",
+        "route": "/merchant/reports/overview",
+        "requestId": "0729ca2d-2ede-4312-8ba6-f2fcc5010114",
+        "status": 200,
+        "totalMs": 45.7,
+        "dbQueryCount": 9,
+        "dbMs": 45.4,
+        "authMs": 25.5
+      }
+    ],
+    "limitation": "Temporal correlation only: no browser resource waterfall or per-interaction phase trace was collected; this does not attribute the tail to server, network, hydration or actionability."
+  },
+  {
+    "route": "Report",
+    "cache": "warm",
+    "index": 1,
+    "at": "2026-09-30T15:25:06.094Z",
+    "ms": 243.4,
+    "responseErrors": [],
+    "serverEventsWithinTimedInterval": [
+      {
+        "timestamp": "2026-09-30T15:25:06.153Z",
+        "level": "info",
+        "event": "DATABASE_READ_ROUTED",
+        "operation": "cancellation_reason_report",
+        "policy": "DR_PREFERRED_EVENTUAL",
+        "target": "PRIMARY",
+        "reason": "FEATURE_DISABLED"
+      },
+      {
+        "timestamp": "2026-09-30T15:25:06.153Z",
+        "level": "info",
+        "event": "DATABASE_READ_ROUTED",
+        "operation": "hourly_sales_report",
+        "policy": "DR_PREFERRED_EVENTUAL",
+        "target": "PRIMARY",
+        "reason": "FEATURE_DISABLED"
+      },
+      {
+        "timestamp": "2026-09-30T15:25:06.163Z",
+        "level": "info",
+        "event": "request_completed",
+        "route": "/merchant/reports/overview",
+        "requestId": "aca5628b-e930-4ff2-8737-8331a94cc029",
+        "status": 200,
+        "totalMs": 56.3,
+        "dbQueryCount": 9,
+        "dbMs": 56,
+        "authMs": 24.7
+      }
+    ],
+    "limitation": "Temporal correlation only: no browser resource waterfall or per-interaction phase trace was collected; this does not attribute the tail to server, network, hydration or actionability."
+  }
+]

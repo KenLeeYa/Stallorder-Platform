@@ -123,7 +123,11 @@ test("an existing preorder shows a new closure notice and a pickup-day popup wit
   await prisma.order.update({ where: { id: order.id }, data: { committedFulfillmentAt: tomorrowAt } });
   await page.context().addCookies([{ name: "stallorder_device", value: order.deviceId, url: order.origin }]);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/order/" + order.trackingToken);
+  const [initialClosures] = await Promise.all([
+    page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/closures"), { timeout: 60_000 }),
+    page.goto("/order/" + order.trackingToken),
+  ]);
+  expect(initialClosures.status()).toBe(200);
   await expect(page.getByTestId("order-closure-notice")).toHaveCount(0);
   closureId = (await prisma.stallSpecialClosure.create({ data: {
     organizationId, stallId, startsOn: new Date(pickupDay), endsOn: new Date(tomorrow),
@@ -148,11 +152,26 @@ test("an existing preorder shows a new closure notice and a pickup-day popup wit
     await page.screenshot({ path: test.info().outputPath(`pickup-day-closure-${viewport.width}.png`) });
   }
   await page.getByRole("button", { name: "我知道了", exact: true }).click();
+  let releaseClosureResponse!: () => void;
+  const heldClosureResponse = new Promise<void>(resolve => { releaseClosureResponse = resolve; });
+  let closureRead!: () => void;
+  const closureRequestRead = new Promise<void>(resolve => { closureRead = resolve; });
+  await page.route("**/api/public/stores/*/closures", async route => {
+    const response = await route.fetch();
+    closureRead();
+    await heldClosureResponse;
+    await route.fulfill({ response });
+  }, { times: 1 });
   await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await closureRequestRead;
   await expect(page.getByRole("alertdialog", { name: "取餐安排遇到店休公告" })).toHaveCount(0);
   expect((await prisma.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe("WAITING_CONFIRMATION");
-  await prisma.stallSpecialClosure.delete({ where: { id: closureId } });
-  closureId = "";
-  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  try {
+    await prisma.stallSpecialClosure.delete({ where: { id: closureId } });
+    closureId = "";
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  } finally {
+    releaseClosureResponse();
+  }
   await expect(page.getByTestId("order-closure-notice")).toHaveCount(0);
 });

@@ -72,9 +72,9 @@ export function AdminModuleVisibilityControls({ initialVisibility }: {
                   aria-label={m(module.label)}
                   disabled={updating !== null}
                   onClick={() => void toggle(module)}
-                  className={`relative h-8 w-14 shrink-0 rounded-full transition-colors disabled:opacity-50 ${enabled ? "bg-teal-700" : "bg-stone-300"}`}
+                  className="setting-state-button"
                 >
-                  <span className={`absolute left-1 top-1 h-6 w-6 rounded-full bg-white shadow-sm transition-transform ${enabled ? "translate-x-6" : "translate-x-0"}`} />
+                  {updating === module.key ? "…" : enabled ? m("Visible") : m("Hidden")}
                 </button>
               </div>
               <p className={`mt-3 text-sm font-semibold ${enabled ? "text-teal-800" : "text-stone-500"}`}>{updating === module.key ? "…" : enabled ? m("Visible") : m("Hidden")}</p>

@@ -716,6 +716,8 @@ Deno.serve(async (request) => {
           : table ? "DINE_IN" : "TAKEOUT",
         table: table ? { id: table.id, code: table.code, label: table.label } : null,
       },
+      // A new session passed the canonical server-clock intake calendar.
+      orderingOpenNow: true,
       products,
       preorderSlots,
       lotteryEnabled: lotteryChannelAllowed && settings.lottery_enabled === true,

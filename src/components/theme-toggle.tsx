@@ -39,7 +39,7 @@ export function ThemeToggle() {
       aria-label={label}
       aria-pressed={theme === "dark"}
       title={label}
-      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-stone-300 bg-white text-stone-700 transition-colors hover:bg-stone-100"
+      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-stone-300 bg-white text-stone-700 transition-colors hover:bg-stone-100"
     >
       <Moon aria-hidden="true" className="theme-switch-to-dark h-5 w-5" />
       <Sun aria-hidden="true" className="theme-switch-to-light hidden h-5 w-5" />

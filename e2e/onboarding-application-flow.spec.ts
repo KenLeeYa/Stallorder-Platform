@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
@@ -15,7 +15,7 @@ assertLocalDatabase();
 const prisma = new PrismaClient();
 const authUserId = randomUUID();
 const runId = authUserId.slice(0, 8);
-const applicantEmail = "onboarding.application.e2e@stallorder.test";
+const applicantEmail = `onboarding.application.${runId}@stallorder.test`;
 const merchantName = `申請流程測試商家 ${runId}`;
 const updatedMerchantName = `${merchantName} 更新`;
 const requestedSlug = `onboarding-flow-${runId}`;
@@ -51,14 +51,25 @@ test.describe("商家申請表單流程", () => {
   });
 
   test.afterAll(async () => {
+    const ownedAuditRows = await prisma.auditLog.findMany({ where: { actorProfileId: profileId || "00000000-0000-4000-8000-000000000000" }, orderBy: { id: "asc" } });
+    const retainedAuditIds = ownedAuditRows.map(row => row.id);
+    const retainedAuditEvidence = auditFingerprint(ownedAuditRows);
+    try {
     await prisma.authSession.deleteMany({ where: { profileId } });
     await prisma.merchantApplication.deleteMany({ where: { applicantProfileId: profileId } });
-    await prisma.profile.deleteMany({ where: { id: profileId } });
+    await prisma.profile.deleteMany({ where: { auditLogs: { none: {} }, id: profileId } });
     await prisma.$executeRaw`
       delete from auth.users
       where id = ${authUserId}::uuid
+        and not exists (select 1 from public.profiles where auth_user_id = auth.users.id)
     `;
-    await prisma.$disconnect();
+    } finally {
+      try {
+        expect(auditFingerprint(await prisma.auditLog.findMany({ where: { id: { in: retainedAuditIds } }, orderBy: { id: "asc" } }))).toEqual(retainedAuditEvidence);
+      } finally {
+        await prisma.$disconnect();
+      }
+    }
   });
 
   test("未登入不可產生公開識別名稱建議", async ({ request }) => {
@@ -154,6 +165,7 @@ test.describe("商家申請表單流程", () => {
     const submitResponse = page.waitForResponse((response) => (
       response.url().endsWith("/api/onboarding")
       && response.request().method() === "POST"
+      && response.request().postDataJSON()?.intent === "SUBMIT"
     ));
     await page.getByRole("button", { name: "送出商家申請" }).click();
     expect((await submitResponse).status()).toBe(201);
@@ -214,4 +226,9 @@ function loadLocalEnv() {
       ? value.slice(1, -1)
       : value;
   }
+}
+
+// Compare fingerprints only; failed assertions never disclose audit payloads.
+function auditFingerprint(rows: unknown[]) {
+  return { count: rows.length, hash: createHash("sha256").update(JSON.stringify(rows)).digest("hex") };
 }

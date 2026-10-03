@@ -1,0 +1,15 @@
+{
+  "originalSourceCommit": "a0c635bc8177abd953fd7381d85fbbaf22cf1fe1",
+  "originalTree": "67caefa18c14659961dead94ea929a40716dbe6b",
+  "snapshotPath": "C:\\Users\\KY\\.codex\\worktrees\\responsive-cross-device\\b3-a1-source-a0c635bc-20260930",
+  "snapshotCommit": "3e586386d8b916b7e68c5242bc344155e9410fd5",
+  "snapshotTree": "67caefa18c14659961dead94ea929a40716dbe6b",
+  "trackedFileCount": 2563,
+  "byteMismatches": [],
+  "packageGitBlobEqual": true,
+  "lockfileGitBlobEqual": true,
+  "lfArchiveSha256": "4a97dbbae85322a5a5cbfd185ab13bfba2ba6d88bfd660efdc1665bc546fb809",
+  "initialCrLfArchiveSha256": "aee81aaa2b508c6fd50f7e14acdb0f5e024644022b00616d4fe6e4362dc0a5c6",
+  "envFilesEqual": true,
+  "dependencyMethod": "Package and lockfile Git blobs identical. Contained robocopy of dependency directory; source dependency recursive reparse inventory empty. External junction rejected by Turbopack and retained unused."
+}

@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { prisma } from "../src/lib/prisma";
-import { dismissStaffStartReminder } from "./local-navigation";
+import { dismissStaffStartReminder, openSharedCatalogManagement } from "./local-navigation";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
@@ -91,6 +91,7 @@ test.describe("圖片上傳與付款更正 API 回應契約", () => {
   test("圖片 API 回傳 HTML 時顯示可追蹤錯誤而非 JSON 解析訊息", async ({ page }) => {
     await login(page);
     await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
+    await openSharedCatalogManagement(page);
     await page.getByRole("button", { name: "新增商品", exact: true }).click();
     const editor = page.getByRole("dialog", { name: "新增商品" });
     await editor.locator('input[type="file"][accept*="image/png"]').setInputFiles("public/icons/stallorder-512.png");
@@ -112,6 +113,7 @@ test.describe("圖片上傳與付款更正 API 回應契約", () => {
   test("圖片 API 成功時會更新商品草稿並關閉裁切視窗", async ({ page }) => {
     await login(page);
     await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
+    await openSharedCatalogManagement(page);
     await page.getByRole("button", { name: "新增商品", exact: true }).click();
     const editor = page.getByRole("dialog", { name: "新增商品" });
     await editor.locator('input[type="file"][accept*="image/png"]').setInputFiles("public/icons/stallorder-512.png");

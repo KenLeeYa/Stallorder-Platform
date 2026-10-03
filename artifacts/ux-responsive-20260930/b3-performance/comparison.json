@@ -1,0 +1,468 @@
+{
+  "createdAt": "2026-09-30T15:26:11.069Z",
+  "beforeSha256": "b35de6e47a2b3892b5011c1f7d5a96fd76b01430916af8617f6fb0c43457d8aa",
+  "afterSha256": "dd27545ac5da6dfeb59df35dfdd6734444b6722c2e12e80548d0f9e9a27ea15a",
+  "goalsSha256": "1037d62dd914231f321172e295e0ab430637142ccf26716aae0ead13a38982fe",
+  "series": {
+    "QR/cold": {
+      "before": {
+        "n": 30,
+        "median": 1313.5,
+        "p95": 1418,
+        "min": 542.8,
+        "max": 1781.3
+      },
+      "after": {
+        "n": 30,
+        "median": 1277.75,
+        "p95": 1432.4,
+        "min": 482.5,
+        "max": 1434
+      },
+      "medianDelta": -35.75,
+      "p95Delta": 14.400000000000091,
+      "beforeInvalid": 1,
+      "afterInvalid": 1,
+      "goalMet": false
+    },
+    "QR/warm": {
+      "before": {
+        "n": 30,
+        "median": 516.3,
+        "p95": 761.5,
+        "min": 461.3,
+        "max": 777.7
+      },
+      "after": {
+        "n": 30,
+        "median": 516.15,
+        "p95": 2295.1,
+        "min": 459.9,
+        "max": 2873
+      },
+      "medianDelta": -0.14999999999997726,
+      "p95Delta": 1533.6,
+      "beforeInvalid": 3,
+      "afterInvalid": 3,
+      "goalMet": false
+    },
+    "Staff/cold": {
+      "before": {
+        "n": 30,
+        "median": 1029.65,
+        "p95": 1208,
+        "min": 881.4,
+        "max": 1295
+      },
+      "after": {
+        "n": 30,
+        "median": 919.75,
+        "p95": 3866.8,
+        "min": 648.8,
+        "max": 3964.5
+      },
+      "medianDelta": -109.90000000000009,
+      "p95Delta": 2658.8,
+      "beforeInvalid": 0,
+      "afterInvalid": 0,
+      "goalMet": false
+    },
+    "Staff/warm": {
+      "before": {
+        "n": 30,
+        "median": 912,
+        "p95": 1142.5,
+        "min": 770.5,
+        "max": 1231.8
+      },
+      "after": {
+        "n": 30,
+        "median": 829.45,
+        "p95": 1084.1,
+        "min": 697.7,
+        "max": 1184.3
+      },
+      "medianDelta": -82.54999999999995,
+      "p95Delta": -58.40000000000009,
+      "beforeInvalid": 1,
+      "afterInvalid": 1,
+      "goalMet": false
+    },
+    "KDS/cold": {
+      "before": {
+        "n": 30,
+        "median": 307.8,
+        "p95": 597.5,
+        "min": 265,
+        "max": 623.9
+      },
+      "after": {
+        "n": 30,
+        "median": 324.95000000000005,
+        "p95": 617.7,
+        "min": 295.8,
+        "max": 769.8
+      },
+      "medianDelta": 17.150000000000034,
+      "p95Delta": 20.200000000000045,
+      "beforeInvalid": 3,
+      "afterInvalid": 0,
+      "goalMet": false
+    },
+    "KDS/warm": {
+      "before": {
+        "n": 30,
+        "median": 283.95000000000005,
+        "p95": 622.4,
+        "min": 258.6,
+        "max": 624.3
+      },
+      "after": {
+        "n": 30,
+        "median": 309,
+        "p95": 482.9,
+        "min": 260.4,
+        "max": 582.9
+      },
+      "medianDelta": 25.049999999999955,
+      "p95Delta": -139.5,
+      "beforeInvalid": 2,
+      "afterInvalid": 0,
+      "goalMet": false
+    },
+    "Report/cold": {
+      "before": {
+        "n": 30,
+        "median": 290.9,
+        "p95": 339.3,
+        "min": 268.8,
+        "max": 340.7
+      },
+      "after": {
+        "n": 30,
+        "median": 298.75,
+        "p95": 390.5,
+        "min": 275.8,
+        "max": 393.6
+      },
+      "medianDelta": 7.850000000000023,
+      "p95Delta": 51.19999999999999,
+      "beforeInvalid": 0,
+      "afterInvalid": 0,
+      "goalMet": false
+    },
+    "Report/warm": {
+      "before": {
+        "n": 30,
+        "median": 158.15,
+        "p95": 190.9,
+        "min": 132.6,
+        "max": 441
+      },
+      "after": {
+        "n": 30,
+        "median": 164.6,
+        "p95": 485,
+        "min": 125.1,
+        "max": 486.1
+      },
+      "medianDelta": 6.449999999999989,
+      "p95Delta": 294.1,
+      "beforeInvalid": 0,
+      "afterInvalid": 0,
+      "goalMet": false
+    },
+    "API/Staff": {
+      "before": {
+        "n": 30,
+        "median": 36.849999999999994,
+        "p95": 76.8,
+        "min": 31.5,
+        "max": 99.3
+      },
+      "after": {
+        "n": 30,
+        "median": 38.65,
+        "p95": 83.6,
+        "min": 32.6,
+        "max": 242
+      },
+      "medianDelta": 1.8000000000000043,
+      "p95Delta": 6.799999999999997,
+      "beforeInvalid": 0,
+      "afterInvalid": 0,
+      "goalMet": false
+    },
+    "API/KDS": {
+      "before": {
+        "n": 30,
+        "median": 67.45,
+        "p95": 89.1,
+        "min": 52.8,
+        "max": 109.1
+      },
+      "after": {
+        "n": 30,
+        "median": 66.1,
+        "p95": 116.9,
+        "min": 56.5,
+        "max": 135.5
+      },
+      "medianDelta": -1.3500000000000085,
+      "p95Delta": 27.80000000000001,
+      "beforeInvalid": 0,
+      "afterInvalid": 0,
+      "goalMet": false
+    },
+    "API/Report": {
+      "before": {
+        "n": 30,
+        "median": 3.45,
+        "p95": 12.2,
+        "min": 2.5,
+        "max": 19.4
+      },
+      "after": {
+        "n": 30,
+        "median": 4.300000000000001,
+        "p95": 16.5,
+        "min": 3.7,
+        "max": 21.1
+      },
+      "medianDelta": 0.8500000000000005,
+      "p95Delta": 4.300000000000001,
+      "beforeInvalid": 0,
+      "afterInvalid": 0,
+      "goalMet": false
+    }
+  },
+  "vitals": {
+    "QR": {
+      "before": {
+        "lcp": {
+          "n": 5,
+          "median": 220,
+          "p95": 232,
+          "min": 172,
+          "max": 232
+        },
+        "cls": {
+          "n": 5,
+          "median": 0,
+          "p95": 0,
+          "min": 0,
+          "max": 0
+        },
+        "inp": {
+          "n": 5,
+          "median": 56,
+          "p95": 56,
+          "min": 56,
+          "max": 56
+        }
+      },
+      "after": {
+        "lcp": {
+          "n": 5,
+          "median": 204,
+          "p95": 236,
+          "min": 192,
+          "max": 236
+        },
+        "cls": {
+          "n": 5,
+          "median": 0,
+          "p95": 0,
+          "min": 0,
+          "max": 0
+        },
+        "inp": {
+          "n": 5,
+          "median": 64,
+          "p95": 72,
+          "min": 56,
+          "max": 72
+        }
+      }
+    },
+    "Staff": {
+      "before": {
+        "lcp": {
+          "n": 5,
+          "median": 656,
+          "p95": 772,
+          "min": 284,
+          "max": 772
+        },
+        "cls": {
+          "n": 5,
+          "median": 0,
+          "p95": 0.0008854844835069445,
+          "min": 0,
+          "max": 0.0008854844835069445
+        },
+        "inp": {
+          "n": 5,
+          "median": 24,
+          "p95": 64,
+          "min": 24,
+          "max": 64
+        }
+      },
+      "after": {
+        "lcp": {
+          "n": 5,
+          "median": 440,
+          "p95": 728,
+          "min": 264,
+          "max": 728
+        },
+        "cls": {
+          "n": 5,
+          "median": 0,
+          "p95": 0.0008854844835069445,
+          "min": 0,
+          "max": 0.0008854844835069445
+        },
+        "inp": {
+          "n": 5,
+          "median": 32,
+          "p95": 56,
+          "min": 24,
+          "max": 56
+        }
+      }
+    },
+    "KDS": {
+      "before": {
+        "lcp": {
+          "n": 5,
+          "median": 172,
+          "p95": 256,
+          "min": 168,
+          "max": 256
+        },
+        "cls": {
+          "n": 5,
+          "median": 0.0004923502604166667,
+          "p95": 0.0004923502604166667,
+          "min": 0,
+          "max": 0.0004923502604166667
+        },
+        "inp": {
+          "n": 5,
+          "median": 24,
+          "p95": 24,
+          "min": 24,
+          "max": 24
+        }
+      },
+      "after": {
+        "lcp": {
+          "n": 5,
+          "median": 212,
+          "p95": 280,
+          "min": 192,
+          "max": 280
+        },
+        "cls": {
+          "n": 5,
+          "median": 0.0004923502604166667,
+          "p95": 0.0004923502604166667,
+          "min": 0,
+          "max": 0.0004923502604166667
+        },
+        "inp": {
+          "n": 5,
+          "median": 24,
+          "p95": 32,
+          "min": 24,
+          "max": 32
+        }
+      }
+    },
+    "Report": {
+      "before": {
+        "lcp": {
+          "n": 5,
+          "median": 184,
+          "p95": 208,
+          "min": 164,
+          "max": 208
+        },
+        "cls": {
+          "n": 5,
+          "median": 0,
+          "p95": 0,
+          "min": 0,
+          "max": 0
+        },
+        "inp": {
+          "n": 5,
+          "median": 16,
+          "p95": 16,
+          "min": 16,
+          "max": 16
+        }
+      },
+      "after": {
+        "lcp": {
+          "n": 5,
+          "median": 184,
+          "p95": 192,
+          "min": 168,
+          "max": 192
+        },
+        "cls": {
+          "n": 5,
+          "median": 0,
+          "p95": 0,
+          "min": 0,
+          "max": 0
+        },
+        "inp": {
+          "n": 5,
+          "median": 16,
+          "p95": 16,
+          "min": 16,
+          "max": 16
+        }
+      }
+    }
+  },
+  "bundle": [
+    {
+      "route": "q/[qrToken]/page",
+      "beforeBytes": 84586,
+      "afterBytes": 84586,
+      "delta": 0,
+      "goalMet": true
+    },
+    {
+      "route": "staff/[stallSlug]/page",
+      "beforeBytes": 97830,
+      "afterBytes": 97830,
+      "delta": 0,
+      "goalMet": true
+    },
+    {
+      "route": "kitchen/page",
+      "beforeBytes": 85094,
+      "afterBytes": 85094,
+      "delta": 0,
+      "goalMet": true
+    },
+    {
+      "route": "merchant/reports/overview/page",
+      "beforeBytes": 136033,
+      "afterBytes": 136314,
+      "delta": 281,
+      "goalMet": false
+    }
+  ],
+  "sharedBundle": {
+    "beforeBytes": 79827,
+    "afterBytes": 79827,
+    "delta": 0
+  }
+}

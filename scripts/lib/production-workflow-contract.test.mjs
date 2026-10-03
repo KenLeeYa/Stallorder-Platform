@@ -20,11 +20,21 @@ const productionApproval = read("scripts/lib/production-approval.mjs");
 const vercel = JSON.parse(read("vercel.json"));
 
 describe("Production workflow approval contract", () => {
-  it("uses the fail-closed bounded dependency audit runner in every release gate", () => {
+  it("uses the fail-closed fresh Web scope runner in every release gate", () => {
     for (const workflow of [ci, readiness, applicationRelease]) {
-      expect(workflow).toContain("node scripts/run-npm-audit.mjs");
+      expect(workflow).toContain("npm ci --workspace packages/contracts --include-workspace-root --include=dev");
+      expect(workflow).toContain("node scripts/verify-web-release-scope.mjs web-release-evidence");
       expect(workflow).not.toContain("npm audit --audit-level=moderate");
     }
+    expect(applicationRelease).toContain("node scripts/verify-web-release-plan.mjs approved-application-plan/production-application-web-scope.json web-release-evidence/result.json");
+    const runner = read("scripts/verify-web-release-scope.mjs");
+    expect(runner).toContain("SEPARATE_NOT_A_RELEASE_PASS");
+    expect(runner).toContain("if(![0,1].includes(audited.status))throw new Error('WEB_RELEASE_SELECTED_AUDIT_UNREVIEWED_EXIT')");
+    expect(runner).toContain("acceptedException=usedException?exception:undefined");
+    expect(runner).toContain("assertRootAudit(audit,acceptedException)");
+    expect(runner).toContain("selectedAuditStatus=usedException?'NON_PASS':'PASS'");
+    expect(runner).toContain("auditDecision=usedException?'USER_ACCEPTED_EXACT_EXCEPTION':'ZERO_VULNERABILITIES'");
+    expect(runner).toContain("write('selected-audit-decision.json'");
   });
 
   it("keeps main Git pushes in Plan mode and gates Apply with a matching receipt", () => {
@@ -468,6 +478,22 @@ describe("Production workflow approval contract", () => {
     expect(job).not.toContain("--no-verify-jwt");
   });
 
+  it("checks the existing compiled recovery deployment against updated DB and Edge before promotion", () => {
+    const step = readiness.slice(readiness.indexOf("name: Promote approved deployment and smoke Production"));
+    const recovered = step.indexOf("production-target/pre-promote.json");
+    const smoke = step.indexOf("npm run production:smoke", recovered);
+    const promote = step.indexOf('vercel promote "$APPROVED_PRODUCTION_DEPLOYMENT"');
+    expect(recovered).toBeGreaterThan(-1);
+    expect(smoke).toBeGreaterThan(recovered);
+    expect(smoke).toBeLessThan(step.indexOf("promoted=true"));
+    expect(smoke).toBeLessThan(promote);
+    expect(step).toContain('PRODUCTION_TEST_QR_REQUIRED: "true"');
+    expect(step).toContain("set -euo pipefail");
+    expect(readiness.indexOf("name: Verify deployed Production Edge Functions")).toBeLessThan(
+      readiness.indexOf("name: Promote approved deployment and smoke Production"),
+    );
+  });
+
   it("requires successful DR schema evidence before Primary migration evidence", () => {
     const verifyDrSchema = readiness.indexOf(
       "name: Verify DR schema completed before the Production Plan or Apply",
@@ -598,8 +624,27 @@ describe("Production workflow approval contract", () => {
     expect(drInitialization).not.toContain("DR_STORAGE_OBJECTS_PRESENT");
   });
 
-  it("disables Vercel Git auto-deploy only for main", () => {
-    expect(vercel.git.deploymentEnabled).toEqual({ main: false });
+  it("keeps main and the live LINE QA branch on controlled deployments", () => {
+    expect(vercel.git.deploymentEnabled).toEqual({
+      main: false,
+      staging: false,
+      "codex/integrated-production-20261002": false,
+      "codex/line-platform-oa-v2-20260927": false,
+    });
+  });
+
+  it("pairs privileged Supabase access and disables inherited paid providers for LINE QA", () => {
+    const configuration = ephemeralPreview.slice(ephemeralPreview.indexOf("name: Load and mask Preview Branch configuration"), ephemeralPreview.indexOf("name: Wait for Preview Branch database stability"));
+    expect(configuration).toContain(".SUPABASE_SERVICE_ROLE_KEY");
+    expect(configuration).toContain('"$service_role_key"');
+    for (const name of ["SUPABASE_SECRET_KEY", "PRIMARY_SUPABASE_SECRET_KEY", "PRIMARY_SUPABASE_URL"]) {
+      expect(configuration).toContain(`echo "${name}=`);
+      expect(ephemeralPreview).toContain(`--env "${name}=$${name}"`);
+    }
+    expect(ephemeralPreview).toContain('"$PREVIEW_GIT_BRANCH" = "codex/line-platform-oa-v2-20260927"');
+    expect(ephemeralPreview).toContain('"OPENAI_API_KEY="');
+    expect(ephemeralPreview).toContain('"AZURE_TRANSLATOR_KEY="');
+    expect(ephemeralPreview).toContain('"LINE_PLATFORM_ENABLED=false"');
   });
 
   it("waits for the hosted branch action and stable database before Preview migrations", () => {
@@ -631,7 +676,7 @@ describe("Production workflow approval contract", () => {
     expect(branchCreation).toBeGreaterThan(-1);
     expect(branchCreation).toBeLessThan(branchConfiguration);
     expect(branchCreationStep).toContain("--region ap-southeast-1");
-    expect(branchCreationStep).toContain("--size nano");
+    expect(branchCreationStep).toContain("--size micro");
     expect(branchCreationStep).toContain("for attempt in $(seq 1 60); do");
     expect(stability).toBeGreaterThan(-1);
     expect(stability).toBeLessThan(migrations);
@@ -751,6 +796,16 @@ describe("Production workflow approval contract", () => {
     expect(blocks[1]).toContain("raise exception 'LINE Preview OAuth feature flags are missing'");
     expect(blocks[1]).toContain("insert into public.resilience_feature_flag_overrides");
     expect(fixture).toContain("'OAUTH_IDENTITY_FOUNDATION_ENABLED', 'OAUTH_LINE_ENABLED'");
+  });
+
+  it("preserves the public LINE test fixture only for its exact labeled PR and branch", () => {
+    const validate = workflowJob(ephemeralPreview, "validate");
+    const gate = validate.slice(0, validate.indexOf("runs-on:"));
+    expect(gate).toContain("github.event.pull_request.number == 365 &&");
+    expect(gate).toContain("github.event.pull_request.head.ref == 'codex/line-platform-oa-v2-20260927' &&");
+    expect(gate).toContain("contains(github.event.pull_request.labels.*.name, 'line-preview-live')");
+    expect(gate).toMatch(/!\(\s+github.event.pull_request.number/u);
+    expect(workflowJob(ephemeralPreview, "cleanup")).not.toContain("line-preview-live");
   });
 
   it("deletes every metadata-matched Preview URL and verifies cleanup", () => {

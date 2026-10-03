@@ -1,5 +1,8 @@
 "use client";
 
+import { MobileProgressiveRecords } from "@/components/mobile-progressive-records";
+import type { ComponentProps } from "react";
+
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
@@ -44,7 +47,11 @@ const leaveTypeLabels: Record<string, string> = {
   OTHER: "其他",
 };
 
-export function WorkforceManager({
+export function WorkforceManager(props: ComponentProps<typeof WorkforceManagerWorkspace>) {
+  return <WorkforceManagerWorkspace key={JSON.stringify([props.organizationId, props.initialDashboard.dateFrom, props.initialDashboard.dateTo])} {...props} />;
+}
+
+function WorkforceManagerWorkspace({
   organizationId,
   initialDashboard,
 }: {
@@ -52,6 +59,7 @@ export function WorkforceManager({
   initialDashboard: WorkforceDashboard;
 }) {
   const [dashboard, setDashboard] = useState(initialDashboard);
+  const listScope = JSON.stringify([organizationId, dashboard.dateFrom, dashboard.dateTo]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [messageKind, setMessageKind] = useState<SettingsFeedbackKind>("success");
@@ -137,8 +145,8 @@ export function WorkforceManager({
     }
   }
 
-  const adjustableLeave = dashboard.leaveRequests.filter((request) => ["PENDING", "APPROVED"].includes(request.status));
-  const activeSchedules = dashboard.schedules.filter((schedule) => schedule.status !== "CANCELLED");
+  const adjustableLeave = useMemo(() => dashboard.leaveRequests.filter((request) => ["PENDING", "APPROVED"].includes(request.status)), [dashboard.leaveRequests]);
+  const activeSchedules = useMemo(() => dashboard.schedules.filter((schedule) => schedule.status !== "CANCELLED"), [dashboard.schedules]);
   return (
     <div className="space-y-6">
       <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
@@ -169,8 +177,9 @@ export function WorkforceManager({
 
       <section className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
         <h2 className="text-lg font-semibold">本期薪資預覽</h2>
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {dashboard.payrollPreview.map((line) => (
+        <p className="mt-2 text-sm text-red-800">缺少有效時薪：{dashboard.totals.missingWageRateCount} 人</p>
+        <MobileProgressiveRecords items={dashboard.payrollPreview} scopeKey={listScope} label="本期薪資預覽">{(records) => (<div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {records.map((line) => (
             <article key={line.profileId} className={`rounded-lg border p-4 ${line.missingWageRate ? "border-red-300 bg-red-50" : "border-stone-200"}`}>
               <div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold">{line.profileName}</h3><p className="text-xs text-stone-500">時薪 {money(line.hourlyRate)} · {line.shifts.length} 班</p></div><strong className="text-lg">{money(line.grossAmount)}</strong></div>
               <dl className="mt-3 grid grid-cols-2 gap-2 text-sm"><Breakdown label="一般" value={formatMinutes(line.regularMinutes)} /><Breakdown label="加班" value={formatMinutes(line.overtimeTier1Minutes + line.overtimeTier2Minutes)} /><Breakdown label="假日" value={formatMinutes(line.holidayMinutes)} /><Breakdown label="加班／假日加給" value={money(line.overtimeAmount + line.holidayAmount)} /></dl>
@@ -178,11 +187,11 @@ export function WorkforceManager({
             </article>
           ))}
           {!dashboard.payrollPreview.length ? <p className="text-sm text-stone-600">此區間尚無成對且已核准的上下班紀錄。</p> : null}
-        </div>
+        </div>)}</MobileProgressiveRecords>
         <button type="button" disabled={busy || !dashboard.payrollPreview.length || dashboard.totals.missingWageRateCount > 0} onClick={() => void sendCommand({ operation: "GENERATE_PAYROLL", periodStart: dashboard.dateFrom, periodEnd: dashboard.dateTo }, "薪資快照已產生，請再次覆核後結案。") } className="mt-4 inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 text-base font-semibold text-white disabled:opacity-50 sm:w-auto"><FileCheck2 className="h-5 w-5" />產生本期薪資單</button>
       </section>
 
-      {dashboard.anomalies.length ? <section className="rounded-xl border border-red-200 bg-red-50 p-4"><h2 className="font-semibold text-red-900">工時覆核提醒</h2><ul className="mt-3 space-y-2 text-sm text-red-900">{dashboard.anomalies.map((warning, index) => <li key={`${warning.occurredAt}-${index}`} className="rounded-md bg-white/70 p-3"><strong>{warning.profileName} · {warning.stallName}</strong><p>{warning.message} · {new Date(warning.occurredAt).toLocaleString("zh-TW")}</p></li>)}</ul></section> : null}
+      {dashboard.anomalies.length ? <section className="rounded-xl border border-red-200 bg-red-50 p-4"><h2 className="font-semibold text-red-900">工時覆核提醒</h2><MobileProgressiveRecords items={dashboard.anomalies} scopeKey={listScope} label="工時覆核提醒">{(records) => (<ul className="mt-3 space-y-2 text-sm text-red-900">{records.map((warning, index) => <li key={`${warning.occurredAt}-${index}`} className="rounded-md bg-white/70 p-3"><strong>{warning.profileName} · {warning.stallName}</strong><p>{warning.message} · {new Date(warning.occurredAt).toLocaleString("zh-TW")}</p></li>)}</ul>)}</MobileProgressiveRecords></section> : null}
 
       <section aria-labelledby="workforce-actions-title" className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm sm:p-5">
         <h2 id="workforce-actions-title" className="text-xl font-semibold text-stone-950">排班與薪資設定</h2>
@@ -237,11 +246,11 @@ export function WorkforceManager({
 
       {message ? <SettingsFeedbackDialog message={message} kind={messageKind} onClose={() => setMessage("")} focusAfterClose={() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()} /> : null}
 
-      <section className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm"><h2 className="text-lg font-semibold">班表安排</h2><p className="mt-1 text-sm text-stone-600">需要調整時先取消原班表，再新增正確班別，保留變更紀錄。</p><div className="mt-3 grid gap-2 md:grid-cols-2">{activeSchedules.map((schedule) => <article key={schedule.id} className="grid gap-3 rounded-lg border border-stone-200 p-3 sm:grid-cols-[minmax(0,1fr)_auto]"><div><p className="font-semibold">{schedule.profileName} · {schedule.workDate}</p><p className="text-sm text-stone-600">{dayTypeLabels[schedule.dayType] ?? schedule.dayType}{schedule.shiftStartAt && schedule.shiftEndAt ? ` · ${new Date(schedule.shiftStartAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}～${new Date(schedule.shiftEndAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}` : " · 排休"}</p></div><button type="button" disabled={busy} onClick={() => void sendCommand({ operation: "CANCEL_SCHEDULE", scheduleId: schedule.id }, "原班表已取消，請新增調整後的班別。") } className="min-h-10 rounded-md border border-red-300 px-3 text-sm font-semibold text-red-700 disabled:opacity-50">取消／調整</button></article>)}{!activeSchedules.length ? <p className="text-sm text-stone-600">此區間尚無已發布班表。</p> : null}</div></section>
+      <section className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm"><h2 className="text-lg font-semibold">班表安排</h2><p className="mt-1 text-sm text-stone-600">需要調整時先取消原班表，再新增正確班別，保留變更紀錄。</p><MobileProgressiveRecords items={activeSchedules} scopeKey={listScope} label="班表安排">{(records) => (<div className="mt-3 grid gap-2 md:grid-cols-2">{records.map((schedule) => <article key={schedule.id} className="grid gap-3 rounded-lg border border-stone-200 p-3 sm:grid-cols-[minmax(0,1fr)_auto]"><div><p className="font-semibold">{schedule.profileName} · {schedule.workDate}</p><p className="text-sm text-stone-600">{dayTypeLabels[schedule.dayType] ?? schedule.dayType}{schedule.shiftStartAt && schedule.shiftEndAt ? ` · ${new Date(schedule.shiftStartAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}～${new Date(schedule.shiftEndAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}` : " · 排休"}</p></div><button type="button" disabled={busy} onClick={() => void sendCommand({ operation: "CANCEL_SCHEDULE", scheduleId: schedule.id }, "原班表已取消，請新增調整後的班別。") } className="min-h-10 rounded-md border border-red-300 px-3 text-sm font-semibold text-red-700 disabled:opacity-50">取消／調整</button></article>)}{!activeSchedules.length ? <p className="text-sm text-stone-600">此區間尚無已發布班表。</p> : null}</div>)}</MobileProgressiveRecords></section>
 
-      <section className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm"><h2 className="text-lg font-semibold">休假申請</h2><div className="mt-3 space-y-2">{adjustableLeave.map((request) => <article key={request.id} className="grid gap-3 rounded-lg border border-stone-200 p-3 sm:grid-cols-[minmax(0,1fr)_auto]"><div><p className="font-semibold">{request.profileName} · {leaveTypeLabels[request.leaveType] ?? request.leaveType}</p><p className="text-sm text-stone-600">{request.startDate} ～ {request.endDate}{request.reason ? ` · ${request.reason}` : ""} · {request.status === "APPROVED" ? "已核准" : "待審"}</p></div><div className="flex flex-wrap gap-2">{request.status === "PENDING" ? <><button type="button" disabled={busy} onClick={() => void sendCommand({ operation: "REVIEW_LEAVE", leaveRequestId: request.id, decision: "APPROVED", reviewNote: null }, "休假申請已核准。") } className="inline-flex min-h-11 items-center gap-1 rounded-md border border-teal-600 px-3 text-sm font-semibold text-teal-800"><Check className="h-4 w-4" />核准</button><button type="button" disabled={busy} onClick={() => void sendCommand({ operation: "REVIEW_LEAVE", leaveRequestId: request.id, decision: "REJECTED", reviewNote: "排班主管拒絕" }, "休假申請已拒絕。") } className="inline-flex min-h-11 items-center gap-1 rounded-md border border-red-500 px-3 text-sm font-semibold text-red-700"><X className="h-4 w-4" />拒絕</button></> : null}<button type="button" disabled={busy} onClick={() => void sendCommand({ operation: "CANCEL_LEAVE", leaveRequestId: request.id, reviewNote: "由排班主管取消／調整" }, "休假安排已取消，可重新申請日期。") } className="min-h-11 rounded-md border border-stone-400 px-3 text-sm font-semibold">取消／調整</button></div></article>)}{!adjustableLeave.length ? <p className="text-sm text-stone-600">目前沒有待審或已核准休假。</p> : null}</div></section>
+      <section className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm"><h2 className="text-lg font-semibold">休假申請</h2><MobileProgressiveRecords items={adjustableLeave} scopeKey={listScope} label="休假申請">{(records) => (<div className="mt-3 space-y-2">{records.map((request) => <article key={request.id} className="grid gap-3 rounded-lg border border-stone-200 p-3 sm:grid-cols-[minmax(0,1fr)_auto]"><div><p className="font-semibold">{request.profileName} · {leaveTypeLabels[request.leaveType] ?? request.leaveType}</p><p className="text-sm text-stone-600">{request.startDate} ～ {request.endDate}{request.reason ? ` · ${request.reason}` : ""} · {request.status === "APPROVED" ? "已核准" : "待審"}</p></div><div className="flex flex-wrap gap-2">{request.status === "PENDING" ? <><button type="button" disabled={busy} onClick={() => void sendCommand({ operation: "REVIEW_LEAVE", leaveRequestId: request.id, decision: "APPROVED", reviewNote: null }, "休假申請已核准。") } className="inline-flex min-h-11 items-center gap-1 rounded-md border border-teal-600 px-3 text-sm font-semibold text-teal-800"><Check className="h-4 w-4" />核准</button><button type="button" disabled={busy} onClick={() => void sendCommand({ operation: "REVIEW_LEAVE", leaveRequestId: request.id, decision: "REJECTED", reviewNote: "排班主管拒絕" }, "休假申請已拒絕。") } className="inline-flex min-h-11 items-center gap-1 rounded-md border border-red-500 px-3 text-sm font-semibold text-red-700"><X className="h-4 w-4" />拒絕</button></> : null}<button type="button" disabled={busy} onClick={() => void sendCommand({ operation: "CANCEL_LEAVE", leaveRequestId: request.id, reviewNote: "由排班主管取消／調整" }, "休假安排已取消，可重新申請日期。") } className="min-h-11 rounded-md border border-stone-400 px-3 text-sm font-semibold">取消／調整</button></div></article>)}{!adjustableLeave.length ? <p className="text-sm text-stone-600">目前沒有待審或已核准休假。</p> : null}</div>)}</MobileProgressiveRecords></section>
 
-      <section className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm"><h2 className="text-lg font-semibold">薪資單歷程</h2><div className="mt-3 space-y-3">{dashboard.payrollPeriods.map((period) => <article key={period.id} className="rounded-lg border border-stone-200 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-semibold">{period.periodStart} ～ {period.periodEnd}</p><p className="text-sm text-stone-600">{period.lines.length} 人 · {money(period.totalGrossAmount)}</p></div><div className="flex items-center gap-2"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${period.status === "FINALIZED" ? "bg-teal-100 text-teal-900" : "bg-amber-100 text-amber-900"}`}>{period.status === "FINALIZED" ? "已結案" : "待覆核"}</span>{period.status === "DRAFT" ? <button type="button" disabled={busy} onClick={() => void sendCommand({ operation: "FINALIZE_PAYROLL", payrollPeriodId: period.id }, "薪資單已結案並鎖定快照。") } className="min-h-10 rounded-md bg-stone-900 px-3 text-sm font-semibold text-white">確認結案</button> : null}</div></div></article>)}{!dashboard.payrollPeriods.length ? <p className="text-sm text-stone-600">尚未產生薪資單。</p> : null}</div></section>
+      <section className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm"><h2 className="text-lg font-semibold">薪資單歷程</h2><MobileProgressiveRecords items={dashboard.payrollPeriods} scopeKey={listScope} label="薪資單歷程">{(records) => (<div className="mt-3 space-y-3">{records.map((period) => <article key={period.id} className="rounded-lg border border-stone-200 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-semibold">{period.periodStart} ～ {period.periodEnd}</p><p className="text-sm text-stone-600">{period.lines.length} 人 · {money(period.totalGrossAmount)}</p></div><div className="flex items-center gap-2"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${period.status === "FINALIZED" ? "bg-teal-100 text-teal-900" : "bg-amber-100 text-amber-900"}`}>{period.status === "FINALIZED" ? "已結案" : "待覆核"}</span>{period.status === "DRAFT" ? <button type="button" disabled={busy} onClick={() => void sendCommand({ operation: "FINALIZE_PAYROLL", payrollPeriodId: period.id }, "薪資單已結案並鎖定快照。") } className="min-h-10 rounded-md bg-stone-900 px-3 text-sm font-semibold text-white">確認結案</button> : null}</div></div></article>)}{!dashboard.payrollPeriods.length ? <p className="text-sm text-stone-600">尚未產生薪資單。</p> : null}</div>)}</MobileProgressiveRecords></section>
     </div>
   );
 }

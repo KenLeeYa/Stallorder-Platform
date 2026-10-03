@@ -1,5 +1,6 @@
 import { safeEqual } from "@/lib/security";
 import { processOutboxDispatchCycle } from "@/server/outbox/outbox-dispatcher";
+import { cleanupExpiredFeedback } from "@/server/feedback/feedback-service";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -13,6 +14,11 @@ export async function GET(request: Request) {
   }
 
   const result = await processOutboxDispatchCycle(`vercel:${crypto.randomUUID()}`, new Date(), 20);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([Promise.resolve().then(cleanupExpiredFeedback), new Promise<void>(resolve => { timer = setTimeout(resolve, 2000); })]);
+  } catch { /* Feedback maintenance cannot change an already completed dispatch. */ }
+  finally { if (timer) clearTimeout(timer); }
   return json({
     processed: result.outcomes.length,
     outcomes: result.outcomes.map((outcome) => ({

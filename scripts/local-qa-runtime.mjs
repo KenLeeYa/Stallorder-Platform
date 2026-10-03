@@ -1,3 +1,7 @@
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { parseEnv } from "node:util";
+
 const DEFAULT_LOCAL_QA_PORT = 3012;
 
 export function parseLocalQaPort(args, defaultPort = DEFAULT_LOCAL_QA_PORT) {
@@ -12,7 +16,7 @@ export function parseLocalQaPort(args, defaultPort = DEFAULT_LOCAL_QA_PORT) {
   return port;
 }
 
-export function buildLocalQaEnvironment(port, environment = process.env) {
+export function buildLocalQaEnvironment(port, environment = process.env, { envDirectory } = {}) {
   if (
     environment.NODE_ENV === "production"
     || environment.APP_ENV === "production"
@@ -24,10 +28,47 @@ export function buildLocalQaEnvironment(port, environment = process.env) {
     throw new Error("LOCAL_QA_DATABASE_MUST_BE_LOOPBACK");
   }
 
+  // A local database alone does not isolate Auth, Storage, Edge or dispatch.
+  for (const [key, value] of Object.entries(environment)) {
+    if (!value || !/(?:^|_)(?:URLS?|ORIGINS?|HOST|ENDPOINT)$/.test(key)) continue;
+    for (const destination of value.split(",").map((item) => item.trim()).filter(Boolean)) {
+      try {
+        const url = new URL(destination.includes("://") ? destination : `https://${destination}`);
+        if (!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
+          || !["http:", "https:", "ws:", "wss:", "postgres:", "postgresql:"].includes(url.protocol)) {
+          throw new Error("external");
+        }
+      } catch {
+        // Name only: URLs can contain credentials and personal data.
+        throw new Error(`LOCAL_QA_EXTERNAL_DESTINATION:${key}`);
+      }
+    }
+  }
+
+  const systemKey = /^(path|systemroot|windir|temp|tmp|userprofile|appdata|localappdata|programfiles(?:\(x86\))?|comspec|pathext|number_of_processors)$/i;
+  const localKeys = new Set([
+    "DATABASE_URL", "DIRECT_URL", "NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL",
+    "NEXT_PUBLIC_SUPABASE_REALTIME_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    "SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY", "ABUSE_HASH_SECRET", "TOKEN_DERIVATION_SECRET",
+    "AUDIT_IP_HASH_SECRET", "SESSION_FINGERPRINT_HASH_SECRET", "OAUTH_STATE_SECRET", "OFFLINE_PERMIT_SIGNING_SECRET",
+    "PAYMENT_MOCK_WEBHOOK_SECRET", "DELIVERY_MOCK_WEBHOOK_SECRET", "TURNSTILE_SECRET_KEY", "TURNSTILE_ALLOW_TEST_KEYS",
+    "ATTENDANCE_CHALLENGE_SECRET", "NEXT_TELEMETRY_DISABLED", "COMPLIANCE_ENABLED", "COMPLIANCE_FIELD_KEY",
+    "COMPLIANCE_FIELD_KEYS", "COMPLIANCE_ACTIVE_KEY_ID", "COMPLIANCE_SUBJECT_KEY",
+  ]);
+  const isolated = Object.fromEntries(Object.entries(environment).filter(([key]) => systemKey.test(key) || localKeys.has(key)));
+
   const origin = `http://127.0.0.1:${port}`;
-  return {
-    ...environment,
+  const localEnvironment = {
+    ...isolated,
     NODE_ENV: "development",
+    APP_ENV: "development",
+    EXTERNAL_DISPATCH_ENABLED: "false",
+    OAUTH_PROVIDER_MODE: "mock",
+    EINVOICE_DEV_MODE: "true",
+    EINVOICE_PRODUCTION_ISSUE_ENABLED: "false",
+    BACKEND_ACTIVE_TARGET: "PRIMARY",
+    FRONTEND_BASE_URL: origin,
+    PUBLIC_APP_ORIGINS: origin,
     APP_BASE_URL: origin,
     NEXT_PUBLIC_APP_URL: origin,
     PUBLIC_ORDER_FUNCTION_ORIGIN: origin,
@@ -40,12 +81,32 @@ export function buildLocalQaEnvironment(port, environment = process.env) {
     NEXT_PUBLIC_FORCE_PUBLIC_ORDER_CIRCUIT_B: "true",
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
   };
+
+  // Next loads these files again in the child. Only pre-populated, verified
+  // variables are safe: otherwise dotenv can restore a stripped live credential.
+  if (envDirectory) {
+    for (const file of [".env.development.local", ".env.local", ".env.development", ".env"]) {
+      const path = resolve(envDirectory, file);
+      if (!existsSync(path)) continue;
+      const values = parseEnv(readFileSync(path, "utf8"));
+      // Check every file even when a higher-priority value would shadow it.
+      buildLocalQaEnvironment(port, { ...localEnvironment, ...values });
+      for (const key of Object.keys(values)) {
+        if (!Object.hasOwn(localEnvironment, key) || typeof localEnvironment[key] !== "string") {
+          throw new Error(`LOCAL_QA_ENV_FILE_UNAPPROVED:${file}:${key}`);
+        }
+      }
+    }
+  }
+  return localEnvironment;
 }
 
 function isLoopbackDatabaseUrl(value) {
   if (!value) return false;
   try {
-    return ["localhost", "127.0.0.1", "::1", "[::1]"].includes(new URL(value).hostname);
+    const url = new URL(value);
+    return ["postgres:", "postgresql:"].includes(url.protocol)
+      && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
   } catch {
     return false;
   }

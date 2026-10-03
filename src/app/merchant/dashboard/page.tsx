@@ -87,6 +87,7 @@ export default async function MerchantDashboardPage({ searchParams }: PageProps)
   timing.finish({ status: 200 });
 
   return (
+    <>
     <MultiStallDashboard
       organizationId={workspace.id}
       organizationName={workspace.businessName}
@@ -109,6 +110,7 @@ export default async function MerchantDashboardPage({ searchParams }: PageProps)
       initialSortKey={initialSortKey}
       initialOverview={initialOverview}
     />
+    </>
   );
 }
 

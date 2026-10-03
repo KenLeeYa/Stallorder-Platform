@@ -1,0 +1,9 @@
+{
+  "observedAt": "2026-10-02T15:32:45.054Z",
+  "tool": "repository-known-credential-pattern-scan-v1",
+  "scanned": 2939,
+  "bundleScanned": false,
+  "candidates": [],
+  "status": "PASS_KNOWN_PATTERNS_ONLY",
+  "limits": "Not a proof of no secrets or PII. Provider logs, arbitrary tokens, runtime values and historical Git objects need independent review."
+}

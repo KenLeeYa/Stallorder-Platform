@@ -170,3 +170,16 @@ function staffOrder(
     items,
   } as StaffOrderDto;
 }
+
+
+describe("existing order cash short/exact/over", () => {
+  it.each([["60", 40, 0], ["100", 0, 0], ["120", 0, 20]])("100 due and %s received", (received, shortage, change) => {
+    const state = staffOrderCheckoutReducer(createStaffOrderCheckoutState(), {
+      type: "OPEN", orders: [staffOrder("cash-check", 100)], modules: paymentModules, paymentOptions: [cash],
+    });
+    const model = getStaffOrderCheckoutModel({ state: { ...state, cashReceived: received }, modules: paymentModules,
+      paymentOptions: [cash], discountOptions: [], role: "STAFF" });
+    expect(model.shortage).toBe(shortage);
+    expect(model.change).toBe(change);
+  });
+});

@@ -1,5 +1,8 @@
 "use client";
 
+import { MobileProgressiveRecords } from "@/components/mobile-progressive-records";
+import type { ComponentProps } from "react";
+
 import { useMemo, useState, type ReactNode } from "react";
 import { csrfHeaders } from "@/lib/csrf-client";
 
@@ -25,7 +28,11 @@ const buyerTypes = [
   ["PAPER", "紙本證明聯"],
 ] as const;
 
-export function MerchantEInvoiceManager({ organizationId, initialData }: { organizationId: string; initialData: Dashboard }) {
+export function MerchantEInvoiceManager(props: ComponentProps<typeof MerchantEInvoiceManagerWorkspace>) {
+  return <MerchantEInvoiceManagerWorkspace key={props.organizationId} {...props} />;
+}
+
+function MerchantEInvoiceManagerWorkspace({ organizationId, initialData }: { organizationId: string; initialData: Dashboard }) {
   const [data, setData] = useState(initialData);
   const [provider, setProvider] = useState("ECPAY");
   const [orderId, setOrderId] = useState(initialData.eligibleOrders[0]?.id ?? "");
@@ -137,8 +144,9 @@ export function MerchantEInvoiceManager({ organizationId, initialData }: { organ
 
       <section className="rounded-xl border border-stone-200 bg-white p-5">
         <h2 className="text-xl font-semibold">電子發票紀錄</h2>
-        <div className="mt-4 divide-y divide-stone-200">
-          {data.documents.map((document) => (
+        <p className="mt-2 text-sm text-red-800">對帳差異紀錄：{data.documents.reduce((count, document) => count + document.reconciliationCases.length, 0)} 筆</p>
+        <MobileProgressiveRecords items={data.documents} scopeKey={organizationId} label="電子發票紀錄">{(records) => (<div className="mt-4 divide-y divide-stone-200">
+          {records.map((document) => (
             <article key={document.id} className="py-4 text-sm">
               <div className="flex flex-wrap items-start justify-between gap-3"><div><strong>#{document.orderNo} · {document.status}</strong><p className="mt-1 text-stone-600">{document.provider} · {document.buyerType} · TWD {document.totalAmount} · 付款 {document.paymentStatus}</p><p className="mt-1 break-all text-xs text-amber-800">{document.externalInvoiceNumber ?? "尚無 TEST 文件編號"}</p></div><span className="rounded bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-900">{document.testDocument ? "TEST / 非合法發票" : "禁止顯示為正式"}</span></div>
               <div className="mt-3 flex flex-wrap gap-2"><Action disabled={pending || !document.externalInvoiceNumber} onClick={() => void execute({ operation: "QUERY", invoiceDocumentId: document.id })}>查詢</Action><Action disabled={pending || !["ISSUED", "FULLY_ALLOWED"].includes(document.status)} onClick={() => void execute({ operation: "VOID", invoiceDocumentId: document.id, reason: "本機 Mock 測試作廢" })}>作廢</Action><Action disabled={pending || !["ISSUED", "PARTIALLY_ALLOWED"].includes(document.status) || document.totalAmount <= document.allowedAmount} onClick={() => void execute({ operation: "ALLOWANCE", invoiceDocumentId: document.id, amount: document.totalAmount - document.allowedAmount, reason: "本機 Mock 測試折讓" })}>折讓剩餘金額</Action><Action disabled={pending || !document.hasAllowanceReference} onClick={() => void execute({ operation: "ALLOWANCE_VOID", invoiceDocumentId: document.id })}>作廢折讓</Action><Action disabled={pending || !document.externalInvoiceNumber} onClick={() => void execute({ operation: "RECONCILE", invoiceDocumentId: document.id })}>對帳</Action></div>
@@ -146,12 +154,12 @@ export function MerchantEInvoiceManager({ organizationId, initialData }: { organ
             </article>
           ))}
           {data.documents.length === 0 ? <p className="py-5 text-sm text-stone-500">尚無 TEST 文件。</p> : null}
-        </div>
+        </div>)}</MobileProgressiveRecords>
       </section>
 
       <section className="rounded-xl border border-stone-200 bg-stone-50 p-5">
         <h2 className="text-xl font-semibold">正式供應商狀態</h2>
-        <div className="mt-4 grid gap-3 md:grid-cols-3">{data.providers.filter((item) => item.provider !== "CUSTOM").map((item) => <article key={item.provider} className="rounded-md border border-stone-200 bg-white p-4"><strong>{item.label}</strong><p className="mt-1 text-sm">{item.contractStatus}</p><p className="mt-2 break-words text-xs text-red-700">{item.liveBlocker}</p>{item.officialDocumentation.map((href) => <a key={href} className="mt-2 block break-all text-xs font-semibold text-teal-800 underline" href={href} target="_blank" rel="noreferrer">官方文件</a>)}</article>)}</div>
+        <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-3">{data.providers.filter((item) => item.provider !== "CUSTOM").map((item) => <article key={item.provider} className="min-w-0 rounded-md border border-stone-200 bg-white p-4"><strong>{item.label}</strong><p className="mt-1 break-all text-sm">{item.contractStatus}</p><p className="mt-2 break-all text-xs text-red-700">{item.liveBlocker}</p>{item.officialDocumentation.map((href) => <a key={href} className="mt-2 block break-all text-xs font-semibold text-teal-800 underline" href={href} target="_blank" rel="noreferrer">官方文件</a>)}</article>)}</div>
       </section>
     </div>
   );

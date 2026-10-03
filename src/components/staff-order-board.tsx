@@ -6,9 +6,9 @@ import {
   type StaffOrderBoardControllerInput,
 } from "@/components/staff-order-board-controller";
 
-export type StaffOrderBoardProps = StaffOrderBoardControllerInput;
+export type StaffOrderBoardProps = StaffOrderBoardControllerInput & { queueRedesignEnabled?: boolean; notificationIdentity?: string };
 
 export function StaffOrderBoard(props: StaffOrderBoardProps) {
   const presentation = useStaffOrderBoardController(props);
-  return <StaffOrderBoardPresentation {...presentation} />;
+  return <StaffOrderBoardPresentation {...presentation} queueRedesignEnabled={props.queueRedesignEnabled ?? false} notificationIdentity={props.notificationIdentity} />;
 }

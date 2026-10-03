@@ -24,6 +24,8 @@ test("單一註記分層遮罩與設定回饋通過響應式矩陣", async ({ pa
   ]) {
     await page.setViewportSize(viewport);
     await gotoLocalPath(page, `/merchant/catalog?organizationId=${organizationId}`);
+  await page.getByRole("button", { name: "完整管理／新增商品", exact: true }).click();
+  await expect(page.getByTestId("shared-catalog-actions")).toBeVisible();
 
     const noteEntry = page
       .getByTestId("open-reusable-note-navigator")
@@ -76,6 +78,8 @@ test("編輯商品以明確提示展開與收合商品翻譯", async ({ page }) 
   await loginLocalTestAccount(page, "owner@stallorder.test", password);
   await waitForDefaultMerchantDashboard(page, organizationId);
   await gotoLocalPath(page, `/merchant/catalog?organizationId=${organizationId}`);
+  await page.getByRole("button", { name: "完整管理／新增商品", exact: true }).click();
+  await expect(page.getByTestId("shared-catalog-actions")).toBeVisible();
 
   await page.getByTestId("open-catalog-navigator").filter({ visible: true }).click();
   const catalogNavigator = page.getByTestId("catalog-navigator-dialog");

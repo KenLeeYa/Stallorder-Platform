@@ -75,13 +75,32 @@ jobs:
       - run: npm run lint
       - run: npm run ui:audit
       - run: npm run typecheck
+      - run: npx playwright install --with-deps chromium
       - run: npm test
       - run: npx supabase start
       - run: npx supabase db reset
       - run: npm run db:test
       - run: npx supabase db lint --local --level warning --fail-on warning
       - run: npm run build
-      - run: node scripts/run-npm-audit.mjs
+      - name: Verify the actual fresh Web release scope
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_web_artifact_fixture
+          ALLOW_DEMO_SEED: "false"
+        run: |
+          npm install --global npm@11.16.0
+          npm ci --workspace packages/contracts --include-workspace-root --include=dev
+          node scripts/verify-web-release-scope.mjs web-release-evidence
+      - name: Preserve fresh Web scope evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: web-release-scope-${{ github.run_id }}-${{ github.job }}
+          path: web-release-evidence/
+          if-no-files-found: warn
       - if: always()
         run: npx supabase stop --no-backup
 
@@ -285,6 +304,21 @@ jobs:
       - name: Install pinned Vercel CLI
         if: inputs.apply_migrations
         run: npm install --global vercel@56.3.1
+      - name: Capture verified healthy Primary recovery target before remote changes
+        if: inputs.apply_migrations
+        env:
+          RELEASE_HEALTHY_DEPLOYMENT_ID: dpl_Cx8GfP12KuFHcCgtnZ7SXxzt4AYZ
+          RELEASE_HEALTHY_SHA: 5cc15c6a6189cfd56e127676bc5228e9ffd2ff56
+          PRODUCTION_BASE_URL: ${{ vars.APP_BASE_URL }}
+          PRODUCTION_TEST_QR_REQUIRED: "true"
+          PRODUCTION_TEST_QR_URL: ${{ secrets.PRODUCTION_TEST_QR_URL }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/production-target
+          node scripts/production-release-target.mjs baseline artifacts/production-target/baseline.json >> "$GITHUB_ENV"
+          npm run production:smoke
       - name: Build approved Production deployment without assigning domains
         if: inputs.apply_migrations
         env:
@@ -303,13 +337,22 @@ jobs:
               --meta "git_commit=${GITHUB_SHA}" \
               -e "ABUSE_HASH_SECRET=${ABUSE_HASH_SECRET}" \
               -e "TOKEN_DERIVATION_SECRET=${TOKEN_DERIVATION_SECRET}" \
-              -e "TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY}"
+              -e "TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY}" \
+              -e "COMPLIANCE_ENABLED=false" \
+              -e "COMPLIANCE_DELETION_DRY_RUN=true" \
+              --build-env "LINE_PLATFORM_ENABLED=false" \
+              --build-env "LINE_PLATFORM_NOTIFICATIONS_ENABLED=false" \
+              -e "LINE_PLATFORM_ENABLED=false" \
+              -e "LINE_PLATFORM_NOTIFICATIONS_ENABLED=false"
           )"
           [[ "$deployment" == https://*.vercel.app ]] || {
             echo "::error::Vercel deployment URL was not returned."
             exit 1
           }
           echo "APPROVED_PRODUCTION_DEPLOYMENT=$deployment" >> "$GITHUB_ENV"
+      - name: Read back approved Production candidate before migration or promotion
+        if: inputs.apply_migrations
+        run: node scripts/production-release-target.mjs candidate artifacts/production-target/candidate.json artifacts/production-target/baseline.json
       - name: Apply pending migrations
         if: inputs.apply_migrations && !inputs.include_all_migrations
         run: supabase db push --db-url "$SUPABASE_CI_DATABASE_URL"
@@ -334,6 +377,12 @@ jobs:
           psql --dbname "$SUPABASE_CI_DATABASE_URL" \
             --no-psqlrc --set ON_ERROR_STOP=1 \
             --file scripts/sql/backfill-product-availability-deadlines.sql
+      - name: Backfill legacy notification read receipts on the verified Primary writer
+        if: inputs.apply_migrations
+        run: |
+          psql --dbname "$SUPABASE_CI_DATABASE_URL" \
+            --no-psqlrc --set ON_ERROR_STOP=1 \
+            --file supabase/fixtures/primary_notification_read_receipts_backfill.sql
       - name: Deploy Production Edge Functions
         if: inputs.apply_migrations
         env:
@@ -408,12 +457,17 @@ jobs:
           rollback_on_error() {
             if [ "$promoted" = "true" ]; then
               echo "::warning::Production smoke failed; rolling back the Vercel alias."
-              vercel rollback --yes --token "$VERCEL_TOKEN"
+              vercel rollback "$RELEASE_ROLLBACK_DEPLOYMENT" --yes --token "$VERCEL_TOKEN"
+              node scripts/production-release-target.mjs recovered artifacts/production-target/recovery.json artifacts/production-target/baseline.json
+              npm run production:smoke
             fi
           }
           trap rollback_on_error ERR
-          vercel promote "$APPROVED_PRODUCTION_DEPLOYMENT" --yes --token "$VERCEL_TOKEN"
+          node scripts/production-release-target.mjs recovered artifacts/production-target/pre-promote.json artifacts/production-target/baseline.json
+          npm run production:smoke
           promoted=true
+          vercel promote "$APPROVED_PRODUCTION_DEPLOYMENT" --yes --token "$VERCEL_TOKEN"
+          node scripts/production-release-target.mjs promoted artifacts/production-target/promoted.json artifacts/production-target/baseline.json
           npm run production:smoke
           trap - ERR
       - name: Create immutable successful Production migration evidence
@@ -429,4 +483,13 @@ jobs:
           name: production-primary-migration-${{ github.run_id }}
           path: artifacts/production-primary-migration-evidence.json
           if-no-files-found: error
+          retention-days: 30
+
+      - name: Preserve Primary target and recovery readbacks
+        if: always() && inputs.apply_migrations
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-target-${{ github.run_id }}
+          path: artifacts/production-target/*.json
+          if-no-files-found: warn
           retention-days: 30

@@ -116,6 +116,8 @@ export function MultiStallDashboard({
   const [overview, setOverview] = useState<Overview | null>(initialOverview ?? null);
   const [loading, setLoading] = useState(!initialOverview);
   const [error, setError] = useState("");
+  const overviewRequest = useRef<AbortController | null>(null);
+  useEffect(() => () => overviewRequest.current?.abort(), []);
   const [query, setQuery] = useState(initialQuery);
   const [sortKey, setSortKey] = useState<SortKey>(initialSortKey);
   const [realtimeState, setRealtimeState] = useState<RealtimeState>("CONNECTING");
@@ -127,6 +129,9 @@ export function MultiStallDashboard({
   const overviewReady = overview !== null;
 
   const loadOverview = useCallback(async (quiet = false) => {
+    overviewRequest.current?.abort();
+    const controller = new AbortController();
+    overviewRequest.current = controller;
     if (selectedStallIds.length === 0) {
       setError(label("請至少選擇一個攤位。"));
       setLoading(false);
@@ -144,14 +149,15 @@ export function MultiStallDashboard({
       const response = await fetch(`/api/merchant/dashboard/overview?${search}`, {
         headers: { accept: "application/json" },
         cache: "no-store",
+        signal: controller.signal,
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? label("目前無法載入儀表板。"));
-      setOverview(payload);
+      if (overviewRequest.current === controller && !controller.signal.aborted) setOverview(payload);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : label("網路連線中斷，請稍後再試。"));
+      if (overviewRequest.current === controller && !controller.signal.aborted) setError(requestError instanceof Error && !(requestError instanceof TypeError) ? requestError.message : label("網路連線中斷，請稍後再試。"));
     } finally {
-      setLoading(false);
+      if (overviewRequest.current === controller && !controller.signal.aborted) setLoading(false);
     }
   }, [dateRange, label, organizationId, selectedStallIds]);
 
@@ -310,10 +316,10 @@ export function MultiStallDashboard({
 
   const summary = overview?.summary;
   return (
-    <main className="mx-auto min-h-[calc(100vh-76px)] max-w-7xl px-4 py-3 sm:py-4 md:px-8 md:py-7">
+    <main aria-busy={loading} className="mx-auto min-h-[calc(100vh-76px)] max-w-7xl px-4 py-3 sm:py-4 md:px-8 md:py-7">
       <div className="border-b border-stone-200 pb-3 sm:pb-5">
         <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div><p className="text-sm font-semibold text-teal-800">{singleStallMode ? label("營運總覽") : label("多攤位營運總覽")}</p><h1 className="mt-1 text-3xl font-semibold">{organizationName}</h1><p className="mt-2 hidden text-sm text-stone-600 sm:block">{label("依攤位時區彙整的銷售、訂單與付款資料。")}</p></div>
+          <div><p className="text-sm font-semibold text-teal-800">{singleStallMode ? label("營運總覽") : label("多攤位營運總覽")}</p><h1 className="mt-1 text-3xl font-semibold">{organizationName}</h1></div>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <span className={`inline-flex min-h-10 items-center gap-2 text-xs font-medium ${realtimeState === "LIVE" ? "text-emerald-700" : "text-amber-700"}`} title={realtimeState === "LIVE" ? label("Supabase Realtime 已連線") : label("即時連線未就緒，使用 45 秒自動更新備援")}>
               {realtimeState === "LIVE" ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
@@ -370,6 +376,7 @@ export function MultiStallDashboard({
       ) : null}
 
       {summary ? <>
+        <p data-testid="dashboard-data-freshness" className="mt-3 text-xs text-stone-600">{label("更新時間")} <time dateTime={overview!.generatedAt}>{formatTaipeiDateTime(overview!.generatedAt)}</time> · Asia/Taipei{loading ? ` · ${label("正在載入營運資料")}` : ""}</p>
         <section data-testid="multi-stall-summary-dashboard" className="grid grid-cols-2 gap-2 sm:grid-cols-4 border-b border-stone-200 py-4 sm:py-5" aria-label={label("營運摘要")}>
           <Metric label={label("總銷售額")} value={formatMoney(summary.totalSales, currency)} />
           <Metric label={label("訂單總數")} value={String(summary.orderCount)} />

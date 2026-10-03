@@ -1,0 +1,92 @@
+[
+  {
+    "source": ".superpowers\\sdd\\2026-09-30-responsive-management-verification\\task-1-report.md",
+    "durable": "artifacts\\ux-responsive-20260930\\b3-durable-handoffs\\task-1-report.md",
+    "sha256": "01540f35ffae8a655d16dbc97eae821df8aecffd644cec5a93bbc20a2264c51f",
+    "bytes": 10103
+  },
+  {
+    "source": ".superpowers\\sdd\\2026-09-30-responsive-management-verification\\task-1-review.md",
+    "durable": "artifacts\\ux-responsive-20260930\\b3-durable-handoffs\\task-1-review.md",
+    "sha256": "1be6f15812796df118a2484ca949f8ec4823ef685dd1212bc64068b82ab71181",
+    "bytes": 2601
+  },
+  {
+    "source": ".superpowers\\sdd\\2026-09-30-responsive-management-verification\\task-1-rereview.md",
+    "durable": "artifacts\\ux-responsive-20260930\\b3-durable-handoffs\\task-1-rereview.md",
+    "sha256": "51e006e238eaa5246959bbfddeb7311cee4b9cba6f7be251d4fa778d5e338ebc",
+    "bytes": 1166
+  },
+  {
+    "source": ".superpowers\\sdd\\2026-09-30-responsive-management-verification\\task-2-report.md",
+    "durable": "artifacts\\ux-responsive-20260930\\b3-durable-handoffs\\task-2-report.md",
+    "sha256": "3ea8a7296f6b7f1ee9e6da80d8093580e5bcfbc21b7f309c118f4d5bb4c62f95",
+    "bytes": 12697
+  },
+  {
+    "source": ".superpowers\\sdd\\2026-09-30-responsive-management-verification\\task-2-review.md",
+    "durable": "artifacts\\ux-responsive-20260930\\b3-durable-handoffs\\task-2-review.md",
+    "sha256": "bedf991cef93cfd9c06537c6d60b4a004149bbbffa0e2217d78a0b2451b11974",
+    "bytes": 1604
+  },
+  {
+    "source": ".superpowers\\sdd\\2026-09-30-responsive-management-verification\\task-2-rereview.md",
+    "durable": "artifacts\\ux-responsive-20260930\\b3-durable-handoffs\\task-2-rereview.md",
+    "sha256": "2b4e1a1535cb553b8d7cff2e94c89ebe890caafa14dd0f60ad977e3825cd0d47",
+    "bytes": 959
+  },
+  {
+    "source": ".superpowers\\sdd\\2026-09-30-responsive-management-verification\\task-3a-report.md",
+    "durable": "artifacts\\ux-responsive-20260930\\b3-durable-handoffs\\task-3a-report.md",
+    "sha256": "b7d4f6760bdf35af320d0516fc78529abb5c53e7a333e5cd4e9197be81ce0575",
+    "bytes": 30282
+  },
+  {
+    "source": ".superpowers\\sdd\\2026-09-30-responsive-management-verification\\task-3a-review.md",
+    "durable": "artifacts\\ux-responsive-20260930\\b3-durable-handoffs\\task-3a-review.md",
+    "sha256": "eb550bdd3d9d40f4d9810f3a5ff11b1f8bf2c4b93918c0dcad9cee76dcab131d",
+    "bytes": 2769
+  },
+  {
+    "source": ".superpowers\\sdd\\2026-09-30-responsive-management-verification\\task-3a-rereview.md",
+    "durable": "artifacts\\ux-responsive-20260930\\b3-durable-handoffs\\task-3a-rereview.md",
+    "sha256": "665bd88076b6df57aa2fb32ee2c8dcd3faff0298774e02fd1ca43e0889abf8aa",
+    "bytes": 1099
+  },
+  {
+    "source": ".superpowers\\sdd\\2026-09-30-responsive-management-verification\\task-3b-report.md",
+    "durable": "artifacts\\ux-responsive-20260930\\b3-durable-handoffs\\task-3b-report.md",
+    "sha256": "ad73151281c477bd1329c5a4c2f798b6bc0977e08040ee1be8ad663677161497",
+    "bytes": 28739
+  },
+  {
+    "source": ".superpowers\\sdd\\2026-09-30-responsive-management-verification\\task-3b-review.md",
+    "durable": "artifacts\\ux-responsive-20260930\\b3-durable-handoffs\\task-3b-review.md",
+    "sha256": "73b75b976e596a7506346506255038a6054843b96ca33cf0d9a9884d994db91c",
+    "bytes": 2548
+  },
+  {
+    "source": ".superpowers\\sdd\\2026-09-30-responsive-management-verification\\task-3b-rereview.md",
+    "durable": "artifacts\\ux-responsive-20260930\\b3-durable-handoffs\\task-3b-rereview.md",
+    "sha256": "1daac4405d014504b8f34d350c61b16bf770cabfd31d7e170821f57a86a41410",
+    "bytes": 619
+  },
+  {
+    "source": ".superpowers\\sdd\\2026-09-30-responsive-order-workflows\\task-6b-report.md",
+    "durable": "artifacts\\ux-responsive-20260930\\b3-durable-handoffs\\task-6b-report.md",
+    "sha256": "70ca8a7f1a83e28b32a9dfcba29ea951319d1700d73fb9151dd472f4840c7799",
+    "bytes": 27858
+  },
+  {
+    "source": ".superpowers\\sdd\\2026-09-30-responsive-order-workflows\\task-6b-review.md",
+    "durable": "artifacts\\ux-responsive-20260930\\b3-durable-handoffs\\task-6b-review.md",
+    "sha256": "07ec4bc2b70c83da667d35098ab7947340c0d276230907787b1459181d2c51ce",
+    "bytes": 2922
+  },
+  {
+    "source": ".superpowers\\sdd\\2026-09-30-responsive-order-workflows\\task-6b-rereview.md",
+    "durable": "artifacts\\ux-responsive-20260930\\b3-durable-handoffs\\task-6b-rereview.md",
+    "sha256": "c50bf529952b37f6eff7d3d494b0aa4d18343ad24cdc0de4880286fb6aa7c7cc",
+    "bytes": 922
+  }
+]

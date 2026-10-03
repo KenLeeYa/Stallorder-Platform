@@ -8,6 +8,10 @@
   },
   "scripts": {
     "dev": "next dev",
+    "optimize:inventory": "node scripts/awesome-optimization/cli.mjs inventory",
+    "optimize:verify": "node scripts/awesome-optimization/cli.mjs verify",
+    "optimize:external-check": "node scripts/awesome-optimization/cli.mjs external-check",
+    "optimize:report": "node scripts/awesome-optimization/cli.mjs report",
     "dev:qa": "node scripts/start-local-qa.mjs",
     "qa:local": "node scripts/check-local-qa.mjs",
     "postinstall": "prisma generate",
@@ -59,45 +63,59 @@
     "db:reset": "supabase db reset",
     "db:test": "supabase test db",
     "functions:serve": "supabase functions serve --env-file supabase/functions/.env --no-verify-jwt",
-    "functions:serve:e2e": "supabase functions serve --env-file supabase/functions/e2e-runtime.defaults --no-verify-jwt"
+    "functions:serve:e2e": "supabase functions serve --env-file supabase/functions/e2e-runtime.defaults --no-verify-jwt",
+    "mobile:lint": "npm run lint --workspace @stallorder/mobile",
+    "mobile:typecheck": "npm run typecheck --workspace @stallorder/mobile",
+    "mobile:test": "npm run test --workspace @stallorder/mobile",
+    "mobile:doctor": "npm run doctor --workspace @stallorder/mobile",
+    "mobile:export": "npm run export --workspace @stallorder/mobile"
   },
   "dependencies": {
+    "@line/liff": "2.31.0",
     "@pinyin-pro/data": "^1.3.1",
     "@prisma/client": "^6.19.0",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.110.2",
+    "@tanstack/react-query": "5.104.0",
+    "@tanstack/react-table": "8.21.3",
     "@vercel/analytics": "^2.0.1",
     "@vercel/oidc": "3.8.4",
     "@vercel/speed-insights": "^2.0.0",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "jose": "^6.2.4",
+    "jsqr": "1.4.0",
     "lucide-react": "^0.562.0",
-    "next": "16.3.4",
+    "next": "16.3.6",
     "openai": "7.0.0",
     "papaparse": "^5.5.4",
     "pinyin-pro": "^3.28.2",
+    "qrcode": "1.5.4",
     "qrcode.react": "^4.2.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "react-hook-form": "7.89.0",
     "server-only": "0.0.1",
     "sharp": "^0.35.4",
     "web-push": "3.6.7",
-    "zod": "^4.2.1"
+    "zod": "^4.2.1",
+    "@stallorder/contracts": "0.1.0"
   },
   "devDependencies": {
     "@actions/core": "1.11.1",
+    "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/papaparse": "^5.5.2",
+    "@types/qrcode": "1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/web-push": "3.6.4",
     "concurrently": "^10.0.3",
     "cross-env": "^10.1.0",
     "eslint": "^9",
-    "eslint-config-next": "16.3.4",
+    "eslint-config-next": "16.3.6",
     "prisma": "^6.19.0",
     "supabase": "^2.109.1",
     "tailwindcss": "^4",
@@ -110,12 +128,50 @@
     "seed": "tsx prisma/seed.ts"
   },
   "overrides": {
-    "brace-expansion": "5.0.9",
     "deepmerge-ts": "8.0.1",
-    "minimatch": "10.2.5",
     "postcss": "8.5.25",
     "sharp": "^0.35.4",
     "shell-quote": "^1.10.0",
-    "undici": "7.29.0"
-  }
+    "@eslint/config-array@0.21.2": {
+      "minimatch": "3.1.5"
+    },
+    "@eslint/eslintrc@3.3.6": {
+      "minimatch": "3.1.5"
+    },
+    "eslint-plugin-import@2.32.0": {
+      "minimatch": "3.1.5"
+    },
+    "eslint-plugin-jsx-a11y@6.10.2": {
+      "minimatch": "3.1.5"
+    },
+    "eslint-plugin-react@7.37.5": {
+      "minimatch": "3.1.5"
+    },
+    "minimatch@3.1.5": {
+      "brace-expansion": "1.1.21"
+    },
+    "@typescript-eslint/typescript-estree@8.63.0": {
+      "minimatch": "10.2.5"
+    },
+    "minimatch@10.2.5": {
+      "brace-expansion": "5.0.12"
+    },
+    "miniflare@5.20260730.0-alpha": {
+      "undici": "7.29.1"
+    },
+    "@actions/http-client@2.2.3": {
+      "undici": "7.29.1"
+    },
+    "eslint@^9": {
+      "minimatch": "3.1.5"
+    },
+    "xcode@3.0.1": {
+      "uuid": "11.1.1"
+    },
+    "debug@^4": "4.4.3"
+  },
+  "workspaces": [
+    "apps/mobile",
+    "packages/contracts"
+  ]
 }

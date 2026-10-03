@@ -4,6 +4,8 @@ import { interpolateMessage, type MessageValues } from "@/lib/message-catalog";
 type AdminMessageRow = readonly [zhTW: string, ja: string, ko: string, vi: string, th: string];
 
 const rows = {
+  "Platform LINE notifications": ["平台 LINE 通知", "プラットフォーム LINE 通知", "플랫폼 LINE 알림", "Thông báo LINE nền tảng", "การแจ้งเตือน LINE ของแพลตฟอร์ม"],
+  "System settings": ["系統設定", "システム設定", "시스템 설정", "Cài đặt hệ thống", "การตั้งค่าระบบ"],
   "System health": ["系統健康", "システムの状態", "시스템 상태", "Tình trạng hệ thống", "สถานะระบบ"],
   "Cancel change": ["取消", "キャンセル", "취소", "Hủy", "ยกเลิก"],
   "Confirm change": ["確認變更", "変更を確定", "변경 확인", "Xác nhận thay đổi", "ยืนยันการเปลี่ยนแปลง"],
@@ -12,6 +14,8 @@ const rows = {
   "Platform catalog administration": ["平台目錄管理", "プラットフォームカタログ管理", "플랫폼 카탈로그 관리", "Quản lý danh mục nền tảng", "การจัดการแค็ตตาล็อกแพลตฟอร์ม"],
   "Platform administrators only": ["僅限平台管理員", "プラットフォーム管理者限定", "플랫폼 관리자 전용", "Chỉ dành cho quản trị viên nền tảng", "สำหรับผู้ดูแลแพลตฟอร์มเท่านั้น"],
   "Merchant applications": ["商家申請", "事業者申請", "상점 신청", "Hồ sơ cửa hàng", "ใบสมัครร้าน"],
+  "Full record details": ["完整資料", "すべての詳細", "전체 상세 정보", "Chi tiết đầy đủ", "รายละเอียดทั้งหมด"],
+  "Full comparison table": ["完整比較表", "完全比較表", "전체 비교표", "Bảng so sánh đầy đủ", "ตารางเปรียบเทียบฉบับเต็ม"],
   "Billing overview": ["帳務總覽", "請求概要", "청구 개요", "Tổng quan thanh toán", "ภาพรวมการเรียกเก็บเงิน"],
   "Subscriptions": ["訂閱", "サブスクリプション", "구독", "Đăng ký", "การสมัคร"],
   "Invoices": ["帳單", "請求書", "청구서", "Hóa đơn", "ใบแจ้งหนี้"],

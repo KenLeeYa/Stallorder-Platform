@@ -1,4 +1,5 @@
 "use client";
+import { isPublicStaffAmendment, isStaffEditableOrderState } from "@/lib/staff-order-edit-eligibility";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { UserRole } from "@prisma/client";
@@ -111,7 +112,7 @@ export type StaffOrderBoardControllerInput = {
   stall: { id: string; organizationId: string; slug: string; name: string; currency: string; timezone: string; businessDayCutoffHour: number };
   initialOrders: OrderWithItems[];
   initialNow: number;
-  account: { displayName: string; role: UserRole };
+  account: { displayName: string; role: UserRole; profileId: string };
   modules: StaffOrderPosSnapshot["modules"];
   paymentOptions: StaffOrderPosSnapshot["paymentOptions"];
   discountOptions: StaffOrderPosSnapshot["discountOptions"];
@@ -343,7 +344,7 @@ export function useStaffOrderBoardController({
     const next = !alertsEnabledRef.current;
     alertsEnabledRef.current = next;
     setAlertsEnabled(next);
-    window.localStorage.setItem("stallorder_staff_order_alerts", next ? "enabled" : "disabled");
+    try { window.localStorage.setItem("stallorder_staff_order_alerts", next ? "enabled" : "disabled"); } catch { /* Keep sound controls usable without persistence. */ }
     if (next) playConfiguredAlert();
   }
 
@@ -443,16 +444,13 @@ export function useStaffOrderBoardController({
   }
 
   function canEditOrderContent(order: OrderWithItems) {
-    const editableSource = order.source === "STAFF_POS"
-      ? order.status === "CONFIRMED"
-      : order.source === "QR_MENU"
-        && order.fulfillmentType === "TAKEOUT"
-        && (order.status === "WAITING_CONFIRMATION" || order.status === "CONFIRMED");
+    const editableSource = isStaffEditableOrderState(order);
     return Boolean(
       orderCatalog
       && hasPermission(account.role, "UPDATE_ORDERS")
       && editableSource
       && order.paymentStatus === "UNPAID"
+      && order.discountAmount === 0
       && order.items.every((item) => item.status === "PENDING"),
     );
   }
@@ -465,7 +463,7 @@ export function useStaffOrderBoardController({
     setOrderEditMessage("");
     setOrderEditProductId("");
     setOrderEditAmendmentReason("SOLD_OUT_REMOVE");
-    setOrderEditCustomerMessage(order.source === "QR_MENU"
+    setOrderEditCustomerMessage(isPublicStaffAmendment(order)
       ? t("staff.edit.defaultSoldOutNotice")
       : "");
     setOrderEditLines(order.items.map((item) => ({
@@ -523,7 +521,7 @@ export function useStaffOrderBoardController({
                 noteOptionIds: line.noteOptionIds,
                 bundleChoiceIds: line.bundleChoiceIds,
               }),
-          ...(orders.find((order) => order.id === editingOrderId)?.source === "QR_MENU"
+          ...(orders.some((order) => order.id === editingOrderId && isPublicStaffAmendment(order))
             ? {
                 publicAmendment: {
                   reason: orderEditAmendmentReason,
@@ -784,9 +782,10 @@ export function useStaffOrderBoardController({
   }
 
   useEffect(() => {
-    const enabled = window.localStorage.getItem("stallorder_staff_order_alerts") === "enabled";
+    let enabled = false;
+    try { enabled = window.localStorage.getItem("stallorder_staff_order_alerts") === "enabled"; } catch { /* Use the in-memory preference when storage is blocked. */ }
     alertsEnabledRef.current = enabled;
-    const preferenceTimer = window.setTimeout(() => setAlertsEnabled(enabled), 0);
+    const preferenceTimer = window.setTimeout(() => setAlertsEnabled(alertsEnabledRef.current), 0);
     const ageTimer = window.setInterval(() => setNow(Date.now()), 30_000);
     return () => {
       window.clearTimeout(preferenceTimer);
@@ -951,7 +950,7 @@ export function useStaffOrderBoardController({
       customerMessage: orderEditCustomerMessage,
       busy: orderEditBusy,
       message: orderEditMessage,
-      editableOrderIds: new Set(operationalOrders.filter(canEditOrderContent).map((order) => order.id)),
+      editableOrderIds: new Set(filteredOrders.filter(canEditOrderContent).map((order) => order.id)),
     },
     actions: {
       onClearSelectedItems: clearSelectedItems,

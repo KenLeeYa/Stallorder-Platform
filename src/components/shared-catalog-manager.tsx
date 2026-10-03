@@ -6,7 +6,7 @@ import type { MerchantMessageKey } from "@/lib/messages/merchant";
 import { ProductAvailabilityButton, ProductAvailabilityEditor } from "@/components/product-availability-editor";
 import type { StockAssignment } from "@/components/product-stock-editor";
 import { isProductSoldOut } from "@/lib/product-availability";
-import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { type FormEvent, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   ArrowLeft,
   ArrowDown,
@@ -37,6 +37,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import { useOptionalOperationsAuthority } from "@/components/operations-query-provider";
 import { SharedCatalogBoard } from "@/components/shared-catalog-board";
 import { ProductImage } from "@/components/product-image";
 import { SettingsFeedbackDialog, type SettingsFeedbackKind } from "@/components/settings-feedback-dialog";
@@ -272,6 +273,9 @@ export function SharedCatalogManager({
   aiTranslationConfigured,
   aiTranslationProviderLabel,
   versionsHref,
+  initialProductId,
+  onCatalogChanged,
+  onProductEditorClose,
 }: {
   organizationId: string;
   operatingMode: "SINGLE_STALL" | "MULTI_STALL";
@@ -284,8 +288,16 @@ export function SharedCatalogManager({
   aiTranslationConfigured: boolean;
   aiTranslationProviderLabel: string;
   versionsHref?: string;
+  initialProductId?: string;
+  onCatalogChanged?: () => void;
+  onProductEditorClose?: () => void;
 }) {
   const { locale, m, label } = useMerchantMessages();
+  const authority = useOptionalOperationsAuthority();
+  const live = useRef(true);
+  useLayoutEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
+  const captureAuthority = () => { const valid = authority?.capture(); return () => live.current && (valid?.() ?? true); };
+  const denyResponse = (response: Response) => { if ([401, 403, 404].includes(response.status)) authority?.deny(); };
   const formatMoney = (amount: number, selectedCurrency = currency) => formatRawMoney(amount, selectedCurrency, locale);
   const singleStallMode = operatingMode === "SINGLE_STALL";
   const [catalog, setCatalog] = useState(initialCatalog);
@@ -299,9 +311,12 @@ export function SharedCatalogManager({
   const [noteGroupsRevision, setNoteGroupsRevision] = useState(0);
   const [categoryDraft, setCategoryDraft] = useState<CategoryDraft | null>(null);
   const [groupDraft, setGroupDraft] = useState<GroupDraft | null>(null);
-  const [productDraft, setProductDraft] = useState<ProductDraft | null>(null);
+  const initialProduct = initialCatalog.products.find((row) => row.id === initialProductId);
+  const [productDraft, setProductDraft] = useState<ProductDraft | null>(() => initialProduct ? { ...initialProduct, isSoldOut: productIsSoldOut(initialProduct), stallIds: [] } : null);
   const [availabilityTarget, setAvailabilityTarget] = useState<{ stallId: string; productId: string; name: string } | null>(null);
   function applyAvailabilityUpdates(stallId: string, rows: StockAssignment[]) {
+    if (!captureAuthority()()) return;
+    onCatalogChanged?.();
     const updateAssignments = (assignments: Assignment[], productId: string) => {
       const changed = rows.find((row) => row.productId === productId);
       return changed ? assignments.map((assignment) => assignment.stallId === stallId ? { ...assignment,
@@ -322,8 +337,8 @@ export function SharedCatalogManager({
   const [bundleChoiceGroupDraft, setBundleChoiceGroupDraft] = useState<BundleChoiceGroupDraft | null>(null);
   const [bundleChoiceDraft, setBundleChoiceDraft] = useState<BundleChoiceDraft | null>(null);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-  const [messageKind, setMessageKind] = useState<SettingsFeedbackKind>("success");
+  const [message, setMessage] = useState(initialProductId && !initialProduct ? label("商品已變更，請返回清單重新整理。") : "");
+  const [messageKind, setMessageKind] = useState<SettingsFeedbackKind>(initialProductId && !initialProduct ? "error" : "success");
   const [editorMessage, setEditorMessage] = useState("");
   const [editorFieldErrors, setEditorFieldErrors] = useState<Record<string, string>>({});
   const [bundleMessage, setBundleMessage] = useState("");
@@ -382,6 +397,7 @@ export function SharedCatalogManager({
     successMessage: string,
     feedbackTarget: "page" | "editor" | "bundle" = "page",
   ) {
+    const current = captureAuthority();
     setBusy(true);
     if (feedbackTarget === "bundle") clearBundleFeedback();
     else if (feedbackTarget === "editor") clearEditorFeedback();
@@ -393,6 +409,9 @@ export function SharedCatalogManager({
         body: JSON.stringify(command),
       });
       const payload = await response.json() as { error?: string; fieldErrors?: unknown; catalog: Catalog };
+      if (!current()) return false;
+      denyResponse(response);
+      if (!current()) return false;
       if (!response.ok) {
         const errorMessage = payload.error ?? label("目前無法更新商品主檔。");
         const nextFieldErrors = parseFieldErrors(payload.fieldErrors);
@@ -411,10 +430,12 @@ export function SharedCatalogManager({
         return false;
       }
       setCatalog(payload.catalog);
+      onCatalogChanged?.();
       setMessageKind("success");
       setMessage(successMessage);
       return true;
     } catch (error) {
+      if (!current()) return false;
       const errorMessage = error instanceof Error ? error.message : label("網路連線中斷，請稍後再試。");
       if (feedbackTarget === "bundle") setBundleMessage(errorMessage);
       else if (feedbackTarget === "editor") setEditorMessage(errorMessage);
@@ -424,11 +445,12 @@ export function SharedCatalogManager({
       }
       return false;
     } finally {
-      setBusy(false);
+      if (current()) setBusy(false);
     }
   }
 
   async function translateMissingContent() {
+    const current = captureAuthority();
     const confirmed = window.confirm(
       m(
         "將把已啟用商品與註記的繁體中文名稱、說明傳送至 {provider}，補齊目前啟用語系的缺漏翻譯。既有人工翻譯不會被覆蓋。確定執行？",
@@ -448,8 +470,12 @@ export function SharedCatalogManager({
         },
       );
       const payload = await response.json();
+      if (!current()) return ;
+      denyResponse(response);
+      if (!current()) return ;
       if (!response.ok) throw new Error(payload.error ?? label("目前無法完成 AI 翻譯。"));
       setCatalog(payload.catalog);
+      onCatalogChanged?.();
       setNoteGroups(payload.noteGroups);
       setReusableNotes(payload.reusableNotes);
       setNoteGroupsRevision((current) => current + 1);
@@ -461,10 +487,11 @@ export function SharedCatalogManager({
           : label("目前啟用的語系皆已完成翻譯。"),
       );
     } catch (error) {
+      if (!current()) return ;
       setMessageKind("error");
       setMessage(error instanceof Error ? error.message : label("目前無法完成 AI 翻譯。"));
     } finally {
-      setAiTranslating(false);
+      if (current()) setAiTranslating(false);
     }
   }
 
@@ -608,10 +635,11 @@ export function SharedCatalogManager({
       productDraft.id ? label("商品已更新。") : label("商品已新增。"),
       "editor",
     );
-    if (ok) setProductDraft(null);
+    if (ok) { setProductDraft(null); onProductEditorClose?.(); }
   }
 
   async function previewCatalogImport(file: File) {
+    const current = captureAuthority();
     const form = new FormData();
     form.set("catalog", file);
     form.set("mode", "PREVIEW");
@@ -624,17 +652,22 @@ export function SharedCatalogManager({
         body: form,
       });
       const payload = await response.json();
+      if (!current()) return ;
+      denyResponse(response);
+      if (!current()) return ;
       if (!response.ok) throw new Error(payload.error ?? label("商品匯入失敗。"));
       setImportPreview({ file, ...payload });
     } catch (error) {
+      if (!current()) return ;
       setMessageKind("error");
       setMessage(error instanceof Error ? error.message : label("商品匯入失敗。"));
     } finally {
-      setBusy(false);
+      if (current()) setBusy(false);
     }
   }
 
   async function applyCatalogImport() {
+    const current = captureAuthority();
     if (!importPreview || importPreview.validCount === 0) return;
     const form = new FormData();
     form.set("catalog", importPreview.file);
@@ -648,16 +681,21 @@ export function SharedCatalogManager({
         body: form,
       });
       const payload = await response.json();
+      if (!current()) return ;
+      denyResponse(response);
+      if (!current()) return ;
       if (!response.ok) throw new Error(payload.error ?? label("商品匯入失敗。"));
       setCatalog(payload.catalog);
+      onCatalogChanged?.();
       setImportPreview(null);
       setMessageKind("success");
       setMessage(m("已套用 {value0} 筆商品{value1}。", { value0: payload.importedCount, value1: payload.skippedCount > 0 ? m("，略過 {value0} 筆錯誤資料", { value0: payload.skippedCount }) : "" }));
     } catch (error) {
+      if (!current()) return ;
       setMessageKind("error");
       setMessage(error instanceof Error ? error.message : label("商品匯入失敗。"));
     } finally {
-      setBusy(false);
+      if (current()) setBusy(false);
     }
   }
 
@@ -673,11 +711,14 @@ export function SharedCatalogManager({
   }
 
   async function uploadProductImage(file: File, crop: ProductImageCrop) {
+    const current = captureAuthority();
     if (!productDraft) return false;
     let uploadFile: File;
     try {
       uploadFile = await prepareProductImageForUpload(file);
+      if (!current()) return false;
     } catch (error) {
+      if (!current()) return false;
       setImageFeedback({
         kind: "error",
         text: error instanceof Error ? label(error.message) : label("圖片壓縮失敗，請改用 JPG、PNG 或 WebP。"),
@@ -698,6 +739,9 @@ export function SharedCatalogManager({
         headers: csrfFormHeaders(),
         body: form,
       });
+      if (!current()) return false;
+      denyResponse(response);
+      if (!current()) return false;
       if (response.status === 413) {
         throw new Error(label("圖片容量仍超過上傳限制，請改用較小的圖片。"));
       }
@@ -707,6 +751,7 @@ export function SharedCatalogManager({
         optimizedSize?: number;
         error?: string;
       }>(response, label("圖片上傳失敗。"));
+      if (!current()) return false;
       if (!response.ok) throw new Error(payload.error ?? label("圖片上傳失敗。"));
       if (!payload.imageUrl || typeof payload.optimizedSize !== "number") {
         throw new Error(label("圖片上傳失敗。"));
@@ -719,14 +764,15 @@ export function SharedCatalogManager({
       });
       return true;
     } catch (error) {
+      if (!current()) return false;
       setImageFeedback({
         kind: "error",
         text: error instanceof Error ? error.message : label("圖片上傳失敗。"),
       });
       return false;
     } finally {
-      setBusy(false);
-      setUploadingImage(false);
+      if (current()) setBusy(false);
+      if (current()) setUploadingImage(false);
     }
   }
 
@@ -1001,47 +1047,44 @@ export function SharedCatalogManager({
   }
 
   return (
-    <section aria-labelledby="shared-catalog-heading">
-      <div className="flex min-w-0 flex-col gap-4 border-b border-stone-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
-        <div>
+    <section aria-labelledby={onProductEditorClose ? undefined : "shared-catalog-heading"}>
+      {!onProductEditorClose ? <div className="flex min-w-0 flex-col gap-4 border-b border-stone-200 pb-5 md:flex-row md:items-end md:justify-between">
+        <div className="shrink-0">
           <p className="text-sm font-semibold text-teal-800">{label("組織商品主檔")}</p>
-          <h1 id="shared-catalog-heading" className="mt-1 text-3xl font-semibold">{label("共用商品")}</h1>
-          <p className="mt-2 text-sm text-stone-600">{singleStallMode
-            ? label("一次建立分類、群組與商品；新增商品會直接套用至目前攤位。")
-            : label("一次建立分類、群組與商品，再分派到一個或多個攤位。")}</p>
+          <h1 id="shared-catalog-heading" className="mt-1 whitespace-nowrap text-3xl font-semibold">{label("共用商品")}</h1>
         </div>
-        <div data-testid="shared-catalog-actions" className="w-full min-w-0 max-w-[calc(100vw-2rem)] overflow-x-hidden md:max-w-[calc(100vw-4rem)] xl:w-auto xl:max-w-none xl:overflow-visible">
-          <div data-testid="shared-catalog-action-scroller" className="flex w-full min-w-0 flex-nowrap gap-2 overflow-x-auto pb-1 xl:w-auto xl:flex-col xl:overflow-visible xl:pb-0">
-            <div data-testid="shared-catalog-tools" className="flex shrink-0 gap-2 xl:flex-wrap xl:justify-end">
+        <div data-testid="shared-catalog-actions" className="w-full min-w-0 md:ml-auto md:w-auto md:flex-1">
+          <div data-testid="shared-catalog-action-scroller" className="flex w-full min-w-0 flex-wrap justify-end gap-2">
+            <div data-testid="shared-catalog-tools" className="flex min-w-0 flex-wrap justify-end gap-2">
             <button
               type="button"
               disabled={!aiTranslationConfigured || translationOptions.length === 0 || busy || aiTranslating}
               aria-label={aiTranslating ? label("翻譯中…") : label("一鍵補齊翻譯")}
               title={aiTranslationConfigured ? label("只補齊已啟用語系的缺漏內容") : label("AI 翻譯尚未完成伺服器設定")}
               onClick={() => void translateMissingContent()}
-              className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold text-teal-800 disabled:cursor-not-allowed disabled:opacity-45 xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"
+              className="inline-grid h-12 w-12 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold text-teal-800 disabled:cursor-not-allowed disabled:opacity-45 xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"
             >
               <Sparkles className="h-5 w-5" />
               <span className="hidden xl:inline">{aiTranslating ? label("翻譯中…") : label("一鍵補齊翻譯")}</span>
             </button>
-            <a title={label("匯出 CSV")} aria-label={label("匯出 CSV")} href={`/api/merchant/organizations/${organizationId}/catalog/export`} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><Download className="h-5 w-5" /><span className="hidden xl:inline">{label("匯出 CSV")}</span></a>
-            <label title={label("匯入 CSV")} className="inline-grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-md border border-stone-300 text-sm font-semibold xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><Upload className="h-5 w-5" /><span className="hidden xl:inline">{label("匯入 CSV")}</span><input type="file" aria-label={label("匯入 CSV")} accept=".csv,text/csv" className="sr-only" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void previewCatalogImport(file); event.currentTarget.value = ""; }} /></label>
+            <a title={label("匯出 CSV")} aria-label={label("匯出 CSV")} href={`/api/merchant/organizations/${organizationId}/catalog/export`} className="inline-grid h-12 w-12 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><Download className="h-5 w-5" /><span className="hidden xl:inline">{label("匯出 CSV")}</span></a>
+            <label title={label("匯入 CSV")} className="inline-grid h-12 w-12 shrink-0 cursor-pointer place-items-center rounded-md border border-stone-300 text-sm font-semibold xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><Upload className="h-5 w-5" /><span className="hidden xl:inline">{label("匯入 CSV")}</span><input type="file" aria-label={label("匯入 CSV")} accept=".csv,text/csv" className="sr-only" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void previewCatalogImport(file); event.currentTarget.value = ""; }} /></label>
             </div>
-            <div data-testid="shared-catalog-create-actions" className="flex shrink-0 gap-2 xl:flex-wrap xl:justify-end">
-              <button type="button" title="分類與群組排序" aria-label="分類與群組排序" onClick={() => { setCatalogNavigatorLevel({ kind: "CATEGORIES" }); setCatalogNavigatorAction(null); setCatalogSearch(""); setCatalogNavigatorOpen(true); }} className="hidden h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 md:inline-grid"><Boxes className="h-5 w-5" /></button>
-              <button type="button" title={label("新增分類")} aria-label={label("新增分類")} onClick={createCategory} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><FolderPlus className="h-5 w-5" /><span className="hidden xl:inline">{label("分類")}</span></button>
-              <button type="button" title={label("新增群組")} aria-label={label("新增群組")} disabled={sortedCategories.length === 0} onClick={() => createGroup()} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold disabled:opacity-40 xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><Layers3 className="h-5 w-5" /><span className="hidden xl:inline">{label("群組")}</span></button>
-              <button type="button" title={label("新增商品")} aria-label={label("新增商品")} onClick={() => createProduct("SINGLE")} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md bg-stone-900 text-sm font-semibold text-white xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><PackagePlus className="h-5 w-5" /><span className="hidden xl:inline">{label("商品")}</span></button>
-              <button type="button" title={label("新增套餐")} aria-label={label("新增套餐")} onClick={() => createProduct("BUNDLE")} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-teal-700 bg-teal-50 text-sm font-semibold text-teal-900 xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><PackageOpen className="h-5 w-5" /><span className="hidden xl:inline">{label("新增套餐")}</span></button>
-              {versionsHref ? <a data-testid="catalog-versions-action" href={versionsHref} title={label("菜單版本與發布")} aria-label={label("菜單版本與發布")} className="inline-grid h-11 w-11 shrink-0 place-items-center rounded-md border border-teal-700 bg-teal-50 text-teal-900"><GitBranch className="h-5 w-5" /></a> : null}
+            <div data-testid="shared-catalog-create-actions" className="flex min-w-0 flex-wrap justify-end gap-2">
+              <button type="button" title="分類與群組排序" aria-label="分類與群組排序" onClick={() => { setCatalogNavigatorLevel({ kind: "CATEGORIES" }); setCatalogNavigatorAction(null); setCatalogSearch(""); setCatalogNavigatorOpen(true); }} className="hidden h-12 w-12 shrink-0 place-items-center rounded-md border border-stone-300 md:inline-grid"><Boxes className="h-5 w-5" /></button>
+              <button type="button" title={label("新增分類")} aria-label={label("新增分類")} onClick={createCategory} className="inline-grid h-12 w-12 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><FolderPlus className="h-5 w-5" /><span className="hidden xl:inline">{label("分類")}</span></button>
+              <button type="button" title={label("新增群組")} aria-label={label("新增群組")} disabled={sortedCategories.length === 0} onClick={() => createGroup()} className="inline-grid h-12 w-12 shrink-0 place-items-center rounded-md border border-stone-300 text-sm font-semibold disabled:opacity-40 xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><Layers3 className="h-5 w-5" /><span className="hidden xl:inline">{label("群組")}</span></button>
+              <button type="button" title={label("新增商品")} aria-label={label("新增商品")} onClick={() => createProduct("SINGLE")} className="inline-grid h-12 w-12 shrink-0 place-items-center rounded-md bg-stone-900 text-sm font-semibold text-white xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><PackagePlus className="h-5 w-5" /><span className="hidden xl:inline">{label("商品")}</span></button>
+              <button type="button" title={label("新增套餐")} aria-label={label("新增套餐")} onClick={() => createProduct("BUNDLE")} className="inline-grid h-12 w-12 shrink-0 place-items-center rounded-md border border-teal-700 bg-teal-50 text-sm font-semibold text-teal-900 xl:inline-flex xl:w-auto xl:gap-2 xl:px-3"><PackageOpen className="h-5 w-5" /><span className="hidden xl:inline">{label("新增套餐")}</span></button>
+              {versionsHref ? <a data-testid="catalog-versions-action" href={versionsHref} title={label("菜單版本與發布")} aria-label={label("菜單版本與發布")} className="inline-grid h-12 w-12 shrink-0 place-items-center rounded-md border border-teal-700 bg-teal-50 text-teal-900"><GitBranch className="h-5 w-5" /></a> : null}
             </div>
           </div>
         </div>
-      </div>
+      </div> : null}
 
-      {message ? <SettingsFeedbackDialog message={message} kind={messageKind} onClose={() => setMessage("")} /> : null}
+      {message ? <SettingsFeedbackDialog message={message} kind={messageKind} onClose={() => { setMessage(""); if (initialProductId && !initialProduct) onProductEditorClose?.(); }} /> : null}
       {availabilityTarget ? <ProductAvailabilityEditor stallId={availabilityTarget.stallId} products={[availabilityTarget]} onSaved={(rows) => applyAvailabilityUpdates(availabilityTarget.stallId, rows)} onClose={() => setAvailabilityTarget(null)} /> : null}
-      <SharedCatalogBoard currency={currency} categories={catalog.categories} groups={catalog.groups} products={catalog.products} stalls={stalls}
+      {!onProductEditorClose ? <><SharedCatalogBoard currency={currency} categories={catalog.categories} groups={catalog.groups} products={catalog.products} stalls={stalls}
         onEdit={(id) => { const product = catalog.products.find((row) => row.id === id); if (product) editProduct(product); }}
         onEditCategory={(id) => { const category = catalog.categories.find((row) => row.id === id); if (category) editCategory(category); }}
         onEditGroup={(id) => { const group = catalog.groups.find((row) => row.id === id); if (group) editGroup(group); }}
@@ -1065,11 +1108,10 @@ export function SharedCatalogManager({
           <span className="min-w-0 flex-1">
             <strong className="block text-xl text-teal-950">{label("商品目錄")}</strong>
             <span className="mt-1 block text-sm leading-6 text-teal-800">{catalog.categories.length} {label("分類")} · {catalog.products.length} {label("商品")}</span>
-            <span className="mt-1 block text-xs text-teal-700">{label("依分類、群組逐層管理，避免一次顯示過長清單。")}</span>
           </span>
           <ChevronRight className="h-7 w-7 shrink-0 text-teal-800" />
         </button>
-      </div>
+      </div></> : null}
 
       {catalogNavigatorOpen ? (
         <Editor
@@ -1240,7 +1282,7 @@ export function SharedCatalogManager({
       ) : null}
 
       {productDraft && !productImageFile ? (
-        <Editor title={productDraft.id ? label("編輯商品") : productDraft.kind === "BUNDLE" ? label("新增套餐") : label("新增商品")} onClose={() => { clearEditorFeedback(); setProductDraft(null); }} dialogRef={editorRef} errorMessage={editorMessage} wide>
+        <Editor title={productDraft.id ? label("編輯商品") : productDraft.kind === "BUNDLE" ? label("新增套餐") : label("新增商品")} onClose={() => { clearEditorFeedback(); setProductDraft(null); onProductEditorClose?.(); }} dialogRef={editorRef} errorMessage={editorMessage} wide>
           <form noValidate onSubmit={saveProduct} className="grid gap-4 sm:grid-cols-2">
             <TextField label={label("商品名稱")} fieldKey="name" error={editorFieldErrors.name} value={productDraft.name} onChange={(name) => { clearEditorField("name"); setProductDraft({ ...productDraft, name }); }} wide />
             <SelectField label={label("分類")} fieldKey="categoryId" error={editorFieldErrors.categoryId} value={productDraft.categoryId} options={sortedCategories.map((category) => ({ value: category.id, label: category.name }))} onChange={(categoryId) => { clearEditorField("categoryId"); clearEditorField("groupId"); setProductDraft({ ...productDraft, categoryId, groupId: null }); }} />
@@ -1308,7 +1350,7 @@ export function SharedCatalogManager({
               </div>
             ) : null}
             {translationOptions.length > 0 ? <details className="group border-t border-stone-200 pt-4 sm:col-span-2">
-              <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+              <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 text-sm font-semibold [&::-webkit-details-marker]:hidden">
                 <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
                 <Languages className="h-4 w-4" />
                 <span>{label("商品翻譯")}</span>
@@ -1351,12 +1393,12 @@ export function SharedCatalogManager({
         <Editor title={label("CSV 匯入預覽")} onClose={() => !busy && setImportPreview(null)} wide>
           <div className="grid grid-cols-3 gap-3 border-y border-stone-200 py-4 text-center"><div><div className="text-2xl font-semibold">{importPreview.totalCount}</div><div className="text-xs text-stone-500">{label("總筆數")}</div></div><div><div className="text-2xl font-semibold text-emerald-700">{importPreview.validCount}</div><div className="text-xs text-stone-500">{label("可套用")}</div></div><div><div className="text-2xl font-semibold text-red-700">{importPreview.invalidCount}</div><div className="text-xs text-stone-500">{label("將略過")}</div></div></div>
           {importPreview.previewRows.length > 0 ? <div className="mt-4 max-h-64 overflow-auto"><table className="w-full text-left text-xs"><thead className="sticky top-0 bg-white text-stone-500"><tr><th className="py-2">{label("商品")}</th><th>{label("分類／群組")}</th><th>{label("售價")}</th><th>{label("攤位")}</th></tr></thead><tbody>{importPreview.previewRows.map((row, index) => <tr key={`${row.id ?? "new"}-${index}`} className="border-t border-stone-100"><td className="py-2 font-medium">{row.name}</td><td>{row.category}{row.group ? `／${row.group}` : ""}</td><td>{formatMoney(row.price, currency)}</td><td>{row.stallCodes.join("、") || label("未分派")}</td></tr>)}</tbody></table>{importPreview.validCount > importPreview.previewRows.length ? <p className="py-2 text-xs text-stone-500">{label("僅顯示前")} {importPreview.previewRows.length} {label("筆有效資料。")}</p> : null}</div> : <p className="mt-4 text-sm text-red-700">{label("此檔案沒有可套用的商品資料。")}</p>}
-          {importPreview.errors.length > 0 ? <div className="mt-4 border-t border-stone-200 pt-4"><div className="flex items-center justify-between gap-3"><h3 className="text-sm font-semibold">{label("錯誤資料")}</h3><button type="button" onClick={downloadImportErrors} className="inline-flex h-9 items-center gap-2 rounded-md border border-stone-300 px-3 text-xs font-semibold"><Download className="h-4 w-4" />{label("下載錯誤 CSV")}</button></div><ul className="mt-2 max-h-28 overflow-auto text-xs text-red-700">{importPreview.errors.slice(0, 10).map((error) => <li key={`${error.line}-${error.error}`} className="py-1">{error.error}</li>)}</ul></div> : null}
-          <div className="mt-5 grid grid-cols-2 gap-3"><button type="button" disabled={busy} onClick={() => setImportPreview(null)} className="h-11 rounded-md border border-stone-300 text-sm font-semibold">{label("取消")}</button><button type="button" disabled={busy || importPreview.validCount === 0} onClick={() => void applyCatalogImport()} className="h-11 rounded-md bg-stone-900 text-sm font-semibold text-white disabled:opacity-40">{busy ? label("套用中…") : m("套用 {value0} 筆有效資料", { value0: importPreview.validCount })}</button></div>
+          {importPreview.errors.length > 0 ? <div className="mt-4 border-t border-stone-200 pt-4"><div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-sm font-semibold">{label("錯誤資料")}</h3><button type="button" onClick={downloadImportErrors} className="inline-flex min-h-12 items-center gap-2 rounded-md border border-stone-300 px-3 text-xs font-semibold"><Download className="h-4 w-4" />{label("下載錯誤 CSV")}</button></div><ul aria-label={label("錯誤資料")} className="mt-2 max-h-28 overflow-auto text-xs text-red-700">{importPreview.errors.slice(0, 10).map((error) => <li key={`${error.line}-${error.error}`} className="py-1">{error.error}</li>)}</ul></div> : null}
+          <div data-testid="catalog-import-actions" className="sticky bottom-0 z-10 -mx-5 mt-5 grid grid-cols-2 gap-3 border-t border-stone-200 bg-white px-5 py-3"><button type="button" disabled={busy} onClick={() => setImportPreview(null)} className="min-h-12 rounded-md border border-stone-300 text-sm font-semibold">{label("取消")}</button><button type="button" disabled={busy || importPreview.validCount === 0} onClick={() => void applyCatalogImport()} className="min-h-12 rounded-md bg-stone-900 px-2 text-sm font-semibold text-white disabled:opacity-40">{busy ? label("套用中…") : m("套用 {value0} 筆有效資料", { value0: importPreview.validCount })}</button></div>
         </Editor>
       ) : null}
 
-      {!singleStallMode && assignmentProduct ? <Editor title={m("分派「{value0}」", { value0: assignmentProduct.name })} onClose={() => { clearEditorFeedback(); setAssignmentProduct(null); }} dialogRef={editorRef} errorMessage={editorMessage}><StallChecks stalls={stalls} selected={assignmentStallIds} error={editorFieldErrors.stallIds} onChange={(stallIds) => { clearEditorField("stallIds"); setAssignmentStallIds(stallIds); }} /><button type="button" disabled={busy} onClick={() => void saveAssignments()} className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Save className="h-4 w-4" />{label("儲存分派")}</button></Editor> : null}
+      {!singleStallMode && assignmentProduct ? <Editor title={m("分派「{value0}」", { value0: assignmentProduct.name })} onClose={() => { clearEditorFeedback(); setAssignmentProduct(null); }} dialogRef={editorRef} errorMessage={editorMessage}><StallChecks stalls={stalls} selected={assignmentStallIds} error={editorFieldErrors.stallIds} onChange={(stallIds) => { clearEditorField("stallIds"); setAssignmentStallIds(stallIds); }} /><button type="button" disabled={busy} onClick={() => void saveAssignments()} className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50"><Save className="h-4 w-4" />{label("儲存分派")}</button></Editor> : null}
       {bundleProduct ? (
         <Editor
           title={m("設定「{value0}」套餐內容", { value0: bundleProduct.name })}
@@ -1515,7 +1557,7 @@ export function SharedCatalogManager({
                       </div>
                     </form>
                   ) : (
-                    <button type="button" disabled={busy || singleProducts.length === 0} onClick={() => createBundleChoice(choiceGroup.id)} className="mx-4 mb-4 mt-3 inline-flex min-h-11 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold disabled:opacity-50"><Plus className="h-4 w-4" />{label("加入一般商品")}</button>
+                    <button type="button" disabled={busy || singleProducts.length === 0} onClick={() => createBundleChoice(choiceGroup.id)} className="mx-4 mb-4 mt-3 inline-flex min-h-12 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold disabled:opacity-50"><Plus className="h-4 w-4" />{label("加入一般商品")}</button>
                   )}
                 </section>
               ))}
@@ -1540,6 +1582,7 @@ export function SharedCatalogManager({
         initialNoteGroups={noteGroups}
         initialReusableNotes={reusableNotes}
         onChange={(nextNoteGroups, nextReusableNotes) => {
+          if (!captureAuthority()()) return;
           setNoteGroups(nextNoteGroups);
           setReusableNotes(nextReusableNotes);
         }}
@@ -1702,8 +1745,8 @@ function ProductImageCropEditor({
       </div>
       {feedback ? <p role={feedback.kind === "error" ? "alert" : "status"} className={`mt-4 rounded-md px-3 py-2 text-sm font-semibold ${feedback.kind === "error" ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`}>{feedback.text}</p> : null}
       <div className="mt-5 grid grid-cols-2 gap-3">
-        <button type="button" disabled={busy} onClick={onCancel} className="min-h-11 rounded-md border border-stone-300 text-sm font-semibold disabled:opacity-50">{label("取消")}</button>
-        <button type="button" disabled={busy} onClick={() => void onConfirm(crop)} className="min-h-11 rounded-md bg-stone-900 px-3 text-sm font-semibold text-white disabled:opacity-50">{busy ? label("上傳中...") : label("裁切並上傳")}</button>
+        <button type="button" disabled={busy} onClick={onCancel} className="min-h-12 rounded-md border border-stone-300 text-sm font-semibold disabled:opacity-50">{label("取消")}</button>
+        <button type="button" disabled={busy} onClick={() => void onConfirm(crop)} className="min-h-12 rounded-md bg-stone-900 px-3 text-sm font-semibold text-white disabled:opacity-50">{busy ? label("上傳中...") : label("裁切並上傳")}</button>
       </div>
     </Editor>
   );
@@ -1807,7 +1850,7 @@ function Editor({ title, onClose, dialogRef, errorMessage, wide = false, fullScr
 }
 
 function IconButton({ label, danger = false, disabled = false, onClick, children }: { label: string; danger?: boolean; disabled?: boolean; onClick: (event: React.MouseEvent<HTMLButtonElement>) => void; children: React.ReactNode }) {
-  return <button type="button" title={label} aria-label={label} disabled={disabled} onClick={onClick} className={`grid h-11 w-11 shrink-0 place-items-center rounded-md border bg-white hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-30 ${danger ? "border-red-200 text-red-700" : "border-stone-200 text-stone-600"}`}>{children}</button>;
+  return <button type="button" title={label} aria-label={label} disabled={disabled} onClick={onClick} className={`grid h-12 w-12 shrink-0 place-items-center rounded-md border bg-white hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-30 ${danger ? "border-red-200 text-red-700" : "border-stone-200 text-stone-600"}`}>{children}</button>;
 }
 
 function moveOrderedId(ids: string[], index: number, direction: -1 | 1) {
@@ -1856,7 +1899,7 @@ function TouchSwitch({ label, accessibleLabel, checked, onChange }: { label: Rea
       aria-label={accessibleLabel}
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 ${checked ? "border-teal-700 bg-teal-50 text-teal-950" : "border-stone-300 bg-white text-stone-700"}`}
+      className={`flex min-h-12 w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 ${checked ? "border-teal-700 bg-teal-50 text-teal-950" : "border-stone-300 bg-white text-stone-700"}`}
     >
       <span className="min-w-0 flex-1">{label}</span>
       <span aria-hidden="true" className={`grid h-5 w-5 shrink-0 place-items-center rounded border ${checked ? "border-teal-700 bg-teal-700 text-white" : "border-stone-400"}`}>{checked ? <Check className="h-4 w-4" /> : null}</span>
@@ -1866,5 +1909,5 @@ function TouchSwitch({ label, accessibleLabel, checked, onChange }: { label: Rea
 
 function SubmitButton({ busy, wide = false }: { busy: boolean; wide?: boolean }) {
   const { label } = useMerchantMessages();
-  return <button disabled={busy} type="submit" className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50 ${wide ? "sm:col-span-2" : ""}`}><Check className="h-4 w-4" />{label("儲存")}</button>;
+  return <button disabled={busy} type="submit" className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50 ${wide ? "sm:col-span-2" : ""}`}><Check className="h-4 w-4" />{label("儲存")}</button>;
 }

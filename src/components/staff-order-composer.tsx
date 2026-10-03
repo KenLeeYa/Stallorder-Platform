@@ -5,7 +5,9 @@ import type { PaymentOptionKind, UserRole } from "@prisma/client";
 import { ArchiveRestore, ArrowLeft, ChevronDown, List, MessageSquareText, Minus, Package, Plus, Save, Send, ShoppingCart, Trash2, Truck, Utensils, X } from "lucide-react";
 import { FulfillmentTimePicker } from "@/components/fulfillment-time-picker";
 import { useOperationsLocale } from "@/components/operations-locale";
+import { CashChangeSummary } from "@/components/cash-change-summary";
 import { StaffDiscountSelector } from "@/components/staff-discount-selector";
+import { claimStaffOrderRecovery, clearStaffOrderRecovery, readStaffOrderRecovery, staffOrderRecoveryKey, type StaffOrderRecovery } from "@/lib/staff-order-recovery";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { calculateOrderDiscount } from "@/lib/checkout";
 import { formatMoney } from "@/lib/money";
@@ -55,10 +57,11 @@ type StaffOrderDraft = {
 type Props = {
   stall: { id: string; organizationId: string; slug: string; currency: string; timezone?: string };
   catalog: StaffOrderCatalog;
-  account: { role: UserRole };
+  account: { role: UserRole; profileId?: string };
   modules: { dineIn: boolean; delivery: boolean; print: boolean; payment: boolean; discount: boolean; discountApprovalThresholdBps: number };
   paymentOptions: Array<{ id: string; name: string; kind: PaymentOptionKind }>;
   discountOptions: Array<{ id: string; name: string; rateBps: number }>;
+  onlineEntryRequired?: boolean;
   onCreated: (order: StaffOrderDto) => void;
   onClose: () => void;
 };
@@ -70,15 +73,28 @@ export function StaffOrderComposer({
   modules,
   paymentOptions,
   discountOptions,
+  onlineEntryRequired = false,
   onCreated,
   onClose,
 }: Props) {
   const { locale, t } = useOperationsLocale();
   const optionSeparator = locale === "zh-TW" || locale === "ja" ? "、" : ", ";
   const idempotencyKeyRef = useRef(createWebUuid());
+  const activeRef = useRef(true);
+  useEffect(() => {
+    activeRef.current = true;
+    return () => { activeRef.current = false; };
+  }, []);
+  const [uncertainRequest, setUncertainRequest] = useState<StaffOrderRecovery | null>(null);
+  const [recoveryReady, setRecoveryReady] = useState(false);
+  const [recoveryError, setRecoveryError] = useState("");
   const actionPromptTimerRef = useRef<number | null>(null);
   const menuScrollRef = useRef<HTMLDivElement>(null);
   const cartScrollRef = useRef<HTMLElement>(null);
+  const posDialogRef = useRef<HTMLDialogElement>(null);
+  const productDialogRef = useRef<HTMLDialogElement>(null);
+  const noteDialogRef = useRef<HTMLDialogElement>(null);
+  const draftDialogRef = useRef<HTMLDialogElement>(null);
   const defaultPayment = modules.payment
     ? paymentOptions[0] ?? null
     : paymentOptions.find((option) => option.kind === "CASH") ?? null;
@@ -113,6 +129,10 @@ export function StaffOrderComposer({
   const [draftManagerOpen, setDraftManagerOpen] = useState(false);
   const [draftNotice, setDraftNotice] = useState("");
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
+  useStaffModal(posDialogRef, true, t("staff.action.createOrder"));
+  useStaffModal(productDialogRef, configuringProductId !== null && !onlineEntryRequired);
+  useStaffModal(noteDialogRef, noteDialogOpen && !onlineEntryRequired);
+  useStaffModal(draftDialogRef, draftManagerOpen && !onlineEntryRequired);
   const draftStorageKey = staffOrderDraftStorageKey(stall.organizationId, stall.id);
 
   const productsById = useMemo(
@@ -159,6 +179,12 @@ export function StaffOrderComposer({
     return quantitiesByProduct;
   }, [cartLines]);
   const totalQuantity = qrCartTotalQuantity(cartLines);
+  const hasCurrentInput = cartLines.length > 0
+    || Object.values(quantities).some((quantity) => quantity > 0)
+    || customerName.trim().length > 0
+    || customerPhone.trim().length > 0
+    || deliveryAddress.trim().length > 0
+    || customerNote.trim().length > 0;
   const subtotal = selectedItems.reduce((sum, item) => (
     sum + Math.max(
       0,
@@ -210,6 +236,19 @@ export function StaffOrderComposer({
     [catalog.fulfillmentSlots, stall.timezone],
   );
   const [activeCatalogAnchor, setActiveCatalogAnchor] = useState(catalogNavigationItems[0]?.id ?? "");
+
+  useEffect(() => {
+    const readRecovery = () => {
+      try {
+        const marker = readStaffOrderRecovery(window.localStorage, stall.organizationId, stall.id);
+        if (marker) setUncertainRequest(marker);
+        setRecoveryReady(true);
+      } catch { setRecoveryError(t("composer.recoveryStorageUnavailable")); }
+    };
+    const frame = window.requestAnimationFrame(readRecovery);
+    window.addEventListener("storage", readRecovery);
+    return () => { window.cancelAnimationFrame(frame); window.removeEventListener("storage", readRecovery); };
+  }, [stall.organizationId, stall.id, t]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -385,12 +424,6 @@ export function StaffOrderComposer({
   }
 
   function restoreSavedDraft(draft: StaffOrderDraft) {
-    const hasCurrentInput = cartLines.length > 0
-      || Object.values(quantities).some((quantity) => quantity > 0)
-      || customerName.trim().length > 0
-      || customerPhone.trim().length > 0
-      || deliveryAddress.trim().length > 0
-      || customerNote.trim().length > 0;
     if (hasCurrentInput && !window.confirm(t("composer.draft.replaceConfirm"))) return;
     const restored = restoreQrCartDraft(
       draft.cartDraft,
@@ -690,6 +723,7 @@ export function StaffOrderComposer({
   }
 
   async function submit() {
+    if (busy || uncertainRequest || !recoveryReady || onlineEntryRequired) return;
     if (selectedItems.length === 0) {
       showActionPrompt(Object.values(quantities).some((quantity) => quantity > 0)
         ? t("composer.addPendingItem")
@@ -771,45 +805,79 @@ export function StaffOrderComposer({
         bundleChoiceIds,
       })),
     };
+    const originalRequest = { body: JSON.stringify(requestBody), cash: paymentTiming === "PAY_NOW" && usesCash };
+    const marker: StaffOrderRecovery = { version: 1, organizationId: stall.organizationId, stallId: stall.id,
+      actorProfileId: account.profileId ?? "", idempotencyKey, paymentTiming, cash: originalRequest.cash, draftId: activeDraftId };
     try {
+      // Re-read before either intake path; a different mounted tab may have
+      // saved an online attempt since this composer's last storage event.
+      try {
+        const pending = readStaffOrderRecovery(window.localStorage, stall.organizationId, stall.id);
+        if (pending) { setUncertainRequest(pending); return; }
+      } catch { setRecoveryError(t("composer.recoveryStorageUnavailable")); return; }
+      // Only a request that has not been dispatched may become an offline order.
+      if (!navigator.onLine) {
+        await createOfflineFallback(new TypeError("OFFLINE_BEFORE_DISPATCH"));
+        return;
+      }
+      // Persist identity before dispatch. Browser locks serialize competing tabs;
+      // storage failure or another pending attempt must never permit a new POST.
+      try {
+        if (!marker.actorProfileId || !navigator.locks) throw new Error("RECOVERY_STORAGE_UNAVAILABLE");
+        const claimed = await navigator.locks.request(staffOrderRecoveryKey(stall.organizationId, stall.id), () => {
+          if (!activeRef.current) throw new Error("COMPOSER_CLOSED");
+          const pending = readStaffOrderRecovery(window.localStorage, stall.organizationId, stall.id);
+          return pending ? { marker: pending, fresh: false } : { marker: claimStaffOrderRecovery(window.localStorage, marker), fresh: true };
+        });
+        if (!activeRef.current) return;
+        if (!claimed.fresh) {
+          setUncertainRequest(claimed.marker);
+          return;
+        }
+      } catch {
+        setRecoveryError(t("composer.recoveryStorageUnavailable"));
+        return;
+      }
       let response: Response;
       try {
         response = await fetch(`/api/stalls/${stall.slug}/orders`, {
-          method: "POST",
-          headers: csrfHeaders(),
-          body: JSON.stringify(requestBody),
+          method: "POST", headers: { ...csrfHeaders(), "x-stallorder-actor-id": marker.actorProfileId }, body: originalRequest.body,
         });
-      } catch (error) {
-        await createOfflineFallback(error);
+      } catch {
+        setUncertainRequest(marker);
         return;
       }
+      if (!activeRef.current) return;
       let payload: { order?: StaffOrderDto; code?: string };
       try {
-        payload = await response.json() as { order?: StaffOrderDto; code?: string };
-      } catch (error) {
-        if (response.ok || isTemporaryOrderFailure(response.status)) {
-          await createOfflineFallback(error);
-          return;
-        }
-        throw new Error(t("composer.createFailed"));
+        payload = (await response.json() ?? {}) as { order?: StaffOrderDto; code?: string };
+      } catch {
+        setUncertainRequest(marker);
+        return;
       }
+      if (!activeRef.current) return;
       if (!response.ok) {
         if (isTemporaryOrderFailure(response.status)) {
-          await createOfflineFallback(new Error("ORDER_INTAKE_TEMPORARILY_UNAVAILABLE"));
+          setUncertainRequest(marker);
+          return;
+        }
+        await navigator.locks.request(staffOrderRecoveryKey(marker.organizationId, marker.stallId), () => {
+          if (activeRef.current) clearStaffOrderRecovery(window.localStorage, marker);
+        });
+        if (!activeRef.current) return;
+        if (payload.code === "STAFF_ORDER_ACTOR_CHANGED") {
+          setRecoveryReady(false);
+          setRecoveryError(t("composer.recoveryLogin"));
           return;
         }
         throw new Error(t(getOperationsErrorMessageKey(payload.code, "composer.createFailed")));
       }
       if (!payload.order) {
-        await createOfflineFallback(new Error("ORDER_RESPONSE_MISSING"));
+        setUncertainRequest(marker);
         return;
       }
-      idempotencyKeyRef.current = createWebUuid();
-      consumeActiveDraft();
-      onCreated(payload.order);
-      if (paymentTiming === "PAY_NOW" && usesCash) {
-        window.dispatchEvent(new Event("stallorder:cash-payment-completed"));
-      }
+      setUncertainRequest(marker);
+      await completeRecoveredOrder(payload.order, marker);
     } catch (error) {
       setMessage(error instanceof Error
         ? t(getOperationsErrorMessageKey(error.message, "composer.createFailed"))
@@ -843,6 +911,7 @@ export function StaffOrderComposer({
         import("@/offline/offline-operations"),
         import("@/offline/offline-staff-order"),
       ]);
+      if (!activeRef.current) return;
       const created = await createOfflineOrder({
         organizationId: stall.organizationId,
         stallId: stall.id,
@@ -856,6 +925,7 @@ export function StaffOrderComposer({
         queuePrint: modules.print,
         items: requestBody.items,
       });
+      if (!activeRef.current) return;
       idempotencyKeyRef.current = createWebUuid();
       consumeActiveDraft();
       onCreated(offlineOrderToStaffOrder(created.order));
@@ -865,9 +935,90 @@ export function StaffOrderComposer({
     }
   }
 
+  function requestClose() {
+    if (busy || uncertainRequest || (hasCurrentInput && !window.confirm(t("composer.discardConfirm")))) return;
+    onClose();
+  }
+
+  async function completeRecoveredOrder(order: StaffOrderDto, marker: StaffOrderRecovery) {
+    // Claim and cleanup share a lock, so another tab cannot replace the marker
+    // between its identity check and removal. A retired actor/stall cannot finish.
+    await navigator.locks.request(staffOrderRecoveryKey(marker.organizationId, marker.stallId), () => {
+      if (!activeRef.current) return;
+      // Consume only the original draft, using current storage rather than a
+      // stale render's selection. Storage failure leaves recovery retryable.
+      if (marker.draftId) {
+        const drafts = parseStaffOrderDrafts(window.localStorage.getItem(draftStorageKey));
+        const remaining = drafts.filter(draft => draft.id !== marker.draftId);
+        window.localStorage.setItem(draftStorageKey, JSON.stringify(remaining));
+        setSavedDrafts(remaining);
+        setActiveDraftId(null);
+      }
+      clearStaffOrderRecovery(window.localStorage, marker);
+      idempotencyKeyRef.current = createWebUuid();
+      setUncertainRequest(null);
+      if (marker.cash) window.dispatchEvent(new Event("stallorder:cash-payment-completed"));
+      onCreated(order);
+    });
+  }
+
+  async function recoverUncertainRequest() {
+    if (!uncertainRequest || busy) return;
+    if (uncertainRequest.actorProfileId !== account.profileId) {
+      setRecoveryError(t("composer.recoveryActorMismatch"));
+      return;
+    }
+    setBusy(true);
+    setRecoveryError("");
+    try {
+      const query = new URLSearchParams({ actorProfileId: uncertainRequest.actorProfileId, idempotencyKey: uncertainRequest.idempotencyKey });
+      const response = await fetch(`/api/stalls/${stall.slug}/orders/recovery?${query}`, { cache: "no-store" });
+      if (!activeRef.current) return;
+      if (response.status === 401) { setRecoveryError(t("composer.recoveryLogin")); return; }
+      if (response.status === 403 || response.status === 404) { setRecoveryError(t("composer.recoveryActorMismatch")); return; }
+      const payload = await response.json() as { status?: string; order?: StaffOrderDto };
+      if (!activeRef.current) return;
+      if (!response.ok || payload.status !== "FOUND" || !payload.order) {
+        setRecoveryError(t("composer.recoveryUnknown"));
+        return;
+      }
+      await completeRecoveredOrder(payload.order, uncertainRequest);
+    } catch { setRecoveryError(t("composer.recoveryUnknown")); }
+    finally { setBusy(false); }
+  }
+
+  // Retain the offline cart in this mounted instance if connectivity returns.
+  // A permit's role is not a reliable identity for an online transaction.
+  if (onlineEntryRequired && !uncertainRequest) return (
+    <dialog ref={posDialogRef} aria-labelledby="staff-online-entry-title" onCancel={event => { event.preventDefault(); requestClose(); }} onKeyDown={keepTabInsideDialog}
+      className="m-auto max-h-[100dvh] w-full max-w-xl overflow-y-auto bg-white p-6 backdrop:bg-black/45">
+      <h2 id="staff-online-entry-title" className="text-xl font-semibold">{t("composer.title")}</h2>
+      <p role="status" className="my-4">{t("offline.recovery.onlineOrderHelp")}</p>
+      <a href={`/staff/${stall.slug}`} className="inline-flex min-h-12 items-center rounded-md border px-4 py-2">{t("offline.recovery.backToStaff")}</a>
+      <button type="button" disabled={busy} onClick={requestClose} className="ml-2 min-h-12 rounded-md border px-4 py-2">{t("composer.close")}</button>
+    </dialog>
+  );
+
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-black/45 print:hidden sm:p-3 lg:p-6">
-      <section role="dialog" aria-modal="true" aria-labelledby="staff-order-title" className="mx-auto flex h-full min-h-0 w-full max-w-6xl flex-col overflow-hidden bg-white shadow-xl sm:rounded-lg">
+    <dialog ref={posDialogRef} aria-labelledby={uncertainRequest ? "staff-order-recovery-title" : "staff-order-title"}
+      onCancel={(event) => {
+        event.preventDefault();
+        if (busy || productDialogRef.current?.open || noteDialogRef.current?.open || draftDialogRef.current?.open) return;
+        requestClose();
+      }}
+      onKeyDown={keepTabInsideDialog}
+      className="m-auto h-[100dvh] max-h-[100dvh] w-full max-w-none overflow-hidden border-0 bg-transparent p-0 text-stone-950 backdrop:bg-black/45 print:hidden sm:h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-1.5rem)] sm:w-[calc(100%-1.5rem)] lg:h-[calc(100dvh-3rem)] lg:max-h-[calc(100dvh-3rem)] lg:w-[calc(100%-3rem)]">
+      {uncertainRequest ? <section className="mx-auto grid h-full max-w-xl auto-rows-max content-start gap-4 overflow-y-auto bg-white p-6">
+        <h2 id="staff-order-recovery-title" className="text-xl font-semibold">{t("composer.title")}</h2>
+        <p role="alert" className="text-base font-semibold">{t(uncertainRequest.paymentTiming === "PAY_NOW" ? "composer.paymentUncertain" : "composer.orderUncertain")}</p>
+        {recoveryError ? <p role="alert">{recoveryError}</p> : null}
+        {uncertainRequest.actorProfileId === account.profileId ? <p className="break-all text-sm">{t("composer.recoveryReference", { key: uncertainRequest.idempotencyKey })}</p> : <p role="alert">{t("composer.recoveryActorMismatch")}</p>}
+        <a href={`/login?next=${encodeURIComponent(`/staff/${stall.slug}`)}`} className="inline-flex min-h-12 items-center rounded-md border border-stone-400 px-4 font-semibold">{t("composer.recoveryLogin")}</a>
+        <a href={`/staff/${stall.slug}`} className="inline-flex min-h-12 items-center rounded-md border border-stone-400 px-4 font-semibold">{t("composer.recoveryWorkbench")}</a>
+        <button type="button" autoFocus disabled={busy || uncertainRequest.actorProfileId !== account.profileId} onClick={() => void recoverUncertainRequest()} className="min-h-12 rounded-md bg-teal-800 px-4 font-semibold text-white disabled:opacity-50">{t("composer.recoverOriginal")}</button>
+      </section> : null}
+      {!uncertainRequest && recoveryError ? <p role="alert" className="bg-amber-50 p-4 text-amber-950">{recoveryError}</p> : null}
+      <section hidden={Boolean(uncertainRequest)} className={`${uncertainRequest ? "hidden" : "flex"} mx-auto h-full min-h-0 w-full max-w-6xl flex-col overflow-hidden bg-white shadow-xl sm:rounded-lg`}>
         <header className="z-20 flex shrink-0 flex-wrap items-start justify-between gap-2 border-b border-stone-200 bg-white px-4 py-3 sm:rounded-t-lg sm:px-6 md:gap-4 lg:py-4">
           <div>
             <h2 id="staff-order-title" className="text-xl font-semibold">{t("composer.title")}</h2>
@@ -924,7 +1075,7 @@ export function StaffOrderComposer({
               <span className="sr-only">{t("composer.orderAndCheckout", { count: totalQuantity })}</span>
               <span aria-hidden="true" className="absolute right-1 top-1 min-w-4 rounded-full bg-stone-800 px-1 text-center text-[10px] leading-4 text-white">{totalQuantity}</span>
             </button>
-            <button type="button" title={t("composer.close")} aria-label={t("composer.close")} disabled={busy} onClick={onClose} className="grid h-11 min-w-0 place-items-center rounded-md border border-stone-300 md:w-11"><X className="h-5 w-5 md:h-4 md:w-4" /></button>
+            <button type="button" title={t("composer.close")} aria-label={t("composer.close")} disabled={busy} onClick={requestClose} className="grid h-11 min-w-0 place-items-center rounded-md border border-stone-300 md:w-11"><X className="h-5 w-5 md:h-4 md:w-4" /></button>
           </div>
           <div className={`w-full text-xs leading-5 text-stone-600 ${activeDraftId || draftNotice ? "block" : "hidden md:block"}`}>
             <p className="hidden border-t border-stone-100 pt-3 md:block">{t("composer.draft.policy")}</p>
@@ -1069,7 +1220,7 @@ export function StaffOrderComposer({
           </div>
 
           <aside ref={cartScrollRef} data-testid="staff-order-cart-panel" className={`${tabletCheckoutStep === "CHECKOUT" ? "col-span-full flex overflow-hidden" : `${activePane === "CART" ? "flex" : "hidden"} overflow-y-auto md:flex md:overflow-hidden`} safe-area-bottom min-h-0 flex-col overscroll-contain border-t border-stone-200 bg-stone-50 px-4 py-4 sm:px-6 md:h-full md:border-l md:border-t-0`}>
-            <div className={tabletCheckoutStep === "CHECKOUT" ? "hidden" : "flex"}><div className="flex w-full shrink-0 items-center gap-2"><ShoppingCart className="h-4 w-4 text-teal-800" /><h3 className="font-semibold">{t("composer.currentOrder")}</h3><span className="ml-auto text-sm text-stone-500">{t("common.portions", { count: totalQuantity })}</span></div></div>
+            <div className={tabletCheckoutStep === "CHECKOUT" ? "hidden" : "flex"}><div className="flex w-full shrink-0 items-center gap-2"><ShoppingCart className="h-4 w-4 text-teal-800" /><h3 className="font-semibold">{t("composer.currentOrder")}</h3><div data-testid="staff-cart-live-total" aria-live="polite" aria-atomic="true" className="ml-auto flex flex-wrap items-baseline justify-end gap-x-3 gap-y-1"><span className="text-sm text-stone-500">{t("common.portions", { count: totalQuantity })}</span><strong className="text-xl font-bold tabular-nums text-teal-800">{formatMoney(paymentTiming === "PAY_NOW" ? total : subtotal, stall.currency, locale)}</strong></div></div></div>
             <div data-testid="staff-order-cart-lines" className={`${tabletCheckoutStep === "CHECKOUT" ? "hidden" : "block"} mt-3 min-h-0 flex-1 divide-y divide-stone-200 overflow-y-auto overscroll-contain border-y border-stone-200 pr-1 md:min-h-32`}>{selectedItems.map(({ cartLineId, product, quantity, noteOptionIds, bundleChoiceIds }) => {
               const productCopy = localizedStaffProduct(product, locale);
               const selectedBundleChoices = (product.bundleChoiceGroups ?? []).flatMap((group) => (
@@ -1091,7 +1242,7 @@ export function StaffOrderComposer({
                   + notePriceAdjustment(product.noteGroups, noteOptionIds),
               );
               return <div key={cartLineId} data-testid="staff-cart-line" data-cart-line-id={cartLineId} className="py-3 text-sm">
-                  <div className="flex justify-between gap-3"><span>{quantity} × {productCopy.name}</span><strong>{formatMoney(unitPrice * quantity, stall.currency, locale)}</strong></div>
+                  <div className="flex justify-between gap-3"><span className="min-w-0 flex-1">{quantity} × {productCopy.name}</span><strong className="shrink-0 whitespace-nowrap tabular-nums">{formatMoney(unitPrice * quantity, stall.currency, locale)}</strong></div>
                 {selectedBundleChoices.length > 0 ? <p className="mt-1 text-xs text-amber-800">{selectedBundleChoices.map((choice) => `${localizedStaffName(choice.name, choice.translations, locale)} × ${choice.quantity}`).join(optionSeparator)}</p> : null}
                 {selectedNoteNames.length > 0 ? <p className="mt-1 text-xs text-teal-800">{selectedNoteNames.join(optionSeparator)}</p> : null}
                 <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
@@ -1142,26 +1293,22 @@ export function StaffOrderComposer({
 
             {paymentTiming === "PAY_NOW" ? <>
               {modules.payment ? <div data-testid="staff-checkout-payment-row" className="mt-3 grid shrink-0 grid-flow-col auto-cols-[minmax(6rem,1fr)] gap-2 overflow-x-auto pb-1 lg:mt-4">{paymentOptions.map((option) => <button key={option.id} type="button" aria-pressed={paymentOptionId === option.id} onClick={() => { setPaymentOptionId(option.id); setCashReceived(""); }} className={`min-h-11 rounded-md border px-2 text-xs font-semibold ${paymentOptionId === option.id ? "border-teal-700 bg-teal-50" : "border-stone-300 bg-white"}`}>{option.name}</button>)}</div> : <p className="mt-3 rounded-md border border-stone-300 bg-white px-3 py-2 text-sm font-semibold lg:mt-4">{t("composer.cash")}</p>}
-              {usesCash ? <div data-testid="staff-checkout-cash-row" className="mt-3 grid shrink-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-2"><StaffDiscountSelector enabled={modules.discount} options={discountOptions} selectedOptionId={applicableDiscountOptionId} onSelect={setDiscountOptionId} isApplicable={discountEligibleSubtotal > 0} /><label data-testid="staff-cash-received-field" className="grid min-w-0 grid-cols-[auto_minmax(0,11rem)] items-center justify-end gap-2 text-xs font-semibold text-stone-600"><span className="shrink-0">{t("composer.cashReceived")}</span><input type="text" inputMode="numeric" value={cashReceived} maxLength={9} onChange={(event) => setCashReceived(event.target.value.replace(/\D/g, ""))} className="form-input m-0 min-w-0" /></label></div> : <div className="mt-3 shrink-0"><StaffDiscountSelector enabled={modules.discount} options={discountOptions} selectedOptionId={applicableDiscountOptionId} onSelect={setDiscountOptionId} isApplicable={discountEligibleSubtotal > 0} /></div>}
+              {usesCash ? <div data-testid="staff-checkout-cash-row" className="mt-3 grid shrink-0 grid-cols-[3rem_minmax(0,1fr)] items-center gap-1 sm:grid-cols-[3rem_minmax(0,12rem)_6rem]"><StaffDiscountSelector compact enabled={modules.discount} options={discountOptions} selectedOptionId={applicableDiscountOptionId} onSelect={setDiscountOptionId} isApplicable={discountEligibleSubtotal > 0} /><div data-testid="cash-quick-amounts" className="grid min-w-0 grid-cols-3 gap-1">{[200, 500, 1000].map((value) => <button key={value} type="button" disabled={value < total} onClick={() => setCashReceived(String(value))} className="min-h-14 min-w-0 whitespace-nowrap rounded-md border border-stone-300 bg-white px-0.5 text-sm font-medium tabular-nums disabled:opacity-40">{value}</button>)}</div><label data-testid="staff-cash-received-field" className="relative col-span-2 w-24 max-w-[100px] justify-self-end sm:col-span-1 sm:w-full"><span className="pointer-events-none absolute inset-x-1 top-1 truncate text-center text-[0.625rem] font-medium text-stone-600">{t("composer.cashReceived")}</span><input type="text" inputMode="numeric" value={cashReceived} maxLength={9} onChange={(event) => setCashReceived(event.target.value.replace(/\D/g, ""))} className="h-14 w-full min-w-0 rounded-md border border-stone-300 bg-white px-1 pb-1 pt-5 text-center text-xl font-semibold tabular-nums" /></label></div> : <div className="mt-3 shrink-0"><StaffDiscountSelector enabled={modules.discount} options={discountOptions} selectedOptionId={applicableDiscountOptionId} onSelect={setDiscountOptionId} isApplicable={discountEligibleSubtotal > 0} /></div>}
               {discountEligibleSubtotal < subtotal ? <p className="mt-2 text-xs text-amber-800">{t("composer.discountEligible", { amount: formatMoney(discountEligibleSubtotal, stall.currency, locale) })}</p> : null}
               {needsApproval ? <div className="mt-4 border-y border-amber-300 bg-amber-50 py-3"><p className="text-xs font-semibold text-amber-900">{t("composer.approvalRequired")}</p><TextField label={t("composer.approvalReason")} value={discountApprovalReason} maxLength={200} onChange={setDiscountApprovalReason} />{!operatorCanApprove ? <TextField label={t("composer.managerAuthorizationCode")} value={managerAuthorizationCode} maxLength={8} onChange={(value) => setManagerAuthorizationCode(value.replace(/\D/g, "").slice(0, 8))} type="password" inputMode="numeric" autoComplete="one-time-code" /> : null}</div> : null}
-              {usesCash ? <div className="mt-2 shrink-0"><div className="grid grid-cols-3 gap-2">{[200, 500, 1000].map((value) => <button key={value} type="button" disabled={value < total} onClick={() => setCashReceived(String(value))} className="h-11 rounded-md border border-stone-300 bg-white text-xs font-semibold disabled:opacity-40">{value}</button>)}</div><div className="mt-2 flex justify-between bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900"><span>{t("composer.change")}</span><span>{formatMoney(change, stall.currency, locale)}</span></div></div> : null}
+              {usesCash ? <div className="mt-2 shrink-0"><CashChangeSummary label={t("composer.change")} amount={formatMoney(cashReceived !== "" && received < total ? total - received : change, stall.currency, locale)} insufficient={cashReceived !== "" && received < total} insufficientLabel={t("composer.cashShort")} /></div> : null}
             </> : null}
 
             <dl className="mt-3 shrink-0 space-y-1 border-y border-stone-200 py-3 text-sm lg:mt-5 lg:space-y-2 lg:py-4"><div className="flex justify-between"><dt>{t("composer.subtotal")}</dt><dd>{formatMoney(subtotal, stall.currency, locale)}</dd></div>{paymentTiming === "PAY_NOW" && discount ? <div className="flex justify-between text-emerald-800"><dt>{discount.name}</dt><dd>-{formatMoney(subtotal - total, stall.currency, locale)}</dd></div> : null}<div className="flex justify-between text-lg font-semibold"><dt>{paymentTiming === "PAY_NOW" ? t("composer.amountDue") : t("composer.orderAmount")}</dt><dd>{formatMoney(paymentTiming === "PAY_NOW" ? total : subtotal, stall.currency, locale)}</dd></div></dl>
             {message ? <p role="alert" className="mt-4 text-sm text-red-700">{message}</p> : null}
-              <button type="button" disabled={busy || selectedItems.length === 0} onClick={() => void submit()} className="sticky bottom-0 z-10 mt-3 inline-flex min-h-12 w-full shrink-0 items-center justify-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white shadow-lg disabled:opacity-40 lg:mt-5"><Send className="h-4 w-4" />{busy ? t("composer.creating") : paymentTiming === "PAY_NOW" ? t("composer.createPaid") : t("composer.createKitchen")}</button>
+              <button type="button" disabled={busy || !recoveryReady || selectedItems.length === 0} onClick={() => void submit()} className="sticky bottom-0 z-10 mt-3 inline-flex min-h-12 w-full shrink-0 items-center justify-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white shadow-lg disabled:opacity-40 lg:mt-5"><Send className="h-4 w-4" />{busy ? t("composer.creating") : paymentTiming === "PAY_NOW" ? t("composer.createPaid") : t("composer.createKitchen")}</button>
             </div>
           </aside>
         </div>
       </section>
       {actionPrompt ? <div className="pointer-events-none fixed inset-0 z-[80] grid place-items-center p-6" aria-live="assertive"><p data-testid="staff-action-prompt" role="alert" className="max-w-md rounded-xl border-2 border-red-600 bg-white px-5 py-4 text-center text-base font-bold text-red-800 shadow-2xl">{actionPrompt}</p></div> : null}
-      {configuringProduct ? <div className="fixed inset-0 z-[76] flex items-end justify-center bg-black/60 sm:items-center sm:p-4">
+      {configuringProduct ? <dialog ref={productDialogRef} data-testid="staff-product-configurator" onCancel={(event) => { event.preventDefault(); dismissProductConfigurator(); }} onKeyDown={keepTabInsideDialog} aria-labelledby="staff-product-configurator-title" className="m-auto max-h-[100dvh] w-full max-w-2xl overflow-hidden border-0 bg-transparent p-0 text-stone-950 backdrop:bg-black/60 sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)]">
         <section
-          data-testid="staff-product-configurator"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="staff-product-configurator-title"
           className="flex max-h-[100dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl"
         >
           <header className="flex shrink-0 items-start justify-between gap-4 border-b border-stone-200 px-4 py-4 sm:px-6">
@@ -1242,11 +1389,11 @@ export function StaffOrderComposer({
             </div>
           </footer>
         </section>
-      </div> : null}
-      {noteDialogOpen ? <div className="fixed inset-0 z-[75] grid place-items-center bg-black/55 p-4"><section role="dialog" aria-modal="true" aria-labelledby="staff-note-dialog-title" className="w-full max-w-lg rounded-xl bg-white p-5 shadow-2xl"><div className="flex items-center justify-between gap-3"><h3 id="staff-note-dialog-title" className="text-xl font-semibold">{t("composer.customerNote")}</h3><button type="button" title={t("common.close")} aria-label={t("common.close")} onClick={() => setNoteDialogOpen(false)} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300"><X className="h-5 w-5" /></button></div><textarea autoFocus value={customerNote} maxLength={catalog.limits.maxNoteLength} onChange={(event) => setCustomerNote(event.target.value)} className="form-input mt-4 min-h-36" /><button type="button" onClick={() => setNoteDialogOpen(false)} className="mt-4 min-h-12 w-full rounded-md bg-teal-800 px-4 text-sm font-semibold text-white">{t("common.save")}</button></section></div> : null}
+      </dialog> : null}
+      {noteDialogOpen ? <dialog ref={noteDialogRef} onCancel={(event) => { event.preventDefault(); setNoteDialogOpen(false); }} aria-labelledby="staff-note-dialog-title" className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg overflow-y-auto border-0 bg-transparent p-0 text-stone-950 backdrop:bg-black/55"><section className="rounded-xl bg-white p-5 shadow-2xl"><div className="flex items-center justify-between gap-3"><h3 id="staff-note-dialog-title" className="text-xl font-semibold">{t("composer.customerNote")}</h3><button type="button" title={t("common.close")} aria-label={t("common.close")} onClick={() => setNoteDialogOpen(false)} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300"><X className="h-5 w-5" /></button></div><textarea autoFocus value={customerNote} maxLength={catalog.limits.maxNoteLength} onChange={(event) => setCustomerNote(event.target.value)} className="form-input mt-4 min-h-36" /><button type="button" onClick={() => setNoteDialogOpen(false)} className="mt-4 min-h-12 w-full rounded-md bg-teal-800 px-4 text-sm font-semibold text-white">{t("common.save")}</button></section></dialog> : null}
       {draftManagerOpen ? (
-        <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/50 p-4">
-          <section role="dialog" aria-modal="true" aria-labelledby="staff-drafts-title" className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-y-auto rounded-lg bg-white p-5 shadow-2xl">
+        <dialog ref={draftDialogRef} onCancel={(event) => { event.preventDefault(); setDraftManagerOpen(false); }} aria-labelledby="staff-drafts-title" className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-xl overflow-y-auto border-0 bg-transparent p-0 text-stone-950 backdrop:bg-black/50">
+          <section className="rounded-lg bg-white p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div><h3 id="staff-drafts-title" className="text-xl font-semibold">{t("composer.draft.deviceTitle")}</h3><p className="mt-1 text-sm leading-6 text-stone-600">{t("composer.draft.expiry")}</p></div>
               <button type="button" title={t("composer.draft.close")} onClick={() => setDraftManagerOpen(false)} className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-stone-300"><X className="h-4 w-4" /></button>
@@ -1266,10 +1413,38 @@ export function StaffOrderComposer({
               {savedDrafts.length === 0 ? <p className="py-8 text-center text-sm text-stone-500">{t("composer.draft.empty")}</p> : null}
             </div>
           </section>
-        </div>
+        </dialog>
       ) : null}
-    </div>
+    </dialog>
   );
+}
+
+function useStaffModal(ref: React.RefObject<HTMLDialogElement | null>, open: boolean, returnLabel?: string) {
+  useEffect(() => {
+    const dialog = ref.current;
+    if (!open || !dialog) return;
+    const trigger = document.activeElement;
+    dialog.showModal();
+    return () => {
+      dialog.close();
+      const returnTarget = returnLabel
+        ? Array.from(document.querySelectorAll<HTMLButtonElement>("button[title]")).find((button) => button.title === returnLabel)
+        : null;
+      if (returnTarget) returnTarget.focus();
+      else if (trigger instanceof HTMLElement && trigger.isConnected) trigger.focus();
+    };
+  }, [open, ref, returnLabel]);
+}
+
+function keepTabInsideDialog(event: React.KeyboardEvent<HTMLDialogElement>) {
+  if (event.key !== "Tab" || (event.target instanceof Element && event.target.closest("dialog") !== event.currentTarget)) return;
+  const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>(
+    "button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex='-1'])",
+  )).filter((element) => element.getClientRects().length > 0 && element.tabIndex >= 0);
+  const first = controls[0], last = controls.at(-1);
+  if (!first || !last) return;
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
 }
 
 function staffOrderDraftStorageKey(organizationId: string, stallId: string) {
@@ -1363,7 +1538,7 @@ function isPaymentTiming(value: unknown): value is StaffOrderDraft["paymentTimin
 }
 
 function isTemporaryOrderFailure(status: number) {
-  return status === 502 || status === 503 || status === 504;
+  return status >= 500 && status < 600;
 }
 
 type StaffCatalogProduct = StaffOrderCatalog["products"][number];

@@ -386,6 +386,7 @@ enum ReportDeliveryStatus {
 }
 
 model Organization {
+  productFeedback ProductFeedback[]
   id                            String                         @id @default(uuid()) @db.Uuid
   name                          String
   slug                          String                         @unique
@@ -599,6 +600,8 @@ model Stall {
 }
 
 model Profile {
+  productFeedback ProductFeedback[]
+  reconciledReportDeliveries ReportDelivery[] @relation("ReportReconciledBy")
   pushSubscriptions        StaffPushSubscription[]
   id                       String                    @id @default(uuid()) @db.Uuid
   authUserId               String?                   @unique @map("auth_user_id") @db.Uuid
@@ -665,6 +668,8 @@ model Profile {
   reviewedInvoiceReconciliations InvoiceReconciliationCase[]   @relation("InvoiceReconciliationReviewedBy")
 
   @@map("profiles")
+  notificationReadReceipts NotificationReadReceipt[]
+  notificationPreference NotificationPreference?
 }
 
 model OrganizationMembership {
@@ -705,7 +710,13 @@ model StallMembership {
   @@map("stall_memberships")
 }
 
+enum AuthSessionClientKind {
+  WEB
+  NATIVE
+}
+
 model AuthSession {
+  clientKind              AuthSessionClientKind @default(WEB) @map("client_kind")
   id                      String    @id @default(uuid()) @db.Uuid
   profileId               String    @map("profile_id") @db.Uuid
   tokenHash               String    @unique @map("token_hash")
@@ -890,6 +901,7 @@ model MerchantApplication {
   publicReviewNote               String?                           @map("public_review_note")
   internalReviewNote             String?                           @map("internal_review_note")
   currentStep                    Int                               @default(1) @map("current_step")
+  draftVersion                   Int                               @default(0) @map("draft_version")
   termsAccepted                  Boolean                           @default(false) @map("terms_accepted")
   privacyAccepted                Boolean                           @default(false) @map("privacy_accepted")
   dataProcessingAccepted         Boolean                           @default(false) @map("data_processing_accepted")
@@ -940,6 +952,7 @@ model MerchantApplicationNotification {
   @@index([profileId, readAt, createdAt(sort: Desc)])
   @@index([applicationId, createdAt(sort: Desc)])
   @@map("merchant_application_notifications")
+  personalReadReceipts NotificationReadReceipt[]
 }
 
 model MerchantBusinessTypeOption {
@@ -1027,6 +1040,21 @@ model ReportSchedule {
 }
 
 model ReportDelivery {
+  executionVersion  Int       @default(1) @map("execution_version")
+  leaseToken        String?   @map("lease_token") @db.Uuid
+  leaseExpiresAt    DateTime? @map("lease_expires_at") @db.Timestamptz(6)
+  nextAttemptAt     DateTime? @map("next_attempt_at") @db.Timestamptz(6)
+  effectState       String?   @map("effect_state")
+  intentJson        Json?     @map("intent_json")
+  snapshotJson      Json?     @map("snapshot_json")
+  snapshotHash      String?   @map("snapshot_hash")
+  firstRequestAt    DateTime? @map("first_request_at") @db.Timestamptz(6)
+  idempotencyValidUntil DateTime? @map("idempotency_valid_until") @db.Timestamptz(6)
+  originRequestId   String?   @map("origin_request_id") @db.Uuid
+  reconciledAt      DateTime? @map("reconciled_at") @db.Timestamptz(6)
+  reconciledById    String?   @map("reconciled_by") @db.Uuid
+  reconciliationEvidence Json? @map("reconciliation_evidence")
+  reconciledBy      Profile? @relation("ReportReconciledBy", fields: [reconciledById], references: [id], onDelete: Restrict)
   id                String               @id @default(uuid()) @db.Uuid
   organizationId    String               @map("organization_id") @db.Uuid
   reportScheduleId  String               @map("report_schedule_id") @db.Uuid
@@ -1833,6 +1861,7 @@ model BillingNotification {
 
   @@index([organizationId, status, createdAt(sort: Desc)])
   @@map("billing_notifications")
+  personalReadReceipts NotificationReadReceipt[]
 }
 
 model StallMenuAnnouncement {
@@ -1891,6 +1920,8 @@ model StaffPushDelivery {
   @@index([status, availableAt], map: "staff_push_delivery_queue_idx")
   @@index([subscriptionId, createdAt(sort: Desc)], map: "staff_push_delivery_subscription_idx")
   @@map("staff_push_deliveries")
+  personalReadReceipts NotificationReadReceipt[]
+  @@unique([id, orderId], map: "staff_push_delivery_id_order_key")
 }
 
 model NotificationOutbox {
@@ -2720,6 +2751,7 @@ model OrderSession {
   usedAt         DateTime?          @map("used_at")
   revokedAt      DateTime?          @map("revoked_at")
   orderId        String?            @unique @map("order_id") @db.Uuid
+  originalItemsDigest String?       @map("original_items_digest")
   orderingMode   String             @default("DEFAULT") @map("ordering_mode")
   requestedFulfillmentAt DateTime?  @map("requested_fulfillment_at")
   locationId     String?            @map("location_id") @db.Uuid
@@ -2780,6 +2812,8 @@ model Order {
   riderPickupAt            DateTime?           @map("rider_pickup_at")
   customerName             String              @map("customer_name")
   customerPhone            String?             @map("customer_phone")
+  privacyErasureRequestId   String?             @map("privacy_erasure_request_id") @db.Uuid
+  privacyContactErasedAt    DateTime?           @map("privacy_contact_erased_at") @db.Timestamptz
   deliveryAddress          String?             @map("delivery_address")
   tableLabel               String?             @map("table_label")
   diningTableId            String?             @map("dining_table_id") @db.Uuid
@@ -2872,6 +2906,7 @@ model Order {
   @@index([stallId, fulfillmentTimeState, createdAt(sort: Desc)])
   @@index([fulfillmentTimeResponseExpiresAt])
   @@map("orders")
+  notificationReadReceipts NotificationReadReceipt[]
 }
 
 model Payment {
@@ -3582,7 +3617,7 @@ model StallOrderCounter {
 
 model NotificationIntegration {
   id               String                        @id @default(uuid()) @db.Uuid
-  organizationId   String                        @map("organization_id") @db.Uuid
+  organizationId   String?                       @map("organization_id") @db.Uuid
   stallId          String?                       @map("stall_id") @db.Uuid
   provider         NotificationProvider
   status           NotificationIntegrationStatus @default(DISABLED)
@@ -3591,7 +3626,7 @@ model NotificationIntegration {
   settingsJson     Json                          @default("{}") @map("settings_json")
   createdAt        DateTime                      @default(now()) @map("created_at")
   updatedAt        DateTime                      @updatedAt @map("updated_at")
-  organization     Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization     Organization?                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   stall            Stall?                        @relation(fields: [stallId], references: [id], onDelete: Cascade)
   contactLinks     CustomerContactLink[]
   jobs             NotificationJob[]
@@ -3685,8 +3720,8 @@ model LineLinkSession {
 
 model LineWebhookEvent {
   id                String                  @id @default(uuid()) @db.Uuid
-  organizationId    String                  @map("organization_id") @db.Uuid
-  stallId           String                  @map("stall_id") @db.Uuid
+  organizationId    String?                 @map("organization_id") @db.Uuid
+  stallId           String?                 @map("stall_id") @db.Uuid
   integrationId     String                  @map("integration_id") @db.Uuid
   providerEventHash String                  @unique @map("provider_event_hash")
   eventType         String                  @map("event_type")
@@ -3694,8 +3729,8 @@ model LineWebhookEvent {
   processedAt       DateTime?               @map("processed_at")
   createdAt         DateTime                @default(now()) @map("created_at")
   updatedAt         DateTime                @updatedAt @map("updated_at")
-  organization      Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  stall             Stall                   @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  organization      Organization?           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  stall             Stall?                  @relation(fields: [stallId], references: [id], onDelete: Cascade)
   integration       NotificationIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
 
   @@index([integrationId, receivedAt(sort: Desc)])
@@ -3866,6 +3901,8 @@ model AuthIdentityLinkInvitation {
 model OAuthTransaction {
   id                    String    @id @default(uuid()) @db.Uuid
   provider              String
+  flow                  String    @default("OAUTH")
+  contextFingerprint    String?   @map("context_fingerprint")
   stateHash             String    @unique @map("state_hash")
   nonceHash             String    @map("nonce_hash")
   codeVerifierCiphertext String   @map("code_verifier_ciphertext")
@@ -4950,4 +4987,56 @@ model EventGrowthExpense {
   @@unique([id, organizationId])
   @@index([organizationId, marketEventId, incurredAt, id])
   @@map("event_growth_expenses")
+}
+
+model NotificationReadReceipt {
+  id String @id @default(uuid()) @db.Uuid
+  profileId String @map("profile_id") @db.Uuid
+  billingNotificationId String? @map("billing_notification_id") @db.Uuid
+  applicationNotificationId String? @map("application_notification_id") @db.Uuid
+  staffDeliveryId String? @map("staff_delivery_id") @db.Uuid
+  staffOrderId String? @map("staff_order_id") @db.Uuid
+  readAt DateTime @default(now()) @map("read_at") @db.Timestamptz(6)
+  profile Profile @relation(fields:[profileId],references:[id],onDelete:Cascade)
+  billingNotification BillingNotification? @relation(fields:[billingNotificationId],references:[id],onDelete:Cascade)
+  applicationNotification MerchantApplicationNotification? @relation(fields:[applicationNotificationId],references:[id],onDelete:Cascade)
+  staffDelivery StaffPushDelivery? @relation(fields:[staffDeliveryId,staffOrderId],references:[id,orderId],onDelete:Cascade)
+  staffOrder Order? @relation(fields:[staffOrderId],references:[id],onDelete:Cascade)
+  @@unique([profileId,billingNotificationId],map:"notification_receipt_profile_billing_key")
+  @@unique([profileId,applicationNotificationId],map:"notification_receipt_profile_application_key")
+  @@unique([profileId,staffOrderId],map:"notification_receipt_profile_order_key")
+  @@index([profileId,readAt(sort:Desc)],map:"notification_receipt_profile_read_idx")
+  @@map("notification_read_receipts")
+}
+
+model NotificationPreference {
+  profileId String @id @map("profile_id") @db.Uuid
+  billingVisible Boolean @default(true) @map("billing_visible")
+  applicationVisible Boolean @default(true) @map("application_visible")
+  staffOrderVisible Boolean @default(true) @map("staff_order_visible")
+  analyticsConsent Boolean @default(false) @map("analytics_consent")
+  version Int @default(1)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  profile Profile @relation(fields:[profileId],references:[id],onDelete:Cascade)
+  @@map("notification_preferences")
+}
+
+model ProductFeedback {
+  id String @id @default(uuid()) @db.Uuid
+  organizationId String? @map("organization_id") @db.Uuid
+  profileId String @map("profile_id") @db.Uuid
+  kind String @db.VarChar(16)
+  surface String @db.VarChar(16)
+  message String @db.VarChar(2000)
+  requestId String? @map("request_id") @db.Uuid
+  status String @default("NEW") @db.VarChar(16)
+  version Int @default(1)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  expiresAt DateTime @default(dbgenerated("(now() + '90 days'::interval)")) @map("expires_at") @db.Timestamptz(6)
+  organization Organization? @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+  profile Profile @relation(fields:[profileId],references:[id],onDelete:Cascade)
+  @@index([status,createdAt(sort:Desc),id(sort:Desc)])
+  @@index([expiresAt,id])
+  @@map("product_feedback")
 }

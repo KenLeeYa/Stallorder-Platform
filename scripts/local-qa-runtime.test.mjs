@@ -7,6 +7,37 @@ import {
 } from "./local-qa-runtime.mjs";
 
 describe("local QA runtime", () => {
+  it.each([
+    ["DIRECT_URL", "postgresql://user:do-not-log@db.example/postgres"],
+    ["NEXT_PUBLIC_SUPABASE_URL", "https://production.supabase.co"],
+    ["NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL", "https://production.supabase.co/functions/v1"],
+    ["NEXT_PUBLIC_SUPABASE_REALTIME_URL", "wss://production.supabase.co"],
+    ["SUPABASE_STORAGE_URL", "https://production.supabase.co/storage/v1"],
+    ["DR_SUPABASE_URL", "https://dr.supabase.co"],
+    ["SMTP_HOST", "smtp.example.com"],
+    ["CUSTOM_CALLBACK_URL", "https://provider.example/callback"],
+  ])("rejects inherited external destination %s before launching QA", (name, value) => {
+    expect(() => buildLocalQaEnvironment(3012, {
+      DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+      [name]: value,
+    })).toThrow(`LOCAL_QA_EXTERNAL_DESTINATION:${name}`);
+  });
+
+  it("never forwards deployment credentials or live provider secrets to a QA child", () => {
+    const result = buildLocalQaEnvironment(3012, {
+      DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+      VERCEL_TOKEN: "sentinel-provider-secret",
+      VERCEL_PROJECT_ID: "primary-project",
+      SUPABASE_ACCESS_TOKEN: "sentinel-management-secret",
+      OPENAI_API_KEY: "sentinel-paid-api",
+      PAYMENT_LINE_PAY_CHANNEL_SECRET: "sentinel-live-payment",
+    });
+    for (const key of ["VERCEL_TOKEN", "VERCEL_PROJECT_ID", "SUPABASE_ACCESS_TOKEN", "OPENAI_API_KEY", "PAYMENT_LINE_PAY_CHANNEL_SECRET"]) {
+      expect(result[key]).toBeUndefined();
+    }
+    expect(result.EXTERNAL_DISPATCH_ENABLED).toBe("false");
+  });
+
   it("keeps every application origin on the requested fixed port", () => {
     const environment = buildLocalQaEnvironment(3012, {
       NODE_ENV: "development",

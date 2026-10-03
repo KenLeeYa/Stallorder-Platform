@@ -1,0 +1,15 @@
+{
+  "name": "@stallorder/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./mobile/v1": "./src/mobile/v1/index.ts",
+    "./operations/v1": "./src/operations/v1/index.ts",
+    "./notifications/v1": "./src/notifications/v1/index.ts",
+    "./operations/v1/query-key": "./src/operations/v1/query-key.ts"
+  },
+  "dependencies": {
+    "zod": "4.4.3"
+  }
+}

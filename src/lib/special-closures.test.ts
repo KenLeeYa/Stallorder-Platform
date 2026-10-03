@@ -9,6 +9,20 @@ import {
 import { specialClosureCommandSchema } from "./special-closures";
 
 describe("special closures", () => {
+  it.each(["02:00", "22:00"])("keeps unsupported overnight/equal special input rejected (%s)", (closesAt) => {
+    expect(specialClosureCommandSchema.safeParse({
+      operation: "CREATE", startsOn: "2026-10-02", endsOn: "2026-10-02",
+      opensAt: "22:00", closesAt, lastOrderAt: "01:00", title: "special", message: "",
+    }).success).toBe(false);
+  });
+
+  it("does not suppress a future open slot because today is closed", () => {
+    const closure = { id: "closed", startsOn: "2026-10-02", endsOn: "2026-10-02", title: "closed", message: "" };
+    expect(filterPreorderSlotsForSpecialClosures([
+      "2026-10-02T12:00:00+08:00", "2026-10-03T12:00:00+08:00",
+    ], [closure], "Asia/Taipei")).toEqual(["2026-10-03T12:00:00+08:00"]);
+  });
+
   it("accepts a single date and a bounded date range", () => {
     expect(specialClosureCommandSchema.safeParse({
       operation: "CREATE",

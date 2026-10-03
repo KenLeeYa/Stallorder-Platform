@@ -20,6 +20,8 @@ test("empty ungrouped buckets are absent and category/group filters identify the
   test.setTimeout(120_000);
   await establishLocalTestSession(page, prisma, ownerId);
   await gotoLocalPath(page, `/merchant/catalog?organizationId=${organizationId}`);
+  await page.getByRole("button", { name: "完整管理／新增商品", exact: true }).click();
+  await expect(page.getByTestId("shared-catalog-actions")).toBeVisible();
   for (const width of [1440, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     if (width >= 768) {
@@ -56,6 +58,8 @@ test("a real ungrouped product is editable and leaves the system bucket after as
     await establishLocalTestSession(page, prisma, ownerId);
     await page.setViewportSize({ width: 1440, height: 900 });
     await gotoLocalPath(page, `/merchant/catalog?organizationId=${organizationId}`);
+  await page.getByRole("button", { name: "完整管理／新增商品", exact: true }).click();
+  await expect(page.getByTestId("shared-catalog-actions")).toBeVisible();
     const nav = page.getByRole("navigation", { name: "分類與群組", exact: true });
     await nav.getByRole("button", { name: "篩選未分組商品 QA 分組分類", exact: true }).click();
     await expect(page.getByText("系統清單：這些商品尚未指定群組。請編輯商品的「群組」欄位完成歸組。", { exact: true })).toBeVisible();
@@ -67,6 +71,8 @@ test("a real ungrouped product is editable and leaves the system bucket after as
     expect((await saved).status()).toBe(200);
     expect((await prisma.product.findUniqueOrThrow({ where: { id: product.id } })).groupId).toBe(group.id);
     await page.reload();
+    await page.getByRole("button", { name: "完整管理／新增商品", exact: true }).click();
+    await expect(page.getByTestId("shared-catalog-actions")).toBeVisible();
     await expect(nav.getByRole("button", { name: "篩選未分組商品 QA 分組分類", exact: true })).toHaveCount(0);
     await nav.getByRole("button", { name: "篩選群組 QA 歸組目的", exact: true }).click();
     await expect(page.getByTestId("catalog-management-row")).toHaveCount(1);
@@ -81,6 +87,8 @@ test("note groups have a tablet sidebar, distinct option rows and a usable phone
   test.setTimeout(120_000);
   await establishLocalTestSession(page, prisma, ownerId);
   await gotoLocalPath(page, `/merchant/catalog?organizationId=${organizationId}`);
+  await page.getByRole("button", { name: "完整管理／新增商品", exact: true }).click();
+  await expect(page.getByTestId("shared-catalog-actions")).toBeVisible();
   for (const width of [1440, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     await page.getByTestId("open-note-group-navigator").filter({ visible: true }).click();
@@ -113,6 +121,8 @@ test("a group-only note edits through the board and retains its price and group 
     await establishLocalTestSession(page, prisma, ownerId);
     await page.setViewportSize({ width: 768, height: 900 });
     await gotoLocalPath(page, `/merchant/catalog?organizationId=${organizationId}`);
+  await page.getByRole("button", { name: "完整管理／新增商品", exact: true }).click();
+  await expect(page.getByTestId("shared-catalog-actions")).toBeVisible();
     // Next.js can retain a hidden streaming copy during navigation and reload.
     const dialog = page.getByTestId("product-note-inline-board").filter({ visible: true });
     await dialog.getByRole("navigation", { name: "註記群組", exact: true }).getByRole("button", { name: group.name, exact: true }).click();
@@ -126,6 +136,8 @@ test("a group-only note edits through the board and retains its price and group 
     const option = await prisma.productNoteOption.findUniqueOrThrow({ where: { id: group.options[0].id } });
     expect({ name: option.name, price: option.priceDelta, group: option.noteGroupId }).toEqual({ name: "QA 修改後註記", price: 7, group: group.id });
     await page.reload();
+    await page.getByRole("button", { name: "完整管理／新增商品", exact: true }).click();
+    await expect(page.getByTestId("shared-catalog-actions")).toBeVisible();
     await expect.poll(() => dialog.getByPlaceholder("搜尋註記群組或選項").evaluate((element) =>
       Object.keys(element).some(key => key.startsWith("__reactProps$")),
     )).toBe(true);

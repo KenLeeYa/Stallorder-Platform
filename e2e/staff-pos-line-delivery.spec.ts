@@ -1,3 +1,4 @@
+import { searchStaffOrders } from "./helpers/staff-search";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { createEnglishOrderCatalogFixture } from "./english-order-catalog-fixture";
@@ -6,6 +7,7 @@ import {
   continueQrCheckout,
   addFirstStaffCatalogProduct,
   dismissStaffStartReminder,
+  openStaffMobileTools,
   qrProductSelectionControl,
 } from "./local-navigation";
 
@@ -22,11 +24,14 @@ let cashShiftId = "";
 let createdCashShiftId = "";
 type AuthCookies = Awaited<ReturnType<BrowserContext["cookies"]>>;
 let ownerAuthCookies: AuthCookies | null = null;
+let localFixtureAllowed = false;
+let originalBusinessHours: Array<{ id: string; opensAt: string; closesAt: string; isClosed: boolean; lastOrderAt: string | null; updatedAt: Date }> = [];
 
 async function login(page: Page) {
+  const next = "/merchant/dashboard?organizationId=11111111-1111-4111-8111-111111111111";
   if (ownerAuthCookies) {
     await page.context().addCookies(ownerAuthCookies);
-    await page.goto("/merchant/dashboard");
+    await page.goto(next);
     await expect(page).toHaveURL(
       /\/merchant\/dashboard(?:\?organizationId=|$)/,
       { timeout: 30_000 },
@@ -39,6 +44,7 @@ async function login(page: Page) {
     data: {
       email: "owner@stallorder.test",
       password: "StallOrderDemo!2026",
+      next,
     },
     headers: {
       origin,
@@ -56,6 +62,15 @@ async function login(page: Page) {
 }
 
 test.beforeAll(async () => {
+  const database = new URL(process.env.DATABASE_URL ?? "postgresql://invalid");
+  if (!["localhost", "127.0.0.1", "[::1]"].includes(database.hostname)) {
+    throw new Error("STAFF_POS_CALENDAR_FIXTURE_REQUIRES_LOCAL_DATABASE");
+  }
+  originalBusinessHours = await prisma.stallBusinessHour.findMany({
+    where: { stallId },
+    select: { id: true, opensAt: true, closesAt: true, isClosed: true, lastOrderAt: true, updatedAt: true },
+  });
+  if (originalBusinessHours.length !== 7) throw new Error("STAFF_POS_CALENDAR_FIXTURE_HOURS_INCOMPLETE");
   const [settings, owner] = await Promise.all([
     prisma.stallOrderingSettings.findUniqueOrThrow({
       where: { stallId },
@@ -75,6 +90,12 @@ test.beforeAll(async () => {
   originalStaffDeliveryEnabled = settings.staffDeliveryEnabled;
   originalDineInEnabled = settings.dineInEnabled;
   originalTakeoutPreorderEnabled = settings.takeoutPreorderEnabled;
+  localFixtureAllowed = true;
+  // Positive public DELIVERY journeys need an explicit calendar; equal midnight means 24 hours.
+  await prisma.stallBusinessHour.updateMany({
+    where: { stallId },
+    data: { opensAt: "00:00", closesAt: "00:00", isClosed: false, lastOrderAt: null },
+  });
   await prisma.stallOrderingSettings.update({
     where: { stallId },
     data: {
@@ -106,6 +127,8 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
+  if (!localFixtureAllowed) { await prisma.$disconnect(); return; }
+  try {
   if (createdOrderIds.length > 0) {
     await prisma.order.deleteMany({ where: { id: { in: createdOrderIds } } });
   }
@@ -124,7 +147,13 @@ test.afterAll(async () => {
       takeoutPreorderEnabled: originalTakeoutPreorderEnabled,
     },
   });
-  await prisma.$disconnect();
+  } finally {
+    try {
+      await Promise.all(originalBusinessHours.map(({ id, ...data }) =>
+        prisma.stallBusinessHour.update({ where: { id }, data }),
+      ));
+    } finally { await prisma.$disconnect(); }
+  }
 });
 
 test("內用顧客名稱與桌位欄位在桌面版對齊", async ({ page }, testInfo) => {
@@ -158,23 +187,24 @@ test("內用顧客名稱與桌位欄位在桌面版對齊", async ({ page }, tes
     ),
   ).toBe(true);
   const desktopFunctionPositions = await functionGrid
-    .locator(":scope > *")
+    .locator("button:visible, a:visible")
     .evaluateAll((elements) =>
       elements.map((element) => {
         const bounds = element.getBoundingClientRect();
-        return { x: bounds.x, y: bounds.y };
-      }),
+        return { x: bounds.x, right: bounds.right, centerY: bounds.y + bounds.height / 2 };
+      }).sort((left, right) => left.x - right.x),
     );
-  expect(desktopFunctionPositions.length).toBeLessThanOrEqual(12);
+  expect(desktopFunctionPositions.length).toBeGreaterThan(0);
+  await expect(staffMain.getByTestId("staff-tools-toggle")).toBeHidden();
   expect(
     desktopFunctionPositions.every(
-      ({ y }) => Math.abs(y - desktopFunctionPositions[0]!.y) <= 1,
+      ({ centerY }) => Math.abs(centerY - desktopFunctionPositions[0]!.centerY) <= 1,
     ),
   ).toBe(true);
   expect(
     desktopFunctionPositions.every(
       ({ x }, index) =>
-        index === 0 || x > desktopFunctionPositions[index - 1]!.x,
+        index === 0 || x >= desktopFunctionPositions[index - 1]!.right,
     ),
   ).toBe(true);
   await functionGrid.getByTitle("離線裝置", { exact: true }).click();
@@ -188,7 +218,7 @@ test("內用顧客名稱與桌位欄位在桌面版對齊", async ({ page }, tes
         "/api/stalls/aming-chicken/pos-configuration",
       ) && response.request().method() === "GET",
   );
-  await page.getByRole("button", { name: "店員點餐" }).click();
+  await page.getByRole("button", { name: "店員點餐", exact: true }).click();
   expect((await configurationResponsePromise).status()).toBe(200);
 
   const dialog = page.getByRole("dialog", { name: "店員點餐" });
@@ -316,7 +346,7 @@ test("店員內用與外送使用獨立設定，且建立訂單時重新驗證",
           "/api/stalls/aming-chicken/pos-configuration",
         ) && response.request().method() === "GET",
     );
-    await page.getByRole("button", { name: "店員點餐" }).click();
+    await page.getByRole("button", { name: "店員點餐", exact: true }).click();
     const initialConfiguration = await initialConfigurationPromise;
     expect(initialConfiguration.status()).toBe(200);
     expect((await initialConfiguration.json()).modules).toMatchObject({
@@ -386,7 +416,14 @@ test("店員內用與外送使用獨立設定，且建立訂單時重新驗證",
       code: "TABLE_UNAVAILABLE",
     });
 
-    await dialog.getByTitle("關閉店員點餐").click();
+    const discardConfirmation = page.waitForEvent("dialog");
+    const closeComposer = dialog.getByTitle("關閉店員點餐").click();
+    const discard = await discardConfirmation;
+    expect(discard.type()).toBe("confirm");
+    expect(discard.message()).toBe("確定放棄目前尚未儲存的訂單內容？");
+    await discard.accept();
+    await closeComposer;
+    await expect(dialog).toBeHidden();
     await prisma.stallOrderingSettings.update({
       where: { stallId },
       data: {
@@ -401,7 +438,7 @@ test("店員內用與外送使用獨立設定，且建立訂單時重新驗證",
           "/api/stalls/aming-chicken/pos-configuration",
         ) && response.request().method() === "GET",
     );
-    await page.getByRole("button", { name: "店員點餐" }).click();
+    await page.getByRole("button", { name: "店員點餐", exact: true }).click();
     const refreshedConfiguration = await refreshedConfigurationPromise;
     expect(refreshedConfiguration.status()).toBe(200);
     expect((await refreshedConfiguration.json()).modules).toMatchObject({
@@ -454,9 +491,13 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
   ).toBe(4);
   expect(
     await functionGrid.evaluate(
-      (element) => element.scrollWidth > element.clientWidth,
+      (element) => element.scrollWidth <= element.clientWidth + 1,
     ),
   ).toBe(true);
+  await openStaffMobileTools(page);
+  expect(await functionGrid.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+  await page.getByTestId("staff-tools-toggle").click();
+  await expect(page.getByTestId("staff-tools-toggle")).toHaveAttribute("aria-expanded", "false");
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth + 1,
@@ -481,14 +522,14 @@ test("店員可在手機介面代客點餐並立即完成收款", async ({ page 
   expect(
     Math.abs(staffOrderBox!.height - floorPlanBox!.height),
   ).toBeLessThanOrEqual(1);
-  await expect(page.getByRole("button", { name: "店員點餐" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "店員點餐", exact: true })).toBeVisible();
   const configurationResponsePromise = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname.endsWith(
         "/api/stalls/aming-chicken/pos-configuration",
       ) && response.request().method() === "GET",
   );
-  await page.getByRole("button", { name: "店員點餐" }).click();
+  await page.getByRole("button", { name: "店員點餐", exact: true }).click();
   const configurationResponse = await configurationResponsePromise;
   expect(configurationResponse.status()).toBe(200);
   const configuration = (await configurationResponse.json()) as {
@@ -878,7 +919,7 @@ test("店員可將同商品不同註記分列加入購物車，並移除選錯�
   await login(page);
   await page.goto("/staff/aming-chicken");
   await dismissStaffStartReminder(page);
-  await page.getByRole("button", { name: "店員點餐" }).click();
+  await page.getByRole("button", { name: "店員點餐", exact: true }).click();
 
   const dialog = page.getByRole("dialog", { name: "店員點餐" });
   const product = dialog
@@ -1301,10 +1342,7 @@ test("LINE 固定外送網址可指定送達時間，店家提議後由顧客確
     await login(staffPage);
     await staffPage.goto("/staff/aming-chicken");
     await dismissStaffStartReminder(staffPage);
-    await staffPage
-      .getByRole("main")
-      .getByPlaceholder("搜尋桌號、訂單編號或顧客")
-      .fill(customerName);
+    await searchStaffOrders(staffPage, customerName);
     const staffOrderCard = staffPage
       .getByTestId("staff-order-list-pane")
       .getByRole("button")

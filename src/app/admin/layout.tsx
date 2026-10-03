@@ -18,8 +18,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   ]);
   return (
     <MerchantMessagesProvider messages={getMerchantMessages(locale)}>
-      <AdminBillingHeader displayName={principal.user.displayName} moduleVisibility={moduleVisibility} />
-      {children}
+      <AdminBillingHeader displayName={principal.user.displayName} moduleVisibility={moduleVisibility} linePlatformEnabled={process.env.LINE_PLATFORM_ENABLED === "true"} />
+      <div className="min-w-0 xl:pl-60">{children}</div>
     </MerchantMessagesProvider>
   );
 }

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { PaymentIntegrationManager } from "@/components/payment-integration-manager";
+import { LinePlatformPaymentOperations } from "@/components/line-platform-payment-operations";
 import { getRequestAppLocale } from "@/lib/app-locale-server";
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac";
@@ -143,7 +144,7 @@ export default async function MerchantPaymentsPage({ searchParams }: PageProps) 
 
   return (
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-6xl px-4 py-8 md:px-8">
-      <header className="mb-7 border-b border-stone-200 pb-5"><p className="text-sm font-semibold text-teal-800">{workspace.businessName}</p><h1 className="mt-1 text-3xl font-semibold">{copy.title}</h1><p className="mt-2 text-sm text-stone-600">{copy.description}</p></header>
+      <header className="mb-7 border-b border-stone-200 pb-5"><p className="text-sm font-semibold text-teal-800">{workspace.businessName}</p><h1 className="mt-1 text-3xl font-semibold">{copy.title}</h1></header>
       <PaymentIntegrationManager
         organizationId={workspace.id}
         stalls={workspace.stalls.filter((stall) => stall.isActive).map((stall) => ({ id: stall.id, name: stall.name }))}
@@ -163,6 +164,7 @@ export default async function MerchantPaymentsPage({ searchParams }: PageProps) 
         initialTransactions={transactions.map((transaction) => ({ ...transaction, createdAt: transaction.createdAt.toISOString() }))}
         copy={copy}
       />
+      {process.env.LINE_PLATFORM_ENABLED === "true" ? <LinePlatformPaymentOperations stalls={workspace.stalls.filter((stall) => stall.isActive).map((stall) => ({ id: stall.id, name: stall.name }))} /> : null}
     </main>
   );
 }

@@ -1,3 +1,4 @@
+import { searchStaffOrders } from "./helpers/staff-search";
 import { randomUUID } from "node:crypto";
 import {
   expect,
@@ -12,6 +13,7 @@ import {
   dismissStaffStartReminder,
   continueQrCheckout,
   loginLocalTestAccount,
+  openSharedCatalogManagement,
   qrProductSelectionControl,
 } from "./local-navigation";
 
@@ -272,6 +274,9 @@ async function acknowledgeSettingsFeedback(
 }
 
 async function openNoteGroupNavigator(page: Page) {
+  if (await page.getByRole("button", { name: "完整管理／新增商品", exact: true }).isVisible()) {
+    await openSharedCatalogManagement(page);
+  }
   const singleNotes = page.getByTestId("reusable-note-navigator-dialog");
   if (await singleNotes.isVisible()) {
     await singleNotes.getByRole("button", { name: "關閉", exact: true }).click();
@@ -460,6 +465,7 @@ test("商家可新增、修改、指派與刪除商品註記群組", async ({ pa
 
   await login(page, "owner@stallorder.test");
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
+  await openSharedCatalogManagement(page);
   await expect(
     page.getByRole("heading", { name: "商品註記設定" }),
   ).toBeVisible();
@@ -621,6 +627,7 @@ test("群組內共用與專用註記排序可儲存並於重載後保留", async
 
   await login(page, "owner@stallorder.test");
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
+  await openSharedCatalogManagement(page);
 
   const reusableEditor = await openNewReusableNoteEditor(page);
   await reusableEditor.getByLabel("註記名稱").fill(reusableName);
@@ -729,6 +736,7 @@ test("商家可原子批次加入多個既有共用註記", async ({ page }) => 
 
   await login(page, "owner@stallorder.test");
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
+  await openSharedCatalogManagement(page);
 
   for (const noteName of noteNames) {
     const noteEditor = await openNewReusableNoteEditor(page);
@@ -1034,6 +1042,7 @@ test("共用單一註記可加入多個群組、同步更新並阻擋使用中�
 
   await login(page, "owner@stallorder.test");
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
+  await openSharedCatalogManagement(page);
   // Require a unique visible entry while Next.js retains hidden streaming markup.
   await expect(page.getByTestId("open-reusable-note-navigator").filter({ visible: true })).toHaveCount(1);
   await expect(page.getByTestId("open-reusable-note-navigator").filter({ visible: true })).toBeVisible();
@@ -1222,6 +1231,7 @@ test("商品註記可匯出、預覽並以單一交易匯入", async ({ page }) 
 
   await login(page, "owner@stallorder.test");
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
+  await openSharedCatalogManagement(page);
   await page.getByTestId("open-reusable-note-navigator").filter({ visible: true }).click();
   const transferNavigator = page.getByTestId("reusable-note-navigator-dialog");
   await expect(transferNavigator).toBeVisible();
@@ -1530,14 +1540,23 @@ test.describe("QR 瀏覽器語系", () => {
 
 test("QR 註記選擇會由後端驗價並顯示於店員訂單", async ({ browser, page }) => {
   test.setTimeout(120_000);
+  await page.setViewportSize({ width: 360, height: 844 });
 
   await page.goto(`/q/${takeoutQrToken}`);
+  const menuSearch = page.getByRole("searchbox", { name: "搜尋餐點或分類", exact: true });
+  await menuSearch.fill("no-product-xyz");
+  await expect(page.getByTestId("qr-category-navigation").getByRole("link")).toHaveCount(0);
+  await menuSearch.fill("台式鹽酥雞");
   const qrProduct = page.getByRole("article").filter({ hasText: "台式鹽酥雞" });
   await qrProductSelectionControl(qrProduct, "台式鹽酥雞").click();
   await expect(page.getByRole("radiogroup", { name: /辣度/ })).toBeVisible();
+  await expect(qrProduct.getByRole("button", { name: "加入購物車", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "前往未完成的選項", exact: true }).click();
+  await expect(page.getByRole("radiogroup", { name: /辣度/ }).getByRole("radio").first()).toBeFocused();
   await page.getByRole("radio", { name: "中辣", exact: true }).click();
   await page.getByRole("checkbox", { name: /加蛋/ }).click();
   await qrProduct.getByRole("button", { name: "加入購物車" }).click();
+  await page.getByTestId("qr-mobile-cart-summary").click();
   const continueButton = page.getByRole("button", { name: "繼續填寫訂購資料", exact: true });
   if (await continueButton.isVisible()) await continueButton.click();
   await continueQrCheckout(page);
@@ -1572,6 +1591,7 @@ test("QR 註記選擇會由後端驗價並顯示於店員訂單", async ({ brows
     await expect(createResponse.json()).resolves.toMatchObject({
       code: "WAIT_ACKNOWLEDGMENT_REQUIRED",
     });
+    await page.getByRole("alertdialog").getByRole("button", { name: "我知道了", exact: true }).click();
     await expect(waitAcknowledgment).toBeVisible();
     await waitAcknowledgment.check();
     await expect(submitOrder).toBeEnabled({ timeout: 20_000 });
@@ -1601,6 +1621,7 @@ test("QR 註記選擇會由後端驗價並顯示於店員訂單", async ({ brows
   await login(staffPage, "staff@stallorder.test");
   await staffPage.goto("/staff/aming-chicken");
   await dismissStaffStartReminder(staffPage);
+  await searchStaffOrders(staffPage, orderNo);
   const staffOrder = staffPage
     .getByTestId("staff-order-list-pane")
     .getByRole("button")

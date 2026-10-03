@@ -12,6 +12,7 @@ import {
   serializeApplicationInitialValues,
 } from "@/server/merchant-applications/onboarding-page-data";
 import { canStartMerchantReapplication } from "@/server/merchant-applications/application-state";
+import { createOperationsScope } from "@/server/operations-read-scope";
 
 export default async function OnboardingPage() {
   const [principal, { locale }] = await Promise.all([getPagePrincipal(), getRequestAppLocale()]);
@@ -32,8 +33,9 @@ export default async function OnboardingPage() {
   }
   const initialValues = serializeApplicationInitialValues(data.application);
   if (isReapplication && initialValues) initialValues.currentStep = 1;
+  const scope = createOperationsScope(principal);
   return <OnboardingShell>
-    {data.pendingInvitation ? <InvitationPriority locale={locale} /> : <LazyOnboardingForm authenticatedProfile={data.profile} initialValues={initialValues} trial={data.trial} businessTypeOptions={data.businessTypeOptions} isReapplication={isReapplication} />}
+    {data.pendingInvitation ? <InvitationPriority locale={locale} /> : <LazyOnboardingForm scopeKey={`onboarding:${scope.principalKey}:${scope.sessionEpoch}`} authenticatedProfile={data.profile} initialValues={initialValues} trial={data.trial} businessTypeOptions={data.businessTypeOptions} isReapplication={isReapplication} />}
   </OnboardingShell>;
 }
 

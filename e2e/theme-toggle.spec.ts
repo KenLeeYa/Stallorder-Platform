@@ -141,16 +141,16 @@ test("商家可用月亮與太陽切換明暗模式並保留偏好", async ({ pa
   await page.getByRole("button", { name: "切換為白光模式" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 
-  await page.goto("/q/demo-aming-chicken-qr-2026-rotate-me");
-  const outsideBusinessHoursDialog = page.getByRole("alertdialog", {
-    name: "目前非營業時間",
-  });
-  if (await outsideBusinessHoursDialog.isVisible()) {
-    await outsideBusinessHoursDialog
-      .getByRole("button", { name: "關閉", exact: true })
-      .filter({ hasText: "關閉" })
-      .click();
+  // Public ordering can be closed or paused; acknowledge its real feedback before using the header.
+  // Both notices can coexist. Closing one must not wait for the other notice to disappear.
+  for (const title of ["目前非營業時間", "目前無法開始點餐。"]) {
+    const orderingNotice = page.getByRole("alertdialog", { name: title, exact: true });
+    await page.addLocatorHandler(orderingNotice, async (notice) => {
+      await notice.getByRole("button", { name: "關閉", exact: true }).filter({ hasText: "關閉" }).click();
+      await expect(notice).toBeHidden();
+    });
   }
+  await page.goto("/q/demo-aming-chicken-qr-2026-rotate-me");
   const qrToggle = page.getByRole("button", { name: "切換為暗黑模式" });
   await expect(qrToggle).toBeVisible({ timeout: 30_000 });
   await qrToggle.click();

@@ -1,0 +1,17 @@
+{
+  "phase": "before",
+  "at": "2026-09-30T14:54:33.391Z",
+  "privateDirectory": "C:\\Users\\KY\\.codex\\worktrees\\responsive-cross-device\\b3-performance-private-raw-20260930\\before-1790780073390",
+  "policy": "Known environment key/token/secret/password and credential-bearing URL values redacted; original evidence preserved outside the repository. Samples and diagnostic observations retained.",
+  "files": [
+    {
+      "name": "before-full.json",
+      "matchedKeys": [
+        "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"
+      ],
+      "originalSha256": "40879dd79aa651b62ebf04f3a938040dc877cf8b8e12ce9bbe9428269b04d3c1",
+      "sanitizedSha256": "b35de6e47a2b3892b5011c1f7d5a96fd76b01430916af8617f6fb0c43457d8aa"
+    }
+  ],
+  "algorithmSha256": "9fb5e0d1e27ecbdee40855c917503c98b9092529f3c86edeb22950d02e3f5295"
+}

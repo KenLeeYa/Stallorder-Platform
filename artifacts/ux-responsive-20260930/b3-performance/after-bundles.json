@@ -1,0 +1,133 @@
+{
+  "source": {
+    "head": "c1ef63884b7ec731942fe11e0a347f29d9dc174d",
+    "tree": "9c58b4fee067919bda9aedd8d94e1588faf23d51",
+    "productSourceClean": true,
+    "worktreeDirty": true,
+    "workingTreePatchSha256": "8e46b1d4cb21b4d64124613a9b4d922c175dad8ce8cf303738cc0dbdf599b974",
+    "buildId": "rcKKnUtHI8cnstCJFVw4b",
+    "builtAt": "2026-09-30T14:53:33.434Z",
+    "runtimeWorktreeDirty": true,
+    "runtimeWorkingTreePatchSha256": "559da37e4f7d7256ecde1d3aabca514ad5e5c6b220c769b298e87339a703f934"
+  },
+  "unit": "uncompressed entry JS bytes",
+  "routes": [
+    {
+      "route": "q/[qrToken]/page",
+      "totalBytes": 84586,
+      "chunks": [
+        {
+          "file": "static/chunks/3uxpvqp-75m28.js",
+          "bytes": 48337,
+          "sha256": "a46a220af45fe4320d8f1f24d6f55cedbcce61d7a37e27e8eb77889424935218"
+        },
+        {
+          "file": "static/chunks/022knhfmk1oxg.js",
+          "bytes": 31490,
+          "sha256": "1c34b6875d03ec8e61952846a2fb7249546db99afb699039717e12769bfd4e0f"
+        },
+        {
+          "file": "static/chunks/2vbyrlbcoxp-e.js",
+          "bytes": 4759,
+          "sha256": "54d2d6c7b40359db449470bf0e438e662c7daaf45c0b4c7288c3bf2c894d3e0d"
+        }
+      ]
+    },
+    {
+      "route": "staff/[stallSlug]/page",
+      "totalBytes": 97830,
+      "chunks": [
+        {
+          "file": "static/chunks/3uxpvqp-75m28.js",
+          "bytes": 48337,
+          "sha256": "a46a220af45fe4320d8f1f24d6f55cedbcce61d7a37e27e8eb77889424935218"
+        },
+        {
+          "file": "static/chunks/022knhfmk1oxg.js",
+          "bytes": 31490,
+          "sha256": "1c34b6875d03ec8e61952846a2fb7249546db99afb699039717e12769bfd4e0f"
+        },
+        {
+          "file": "static/chunks/15v7tsayjnejc.js",
+          "bytes": 604,
+          "sha256": "c7c356fb60ecc59eb12ab92469105c20355eec0bb4bc303d5afb0fda1a35eea2"
+        },
+        {
+          "file": "static/chunks/0v7hh9lroeqw2.js",
+          "bytes": 17399,
+          "sha256": "f0e04ed3bbc50d6b85c74aae35a42542cec9a8a73e946ff47241b4bc08f45b7c"
+        }
+      ]
+    },
+    {
+      "route": "kitchen/page",
+      "totalBytes": 85094,
+      "chunks": [
+        {
+          "file": "static/chunks/3uxpvqp-75m28.js",
+          "bytes": 48337,
+          "sha256": "a46a220af45fe4320d8f1f24d6f55cedbcce61d7a37e27e8eb77889424935218"
+        },
+        {
+          "file": "static/chunks/022knhfmk1oxg.js",
+          "bytes": 31490,
+          "sha256": "1c34b6875d03ec8e61952846a2fb7249546db99afb699039717e12769bfd4e0f"
+        },
+        {
+          "file": "static/chunks/15v7tsayjnejc.js",
+          "bytes": 604,
+          "sha256": "c7c356fb60ecc59eb12ab92469105c20355eec0bb4bc303d5afb0fda1a35eea2"
+        },
+        {
+          "file": "static/chunks/10uizbs08wpdh.js",
+          "bytes": 4663,
+          "sha256": "79b13f69382daa59ffa00ed84a8ad174f7c1e8a35b49ca67b689c78b3d21c377"
+        }
+      ]
+    },
+    {
+      "route": "merchant/reports/overview/page",
+      "totalBytes": 136314,
+      "chunks": [
+        {
+          "file": "static/chunks/3uxpvqp-75m28.js",
+          "bytes": 48337,
+          "sha256": "a46a220af45fe4320d8f1f24d6f55cedbcce61d7a37e27e8eb77889424935218"
+        },
+        {
+          "file": "static/chunks/022knhfmk1oxg.js",
+          "bytes": 31490,
+          "sha256": "1c34b6875d03ec8e61952846a2fb7249546db99afb699039717e12769bfd4e0f"
+        },
+        {
+          "file": "static/chunks/2i3_89d7oz83c.js",
+          "bytes": 1168,
+          "sha256": "b0bb6eb56a816e6e95bbf7448e5b65cba34e00d5fe8387aa6e0edc8f231c1318"
+        },
+        {
+          "file": "static/chunks/1oz9apj9nlll9.js",
+          "bytes": 2225,
+          "sha256": "277e99937084f559b9909817619751f37ae1578703ae980dd3f71ff475265a14"
+        },
+        {
+          "file": "static/chunks/10lnqfmnl7hn3.js",
+          "bytes": 53094,
+          "sha256": "2fd8372bb0cd3ad91669995828a98952687141a928644d727ce8e5a5f8d6da17"
+        }
+      ]
+    }
+  ],
+  "sharedAcrossFourRoutes": [
+    {
+      "file": "static/chunks/3uxpvqp-75m28.js",
+      "bytes": 48337,
+      "sha256": "a46a220af45fe4320d8f1f24d6f55cedbcce61d7a37e27e8eb77889424935218"
+    },
+    {
+      "file": "static/chunks/022knhfmk1oxg.js",
+      "bytes": 31490,
+      "sha256": "1c34b6875d03ec8e61952846a2fb7249546db99afb699039717e12769bfd4e0f"
+    }
+  ],
+  "sharedBytes": 79827
+}

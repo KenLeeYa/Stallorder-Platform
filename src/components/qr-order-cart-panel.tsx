@@ -1,4 +1,4 @@
-import type { ReactNode, RefObject } from "react";
+import { useId, type ReactNode, type RefObject } from "react";
 import { AlertTriangle, Minus, Plus, Send, X } from "lucide-react";
 import { TurnstileWidget } from "@/components/turnstile-widget";
 import { readOrderUtensils, writeOrderUtensils, utensilsMessages, utensilsNoteOverhead } from "@/lib/order-utensils";
@@ -108,11 +108,18 @@ export function QrOrderCartPanel({
   onTurnstileToken,
   onSubmit,
 }: QrOrderCartPanelProps) {
+  const fieldId = useId();
   const showCustomerIdentity = entryChannel !== "QR";
   const requiresCustomerDetails = showCustomerIdentity && (
     session.stall.fulfillmentType === "TAKEOUT"
     || session.stall.fulfillmentType === "DELIVERY"
   );
+  const detailError = checkoutBlocker === copy.customerDetailsRequired || checkoutBlocker === deliveryCopy.detailsRequired;
+  const detailFields = detailError ? [
+    ...(requiresCustomerDetails && !customerName.trim() ? [{ id: `${fieldId}-name`, label: copy.customerName }] : []),
+    ...(requiresCustomerDetails && !new RegExp(`^(?:${PHONE_INPUT_PATTERN})$`).test(customerPhone.trim()) ? [{ id: `${fieldId}-phone`, label: deliveryCopy.phone }] : []),
+    ...(session.stall.fulfillmentType === "DELIVERY" && !deliveryAddress.trim() ? [{ id: `${fieldId}-address`, label: deliveryCopy.address }] : []),
+  ] : [];
   const utensils = readOrderUtensils(customerNote);
   const utensilsCopy = utensilsMessages[locale];
   const canRequestUtensils = session.stall.fulfillmentType !== "DINE_IN";
@@ -128,13 +135,13 @@ export function QrOrderCartPanel({
           title={copy.close}
           aria-label={copy.close}
           onClick={onClose}
-          className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 md:hidden"
+          className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 lg:hidden"
         >
           <X className="h-4 w-4" />
         </button>
       </div>
       {cartLines.length > 0 ? (
-        <div data-testid="qr-cart-lines" className={`${activeCartStep === "CART" ? "block" : "hidden"} mt-4 space-y-3 border-b border-stone-200 pb-4 md:block`}>
+        <div data-testid="qr-cart-lines" className={`${activeCartStep === "CART" ? "block" : "hidden"} mt-4 space-y-3 border-b border-stone-200 pb-4 lg:block`}>
           {cartLines.map((line, index) => {
             const product = session.products.find((candidate) => candidate.id === line.productId);
             if (!product) return null;
@@ -170,12 +177,12 @@ export function QrOrderCartPanel({
                   <strong className="shrink-0 text-sm">{formatMoney(unitPrice * line.quantity, session.stall.currency, locale)}</strong>
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <button type="button" aria-label={copy.decrease(`${productCopy.name} ${index + 1}`)} disabled={!orderingEnabled} onClick={() => onChangeLineQuantity(line.id, line.quantity - 1)} className="grid h-10 w-10 place-items-center rounded-md border border-stone-300 disabled:opacity-40"><Minus className="h-4 w-4" /></button>
+                  <button type="button" aria-label={copy.decrease(`${productCopy.name} ${index + 1}`)} disabled={!orderingEnabled} onClick={() => onChangeLineQuantity(line.id, line.quantity - 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 disabled:opacity-40"><Minus className="h-4 w-4" /></button>
                   <span className="min-w-7 text-center text-sm font-semibold">{line.quantity}</span>
-                  <button type="button" aria-label={copy.increase(`${productCopy.name} ${index + 1}`)} disabled={!orderingEnabled} onClick={() => onChangeLineQuantity(line.id, line.quantity + 1)} className="grid h-10 w-10 place-items-center rounded-md border border-stone-300 disabled:opacity-40"><Plus className="h-4 w-4" /></button>
+                  <button type="button" aria-label={copy.increase(`${productCopy.name} ${index + 1}`)} disabled={!orderingEnabled} onClick={() => onChangeLineQuantity(line.id, line.quantity + 1)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 disabled:opacity-40"><Plus className="h-4 w-4" /></button>
                   <span className="flex-1" />
-                  {configurable ? <button type="button" disabled={!orderingEnabled} onClick={() => onEditLine(line)} className="min-h-10 rounded-md px-2 text-xs font-semibold text-teal-800 disabled:opacity-40">{copy.editCartItem}</button> : null}
-                  <button type="button" disabled={!orderingEnabled} onClick={() => onChangeLineQuantity(line.id, 0)} className="min-h-10 rounded-md px-2 text-xs font-semibold text-red-700 disabled:opacity-40">{copy.removeCartItem}</button>
+                  {configurable ? <button type="button" disabled={!orderingEnabled} onClick={() => onEditLine(line)} className="min-h-11 rounded-md px-2 text-xs font-semibold text-teal-800 disabled:opacity-40">{copy.editCartItem}</button> : null}
+                  <button type="button" disabled={!orderingEnabled} onClick={() => onChangeLineQuantity(line.id, 0)} className="min-h-11 rounded-md px-2 text-xs font-semibold text-red-700 disabled:opacity-40">{copy.removeCartItem}</button>
                 </div>
               </article>
             );
@@ -183,18 +190,23 @@ export function QrOrderCartPanel({
         </div>
       ) : null}
       {cartLines.length > 0 && activeCartStep === "CART" ? (
-        <button ref={continueButtonRef} type="button" onClick={onContinueToCheckout} className="mt-4 min-h-12 w-full rounded-md bg-teal-800 px-4 text-sm font-semibold text-white md:hidden">
+        <button ref={continueButtonRef} type="button" onClick={onContinueToCheckout} className="mt-4 min-h-12 w-full rounded-md bg-teal-800 px-4 text-sm font-semibold text-white lg:hidden">
           {copy.continueToCheckout}
         </button>
       ) : null}
-      <div data-testid="qr-checkout-panel" className={`${activeCartStep === "CHECKOUT" ? "block" : "hidden"} md:block`}>
+      <div data-testid="qr-checkout-panel" role="group" aria-labelledby={`${fieldId}-heading`} aria-describedby={checkoutBlocker ? `${fieldId}-blocker` : undefined} aria-busy={isSubmitting} className={`${activeCartStep === "CHECKOUT" ? "block" : "hidden"} lg:block`}>
         <div className="mt-4 flex items-center justify-between gap-3 border-t border-stone-200 pt-4">
-          <h3 ref={checkoutHeadingRef} tabIndex={-1} className="font-semibold outline-none">{copy.checkoutDetails}</h3>
-          <button type="button" onClick={onBackToCart} className="min-h-10 rounded-md px-2 text-xs font-semibold text-teal-800 md:hidden">{copy.backToCart}</button>
+          <h3 id={`${fieldId}-heading`} ref={checkoutHeadingRef} tabIndex={-1} className="font-semibold outline-none">{copy.checkoutDetails}</h3>
+          <button type="button" onClick={onBackToCart} className="min-h-11 rounded-md px-2 text-xs font-semibold text-teal-800 lg:hidden">{copy.backToCart}</button>
         </div>
         <div className="mt-4 space-y-3">
           {showCustomerIdentity ? (
+            <label className="block text-sm font-medium" htmlFor={`${fieldId}-name`}>
+              <span className="mb-1 block">{copy.customerName}{requiresCustomerDetails ? <span aria-hidden="true"> *</span> : null}</span>
             <input
+              id={`${fieldId}-name`}
+              aria-invalid={detailFields.some((field) => field.id === `${fieldId}-name`) || undefined}
+              aria-describedby={detailFields.some((field) => field.id === `${fieldId}-name`) ? `${fieldId}-blocker` : undefined}
               required={requiresCustomerDetails}
               type="text"
               autoComplete="name"
@@ -209,9 +221,15 @@ export function QrOrderCartPanel({
               disabled={!orderingEnabled}
               onChange={(event) => onCustomerNameChange(event.target.value)}
             />
+            </label>
           ) : null}
           {requiresCustomerDetails ? (
+            <label className="block text-sm font-medium" htmlFor={`${fieldId}-phone`}>
+              <span className="mb-1 block">{deliveryCopy.phone} <span aria-hidden="true">*</span></span>
             <input
+              id={`${fieldId}-phone`}
+              aria-invalid={detailFields.some((field) => field.id === `${fieldId}-phone`) || undefined}
+              aria-describedby={detailFields.some((field) => field.id === `${fieldId}-phone`) ? `${fieldId}-blocker` : undefined}
               required
               type="tel"
               inputMode="tel"
@@ -226,9 +244,15 @@ export function QrOrderCartPanel({
               disabled={!orderingEnabled}
               onChange={(event) => onCustomerPhoneChange(event.target.value)}
             />
+            </label>
           ) : null}
           {session.stall.fulfillmentType === "DELIVERY" ? (
+              <label className="block text-sm font-medium" htmlFor={`${fieldId}-address`}>
+              <span className="mb-1 block">{deliveryCopy.address} <span aria-hidden="true">*</span></span>
               <textarea
+                id={`${fieldId}-address`}
+              aria-invalid={detailFields.some((field) => field.id === `${fieldId}-address`) || undefined}
+              aria-describedby={detailFields.some((field) => field.id === `${fieldId}-address`) ? `${fieldId}-blocker` : undefined}
                 required
                 autoComplete="street-address"
                 aria-label={deliveryCopy.address}
@@ -239,6 +263,7 @@ export function QrOrderCartPanel({
                 disabled={!orderingEnabled}
                 onChange={(event) => onDeliveryAddressChange(event.target.value)}
               />
+              </label>
           ) : null}
           {activeOrderingMode !== "PREORDER" ? fulfillmentTimePicker : null}
           {canRequestUtensils ? <div className="rounded-md border border-stone-200 p-3">
@@ -251,7 +276,10 @@ export function QrOrderCartPanel({
             <p className="mt-1 text-xs leading-5 text-stone-600">{utensilsCopy.hint}</p>
             {utensilsNoteTooLong ? <p role="alert" className="mt-2 text-sm text-red-700">{utensilsCopy.tooLong}</p> : null}
           </div> : null}
+          <label className="block text-sm font-medium" htmlFor={`${fieldId}-note`}>
+          <span className="mb-1 block">{copy.orderNote}</span>
           <textarea
+            id={`${fieldId}-note`}
             aria-label={copy.orderNote}
             className="form-input min-h-20"
             placeholder={copy.orderNotePlaceholder(session.limits.maxNoteLength)}
@@ -260,6 +288,7 @@ export function QrOrderCartPanel({
             disabled={!orderingEnabled}
             onChange={(event) => onCustomerNoteChange(canRequestUtensils ? writeOrderUtensils(event.target.value, utensils.required) : event.target.value)}
           />
+          </label>
           {session.invoiceCheckout ? (
             <CheckoutInvoiceSelector
               config={session.invoiceCheckout}
@@ -298,7 +327,7 @@ export function QrOrderCartPanel({
             />
           ) : null}
         </div>
-        {checkoutBlocker ? <p data-testid="qr-checkout-blocker" role="status" className="mt-3 text-sm font-medium text-amber-800">{checkoutBlocker}</p> : null}
+        {checkoutBlocker ? <p id={`${fieldId}-blocker`} data-testid="qr-checkout-blocker" role="status" className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm font-medium text-amber-900">{checkoutBlocker}{detailFields.length ? <span className="mt-2 flex flex-wrap gap-2">{detailFields.map((field) => <button key={field.id} type="button" className="min-h-11 rounded-md border border-current px-3 underline underline-offset-2" onClick={() => document.getElementById(field.id)?.focus()}>{field.label}</button>)}</span> : null}</p> : null}
         <button type="button" disabled={isSubmitting || Boolean(checkoutBlocker) || utensilsNoteTooLong} onClick={onSubmit} className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
           <Send className="h-4 w-4" />
           {isSubmitting ? copy.submitting : copy.submitOrder}
