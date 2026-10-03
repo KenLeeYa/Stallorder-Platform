@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { establishLocalTestSession, gotoLocalPath } from "./local-navigation";
@@ -46,6 +46,7 @@ test.beforeAll(async () => {
   qrId=(await prisma.qrCode.create({data:{organizationId,stallId,token:qrToken,label:"Catalog local QA",state:"ACTIVE",tokenVersion:(version._max.tokenVersion??0)+1}})).id;
 });
 test.afterAll(async () => {
+  try {
   if (circuitFlagOverrideId) await prisma.resilienceFeatureFlagOverride.deleteMany({ where: { id: circuitFlagOverrideId } });
   await prisma.order.deleteMany({where:{id:{in:ids}}});
   if(qrId) {
@@ -57,7 +58,9 @@ test.afterAll(async () => {
   await prisma.stallProduct.deleteMany({where:{productId:{in:productIds}}});
   await prisma.product.deleteMany({where:{id:{in:productIds}}});
   for(const row of originalHours??[]) await prisma.stallBusinessHour.update({where:{id:row.id},data:{opensAt:row.opensAt,closesAt:row.closesAt,lastOrderAt:row.lastOrderAt,isClosed:row.isClosed}});
-  await prisma.$disconnect();
+  } finally {
+    await prisma.$disconnect();
+  }
 });
 async function merchantHeaders(page: Page) {
   const csrf=(await page.context().cookies()).find((cookie)=>cookie.name==="stallorder_csrf")?.value??"";
@@ -200,7 +203,7 @@ test("removing the only stall role blocks an existing login and preserves member
     expect(response.status()).toBe(200);
     expect((await memberPage.request.get("/api/stalls/aming-chicken/orders")).status()).toBe(404);
     expect((await prisma.stallMembership.findUniqueOrThrow({where:{id:membership.id}})).isActive).toBe(false);
-  }finally{await context.close();await prisma.profile.delete({where:{id:profile.id}});}
+  }finally{await context.close();const retainedAudit = await prisma.auditLog.findMany({ where: { actorProfileId: profile.id }, orderBy: { id: "asc" } }); await prisma.authSession.deleteMany({ where: { profileId: profile.id } }); await prisma.profile.deleteMany({where:{id:profile.id,auditLogs:{none:{}}}}); expect(auditFingerprint(await prisma.auditLog.findMany({ where: { id: { in: retainedAudit.map(row => row.id) } }, orderBy: { id: "asc" } }))).toEqual(auditFingerprint(retainedAudit));}
 });
 
 test("catalog desktop/tablet group board and mobile stock editor render without horizontal overflow",async({page})=>{
@@ -244,3 +247,7 @@ test("catalog desktop/tablet group board and mobile stock editor render without 
     await dialog.getByRole("button",{name:"關閉庫存設定"}).click();
   }
 });
+
+function auditFingerprint(rows: unknown[]) {
+  return { count: rows.length, hash: createHash("sha256").update(JSON.stringify(rows)).digest("hex") };
+}

@@ -294,7 +294,7 @@ export async function dismissStaffStartReminder(page: Page) {
 }
 
 export async function openStaffMobileTools(page: Page) {
-  const tools = page.getByTestId("staff-tools-toggle");
+  const tools = page.getByTestId("staff-tools-toggle").filter({ visible: true });
   await expect(tools).toBeVisible();
   await expect(tools).toBeEnabled();
   if (await tools.getAttribute("aria-expanded") !== "true") {

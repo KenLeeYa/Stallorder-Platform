@@ -96,22 +96,44 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm test
       - run: npm run build
-      - run: node scripts/run-npm-audit.mjs
+      - name: Verify the actual fresh Web release scope
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_web_artifact_fixture
+          ALLOW_DEMO_SEED: "false"
+        run: |
+          npm install --global npm@11.16.0
+          npm ci --workspace packages/contracts --include-workspace-root --include=dev
+          node scripts/verify-web-release-scope.mjs web-release-evidence
 
       - name: Create immutable Production application Plan receipt
         env:
           PRODUCTION_APPROVAL_OPERATION: production-application
           PRODUCTION_APPROVAL_PARAMETERS_JSON: '{"databaseChanges":false,"edgeFunctionChanges":false}'
           PRODUCTION_APPROVAL_RECEIPT_PATH: artifacts/production-application-approval.json
-        run: node scripts/production-approval.mjs create
+        run: |
+          mkdir -p artifacts
+          cp web-release-evidence/result.json artifacts/production-application-web-scope.json
+          node scripts/production-approval.mjs create
 
       - name: Upload Production application Plan
         uses: actions/upload-artifact@v4
         with:
           name: production-application-plan-${{ github.run_id }}
-          path: artifacts/production-application-approval.json
+          path: artifacts/production-application-*.json
           if-no-files-found: error
           retention-days: 1
+
+      - name: Preserve fresh Web scope evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: web-release-scope-${{ github.run_id }}-${{ github.job }}
+          path: web-release-evidence/
+          if-no-files-found: warn
 
   apply:
     if: inputs.operation == 'apply'
@@ -174,7 +196,18 @@ jobs:
 
       - run: npm ci
       - run: npm run production:check
-      - run: node scripts/run-npm-audit.mjs
+      - name: Verify the actual fresh Web release scope
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_web_artifact_fixture
+          ALLOW_DEMO_SEED: "false"
+        run: |
+          npm install --global npm@11.16.0
+          npm ci --workspace packages/contracts --include-workspace-root --include=dev
+          node scripts/verify-web-release-scope.mjs web-release-evidence
 
       - name: Download approved Production application Plan
         uses: actions/download-artifact@v4
@@ -183,6 +216,9 @@ jobs:
           path: approved-application-plan
           github-token: ${{ github.token }}
           run-id: ${{ inputs.plan_run_id }}
+
+      - name: Verify the same source and install scope as the approved Plan
+        run: node scripts/verify-web-release-plan.mjs approved-application-plan/production-application-web-scope.json web-release-evidence/result.json
 
       - name: Verify application approval is bound to the immutable Plan
         env:
@@ -294,7 +330,10 @@ jobs:
         env:
           PRODUCTION_APPROVAL_OPERATION: production-application
           PRODUCTION_EVIDENCE_PATH: artifacts/production-application-evidence.json
-        run: node scripts/production-approval.mjs create-evidence
+        run: |
+          mkdir -p artifacts
+          cp web-release-evidence/result.json artifacts/production-application-web-scope.json
+          node scripts/production-approval.mjs create-evidence
 
       - name: Upload successful application release evidence
         uses: actions/upload-artifact@v4
@@ -303,3 +342,11 @@ jobs:
           path: artifacts/production-application-evidence.json
           if-no-files-found: error
           retention-days: 30
+
+      - name: Preserve fresh Web scope evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: web-release-scope-${{ github.run_id }}-${{ github.job }}
+          path: web-release-evidence/
+          if-no-files-found: warn

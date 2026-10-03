@@ -470,6 +470,7 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
         localizationPage,
         `/merchant/catalog?organizationId=${organizationId}`,
       );
+      await localizationPage.getByRole("button", { name: "完整管理／新增商品", exact: true }).click();
       const aiTranslationButton = localizationPage.getByRole("button", {
         name: "一鍵補齊翻譯",
       });

@@ -116,7 +116,10 @@ jobs:
       - name: Production-mode resilience smoke
         run: npm run test:e2e:resilience:production
       - name: Dependency audit
-        run: node scripts/run-npm-audit.mjs
+        run: |
+          npm install --global npm@11.16.0
+          npm ci --workspace packages/contracts --include-workspace-root --include=dev
+          node scripts/verify-web-release-scope.mjs web-release-evidence
       - name: Preserve failed E2E evidence
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -127,6 +130,13 @@ jobs:
             playwright-report/
           retention-days: 1
           if-no-files-found: ignore
+      - name: Preserve fresh Web scope evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: web-release-scope-${{ github.run_id }}-${{ github.job }}
+          path: web-release-evidence/
+          if-no-files-found: warn
       - name: Stop local Supabase
         if: always()
         run: npx supabase stop --no-backup

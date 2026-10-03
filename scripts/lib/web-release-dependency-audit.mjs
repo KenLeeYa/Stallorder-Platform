@@ -142,7 +142,7 @@ export function auditPackageSet(sbom,lock){
 }
 export function sourceSnapshot(root){
  const paths=['src','packages/contracts','public','prisma','supabase/functions/_shared'].flatMap(p=>files(join(root,p)))
-  .concat(['package.json','package-lock.json','next.config.ts','tsconfig.json','postcss.config.mjs','vercel.json','scripts/lib/web-release-dependency-audit.mjs','scripts/web-release-dependency-audit.mjs','scripts/verify-web-install-scope.mjs','.github/workflows/web-install-scope.yml','scripts/verify-web-release-scope.mjs','.github/workflows/ci.yml','.github/workflows/production-readiness.yml','.github/workflows/production-application-release.yml'].map(p=>join(root,p)))
+  .concat(['package.json','package-lock.json','next.config.ts','tsconfig.json','postcss.config.mjs','vercel.json','scripts/lib/web-release-dependency-audit.mjs','scripts/web-release-dependency-audit.mjs','scripts/verify-web-install-scope.mjs','.github/workflows/web-install-scope.yml','scripts/verify-web-release-scope.mjs','scripts/verify-web-release-plan.mjs','.github/workflows/ci.yml','.github/workflows/production-readiness.yml','.github/workflows/production-application-release.yml'].map(p=>join(root,p)))
   .filter(p=>existsSync(p)).sort();
  if(!paths.length)reject('WEB_SOURCE_EMPTY');
  const digest=hash(paths.map(p=>`${relative(root,p).replaceAll('\\','/')}\0${hash(readFileSync(p))}`).join('\n'));

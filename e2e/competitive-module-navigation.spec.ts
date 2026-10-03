@@ -50,6 +50,7 @@ test("已啟用的庫存、成長與菜單版本可由商家介面開啟", async
     page,
     `/merchant/catalog?organizationId=${organizationId}`,
   );
+  await page.getByRole("button", { name: "完整管理／新增商品", exact: true }).click();
   const mainContent = page.locator("#main-content");
   const versionsAction = mainContent.getByTestId("catalog-versions-action");
   await expect(versionsAction).toBeVisible();

@@ -110,7 +110,7 @@ test.describe("撤回後重新申請與平台追蹤", () => {
 
     await expect(page).toHaveURL(/\/onboarding$/);
     await expect(page.getByRole("heading", { name: "重新申請商家" })).toBeVisible();
-    await expect(page.getByRole("status")).toContainText("前次申請會保留為歷史紀錄");
+    await expect(page.getByRole("status").filter({ hasText: "前次申請會保留為歷史紀錄" })).toContainText("前次申請會保留為歷史紀錄");
     await expect(page.getByLabel("聯絡電話")).toHaveValue("0916665504");
     const saveDraftButton = page.getByRole("button", { name: "儲存草稿" });
     await waitForReactClickHandler(saveDraftButton);

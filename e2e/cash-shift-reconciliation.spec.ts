@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { hash } from "bcryptjs";
@@ -18,7 +18,7 @@ const stallId = randomUUID();
 const stallSlug = "cash-shift-e2e-" + stallId.slice(0, 8);
 const password = "StallOrderDemo!2026";
 const managerAuthorizationCode = "246810";
-const financeEmail = "cash.finance.e2e@stallorder.test";
+const financeEmail = `cash.finance.${stallId}@stallorder.test`;
 const customerName = "Cash shift E2E customer";
 let financeProfileId = "";
 let shiftId = "";
@@ -79,15 +79,23 @@ test.describe.serial("現金交班與短溢收", () => {
   });
 
   test.afterAll(async () => {
+    const ownedAuditRows = await prisma.auditLog.findMany({ where: { OR: [{ stallId }, { actorProfileId: financeProfileId || "00000000-0000-4000-8000-000000000000" }] }, orderBy: { id: "asc" } });
+    const retainedAuditIds = ownedAuditRows.map(row => row.id);
+    const retainedAuditEvidence = auditFingerprint(ownedAuditRows);
     try {
       await cleanupFixtures();
       if (financeProfileId) {
         await prisma.authSession.deleteMany({ where: { profileId: financeProfileId } });
       }
-      await prisma.profile.deleteMany({ where: { email: financeEmail } });
-      await prisma.stall.deleteMany({ where: { id: stallId } });
+      await prisma.profile.deleteMany({ where: { auditLogs: { none: {} }, email: financeEmail } });
+      await prisma.stallMembership.deleteMany({ where: { stallId } });
+      await prisma.stall.deleteMany({ where: { auditLogs: { none: {} }, id: stallId } });
     } finally {
-      await prisma.$disconnect();
+      try {
+        expect(auditFingerprint(await prisma.auditLog.findMany({ where: { id: { in: retainedAuditIds } }, orderBy: { id: "asc" } }))).toEqual(retainedAuditEvidence);
+      } finally {
+        await prisma.$disconnect();
+      }
     }
   });
 
@@ -388,7 +396,7 @@ async function cleanupFixtures() {
     where: { stallId, alertType: { in: ["CASH_SHIFT_NOT_CLOSED", "CASH_OVER_SHORT"] } },
   });
   await prisma.authSession.deleteMany({ where: { profile: { email: financeEmail } } });
-  await prisma.profile.deleteMany({ where: { email: financeEmail } });
+  await prisma.profile.deleteMany({ where: { auditLogs: { none: {} }, email: financeEmail } });
   shiftId = "";
   orderId = "";
 }
@@ -416,4 +424,9 @@ function loadLocalEnv() {
     const value = match[2].trim();
     process.env[match[1]] = value.startsWith('"') && value.endsWith('"') ? value.slice(1, -1) : value;
   }
+}
+
+// Compare fingerprints only; failed assertions never disclose audit payloads.
+function auditFingerprint(rows: unknown[]) {
+  return { count: rows.length, hash: createHash("sha256").update(JSON.stringify(rows)).digest("hex") };
 }

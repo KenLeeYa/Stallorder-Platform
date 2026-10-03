@@ -82,7 +82,25 @@ jobs:
       - run: npm run db:test
       - run: npx supabase db lint --local --level warning --fail-on warning
       - run: npm run build
-      - run: node scripts/run-npm-audit.mjs
+      - name: Verify the actual fresh Web release scope
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_web_artifact_fixture
+          ALLOW_DEMO_SEED: "false"
+        run: |
+          npm install --global npm@11.16.0
+          npm ci --workspace packages/contracts --include-workspace-root --include=dev
+          node scripts/verify-web-release-scope.mjs web-release-evidence
+      - name: Preserve fresh Web scope evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: web-release-scope-${{ github.run_id }}-${{ github.job }}
+          path: web-release-evidence/
+          if-no-files-found: warn
       - if: always()
         run: npx supabase stop --no-backup
 

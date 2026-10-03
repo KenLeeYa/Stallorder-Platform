@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
@@ -15,7 +15,7 @@ assertLocalDatabase();
 
 const prisma = new PrismaClient();
 const responsiveMode = process.env.RESPONSIVE_QA_RUN === "true";
-const responsiveSuffix = responsiveMode ? `-${randomUUID().slice(0, 8)}` : "";
+const responsiveSuffix = `-${randomUUID().slice(0, 8)}`;
 const ownerEmail = "owner@stallorder.test";
 const staffEmail = "staff@stallorder.test";
 const kitchenEmail = "kitchen@stallorder.test";
@@ -84,7 +84,7 @@ test.describe("多攤位商戶關鍵流程", () => {
       where: { organizationId: organization.id },
     });
     }
-    if (!responsiveMode) await prisma.stall.deleteMany({ where: { slug: secondStallSlug } });
+    if (!responsiveMode) await prisma.stall.deleteMany({ where: { auditLogs: { none: {} }, slug: secondStallSlug } });
     await prisma.organization.update({
       where: { id: organization.id },
       data: { operatingMode: "MULTI_STALL" },
@@ -99,7 +99,7 @@ test.describe("多攤位商戶關鍵流程", () => {
         ],
       },
     });
-    if (!responsiveMode) await prisma.profile.deleteMany({ where: { email: financeEmail } });
+    if (!responsiveMode) await prisma.profile.deleteMany({ where: { auditLogs: { none: {} }, email: financeEmail } });
 
     const owner = await prisma.profile.findUniqueOrThrow({
       where: { email: ownerEmail },
@@ -196,6 +196,9 @@ test.describe("多攤位商戶關鍵流程", () => {
   });
 
   test.afterAll(async () => {
+    const ownedAuditRows = await prisma.auditLog.findMany({ where: { OR: [{ stall: { slug: secondStallSlug } }, { organization: { slug: { in: [authorizedOrganizationSlug, otherOrganizationSlug] } } }, { actor: { email: financeEmail } }] }, orderBy: { id: "asc" } });
+    const retainedAuditIds = ownedAuditRows.map(row => row.id);
+    const retainedAuditEvidence = auditFingerprint(ownedAuditRows);
     try {
       const currentOrganization = await prisma.organization.findUnique({
         where: { email: ownerEmail },
@@ -218,8 +221,8 @@ test.describe("多攤位商戶關鍵流程", () => {
             where: { organizationId: currentOrganization.id, businessDate },
           });
         }
-        await prisma.stall.deleteMany({
-          where: {
+        await prisma.stallMembership.deleteMany({ where: { stall: { organizationId: currentOrganization.id, slug: secondStallSlug } } });
+        await prisma.stall.deleteMany({ where: { auditLogs: { none: {} },
             organizationId: currentOrganization.id,
             slug: secondStallSlug,
           },
@@ -239,7 +242,7 @@ test.describe("多攤位商戶關鍵流程", () => {
           ],
         },
       });
-      await prisma.profile.deleteMany({ where: { email: financeEmail } });
+      await prisma.profile.deleteMany({ where: { auditLogs: { none: {} }, email: financeEmail } });
       if (!responsiveMode) await prisma.authSession.deleteMany({
         where: {
           profile: { email: { in: [ownerEmail, staffEmail, kitchenEmail] } },
@@ -267,7 +270,11 @@ test.describe("多攤位商戶關鍵流程", () => {
           }
         }
       } finally {
+        try {
+        expect(auditFingerprint(await prisma.auditLog.findMany({ where: { id: { in: retainedAuditIds } }, orderBy: { id: "asc" } }))).toEqual(retainedAuditEvidence);
+      } finally {
         await prisma.$disconnect();
+      }
       }
     }
   });
@@ -1054,11 +1061,9 @@ async function deleteTestOrganizations(args: {
   await prisma.usageEvent.deleteMany({
     where: { organizationId: { in: organizationIds } },
   });
-  await prisma.stall.deleteMany({
-    where: { organizationId: { in: organizationIds } },
+  await prisma.stall.deleteMany({ where: { auditLogs: { none: {} }, organizationId: { in: organizationIds } },
   });
-  await prisma.organization.deleteMany({
-    where: { id: { in: organizationIds } },
+  await prisma.organization.deleteMany({ where: { auditLogs: { none: {} }, stalls: { none: { auditLogs: { some: {} } } }, id: { in: organizationIds } },
   });
 }
 
@@ -1288,4 +1293,9 @@ function loadLocalEnv() {
     process.env[match[1]] =
       value.startsWith('"') && value.endsWith('"') ? value.slice(1, -1) : value;
   }
+}
+
+// Compare fingerprints only; failed assertions never disclose audit payloads.
+function auditFingerprint(rows: unknown[]) {
+  return { count: rows.length, hash: createHash("sha256").update(JSON.stringify(rows)).digest("hex") };
 }
