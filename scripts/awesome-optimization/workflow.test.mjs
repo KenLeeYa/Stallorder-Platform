@@ -102,5 +102,8 @@ test("optional Vercel bypass is validated before paid child creation without blo
   expect(steps[index].run).toContain('normalizePreviewBypassSecret(process.env.PREVIEW_BYPASS_SECRET)');
   expect(steps[index].run).toContain('process.env.PREVIEW_GIT_BRANCH === "codex/integrated-production-20261002" && !secret');
   expect(steps[index].run).toContain('PREVIEW_BYPASS_HEADER_REQUIRED');
-  expect(steps[index].run).not.toMatch(/console\.|set -x|echo.*SECRET/u);
+  const mask = 'if (secret) console.log(`::add-mask::${secret}`);';
+  expect(steps[index].run).toContain(mask);
+  expect(steps[index].run.indexOf(mask)).toBeGreaterThan(steps[index].run.indexOf('normalizePreviewBypassSecret(process.env.PREVIEW_BYPASS_SECRET)'));
+  expect(steps[index].run.replace(mask, '')).not.toMatch(/console\.|set -x|echo.*SECRET/u);
 });

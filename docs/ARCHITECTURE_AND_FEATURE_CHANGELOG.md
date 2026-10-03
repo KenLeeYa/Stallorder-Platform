@@ -176,3 +176,7 @@ Product behavior and bounded verification: [UI and order guard receipt](awesome-
 整合既有 Awesome、跨裝置 UI、公開訂單營業時間及安全工作區候選；各領域歷史條目與限制保留。新增發布保護：DB／Edge 更新後、promotion 前，讀回指定舊部署與 aliases，執行有界有效 QR session smoke；這不等於完整舊版交易相容驗證，也不會還原資料庫。Preview bypass 值去除首尾空白、拒絕剩餘非法 HTTP header 字元並使用脫敏錯誤；建立付費資源前先驗證，原 exact origin／禁止重新導向與無 Vercel 純 DB 流程邊界保留。
 
 來源修正 `97b0a3d76da37179a38eb57771e3b1542140eca7`、`64467b493470419dd41a84d098ef1f8e7e1d2bfe`；32 個 bypass／workflow 聚焦測試與獨立審查通過，實際配對 UI 尚未通過。詳見 [整合發布](releases/INTEGRATED_RELEASE_20261002.md)、[隔離驗收及精確收據](releases/PR366_ISOLATED_STAGING_PLAN.md)。第三組僅新增 US$1／最長六小時，完成或失敗即清理，不授權第四組。正式／DR 尚未發布；治理維持 OFF／dry-run，平台 LINE／Pay 正式啟用及 Native 維持 OFF。
+
+第三組補充：`19ceb366` 完整 CI 通過，但 run37146767008 的 cash-shift browser 前置仍 INCOMPLETE，pending route.fetch shutdown error 掩蓋原錯誤。QA harness 固定繁中 context／cookie、脫敏 route failure、清理順序及失敗階段收據；workflow 遮罩 normalized bypass，保留所有真登入與結果斷言、來源／redirect 邊界。精確第三 child／deployment 已清理，意外出現在公開 log 的 bypass 已撤銷，公開 log 已移除，Primary／SSO 保護未變。工具修正候選待重新驗證，正式／DR 未發布；第四組／新 bypass 未授權。
+
+工具修正補充驗證：37 聚焦測試與真 Chromium loopback 回歸1項 PASS，新增標準 E2E `preview-harness-lifecycle.spec.ts` 防止語系及 pending HEAD／SSE shutdown 再次失敗。最初75秒 probe FAIL 保留；受控關閉只接受自身 closing 的精確 disposal，其他失敗仍阻擋。沒有新增 Docker／provider 資源，完整最新來源 CI 與 hosted／正式驗收仍待執行。

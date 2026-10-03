@@ -149,6 +149,7 @@ jobs:
             node --input-type=module -e '
               import { normalizePreviewBypassSecret } from "./scripts/qa-pr366-preview-ui.mjs";
               const secret = normalizePreviewBypassSecret(process.env.PREVIEW_BYPASS_SECRET);
+              if (secret) console.log(`::add-mask::${secret}`);
               if (process.env.PREVIEW_GIT_BRANCH === "codex/integrated-production-20261002" && !secret) throw Error("PREVIEW_BYPASS_HEADER_REQUIRED");
             '
           fi

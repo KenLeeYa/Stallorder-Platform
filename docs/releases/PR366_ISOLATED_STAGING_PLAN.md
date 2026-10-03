@@ -146,3 +146,15 @@ Focused37136802285（297069ae）35 browser、8 resilience、4442 unit通過（10
 `64467b49` 修正首尾空白 normalization、拒絕剩餘非法字元，並於建立 paid child 前驗證；32 聚焦測試、lint／diff 檢查與獨立審查通過。這只修復測試入口格式邊界，不宣稱 Preview UI 已通過。
 
 使用者本輪明確同意第三組隔離 Preview：新增 US$1、最長六小時，完成或失敗立即清理，不建立第四組或延長。沿用 parent `eyuctbnlvnbnivwasvqr`、team `team_MMfsiG94K9Zy3e6w7Ccc9xY4`、project `prj_uoG4FNJIgnF1LdKRiXnfRaieXnUP`，僅 root／受核准 workflow 為遠端 writer。建立前綁定最新完整 CI、source／tree、精確 run owner 與獨立到期監控；秘密只在既有 GitHub Preview environment 使用，不匯出本機。確切資源與到期時間以 `.release-evidence/20261003/preview-owner.json` 及 runner 原始收據為準，原第二組收據另存 `.release-evidence/20261004/preview-owner-second-37140558165.json`。第三組及正式／DR驗收仍待執行，所有停用能力維持既定範圍。
+
+## 2026-10-04 第三組 QA 工具失敗與精確清理
+
+`19ceb366` 完整 CI `37144405756` 通過：233 browser PASS／78 skipped／0 failure／0 flaky、8 resilience PASS、4446 unit PASS／106 skipped；173 migrations、DB tests／lint、build、runner cleanup 通過。這是該來源證據，不替代後續工具修正版本或正式發布。
+
+第三組 run `37146767008` 的 reviewed migrations、remote DB tests／lint、Edge、typecheck、build 通過；配對 child `cybmdzsumoiltkyhiooh` 與 deployment `dpl_BeDPhuzg4nv2hyCaP8jr6gXx62NR`。cash-shift 前置介面留下 INCOMPLETE，log 的 cookie 顯示 `stallorder_locale=en`，中文定位與未固定的 browser locale 不一致；browser close 時 pending route.fetch disposed 的未處理錯誤掩蓋原失敗。沒有完成主要 browser cases，不計遠端 UI PASS。final receipt CLEANED，獨立 parent branch list 確認 child 不存在、精確 deployment 讀回 404；`pr366` 清理監控 PAUSED。
+
+Playwright 原始錯誤含 trim 後的 bypass header，GitHub 原 secret 遮罩未命中 normalized 值。公開 run logs 已移除、本機診斷檔脫敏；精確暴露的 automation bypass 已撤銷且未重新產生，SSO protection 讀回未變，Primary 健康正常。脫敏撤銷收據在 `.release-evidence/20261004/bypass-revocation-37146767008.json`。新增 normalized 值的 GitHub add-mask，並修正 QA context 固定繁中、route error 安全處理及失敗階段收據；這些仍須聚焦測試與獨立審查，不聲稱遠端驗證完成。第四組及新 bypass 尚未授權；不變更 GitHub 發布規則、不合併或正式部署。
+
+獨立審查攔下 QA route.fetch 的正常 SSE 誤判：應用 kitchen／orders 串流生命週期50秒，buffered fetch 的30秒上限不能用於這兩個精確 GET 串流。只對同源、正確串流路徑與 event-stream 請求使用60秒上限，其他請求仍30秒，redirect0與未知來源拒絕保留；不忽略實際 fetch 失敗。真正 loopback Chromium 重現、清理及聚焦測試另存本次 evidence，不等於 hosted Preview PASS。
+
+最初75秒 loopback probe FAIL；5秒診斷證實串流開始／結束及 fetch 完成後，`unrouteAll(wait)` 仍等待並產生重連，不將此結果改標 PASS。改為標記精確 context 關閉中、移除攔截、關閉自身 context、等待 pending callbacks settle；僅接受自己 closing 時的精確 disposal，關閉前錯誤及 timeout 仍 FAIL。永久回歸 `e2e/preview-harness-lifecycle.spec.ts` 已由 root 重跑真 Chromium PASS（2.9秒、標準60秒未延長），包含英文重現、繁中真點擊、pending HEAD／SSE、browser 關閉、無 unhandled 及安全 primary failure 收據不變；37 個聚焦單元／workflow 測試與 lint／diff 檢查通過。測試只用本次 loopback server，已關閉，沒有啟動 App／DB／Docker；最新來源完整 CI、hosted Preview 及正式發布仍待驗證。

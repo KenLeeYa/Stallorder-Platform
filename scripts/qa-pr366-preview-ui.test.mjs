@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { expect, test, vi } from 'vitest';
-import { assertTarget, assertCatalogFixture, assertReadbackFixture, assertPublicQrFixture, assertInboxFixture, assertMembershipFixture, hoursPhasePolicy, assertPreorderFixture, requestPolicy, routePreviewRequest } from './qa-pr366-preview-ui.mjs';
+import { assertTarget, assertCatalogFixture, assertReadbackFixture, assertPublicQrFixture, assertInboxFixture, assertMembershipFixture, hoursPhasePolicy, assertPreorderFixture, requestPolicy, routePreviewRequest, createPreviewContext, shutdownPreviewBrowser, sanitizedCaseFailure } from './qa-pr366-preview-ui.mjs';
 
 const now = Date.parse('2026-10-03T10:00:00Z');
 function fixture() {
@@ -62,7 +62,7 @@ test('browser fetch never automatically follows a credentialed redirect and fore
   const response = { status: () => 302 };
   const route = { request: () => ({ url: () => `${origin}/redirect`, method: () => 'GET', isNavigationRequest: () => true, headers: () => ({ 'x-vercel-protection-bypass': 'stale' }) }), fetch: vi.fn(async () => response), fulfill: vi.fn(), abort: vi.fn() };
   await routePreviewRequest(route, origin, 'secret');
-  expect(route.fetch).toHaveBeenCalledWith({ maxRedirects: 0, headers: { 'x-vercel-protection-bypass': 'secret' } });
+  expect(route.fetch).toHaveBeenCalledWith({ maxRedirects: 0, timeout: 30_000, headers: { 'x-vercel-protection-bypass': 'secret' } });
   expect(route.fulfill).toHaveBeenCalledWith({ response });
   route.request = () => ({ url: () => 'https://foreign.example/', method: () => 'GET', isNavigationRequest: () => true });
   await routePreviewRequest(route, origin, 'secret');
@@ -134,4 +134,61 @@ test('invalid bypass values fail before a browser route sends any header', async
   await expect(routePreviewRequest(route, origin, 'synthetic\r\ninjected')).rejects.toThrow(/^PREVIEW_BYPASS_HEADER_INVALID$/);
   expect(route.fetch).not.toHaveBeenCalled();
   expect(route.fulfill).not.toHaveBeenCalled();
+});
+
+test('direct route failure exposes only a safe code and preserves redirect isolation', async () => {
+  const origin = 'https://isolated.vercel.app';
+  const route = { request: () => ({ url: () => `${origin}/api/connectivity`, method: () => 'HEAD',
+    isNavigationRequest: () => false, headers: () => ({}) }), fetch: vi.fn(async () => { throw Error('secret raw headers'); }), fulfill: vi.fn() };
+  await expect(routePreviewRequest(route, origin, 'synthetic')).rejects.toThrow(/^PREVIEW_ROUTE_REQUEST_FAILED$/);
+  expect(route.fetch).toHaveBeenCalledWith({ maxRedirects: 0, timeout: 30_000, headers: { 'x-vercel-protection-bypass': 'synthetic' } });
+});
+
+
+test('only the exact owned-stall EventSource streams get the finite 50-second contract allowance', async () => {
+  const origin = 'https://isolated.vercel.app';
+  for (const [path, method, accept, timeout] of [
+    ['/api/stalls/aming-chicken/orders/stream', 'GET', 'text/event-stream', 60_000],
+    ['/api/stalls/aming-chicken/kitchen/stream', 'GET', 'text/event-stream', 60_000],
+    ['/api/stalls/other-store/orders/stream', 'GET', 'text/event-stream', 30_000],
+    ['/api/stalls/aming-chicken/orders/stream', 'POST', 'text/event-stream', 30_000],
+    ['/api/stalls/aming-chicken/orders/stream', 'GET', 'application/json', 30_000],
+  ]) {
+    const response = {};
+    const route = { request: () => ({ url: () => `${origin}${path}`, method: () => method,
+      isNavigationRequest: () => false, headers: () => ({ accept }) }), fetch: vi.fn(async () => response), fulfill: vi.fn() };
+    await routePreviewRequest(route, origin, 'synthetic');
+    expect(route.fetch).toHaveBeenCalledWith({ headers: { accept, 'x-vercel-protection-bypass': 'synthetic' }, maxRedirects: 0, timeout });
+  }
+});
+
+test.each([
+  ['before-close disposal', false, 'route.fetch: Request context disposed.', true],
+  ['closing timeout', true, 'route.fetch: Timeout 30000ms exceeded; synthetic header', true],
+  ['closing disposal', true, 'route.fetch: Request context disposed.', false],
+])('%s is classified without disclosing raw request details', async (_label, closing, message, fail) => {
+  const origin = 'https://isolated.vercel.app';
+  let handler;
+  let finish;
+  let routed;
+  const pending = new Promise(resolve => { finish = resolve; });
+  const order = [];
+  const context = { addCookies: vi.fn(), route: vi.fn(async (_pattern, callback) => { handler = callback; }),
+    unrouteAll: vi.fn(async options => { expect(options).toEqual({ behavior: 'ignoreErrors' }); order.push('unrouted'); }),
+    close: vi.fn(async () => { order.push('context-closed'); finish(); }) };
+  const browser = { newContext: vi.fn(async () => context), contexts: () => [context], close: vi.fn(async () => { order.push('browser-closed'); }) };
+  await createPreviewContext(browser, origin, 'synthetic');
+  expect(browser.newContext).toHaveBeenCalledWith({ serviceWorkers: 'block', locale: 'zh-TW' });
+  expect(context.addCookies).toHaveBeenCalledWith([{ name: 'stallorder_locale', value: 'zh-TW', url: origin }]);
+  const route = { request: () => ({ url: () => `${origin}/api/connectivity`, method: () => 'HEAD',
+    isNavigationRequest: () => false, headers: () => ({}) }), fetch: vi.fn(async () => { await pending; throw Error(message); }), abort: vi.fn() };
+  routed = handler(route);
+  if (!closing) { finish(); await routed; }
+  const shutdown = shutdownPreviewBrowser(browser);
+  if (fail) await expect(shutdown).rejects.toThrow(/^PREVIEW_BROWSER_SHUTDOWN_FAILED$/);
+  else await expect(shutdown).resolves.toBeUndefined();
+  await routed;
+  expect(order).toEqual(['unrouted', 'context-closed', 'browser-closed']);
+  expect(sanitizedCaseFailure({ name: 'TimeoutError', message }, 'STAFF_PASSWORD_LOGIN'))
+    .toEqual({ stage: 'STAFF_PASSWORD_LOGIN', code: 'PREVIEW_UI_TIMEOUT' });
 });

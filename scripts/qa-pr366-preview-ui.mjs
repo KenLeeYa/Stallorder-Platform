@@ -57,8 +57,75 @@ export async function routePreviewRequest(route, origin, bypassSecret) {
   if (policy.abort) return route.abort();
   const headers = { ...request.headers() };
   delete headers['x-vercel-protection-bypass'];
-  const response = await route.fetch({ headers: { ...headers, ...policy.headers }, maxRedirects: 0 });
-  return route.fulfill({ response });
+  try {
+    const path = new URL(request.url()).pathname;
+    // Both owned-stall SSE handlers close normally at 50 seconds; fetch buffers their bodies.
+    const stream = request.method() === 'GET' && headers.accept === 'text/event-stream'
+      && /^\/api\/stalls\/aming-chicken\/(?:orders|kitchen)\/stream$/.test(path);
+    const response = await route.fetch({ headers: { ...headers, ...policy.headers }, maxRedirects: 0, timeout: stream ? 60_000 : 30_000 });
+    return await route.fulfill({ response });
+  } catch (error) {
+    throw Error(previewRouteFailureCode(error));
+  }
+}
+
+function previewRouteFailureCode(error) {
+  const disposed = error?.message === 'PREVIEW_ROUTE_TARGET_CLOSED'
+    || /^TargetClosedError(?:\d+)?$/.test(error?.name ?? '')
+    || /^(?:route\.(?:fetch|fulfill|abort): )?(?:Request context disposed\.|Target page, context or browser has been closed|Target closed)/.test(error?.message ?? '');
+  return disposed ? 'PREVIEW_ROUTE_TARGET_CLOSED' : 'PREVIEW_ROUTE_REQUEST_FAILED';
+}
+
+const previewRouteStates = new WeakMap();
+
+export async function createPreviewContext(browser, origin, bypassSecret) {
+  const context = await browser.newContext({ serviceWorkers: 'block', locale: 'zh-TW' });
+  await context.addCookies([{ name: 'stallorder_locale', value: 'zh-TW', url: origin }]);
+  const state = { closing: false, pending: new Set(), failures: [] };
+  previewRouteStates.set(context, state);
+  await context.route('**/*', route => {
+    const handled = (async () => {
+      try {
+        if (state.closing) await route.abort();
+        else await routePreviewRequest(route, origin, bypassSecret);
+      } catch (error) {
+        if (!(state.closing && previewRouteFailureCode(error) === 'PREVIEW_ROUTE_TARGET_CLOSED')) state.failures.push('PREVIEW_ROUTE_REQUEST_FAILED');
+        try { await route.abort(); } catch { /* Only settle the already failed request. */ }
+      }
+    })();
+    state.pending.add(handled);
+    void handled.finally(() => state.pending.delete(handled));
+    return handled;
+  });
+  return context;
+}
+
+async function shutdownPreviewContext(context) {
+  const state = previewRouteStates.get(context);
+  if (state) state.closing = true;
+  let failed = false;
+  // Waiting for route handlers before closing can deadlock SSE fulfillment.
+  try { await context.unrouteAll({ behavior: 'ignoreErrors' }); } catch { failed = true; }
+  try { await context.close(); } catch { failed = true; }
+  if (state) {
+    await Promise.allSettled([...state.pending]);
+    if (state.failures.length) failed = true;
+  }
+  if (failed) throw Error('PREVIEW_BROWSER_SHUTDOWN_FAILED');
+}
+
+export async function shutdownPreviewBrowser(browser) {
+  let failed = false;
+  for (const context of browser.contexts()) {
+    try { await shutdownPreviewContext(context); } catch { failed = true; }
+  }
+  try { await browser.close(); } catch { failed = true; }
+  if (failed) throw Error('PREVIEW_BROWSER_SHUTDOWN_FAILED');
+}
+
+export function sanitizedCaseFailure(error, stage) {
+  return { stage, code: error?.name === 'TimeoutError' ? 'PREVIEW_UI_TIMEOUT'
+    : error?.name === 'AssertionError' ? 'PREVIEW_UI_ASSERTION_FAILED' : 'PREVIEW_UI_OPERATION_FAILED' };
 }
 
 export function assertCatalogFixture(fixture, binding) {
@@ -137,8 +204,8 @@ export async function runPreorderPhase(receipt, binding, outDir) {
   const qr = assertPublicQrFixture(JSON.parse(readFileSync(resolve(privateDir, 'fixture-public-qr.json'), 'utf8')), binding).qrs.find(row => row.mode === 'DEFAULT');
   const product = assertCatalogFixture({ ...binding.fixtures.pos, originalName: binding.fixtures.pos?.name }, binding);
   const { chromium, expect } = await import('@playwright/test');
-  const browser = await chromium.launch(); const context = await browser.newContext({ serviceWorkers: 'block' });
-  await context.route('**/*', route => routePreviewRequest(route, origin, process.env.PREVIEW_BYPASS_SECRET));
+  const browser = await chromium.launch(); const context = await createPreviewContext(browser, origin, process.env.PREVIEW_BYPASS_SECRET);
+
   const deviceId = randomUUID(), orderId = randomUUID();
   const evidence = { resourceKey: receipt.resourceKey, childRef: binding.childRef, deploymentId: binding.deploymentId,
     sha: binding.sha, tree: binding.tree, phase: 'hours-preorder', status: 'INCOMPLETE', orderIds: [orderId], complete: false,
@@ -170,7 +237,14 @@ export async function runPreorderPhase(receipt, binding, outDir) {
     expect(order.items).toHaveLength(1); expect(order.items[0].quantity).toBe(1); expect(order.totalAmount).toBe(offered.price);
     evidence.scheduledPickupAt = new Date(canonicalSlot).toISOString(); evidence.quotedTotal = offered.price; evidence.persistedTotal = order.totalAmount;
     evidence.status = 'PASS';
-  } finally { writeFileSync(resolve(outDir, 'ui-hours-preorder.json'), JSON.stringify(evidence, null, 2)); await browser.close(); }
+  } catch (error) { evidence.status = 'FAIL'; evidence.failure = sanitizedCaseFailure(error, 'HOURS_PREORDER'); throw Error('PREVIEW_HOURS_PREORDER_FAILED');
+  } finally { writeFileSync(resolve(outDir, 'ui-hours-preorder.json'), JSON.stringify(evidence, null, 2));
+    try { await shutdownPreviewBrowser(browser); } catch {
+      const primaryFailure = evidence.status === 'FAIL'; evidence.status = 'FAIL'; evidence.shutdown = 'PREVIEW_BROWSER_SHUTDOWN_FAILED';
+      writeFileSync(resolve(outDir, 'ui-hours-preorder.json'), JSON.stringify(evidence, null, 2));
+      if (!primaryFailure) throw Error('PREVIEW_BROWSER_SHUTDOWN_FAILED');
+    }
+  }
   return evidence;
 }
 
@@ -207,8 +281,8 @@ export async function runHoursPhase(receipt, binding, outDir, phase) {
   const state = opening ? { ...identity, status: 'PREPARING', modes: [] } : JSON.parse(readFileSync(handoffPath, 'utf8'));
   if (Object.entries(identity).some(([key, value]) => state[key] !== value)
     || (!opening && (state.status !== (phase === 'hours-cutoff' ? 'OVERNIGHT_VERIFIED' : 'OPEN_VERIFIED') || state.modes?.length !== 2))) throw Error('HOURS_HANDOFF_DENIED');
-  const browser = await chromium.launch(); const context = await browser.newContext({ serviceWorkers: 'block' });
-  await context.route('**/*', route => routePreviewRequest(route, origin, process.env.PREVIEW_BYPASS_SECRET));
+  const browser = await chromium.launch(); const context = await createPreviewContext(browser, origin, process.env.PREVIEW_BYPASS_SECRET);
+
   const evidence = { ...identity, phase, status: 'INCOMPLETE', results: [], orderIds: state.modes.map(mode => mode.orderId), complete: false,
     turnstile: 'OFFICIAL_TEST_KEY_ONLY', pending: ['EXACT_MIDNIGHT_BOUNDARY_FUTURE_PREORDER_DEVICE_UI'] };
   mkdirSync(outDir, { recursive: true });
@@ -276,8 +350,14 @@ export async function runHoursPhase(receipt, binding, outDir, phase) {
     }
     state.status = `${expectedMode}_VERIFIED`; writeFileSync(handoffPath, JSON.stringify(state), { mode: 0o600 });
     evidence.status = 'PASS';
+  } catch (error) { evidence.status = 'FAIL'; evidence.failure = sanitizedCaseFailure(error, phase); throw Error('PREVIEW_HOURS_PHASE_FAILED');
   } finally {
-    writeFileSync(resolve(outDir, `ui-${phase}.json`), JSON.stringify(evidence, null, 2)); await browser.close();
+    writeFileSync(resolve(outDir, `ui-${phase}.json`), JSON.stringify(evidence, null, 2));
+    try { await shutdownPreviewBrowser(browser); } catch {
+      const primaryFailure = evidence.status === 'FAIL'; evidence.status = 'FAIL'; evidence.shutdown = 'PREVIEW_BROWSER_SHUTDOWN_FAILED';
+      writeFileSync(resolve(outDir, `ui-${phase}.json`), JSON.stringify(evidence, null, 2));
+      if (!primaryFailure) throw Error('PREVIEW_BROWSER_SHUTDOWN_FAILED');
+    }
   }
   return evidence;
 }
@@ -285,32 +365,57 @@ export async function runHoursPhase(receipt, binding, outDir, phase) {
 export async function runCashShiftPhase(receipt, binding, outDir) {
   const origin = assertTarget(receipt, binding);
   const { chromium, expect } = await import('@playwright/test');
-  const browser = await chromium.launch(); const context = await browser.newContext({ serviceWorkers: 'block' });
-  await context.route('**/*', route => routePreviewRequest(route, origin, process.env.PREVIEW_BYPASS_SECRET));
+  const browser = await chromium.launch(); const context = await createPreviewContext(browser, origin, process.env.PREVIEW_BYPASS_SECRET);
+
   mkdirSync(outDir, { recursive: true });
   const evidence = { resourceKey: receipt.resourceKey, childRef: binding.childRef, deploymentId: binding.deploymentId, sha: binding.sha, tree: binding.tree,
     kind: 'CASH_SHIFT', status: 'INCOMPLETE', cleanup: 'EXACT_CHILD_TEARDOWN' };
+  let stage = 'STAFF_LOGIN_PAGE';
+  let page;
   try {
-    const page = await context.newPage(); await page.goto(`${origin}/staff/login?next=%2Fstaff%2Faming-chicken%2Fcash`);
+    page = await context.newPage(); await page.goto(`${origin}/staff/login?next=%2Fstaff%2Faming-chicken%2Fcash`);
+    stage = 'STAFF_PASSWORD_LOGIN';
     await page.getByRole('button', { name: '使用電子郵件與密碼登入', exact: true }).click();
     await page.locator('input[name="email"]').fill('staff@stallorder.test'); await page.locator('input[name="password"]').fill('StallOrderDemo!2026');
     await page.getByRole('button', { name: '登入', exact: true }).click(); await expect(page).toHaveURL(/\/staff\/aming-chicken\/cash/);
+    stage = 'CASH_SHIFT_BEFORE_READBACK';
     const headers = requestPolicy(origin, origin, 'GET', false, process.env.PREVIEW_BYPASS_SECRET).headers;
     const before = await context.request.get(`${origin}/api/stalls/aming-chicken/cash-shifts`, { headers, maxRedirects: 0 });
     expect(before.status()).toBe(200); expect((await before.json()).openShift).toBeNull();
+    stage = 'CASH_SHIFT_FORM';
     await page.getByRole('button', { name: '開始現金班次', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: '開啟現金班次', exact: true });
     await dialog.getByLabel('開班金額', { exact: true }).fill('1000');
     await dialog.getByLabel('備註（選填）', { exact: true }).fill(`PR366 ${receipt.resourceKey} isolated shift`);
     assertTarget(receipt, binding);
+    stage = 'CASH_SHIFT_SUBMIT';
     const accepted = page.waitForResponse(response => response.url() === `${origin}/api/stalls/aming-chicken/cash-shifts` && response.request().method() === 'POST');
     await dialog.getByRole('button', { name: '開始班次', exact: true }).click();
     expect((await accepted).status()).toBe(200);
+    stage = 'CASH_SHIFT_AFTER_READBACK';
     const after = await context.request.get(`${origin}/api/stalls/aming-chicken/cash-shifts`, { headers, maxRedirects: 0 });
     expect(after.status()).toBe(200); const shift = (await after.json()).openShift;
     expect(shift).toMatchObject({ status: 'OPEN', openingAmount: 1000 });
     evidence.cashShiftId = shift.id; evidence.status = 'READBACK_VERIFIED';
-  } finally { writeFileSync(resolve(outDir, 'ui-cash-shift.json'), JSON.stringify(evidence, null, 2)); await browser.close(); }
+  } catch (error) {
+    evidence.status = 'FAIL'; evidence.failure = sanitizedCaseFailure(error, stage);
+    if (page) {
+      try { await page.screenshot({ path: resolve(outDir, 'cash-shift-failure.png'), fullPage: true });
+        evidence.screenshot = 'cash-shift-failure.png'; } catch { evidence.screenshot = 'UNAVAILABLE'; }
+    }
+    throw Error('PREVIEW_CASH_SHIFT_FAILED');
+  } finally {
+    const path = resolve(outDir, 'ui-cash-shift.json');
+    writeFileSync(path, JSON.stringify(evidence, null, 2));
+    try { await shutdownPreviewBrowser(browser); }
+    catch {
+      evidence.shutdown = 'PREVIEW_BROWSER_SHUTDOWN_FAILED';
+      const primaryFailure = evidence.status === 'FAIL';
+      evidence.status = 'FAIL';
+      writeFileSync(path, JSON.stringify(evidence, null, 2));
+      if (!primaryFailure) throw Error('PREVIEW_BROWSER_SHUTDOWN_FAILED');
+    }
+  }
   return evidence;
 }
 
@@ -320,10 +425,10 @@ export async function run(receipt, binding, outDir) {
   const browser = await chromium.launch();
   const results = [];
   mkdirSync(outDir, { recursive: true });
-  const context = await browser.newContext({ serviceWorkers: 'block' });
+  const context = await createPreviewContext(browser, origin, process.env.PREVIEW_BYPASS_SECRET);
   const page = await context.newPage();
   // Fetch redirects individually so credentials cannot follow an unreviewed origin.
-  await context.route('**/*', route => routePreviewRequest(route, origin, process.env.PREVIEW_BYPASS_SECRET));
+
   const org = '11111111-1111-4111-8111-111111111111';
   async function check(name, action) {
     try { await action(); results.push({ name, status: 'PASS' }); }
@@ -347,8 +452,8 @@ export async function run(receipt, binding, outDir) {
         ['platform.admin@stallorder.test', '/admin/billing', /\/admin\/billing/],
       ];
       for (const [email, next, expected] of cases) {
-        const roleContext = await browser.newContext({ serviceWorkers: 'block' });
-        await roleContext.route('**/*', route => routePreviewRequest(route, origin, process.env.PREVIEW_BYPASS_SECRET));
+        const roleContext = await createPreviewContext(browser, origin, process.env.PREVIEW_BYPASS_SECRET);
+
         try {
           const rolePage = await roleContext.newPage();
           await rolePage.goto(`${origin}/${email.startsWith('platform.') ? 'login' : 'staff/login'}?next=${encodeURIComponent(next)}`);
@@ -361,15 +466,15 @@ export async function run(receipt, binding, outDir) {
             const denied = await roleContext.request.get(`${origin}/api/merchant/organizations/${org}/catalog/editor`, { maxRedirects: 0, headers: requestPolicy(origin, origin, 'GET', false, process.env.PREVIEW_BYPASS_SECRET).headers });
             expect([403, 404]).toContain(denied.status());
           }
-        } finally { await roleContext.close(); }
+        } finally { await shutdownPreviewContext(roleContext); }
       }
       const foreign = await context.request.get(`${origin}/api/merchant/organizations/99999999-9999-4999-8999-999999999999/catalog/editor`, { maxRedirects: 0, headers: requestPolicy(origin, origin, 'GET', false, process.env.PREVIEW_BYPASS_SECRET).headers });
       expect([403, 404]).toContain(foreign.status());
-      const anonymous = await browser.newContext({ serviceWorkers: 'block' });
+      const anonymous = await browser.newContext({ serviceWorkers: 'block', locale: 'zh-TW' });
       try {
         const denied = await anonymous.request.get(`${origin}/api/merchant/organizations/${org}/catalog/editor`, { maxRedirects: 0, headers: requestPolicy(origin, origin, 'GET', false, process.env.PREVIEW_BYPASS_SECRET).headers });
         expect(denied.status()).toBe(401);
-      } finally { await anonymous.close(); }
+      } finally { await shutdownPreviewContext(anonymous); }
     });
     await check('catalog-responsive-edit-cancel-return-mounted-save-failure', async () => {
       for (const width of [320, 390, 768, 1440]) {
@@ -627,8 +732,8 @@ export async function run(receipt, binding, outDir) {
       assertCatalogFixture({ ...fixture, originalName: fixture.name }, binding);
       expect(fixture.status).toBe('READBACK_VERIFIED'); expect(fixture.kind).toBe('STAFF_POS');
       expect(Number.isInteger(fixture.price) && fixture.price >= 1 && fixture.price <= 9999).toBe(true);
-      const staffContext = await browser.newContext({ serviceWorkers: 'block' });
-      await staffContext.route('**/*', route => routePreviewRequest(route, origin, process.env.PREVIEW_BYPASS_SECRET));
+      const staffContext = await createPreviewContext(browser, origin, process.env.PREVIEW_BYPASS_SECRET);
+
       try {
         const staffPage = await staffContext.newPage();
         await staffPage.goto(`${origin}/staff/login?next=%2Fstaff%2Faming-chicken`);
@@ -683,13 +788,13 @@ export async function run(receipt, binding, outDir) {
         expect(persisted.items).toHaveLength(1); expect(persisted.items[0]).toMatchObject({ name: fixture.name, unitPrice: fixture.price, quantity: 1 });
         writeFileSync(resolve(outDir, 'pos-orders.json'), JSON.stringify({ resourceKey: receipt.resourceKey, childRef: binding.childRef, deploymentId: binding.deploymentId, sha: binding.sha, tree: binding.tree, status: 'READBACK_VERIFIED', productId: fixture.productId, orderIds: [order.id], total: order.total, paymentStatus: order.paymentStatus, cleanup: 'EXACT_CHILD_TEARDOWN' }, null, 2));
         await expect(pos).toBeHidden();
-      } finally { await staffContext.close(); }
+      } finally { await shutdownPreviewContext(staffContext); }
     });
     else results.push({ name: 'staff-toolbar-and-real-cash-pos-checkout', status: 'PENDING', reason: 'EXACT_CHILD_POS_PRODUCT_AND_PRINT_OFF_READBACK_REQUIRED' });
     if (binding.fixtures?.membership) await check('inbox-real-membership-revocation-with-valid-session', async () => {
       const fixture = assertMembershipFixture(binding.fixtures.membership, binding);
-      const staffContext = await browser.newContext({ serviceWorkers: 'block' });
-      await staffContext.route('**/*', route => routePreviewRequest(route, origin, process.env.PREVIEW_BYPASS_SECRET));
+      const staffContext = await createPreviewContext(browser, origin, process.env.PREVIEW_BYPASS_SECRET);
+
       const staffPage = await staffContext.newPage();
       const query = `kind=ORGANIZATION&organizationId=${org}`;
       const listPath = `/api/notifications?${query}`;
@@ -734,7 +839,7 @@ export async function run(receipt, binding, outDir) {
         writeFileSync(resolve(outDir, 'inbox-membership-revoked.json'), JSON.stringify({ ...fixture,
           kind: 'INBOX_MEMBERSHIP_REVOKED', status: 'API_REVOKE_VERIFIED', sessionStillValid: true,
           ownerStillAuthorized: true, privateStateCleared: true, independentDatabaseReadback: 'PENDING' }, null, 2));
-      } finally { await staffContext.close(); }
+      } finally { await shutdownPreviewContext(staffContext); }
     }); else results.push({ name: 'inbox-real-membership-revocation-with-valid-session', status: 'PENDING', reason: 'BOUND_NON_PRIMARY_MEMBERSHIP_REQUIRED' });
     await check('inbox-real-session-revocation-clears-private-state', async () => {
       await page.goto(`${origin}/notifications?kind=ORGANIZATION&organizationId=${org}`);
@@ -762,7 +867,8 @@ export async function run(receipt, binding, outDir) {
     results.push({ name: 'midnight-deployed-db-calendar-boundaries', status: 'PENDING', reason: 'SEPARATE_MIDNIGHT_ROLLBACK_DB_RECEIPT_REQUIRED' });
     results.push({ name: 'live-http-clock-midnight-transition', status: 'NOT_RUN', reason: 'EXPLICIT_DB_CLOCK_PROOF_DOES_NOT_CLAIM_LIVE_HTTP_TRANSITION' });
   } finally {
-    await browser.close();
+    try { await shutdownPreviewBrowser(browser); }
+    catch { results.push({ name: 'browser-shutdown', status: 'FAIL', code: 'PREVIEW_BROWSER_SHUTDOWN_FAILED' }); }
     writeFileSync(resolve(outDir, 'ui-results.json'), JSON.stringify({ resourceKey: receipt.resourceKey,
       childRef: binding.childRef, deploymentId: binding.deploymentId, sha: binding.sha, tree: binding.tree,
       results, complete: false }, null, 2));
