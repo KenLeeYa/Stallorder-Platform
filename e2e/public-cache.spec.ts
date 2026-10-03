@@ -65,6 +65,9 @@ test("QR menu renders cached content before the short-lived session is ready", a
   const appliedAt = new Date();
   let releaseSession: (() => void) | undefined;
   const sessionGate = new Promise<void>((resolve) => { releaseSession = resolve; });
+  const sessionPath = /\/(?:api\/public-order|functions\/v1)\/create-order-session(?:\?|$)/;
+  let markSessionIntercepted!: () => void;
+  const sessionIntercepted = new Promise<void>((resolve) => { markSessionIntercepted = resolve; });
   let hours: Awaited<ReturnType<typeof db.stallBusinessHour.findMany>> = [];
   let prepared = false;
   try {
@@ -82,15 +85,19 @@ test("QR menu renders cached content before the short-lived session is ready", a
       }
     });
     prepared = true;
-    await page.route("**/api/public-order/create-order-session", async (route) => {
-      await sessionGate;
+    await page.route(sessionPath, async (route) => {
+      if (route.request().method() === "POST") {
+        markSessionIntercepted();
+        await sessionGate;
+      }
       await route.continue();
     });
     await page.goto("/q/demo-aming-chicken-qr-2026-rotate-me", { waitUntil: "domcontentloaded" });
+    await sessionIntercepted;
     await expect(page.getByRole("heading", { name: "阿明鹽酥雞", exact: true })).toBeVisible();
     await expect(page.getByRole("article").first()).toBeVisible();
     await expect(page.getByRole("button", { name: "送出訂單", exact: true })).toBeDisabled();
-    const session = page.waitForResponse(response => response.url().endsWith("/api/public-order/create-order-session")
+    const session = page.waitForResponse(response => sessionPath.test(response.url())
       && response.request().method() === "POST");
     releaseSession?.();
     expect((await session).status()).toBe(201);
