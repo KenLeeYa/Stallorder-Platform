@@ -114,3 +114,9 @@ CI `37099582769`（`2a04964b`）在一小時 job 時限被取消，只完成八�
 聚焦 run37120088769 在單元測試階段因既有 workflow契約假設所有 job均為付費 Preview而失敗（4439 passed、2 failed、106 skipped），E2E未執行。修正精確區分無 provider操作的 `regression-local`，其餘 job的核准、環境及清理條件保留。Preview手機 POS使用唯一可見按鈕，避免 responsive重複控制定位。DR入口部署同時明確覆寫 LINE平台與治理為 OFF、刪除 dry-run，與 Primary一致；沒有遠端設定異動。
 
 正式放行須由唯一 writer另行讀回真正 `.github/workflows/ci.yml` 完整 run成功、同一來源／tree，合併後再確認 main push完整 CI；Readiness的 Plan成功或 focused成功均不能取代此證據。正式 sequence為 DR schema Plan／Apply → Primary Plan／Apply（帶同一 DR schema Apply ID）→ replication Plan／Apply（帶同一 Primary Apply ID）→ 既有 DR入口 Plan／Update。每步使用當次 main來源與最新精確 run收據，讀回正式 target及受影響流程；不使用沒有 DR前置 ID的自動 Primary Plan。
+
+## 2026-10-03 完整 CI 37121391558 的三項整批失敗
+
+候選 a9bbfb44 完整八批 E2E 為218 passed、3 failed、78 skipped；整體 FAIL，resilience與 dependency audit未執行。先前18項聚焦成功不足以取代完整suite。第二組付費Preview及正式／DR發布尚未開始。
+
+套餐指派以保留fixture攤位數推定多店，與實際 SINGLE_STALL 模式不符；改讀真organization operatingMode，保留單店active stall與DB指派斷言。商品工具列和KDS設定trace分別顯示catalog editor及設定API回傳429，共用seed owner累積觸及 authenticated-api 300次／5分鐘；改用僅限本機的run-owned OWNER，沿真登入與API、保留全部結果斷言，結束撤銷自身登入權限並保留稽核父資料。沒有重置bucket、放寬限流或改正式權限。修正後須重新取得完整CI與當次配對Preview證據。

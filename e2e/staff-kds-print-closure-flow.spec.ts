@@ -41,6 +41,8 @@ let originalSettings: {
 const temporarilyDisabledPrinterIds: string[] = [];
 const createdOrderIds: string[] = [];
 const createdClosureIds: string[] = [];
+const ownerEmail = `kds-print-owner-${randomUUID()}@stallorder.test`;
+let ownerProfileId = "";
 
 async function acknowledgeSettingsFeedback(page: Page, message: string) {
   const dialog = page.getByRole("dialog", { name: "操作已完成", exact: true });
@@ -53,6 +55,16 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
   test.describe.configure({ mode: "serial" });
 
   test.beforeAll(async () => {
+    const seedOwner = await prisma.profile.findUniqueOrThrow({
+      where: { email: "owner@stallorder.test" }, select: { passwordHash: true },
+    });
+    if (!seedOwner.passwordHash) throw new Error("KDS_PRINT_OWNER_CREDENTIAL_MISSING");
+    const owner = await prisma.profile.create({ data: {
+      email: ownerEmail, displayName: `${runMarker} owner`,
+      passwordHash: seedOwner.passwordHash, authMigrationRequired: false,
+      organizationMemberships: { create: { organizationId, role: "ORGANIZATION_OWNER", allStalls: true, isPrimaryOwner: false } },
+    }, select: { id: true } });
+    ownerProfileId = owner.id;
     if (responsiveMode) {
       const demoProduct = await prisma.product.findFirstOrThrow({
         where: { organizationId, isActive: true, stallProducts: { some: { stallId: "22222222-2222-4222-8222-222222222222", isEnabled: true, isSoldOut: false } } },
@@ -200,7 +212,14 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
           });
         }
       } finally {
-        await prisma.$disconnect();
+        try {
+          if (ownerProfileId) {
+            // Keep the immutable audit actor, but revoke this run-owned access.
+            await prisma.authSession.updateMany({ where: { profileId: ownerProfileId, revokedAt: null }, data: { revokedAt: new Date(), revokeReason: "E2E_FIXTURE_CLEANUP" } });
+            await prisma.organizationMembership.updateMany({ where: { organizationId, profileId: ownerProfileId, role: "ORGANIZATION_OWNER", isPrimaryOwner: false }, data: { isActive: false } });
+            await prisma.profile.update({ where: { id: ownerProfileId }, data: { isActive: false } });
+          }
+        } finally { await prisma.$disconnect(); }
       }
     }
   });
@@ -215,7 +234,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
     });
     try {
       const ownerPage = await ownerContext.newPage();
-      await login(ownerPage, "owner@stallorder.test", /\/merchant\/dashboard/);
+      await login(ownerPage, ownerEmail, /\/merchant\/dashboard/);
       await setModule(ownerPage, "kds", "廚房 KDS", "kdsModuleEnabled", false);
       await expect
         .poll(() =>
@@ -610,7 +629,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
     });
     try {
       const ownerPage = await ownerContext.newPage();
-      await login(ownerPage, "owner@stallorder.test", /\/merchant\/dashboard/);
+      await login(ownerPage, ownerEmail, /\/merchant\/dashboard/);
       await setModule(ownerPage, "kds", "廚房 KDS", "kdsModuleEnabled", false);
       await setModule(
         ownerPage,
@@ -956,7 +975,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
     });
     try {
       const ownerPage = await ownerContext.newPage();
-      await login(ownerPage, "owner@stallorder.test", /\/merchant\/dashboard/);
+      await login(ownerPage, ownerEmail, /\/merchant\/dashboard/);
       // Exercise the real SSR interval: an opener must not accept clicks before hydration.
       let resumeHydration!: () => void;
       const hydrationGate = new Promise<void>((resolve) => { resumeHydration = resolve; });
@@ -1234,7 +1253,7 @@ async function setModule(
 }
 
 async function login(page: Page, email: string, destination: RegExp) {
-  const next = email === "owner@stallorder.test" ? `/merchant/dashboard?organizationId=${organizationId}` : `/staff/${stallSlug}`;
+  const next = email === ownerEmail ? `/merchant/dashboard?organizationId=${organizationId}` : `/staff/${stallSlug}`;
   await page.goto("/login?next=" + encodeURIComponent(next));
   await page
     .getByRole("button", { name: "使用電子郵件與密碼登入", exact: true })

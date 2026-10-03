@@ -108,15 +108,22 @@ test("商家可建立套餐、選擇群組與一般商品選項", async ({ page 
     productEditor.getByRole("checkbox", { name: "阿明鹽酥雞", exact: true }),
   ).toHaveCount(0);
   await productEditor.getByLabel("套餐組合價").fill("180");
-  // Other test-owned stalls may coexist; explicitly assign the bundle to the exercised store.
+  // Assignment controls follow the organization operating mode, not retained fixture stall counts.
   const bundleAssignment = productEditor.getByRole("switch", { name: "阿明鹽酥雞", exact: true });
-  const organizationStallCount = await prisma.stall.count({ where: { organizationId } });
-  if (organizationStallCount > 1) {
+  const organization = await prisma.organization.findUniqueOrThrow({
+    where: { id: organizationId },
+    select: { operatingMode: true },
+  });
+  if (organization.operatingMode === "MULTI_STALL") {
     await expect(bundleAssignment).toHaveCount(1);
     if (await bundleAssignment.getAttribute("aria-checked") === "false") await bundleAssignment.click();
     await expect(bundleAssignment).toHaveAttribute("aria-checked", "true");
   } else {
-    expect(organizationStallCount).toBe(1);
+    expect(organization.operatingMode).toBe("SINGLE_STALL");
+    expect(await prisma.stall.findMany({
+      where: { organizationId, isActive: true },
+      select: { id: true },
+    })).toEqual([{ id: stallId }]);
     await expect(bundleAssignment).toHaveCount(0);
   }
   await productEditor

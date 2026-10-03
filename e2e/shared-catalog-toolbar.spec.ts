@@ -1,15 +1,51 @@
 import { expect, test, type Page } from "@playwright/test";
+import { randomUUID } from "node:crypto";
+import { PrismaClient } from "@prisma/client";
 import { openSharedCatalogManagement } from "./local-navigation";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const password = "StallOrderDemo!2026";
+let fixtureProfileId = "";
+let fixtureEmail = "";
+
+test.beforeEach(async () => {
+  const target = new URL(process.env.DATABASE_URL ?? "");
+  if (!["localhost", "127.0.0.1"].includes(target.hostname)) throw new Error("LOCAL_QA_ONLY");
+  const prisma = new PrismaClient();
+  try {
+    const owner = await prisma.profile.findUniqueOrThrow({ where: { email: "owner@stallorder.test" } });
+    const membership = await prisma.organizationMembership.findFirstOrThrow({ where: { organizationId, profileId: owner.id, role: "ORGANIZATION_OWNER" } });
+    if (!owner.passwordHash || !owner.isActive || !membership.isActive) throw new Error("CATALOG_TOOLBAR_SEED_OWNER_REQUIRED");
+    fixtureEmail = `catalog-toolbar-${randomUUID()}@stallorder.test`;
+    const profile = await prisma.profile.create({ data: {
+      email: fixtureEmail, displayName: "商品工具列隔離測試", passwordHash: owner.passwordHash,
+      emailVerified: owner.emailVerified, authMigrationRequired: owner.authMigrationRequired,
+      organizationMemberships: { create: { organizationId, role: "ORGANIZATION_OWNER", isActive: true } },
+    } });
+    fixtureProfileId = profile.id;
+  } finally { await prisma.$disconnect(); }
+});
+
+test.afterEach(async () => {
+  if (!fixtureProfileId) return;
+  const prisma = new PrismaClient();
+  try {
+    // Keep audited actor/membership parents; only retire this test's own login.
+    const retired = await prisma.profile.updateMany({
+      where: { id: fixtureProfileId, email: fixtureEmail, isActive: true },
+      data: { isActive: false, sessionVersion: { increment: 1 } },
+    });
+    expect(retired.count).toBe(1);
+    await prisma.authSession.deleteMany({ where: { profileId: fixtureProfileId } });
+  } finally { fixtureProfileId = ""; fixtureEmail = ""; await prisma.$disconnect(); }
+});
 
 async function login(page: Page) {
-  await page.goto("/login");
+  await page.goto(`/login?next=${encodeURIComponent(`/merchant/dashboard?organizationId=${organizationId}`)}`);
   await page
     .getByRole("button", { name: "使用電子郵件與密碼登入", exact: true })
     .click();
-  await page.getByLabel("電子郵件").fill("owner@stallorder.test");
+  await page.getByLabel("電子郵件").fill(fixtureEmail);
   await page.getByLabel("密碼").fill(password);
   await page.getByRole("button", { name: "登入", exact: true }).click();
   await expect(page).toHaveURL(/\/(?:merchant\/dashboard\?organizationId=|select-organization)/);
