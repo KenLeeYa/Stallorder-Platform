@@ -120,3 +120,5 @@ CI `37099582769`（`2a04964b`）在一小時 job 時限被取消，只完成八�
 候選 a9bbfb44 完整八批 E2E 為218 passed、3 failed、78 skipped；整體 FAIL，resilience與 dependency audit未執行。先前18項聚焦成功不足以取代完整suite。第二組付費Preview及正式／DR發布尚未開始。
 
 套餐指派以保留fixture攤位數推定多店，與實際 SINGLE_STALL 模式不符；改讀真organization operatingMode，保留單店active stall與DB指派斷言。商品工具列和KDS設定trace分別顯示catalog editor及設定API回傳429，共用seed owner累積觸及 authenticated-api 300次／5分鐘；改用僅限本機的run-owned OWNER，沿真登入與API、保留全部結果斷言，結束撤銷自身登入權限並保留稽核父資料。沒有重置bucket、放寬限流或改正式權限。修正後須重新取得完整CI與當次配對Preview證據。
+
+完整run37123787205在整批瀏覽器執行前精確取消，runner local Supabase cleanup成功；原因是獨立QA盤點發現本次受影響的供應設定錯誤恢復與persisted改單案例僅在歷史專用lab profile存在。新增標準CI聚焦案例沿正常登入、真API及DB讀回，商品429／500／斷網只注入精確transport以驗證UI輸入與忙碌狀態；改單用run-owned資料驗證成功／重播、付款／製作拒絕與stock trigger交易rollback。未啟用治理、LINE或Native，也未將歷史全部lab升為新gate。這些案例仍待重新執行完整CI，不計為runtime PASS。
