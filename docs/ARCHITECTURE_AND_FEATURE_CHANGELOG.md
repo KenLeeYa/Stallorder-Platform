@@ -170,3 +170,9 @@ Affected roles: merchant catalog owner, billing-capable merchant, authorized sta
 Product behavior and bounded verification: [UI and order guard receipt](awesome-optimization/UI_AND_ORDER_GUARDS_20261002.md), [notification semantics](NOTIFICATION_INBOX.md), [public edit fulfillment guards](CUSTOMER_ORDER_EDIT_FULFILLMENT_GUARDS_20261002.md), [local mock boundary](integrations/line/LOCAL_UI_MOCK_20261002.md). Executable scoped tests plus real local browser/API/SQL receipts; exact same-name bundle rebuild source reviewed fail-closed. This entry deliberately does not use committed Implemented or Released status: candidate source is uncommitted. Existing Awesome/native/feedback/release gaps remain open.
 
 四營運領域補充（同一 UI-ORDER-FOLLOWUP-001 候選）：營業損益／排班薪資／出攤行程／發票文件11區手機 progressive6/+6/收合，768以上保持完整顯示；總額／異常／entitlement與原操作ID不變。範圍重建與A→B→A重置 regression已加入。詳見 [手機營運清單](architecture/mobile-operational-lists.md)，聚焦18測試／lint／types通過，最後artifact真實頁面驗證由root另封存。
+
+### 2026-10-04 INTEGRATED-RELEASE-PR366-001 — committed candidate; not released
+
+整合既有 Awesome、跨裝置 UI、公開訂單營業時間及安全工作區候選；各領域歷史條目與限制保留。新增發布保護：DB／Edge 更新後、promotion 前，讀回指定舊部署與 aliases，執行有界有效 QR session smoke；這不等於完整舊版交易相容驗證，也不會還原資料庫。Preview bypass 值去除首尾空白、拒絕剩餘非法 HTTP header 字元並使用脫敏錯誤；建立付費資源前先驗證，原 exact origin／禁止重新導向與無 Vercel 純 DB 流程邊界保留。
+
+來源修正 `97b0a3d76da37179a38eb57771e3b1542140eca7`、`64467b493470419dd41a84d098ef1f8e7e1d2bfe`；32 個 bypass／workflow 聚焦測試與獨立審查通過，實際配對 UI 尚未通過。詳見 [整合發布](releases/INTEGRATED_RELEASE_20261002.md)、[隔離驗收及精確收據](releases/PR366_ISOLATED_STAGING_PLAN.md)。第三組僅新增 US$1／最長六小時，完成或失敗即清理，不授權第四組。正式／DR 尚未發布；治理維持 OFF／dry-run，平台 LINE／Pay 正式啟用及 Native 維持 OFF。

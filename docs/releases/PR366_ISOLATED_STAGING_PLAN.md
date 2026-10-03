@@ -136,3 +136,13 @@ Focused37135213031（dbb6086c）33 passed、2 failed，runner cleanup成功。�
 Focused37136802285（297069ae）35 browser、8 resilience、4442 unit通過（106 skipped），173 migrations、DB回歸/lint、guardrails、build及runner cleanup成功；同treeWebscope37136719680 PASS，原audit NON_PASS依精確例外，CodeQL25訊息不變。完整CI37136719656 attempt2為後續版本前的執行，不替代最新完整gate。
 
 回復來源複查支持27增量無DROP/rename/舊公開RPC簽章破壞、新必填欄位有default；仍不是5cc compiled＋新schema完整runtime證明。Primary Apply在migration及Edge更新後、promotion前，新增既有strict production smoke：先確認仍是baseline精確artifact/aliases，再驗證health/login入口及真有效QR session201，失敗不promote。這只是有界相容性backstop，不代表已驗證所有authenticated staff交易，也不會還原DB/Edge。fresh Plan/Apply、正式角色/受影響流程實測仍必需。無新增正式寫入、第二paid pair未建。
+
+## 2026-10-04 第二組清理與第三組授權續作
+
+`97b0a3d7` 完整 CI `37138214185` 通過：233 browser PASS／78 skipped／0 failure／0 flaky、8 resilience PASS、4443 unit PASS／106 skipped，173 migrations／DB tests／DB lint／build／cleanup PASS。這些是該版本的結果，不替代後續版本的完整 gate 或配對 Preview 真實操作。
+
+第二組 `37140558165` 的 child `gpqdtvkndxxcwgicgwfu` 與 deployment `dpl_DaQSw8uncFc8Rypgw3W22HuRgztG` 配對；DB／lint／Edge／typecheck／build 通過。Browser QA 在進入介面前因 `x-vercel-protection-bypass` 非法 header 字元失敗，不能確定秘密值中的具體字元，也不輸出秘密。原始 final 收據 CLEANED；parent branch list 確認 child 不存在、精確 deployment 讀回 404，監控已 PAUSED。既有正式部署 `dpl_Cx8GfP12KuFHcCgtnZ7SXxzt4AYZ` 未變。
+
+`64467b49` 修正首尾空白 normalization、拒絕剩餘非法字元，並於建立 paid child 前驗證；32 聚焦測試、lint／diff 檢查與獨立審查通過。這只修復測試入口格式邊界，不宣稱 Preview UI 已通過。
+
+使用者本輪明確同意第三組隔離 Preview：新增 US$1、最長六小時，完成或失敗立即清理，不建立第四組或延長。沿用 parent `eyuctbnlvnbnivwasvqr`、team `team_MMfsiG94K9Zy3e6w7Ccc9xY4`、project `prj_uoG4FNJIgnF1LdKRiXnfRaieXnUP`，僅 root／受核准 workflow 為遠端 writer。建立前綁定最新完整 CI、source／tree、精確 run owner 與獨立到期監控；秘密只在既有 GitHub Preview environment 使用，不匯出本機。確切資源與到期時間以 `.release-evidence/20261003/preview-owner.json` 及 runner 原始收據為準，原第二組收據另存 `.release-evidence/20261004/preview-owner-second-37140558165.json`。第三組及正式／DR驗收仍待執行，所有停用能力維持既定範圍。
