@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { catalogCsvHeaders } from "../src/lib/catalog-csv";
+import { openSharedCatalogManagement } from "./local-navigation";
 
 loadLocalEnv();
 assertLocalDatabase();
@@ -26,6 +27,7 @@ test.describe("效能查詢批次化", () => {
     test.setTimeout(120_000);
     await login(page);
     await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
+    await openSharedCatalogManagement(page);
 
     await importCatalog(page, [
       csvRow({

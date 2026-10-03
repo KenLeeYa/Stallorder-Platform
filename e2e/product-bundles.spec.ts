@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import {
   dismissStaffStartReminder,
   openSharedCatalogProductActions,
+  openSharedCatalogManagement,
 } from "./local-navigation";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
@@ -67,7 +68,7 @@ test("商家可建立套餐、選擇群組與一般商品選項", async ({ page 
 
   await login(page);
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
-
+  await openSharedCatalogManagement(page);
   const catalog = page.getByRole("region", { name: "商品批次管理", exact: true });
   await expect(catalog).toBeVisible();
   await catalog.getByRole("searchbox", { name: "搜尋管理商品" }).fill("香酥雞排");
@@ -258,7 +259,7 @@ test("手機版套餐操作列與商品編輯器不超出畫面", async ({ page 
   await page.setViewportSize({ width: 375, height: 812 });
   await login(page);
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
-
+  await openSharedCatalogManagement(page);
   await page.getByTestId("open-catalog-navigator").filter({ visible: true }).click();
   const catalogNavigator = page.getByTestId("catalog-navigator-dialog");
   await catalogNavigator.getByPlaceholder("搜尋所有商品").fill(bundleName);
