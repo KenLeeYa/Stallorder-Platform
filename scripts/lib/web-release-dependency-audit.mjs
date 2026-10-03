@@ -142,7 +142,7 @@ export function auditPackageSet(sbom,lock){
 }
 export function sourceSnapshot(root){
  const paths=['src','packages/contracts','public','prisma','supabase/functions/_shared'].flatMap(p=>files(join(root,p)))
-  .concat(['package.json','package-lock.json','next.config.ts','tsconfig.json','postcss.config.mjs','vercel.json','scripts/lib/web-release-dependency-audit.mjs','scripts/web-release-dependency-audit.mjs','scripts/verify-web-install-scope.mjs','.github/workflows/web-install-scope.yml'].map(p=>join(root,p)))
+  .concat(['package.json','package-lock.json','next.config.ts','tsconfig.json','postcss.config.mjs','vercel.json','scripts/lib/web-release-dependency-audit.mjs','scripts/web-release-dependency-audit.mjs','scripts/verify-web-install-scope.mjs','.github/workflows/web-install-scope.yml','scripts/verify-web-release-scope.mjs','.github/workflows/ci.yml','.github/workflows/production-readiness.yml','.github/workflows/production-application-release.yml'].map(p=>join(root,p)))
   .filter(p=>existsSync(p)).sort();
  if(!paths.length)reject('WEB_SOURCE_EMPTY');
  const digest=hash(paths.map(p=>`${relative(root,p).replaceAll('\\','/')}\0${hash(readFileSync(p))}`).join('\n'));
@@ -233,8 +233,10 @@ export function verifyWebArtifact(root,baseline,audit,sbom){
  if(contract.name!=='@stallorder/contracts'||contract.scripts||contract.optionalDependencies||contract.peerDependencies)reject('WEB_CONTRACTS_SCOPE_UNPROVEN');
  for(const [name,version]of Object.entries(contract.dependencies??{}))if(!packages.has(`${name}@${version}`))reject('WEB_CONTRACTS_DEPENDENCY_UNAUDITED');
  const problems=[];
- const sourceFiles=['src','packages/contracts','supabase/functions/_shared'].flatMap(p=>files(join(root,p))).filter(p=>/\.[cm]?[jt]sx?$/.test(p)&&! /\.(?:test|spec)\./.test(p)&&!relative(root,p).replaceAll('\\','/').startsWith('src/test/'));
+ const sourceFiles=['src','packages/contracts'].flatMap(p=>files(join(root,p))).filter(p=>/\.[cm]?[jt]sx?$/.test(p)&&! /\.(?:test|spec)\./.test(p)&&!relative(root,p).replaceAll('\\','/').startsWith('src/test/'));
+ const scannedSources=new Set();
  for(const path of sourceFiles){
+  const real=realpathSync(path);if(scannedSources.has(real))continue;scannedSources.add(real);
   const scan=inspectImports(readFileSync(path,'utf8'),path);
   if(scan.parseErrors)problems.push({path:relative(root,path),code:'SOURCE_PARSE_FAILED'});
   if(scan.unknown.length)problems.push({path:relative(root,path),code:'UNKNOWN_SOURCE_IMPORT',calls:scan.unknown});
@@ -243,6 +245,15 @@ export function verifyWebArtifact(root,baseline,audit,sbom){
    if(specifier.startsWith('.')){
     const target=resolve(dirname(path),specifier);
     if(!inside(root,target)||relative(root,target).replaceAll('\\','/').startsWith('apps/mobile/'))problems.push({path:relative(root,path),code:'SOURCE_IMPORT_ESCAPES_SCOPE'});
+    else{
+     // Deno-only helpers are not Web roots; scan them only when reached by a Web import.
+     const resolved=ts.resolveModuleName(specifier,path,{moduleResolution:ts.ModuleResolutionKind.Bundler,module:ts.ModuleKind.ESNext,allowImportingTsExtensions:true},ts.sys).resolvedModule?.resolvedFileName;
+     if(resolved&&/\.[cm]?[jt]sx?$/.test(resolved)){
+      const resolvedReal=realpathSync(resolved);
+      if(!inside(realpathSync(root),resolvedReal))problems.push({path:relative(root,path),code:'SOURCE_IMPORT_ESCAPES_SCOPE'});
+      else if(!scannedSources.has(resolvedReal))sourceFiles.push(resolved);
+     }
+    }
    }else if(!specifier.startsWith('@/')&&!specifier.startsWith('node:')&&!builtinModules.includes(specifier)&&packageName(specifier)!=='@stallorder/contracts'){
     if(![...packages].some(p=>p.startsWith(packageName(specifier)+'@')))problems.push({path:relative(root,path),code:'SOURCE_PACKAGE_OUTSIDE_AUDITED_CLOSURE'});
    }
@@ -314,7 +325,7 @@ export function verifyWebArtifact(root,baseline,audit,sbom){
  }
  const manifestClosure=verifyManifestReferences(root,nextFiles,traced);
  const artifactInputs=[...new Set([...nextFiles,...traces,...traced,buildPath])].sort().map(p=>`${relative(root,p).replaceAll('\\','/')}\0${hash(readFileSync(p))}`);
- const receipt={version:1,scope:baseline.scope,...current,buildId,traces:traces.length,tracedFiles:traced.size,artifactSha256:hash(artifactInputs.join('\n')),rootAudit:'PASS',manifestClosure,generatedPrisma,status:problems.length?'INCOMPLETE':'PASS',problems};
+ const receipt={version:1,scope:baseline.scope,...current,buildId,traces:traces.length,tracedFiles:traced.size,artifactSha256:hash(artifactInputs.join('\n')),rootAudit:'PASS',manifestClosure,generatedPrisma,sourceScope:{roots:['src','packages/contracts'],scannedFiles:scannedSources.size,edgeFunctions:'NOT_VERIFIED_DENO_QA_REQUIRED'},status:problems.length?'INCOMPLETE':'PASS',problems};
  return receipt;
 }
 export function npmJson(root,args){
