@@ -45,7 +45,7 @@ for (const orderingMode of ["DEFAULT", "PREORDER", "DELIVERY"] as const) {
     }));
     await page.goto(orderingMode === "DEFAULT"
       ? "/q/selection-e2e-DEFAULT"
-      : orderingMode === "PREORDER" ? "/s/aming-chicken" : "/delivery/aming-chicken");
+      : orderingMode === "PREORDER" ? "/s/aming-chicken" : "/q/selection-e2e-DELIVERY");
     await expect(page.getByRole("heading", { name: "勾選介面測試攤位" })).toBeVisible();
     if (orderingMode === "PREORDER") await page.getByRole("button", { name: "套用這個時間", exact: true }).click();
     await page.getByTestId("qr-open-product-configurator").click();

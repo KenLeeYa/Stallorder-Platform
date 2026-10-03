@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { resolve } from "node:path";
+import { readFileSync } from "node:fs";
 
 const mocks = vi.hoisted(() => ({ spawn: vi.fn(), remove: vi.fn() }));
 vi.mock("node:child_process", () => ({ spawnSync: mocks.spawn }));
-vi.mock("node:fs", () => ({ rmSync: mocks.remove }));
+vi.mock("node:fs", async importOriginal => ({ ...await importOriginal(), rmSync: mocks.remove }));
 let originalExitCode;
 
 beforeEach(() => {
@@ -45,6 +46,15 @@ test("all shards passing produces a successful gate", async () => {
   await import("./run-playwright-shards.mjs");
   expect(mocks.spawn).toHaveBeenCalledTimes(3);
   expect(process.exitCode ?? 0).toBe(0);
+});
+test("sequential eight-shard CI budget preserves test deadlines and flaky-failure policy", () => {
+  const workflow = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
+  const config = readFileSync(new URL("../playwright.config.ts", import.meta.url), "utf8");
+  expect(workflow).toContain("timeout-minutes: 120");
+  expect(config).toContain("workers: 1");
+  expect(config).toContain("timeout: 60_000");
+  expect(config).toContain("expect: { timeout: 10_000 }");
+  expect(config).toContain("failOnFlakyTests: Boolean(process.env.CI)");
 });
 
 test("invalid shard count never starts a test process or removes build files", async () => {

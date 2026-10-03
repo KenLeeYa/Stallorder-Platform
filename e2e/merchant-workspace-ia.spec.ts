@@ -18,7 +18,7 @@ async function acknowledgeSettingsFeedback(
   await expect(dialog).toBeHidden();
 }
 
-test("單店入口、商品摺疊與訂單限制設定維持一致", async ({ page }) => {
+test("指定攤位設定入口、商品摺疊與訂單限制設定維持一致", async ({ page }) => {
   await page.goto("/login");
   await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
   await page.getByLabel("電子郵件").fill("owner@stallorder.test");
@@ -31,12 +31,18 @@ test("單店入口、商品摺疊與訂單限制設定維持一致", async ({ pa
 
   await page.goto(`/merchant/stalls?organizationId=${organizationId}`);
   await expect(page.getByRole("heading", { name: "管理攤位", exact: true })).toBeVisible();
+  const settingsPath = `/merchant/stalls/${stallId}?organizationId=${organizationId}`;
+  const settingsEntry = page.locator(`a[href="${settingsPath}"]`);
+  if (await settingsEntry.isVisible()) {
+    await settingsEntry.click();
+    await expect(page).toHaveURL(new RegExp(`/merchant/stalls/${stallId}\\?organizationId=${organizationId}$`));
+  }
   for (const heading of ["攤位設定", "營運工具", "組織管理"]) {
     await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
   }
   await expect(page.getByRole("link", { name: "基本資料", exact: true }))
     .toHaveAttribute("href", `/merchant/stalls/${stallId}/settings/basic`);
-  await expect(page.getByRole("link", { name: "設定", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "攤位設定", exact: true })).toHaveCount(1);
 
   await page.goto("/merchant/aming-chicken");
   const productList = page.locator("details[data-stall-product-list]");

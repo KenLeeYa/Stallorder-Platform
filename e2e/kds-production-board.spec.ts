@@ -190,7 +190,10 @@ test(`KDS ${viewport.name} board GET 撤權後移除舊卡與命令，授權新�
   ));
   const refresh = page.locator("header:visible").filter({ has: page.locator('[data-testid="kitchen-primary-navigation"]:visible') }).last().getByTitle("重新整理");
   await refresh.click();
-  await expect(page.getByRole("alert").filter({ hasText: "廚房看板權限已失效" })).toBeVisible();
+  await expect(page.getByRole("alert").filter({
+    has: page.getByRole("link", { name: "重新開啟看板確認操作權限", exact: true }),
+    hasText: "廚房看板權限已失效",
+  })).toBeVisible();
   await expect(orderCard).toHaveCount(0);
   await expect(page.getByRole("button", { name: "開始製作", exact: true })).toHaveCount(0);
   revoked = false;

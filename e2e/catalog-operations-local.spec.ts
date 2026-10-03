@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
-import { establishLocalTestSession, gotoLocalPath } from "./local-navigation";
+import { establishLocalTestSession, gotoLocalPath, openSharedCatalogManagement } from "./local-navigation";
 import { assertResponsiveQaTarget } from "../scripts/responsive-qa-target.mjs";
 
 const prisma = new PrismaClient();
@@ -209,6 +209,7 @@ test("removing the only stall role blocks an existing login and preserves member
 test("catalog desktop/tablet group board and mobile stock editor render without horizontal overflow",async({page})=>{
   test.setTimeout(180000);await establishLocalTestSession(page,prisma,ownerId);
   await gotoLocalPath(page,`/merchant/catalog?organizationId=${organizationId}`);
+  await openSharedCatalogManagement(page);
   await page.getByRole("region",{name:"商品批次管理"}).getByRole("combobox",{name:"管理攤位"}).selectOption(stallId);
   for(const width of [1440,768,390,320]){
     await page.setViewportSize({width,height:900});

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
@@ -14,7 +15,7 @@ const primaryStallId = "22222222-2222-4222-8222-222222222222";
 const scheduleName = "P2 E2E 每日報告";
 const alertMessage = "P2 E2E 營運警示";
 const paginationAlertPrefix = "P2 E2E 分頁警示";
-const paginationAuditPrefix = "P2_PAGINATION_QA";
+const paginationAuditPrefix = `P2_PAGINATION_QA_${randomUUID()}`;
 
 test.describe("P2 後續成長功能", () => {
   test.describe.configure({ mode: "serial" });
@@ -269,8 +270,6 @@ async function cleanup() {
   }
   await prisma.operationalAlert.deleteMany({ where: { organizationId, message: alertMessage } });
   await prisma.operationalAlert.deleteMany({ where: { organizationId, message: { startsWith: paginationAlertPrefix } } });
-  await prisma.auditLog.deleteMany({ where: { organizationId, action: { startsWith: paginationAuditPrefix } } });
-  await prisma.auditLog.deleteMany({ where: { organizationId, action: { in: ["REPORT_SCHEDULE_CREATED", "REPORT_SCHEDULE_TESTED"] } } });
 }
 
 async function login(page: Page, email: string) {

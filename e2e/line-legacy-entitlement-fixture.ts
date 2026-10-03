@@ -9,7 +9,7 @@ export async function prepareLocalLegacyLineEntitlement(prisma: PrismaClient) {
     || target.port !== (process.env.CI ? "54322" : "55722")) throw new Error("LOCAL_LEGACY_LINE_FIXTURE_REQUIRED");
   const organizationId = "11111111-1111-4111-8111-111111111111";
   const subscription = await prisma.subscription.findUniqueOrThrow({ where: { organizationId }, select: { id: true, planVersionId: true } });
-  const code = `QA_LEGACY_LINE_${randomUUID()}`;
+  const code = `QA_LEGACY_LINE_${randomUUID().replaceAll("-", "").toUpperCase()}`;
   const addon = await prisma.addOnCatalog.create({ data: { code, displayName: "Local legacy LINE compatibility", billingType: "ONE_TIME", unitPrice: 0,
     featureCode: "LINE_NOTIFICATIONS", availabilityStatus: "ENABLED", isPublic: false, requiresManualApproval: false } });
   let itemId: string;

@@ -66,3 +66,11 @@ seed 測試身分為 `owner@stallorder.test`、`staff@stallorder.test`、`kitche
 例外期限為台北時間 2026-10-05 00:00，超過期限不自動延長。例外收據保留 `rootAudit: NON_PASS`，以另一欄記錄核准決策，並綁定當前政策雜湊及 Plan／Apply。此輪 126 項發布例外、目標讀回與隔離設定聚焦測試通過；另有實際合成產物收據回歸通過，均不是遠端發布證據。最新 CI 的測試網址假憑證與隔離 Turnstile 設定識別已修正，正式秘密掃描與正式測試金鑰禁用規則保留。
 
 Production migration 發布流程新增實際 team／project／source／完整 alias 讀回，先確認已核實的健康部署，再以精確部署 ID 回復；候選若在 migration 前改動 Primary 身分或 alias 即阻擋。此回復只涵蓋 Vercel 應用 alias，不聲稱回復資料庫或 Edge Functions。CodeQL 告警判讀另見 `PR366_CODEQL_TRIAGE_20261003.md`，告警未 dismiss、未聲稱全安全通過。
+
+## 2026-10-03 瀏覽器驗證回歸修正
+
+CI `37099582769`（`2a04964b`）在一小時 job 時限被取消，只完成八批中的三批：79 passed、13 failed、1 flaky，第四批與後續尚未完成；不得計為瀏覽器 QA 通過。隔離工作 `37101524470` 在環境核准前取消，沒有建立付費資源。
+
+已定位舊商品管理入口與三欄店員明細操作的測試選取、KDS 重複警示選取、LINE fixture 代碼格式及重新申請 fixture 縣市格式。稽核不可變保護使舊清理交易失敗，因此測試改為保留稽核紀錄與相關 actor、使用本輪識別並避免刪除受稽核外鍵保護的商家／攤位。單攤位案例僅暫停精確本機合成攤位，使用 updatedAt 比對並還原；正式稽核、權限及營業時間規則不放寬。CI 整體時限改為 120 分鐘，保留單 worker、原本單測時限、全部測試及 flaky 失敗判定。
+
+36 項表單契約與清理／執行器／fixture 聚焦測試通過，KDS 警示選取的最小瀏覽器重現通過；仍須最新版本完整 CI、配對 Preview 與正式流程讀回。外送選項測試使用 QR 的合成 session 只驗證元件；實際公開外送入口及營業時間驗收仍由配對 Preview 的真實 session／送單／DB 讀回完成。

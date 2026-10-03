@@ -13,6 +13,7 @@ import {
   gotoLocalPath,
   loginLocalTestAccount,
   openSharedCatalogProductActions,
+  openSharedCatalogManagement,
   waitForDefaultMerchantDashboard,
 } from "./local-navigation";
 
@@ -764,6 +765,7 @@ test("商戶可在獨立頁面管理營運模組、桌位與 QR 語系", async (
   await expect(page).toHaveURL(
     new RegExp(`/merchant/catalog\\?organizationId=${organizationId}$`),
   );
+  await openSharedCatalogManagement(page);
   await expect(page.getByRole("link", { name: "匯出 CSV" })).toBeVisible();
   await expect(
     page.locator('label[title="匯入 CSV"]:visible').first(),

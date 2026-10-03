@@ -207,11 +207,9 @@ async function cleanupFixtures() {
       where: { stallScheduleId: { in: scheduleIds } },
       data: { locationId: null, marketEventId: null, stallScheduleId: null, fulfillmentTypeContext: null },
     });
-    await prisma.auditLog.deleteMany({ where: { entityId: { in: scheduleIds } } });
     await prisma.stallSchedule.deleteMany({ where: { id: { in: scheduleIds } } });
   }
   if (locationIds.length > 0) {
-    await prisma.auditLog.deleteMany({ where: { entityId: { in: locationIds } } });
     await prisma.stallLocation.deleteMany({ where: { id: { in: locationIds } } });
   }
   locationId = "";

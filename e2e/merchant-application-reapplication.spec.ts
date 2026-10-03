@@ -14,8 +14,9 @@ assertLocalDatabase();
 
 const prisma = new PrismaClient();
 const password = "MerchantReapply!2026";
-const applicantEmail = "onboarding.application.e2e@stallorder.test";
-const adminEmail = "merchant.reapplication.admin.e2e@stallorder.test";
+const fixtureRun = randomUUID();
+const applicantEmail = `onboarding.application.${fixtureRun}@stallorder.test`;
+const adminEmail = `merchant.reapplication.admin.${fixtureRun}@stallorder.test`;
 const applicantAuthUserId = randomUUID();
 let withdrawnApplicationId = "";
 let applicantProfileId = "";
@@ -67,7 +68,7 @@ test.describe("撤回後重新申請與平台追蹤", () => {
         businessPhone: "0916665504",
         preferredContactMethod: "PHONE",
         businessAddress: "台北市測試路 2 號",
-        city: "台北市",
+        city: "臺北市",
         stallName: "撤回後重新申請測試攤位",
         stallLocation: "台北測試市集",
         requestedSlug: "merchant-reapplication-e2e",
@@ -205,7 +206,8 @@ async function cleanup() {
   const profileIds = profiles.map((profile) => profile.id);
   await prisma.authSession.deleteMany({ where: { profileId: { in: profileIds } } });
   await prisma.merchantApplication.deleteMany({ where: { applicantEmail } });
-  await prisma.profile.deleteMany({ where: { id: { in: profileIds } } });
+  await prisma.profile.updateMany({ where: { id: { in: profileIds } }, data: { isActive: false, authUserId: null } });
+  await prisma.profile.deleteMany({ where: { id: { in: profileIds }, auditLogs: { none: {} } } });
   await prisma.$executeRaw`
     delete from auth.users
     where id = ${applicantAuthUserId}::uuid or email = ${applicantEmail}

@@ -21,8 +21,8 @@ const primaryStallId = randomUUID();
 const primaryStallSlug = "p1-operations-" + primaryStallId.slice(0, 8);
 const tableQrToken = "p1-table-" + primaryStallId;
 const managerAuthorizationCode = "246810";
-const sourceSlug = "p1-template-source";
-const targetSlug = "p1-template-target";
+const sourceSlug = `p1-template-source-${primaryStallId.slice(0, 8)}`;
+const targetSlug = `p1-template-target-${primaryStallId.slice(0, 8)}`;
 let sourceStallId = "";
 let targetStallId = "";
 let highDiscountId = "";
@@ -98,7 +98,7 @@ test.describe("P1 營運功能", () => {
       where: { stallId: { in: staleTemplateStalls.map((stall) => stall.id) } },
     });
     await prisma.stall.deleteMany({
-      where: { slug: { in: [sourceSlug, targetSlug] } },
+      where: { slug: { in: [sourceSlug, targetSlug] }, auditLogs: { none: {} } },
     });
     await prisma.discountOption.deleteMany({
       where: { stallId: primaryStallId, name: "7 折 P1" },
@@ -153,7 +153,7 @@ test.describe("P1 營運功能", () => {
         organizationId,
         name: "P1 範本來源攤位",
         slug: sourceSlug,
-        code: "P1-SOURCE",
+        code: `P1-SOURCE-${primaryStallId.slice(0, 8)}`,
         address: "台北市測試路 1 號",
         location: "台北市測試路 1 號",
         orderingSettings: {
@@ -214,7 +214,7 @@ test.describe("P1 營運功能", () => {
         organizationId,
         name: "P1 範本目標攤位",
         slug: targetSlug,
-        code: "P1-TARGET",
+        code: `P1-TARGET-${primaryStallId.slice(0, 8)}`,
         address: "台北市測試路 2 號",
         location: "台北市測試路 2 號",
         orderingSettings: {
@@ -283,7 +283,7 @@ test.describe("P1 營運功能", () => {
       },
     });
     await prisma.stall.deleteMany({
-      where: { id: { in: [sourceStallId, targetStallId].filter(Boolean) } },
+      where: { id: { in: [sourceStallId, targetStallId].filter(Boolean) }, auditLogs: { none: {} } },
     });
     if (additionalStallApprovalId) {
       await prisma.additionalStallApproval.deleteMany({
@@ -309,7 +309,7 @@ test.describe("P1 營運功能", () => {
       ),
     );
     await prisma.billingStallUsageSummary.deleteMany({ where: { stallId: primaryStallId } });
-    await prisma.stall.deleteMany({ where: { id: primaryStallId } });
+    await prisma.stall.deleteMany({ where: { id: primaryStallId, auditLogs: { none: {} } } });
     await prisma.$disconnect();
   });
 

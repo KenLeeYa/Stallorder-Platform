@@ -20,8 +20,9 @@ const password = "StallOrderDemo!2026";
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const stallId = "22222222-2222-4222-8222-222222222222";
 const stallSlug = "aming-chicken";
-const deviceName = "P4 E2E 離線主機";
-const flagReason = "P4 E2E temporary offline device validation";
+const fixtureRun = randomUUID();
+const deviceName = `P4 E2E 離線主機 ${fixtureRun}`;
+const flagReason = `P4 E2E temporary offline device validation ${fixtureRun}`;
 const offlineCustomerName = "P5 E2E 離線顧客";
 const productionOfflineRuntime = process.env.PLAYWRIGHT_PRODUCTION_SERVER === "true";
 
@@ -569,9 +570,6 @@ async function cleanupSyncedOfflineOrder(idempotencyKey: string) {
     prisma.usageEvent.deleteMany({
       where: { organizationId, stallId, referenceId: { in: orderIds } },
     }),
-    prisma.auditLog.deleteMany({
-      where: { organizationId, stallId, entityId: { in: orderIds } },
-    }),
     prisma.order.deleteMany({
       where: { organizationId, stallId, id: { in: orderIds } },
     }),
@@ -593,6 +591,19 @@ async function cleanup() {
     select: { id: true },
   });
   const deviceIds = devices.map((device) => device.id);
+  // A failed assertion may leave a synced order that still references this run's device.
+  const syncedOrders = await prisma.order.findMany({
+    where: { organizationId, stallId, sourceDeviceId: { in: deviceIds } },
+    select: { idempotencyKey: true },
+  });
+  for (const order of syncedOrders) {
+    if (!order.idempotencyKey) throw new Error("離線測試訂單缺少清理識別");
+    await cleanupSyncedOfflineOrder(order.idempotencyKey);
+  }
+  const ownedPermits = await prisma.offlinePermit.findMany({
+    where: { organizationId, stallId, deviceId: { in: deviceIds } },
+    select: { menuSnapshotId: true },
+  });
   if (deviceIds.length > 0) {
     await prisma.$transaction([
       prisma.offlineSyncConflict.deleteMany({
@@ -603,12 +614,12 @@ async function cleanup() {
       }),
     ]);
   }
-  await prisma.offlineStallRuntimePolicy.deleteMany({ where: { organizationId, stallId } });
+  await prisma.offlineStallRuntimePolicy.deleteMany({ where: { organizationId, stallId, offlineLeaderDeviceId: { in: deviceIds } } });
   if (deviceIds.length > 0) {
     await prisma.clientDevice.deleteMany({ where: { id: { in: deviceIds } } });
   }
   const snapshots = await prisma.menuSnapshot.findMany({
-    where: { organizationId, stallId },
+    where: { organizationId, stallId, id: { in: ownedPermits.map((permit) => permit.menuSnapshotId) }, permits: { none: {} } },
     select: { id: true, publicObjectPath: true },
   });
   if (snapshots.length > 0) {

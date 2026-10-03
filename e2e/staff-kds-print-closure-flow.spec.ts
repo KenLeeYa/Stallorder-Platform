@@ -189,7 +189,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       }
       if (responsiveMode) {
         await prisma.billingStallUsageSummary.deleteMany({ where: { organizationId, stallId } });
-        await prisma.stall.delete({ where: { id: stallId } });
+        await prisma.stall.deleteMany({ where: { id: stallId, auditLogs: { none: {} } } });
       }
     } finally {
       try {

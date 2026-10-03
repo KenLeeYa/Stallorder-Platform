@@ -442,10 +442,13 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
   await staffOrder
     .getByRole("button", { name: "查看明細", exact: true })
     .click();
+  const staffDetails = staffMain.getByTestId("staff-order-mobile-detail");
+  const staffActions = staffDetails.getByTestId("staff-order-actions-pane");
+  await expect(staffDetails).toContainText(`訂單 ${orderNo}`);
   const confirmationResponse = staffPage.waitForResponse((response) => {
     if (
       !new URL(response.url()).pathname.includes(
-        "/api/stalls/aming-chicken/orders/",
+        `/api/stalls/aming-chicken/orders/${createdOrderId}`,
       ) ||
       response.request().method() !== "PATCH"
     )
@@ -459,12 +462,12 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
       return false;
     }
   });
-  await staffOrder
+  await staffActions
     .getByRole("button", { name: "確認接單", exact: true })
     .click();
   expect((await confirmationResponse).status()).toBe(200);
   await expect(
-    staffOrder.getByRole("button", { name: "確認接單", exact: true }),
+    staffActions.getByRole("button", { name: "確認接單", exact: true }),
   ).toHaveCount(0);
   await expect(staffOrder).toContainText("待製作");
   await captureMobileScreenshot(
@@ -526,7 +529,7 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
     exact: true,
   });
   if (await reopenDetails.isVisible()) await reopenDetails.click();
-  await expect(staffOrder.getByText("餐點完成", { exact: true })).toHaveCount(
+  await expect(staffDetails.getByText("餐點完成", { exact: true })).toHaveCount(
     expectedLineCount,
     { timeout: 10_000 },
   );
@@ -566,12 +569,10 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
   });
   await waitForReactHydration(returnedOrderDetailsButton);
   await returnedOrderDetailsButton.click();
-  await expect(
-    staffOrder.getByRole("button", { name: "收合", exact: true }),
-  ).toHaveAttribute("aria-expanded", "true");
-  await expect(staffOrder.getByText("已出餐", { exact: true })).toHaveCount(expectedLineCount);
-  await expect(staffOrder.getByLabel("3 位數取餐碼")).toHaveCount(0);
-  await summaryCheckoutButton.click();
+  await expect(staffDetails).toContainText(`訂單 ${orderNo}`);
+  await expect(staffDetails.getByText("已出餐", { exact: true })).toHaveCount(expectedLineCount);
+  await expect(staffDetails.getByLabel("3 位數取餐碼")).toHaveCount(0);
+  await staffActions.getByRole("button", { name: "結帳收款", exact: true }).click();
 
   const checkout = staffPage.getByRole("dialog", { name: "結帳收款" });
   await expect(
@@ -629,7 +630,8 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
   expect((await checkoutResponse).status()).toBe(200);
   await expect(staffOrder).toBeVisible();
   await expect(staffOrder.getByText("已付款", { exact: true })).toBeVisible();
-  const finalizeButton = staffOrder.getByRole("button", {
+  await expect(staffDetails).toContainText(`訂單 ${orderNo}`);
+  const finalizeButton = staffActions.getByRole("button", {
     name: "完成訂單",
     exact: true,
   });
