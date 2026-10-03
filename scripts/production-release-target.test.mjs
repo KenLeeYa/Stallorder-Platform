@@ -13,6 +13,15 @@ test('approved Production artifact overrides inherited platform sender settings 
   }
   expect(build).toContain('--skip-domain');
 });
+test('DR artifact also overrides inherited deferred integration and governance flags at build and runtime', () => {
+  const source = readFileSync('scripts/manage-dr-operator-entry.mjs', 'utf8');
+  const buildAndRuntime = source.slice(source.indexOf('const buildAndRuntime = {'), source.indexOf('const runtimeOnly = {'));
+  for (const flag of ['LINE_PLATFORM_ENABLED', 'LINE_PLATFORM_NOTIFICATIONS_ENABLED', 'COMPLIANCE_ENABLED']) {
+    expect(buildAndRuntime).toContain(`${flag}: "false"`);
+  }
+  expect(buildAndRuntime).toContain('COMPLIANCE_DELETION_DRY_RUN: "true"');
+  expect(source).toContain('deploymentArgs.push("--build-env", `${name}=${value}`, "--env", `${name}=${value}`)');
+});
 function fixture() {
   const deployment = { id: 'dpl_candidate', projectId: project, target: 'production', readyState: 'READY', url: 'candidate.vercel.app', meta: { git_commit: sha } };
   const owner = { id: project, accountId: team, targets: { production: { id: deployment.id } } };

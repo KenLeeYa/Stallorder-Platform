@@ -724,6 +724,10 @@ async function deployDrRuntime(plan, accessResources, targetProjectId, probeCred
     NEXT_PUBLIC_GOOGLE_LOGIN_ENABLED: "false",
     ALLOW_DEMO_SEED: "false",
     LOCAL_QA_DISABLE_LOGIN_RATE_LIMIT: "false",
+    LINE_PLATFORM_ENABLED: "false",
+    LINE_PLATFORM_NOTIFICATIONS_ENABLED: "false",
+    COMPLIANCE_ENABLED: "false",
+    COMPLIANCE_DELETION_DRY_RUN: "true",
   };
   const runtimeOnly = {
     DR_OPERATOR_PROBE_SECRET: probeCredential,

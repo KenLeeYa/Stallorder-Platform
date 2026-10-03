@@ -110,3 +110,7 @@ CI `37099582769`（`2a04964b`）在一小時 job 時限被取消，只完成八�
 六項原因為手機訂單摘要合併文字、外送 slug誤用 code入口及 QR context、QR預覽選錯多攤位預設、商品組合需明確指派、多欄 portal與結帳後明細關閉，以及未儲存 POS的原生放棄確認。修正保留付款、狀態、DB及拒絕邊界斷言，沒有放寬產品權限或營業時間。
 
 新增僅限候選分支手動 `regression-local`，重用 CI的 GitHub runner本機 Supabase及六個完整 spec，不使用 Preview secrets或建立付費 provider資源。精確取消本輪自動 FULL run並確認完成後才執行聚焦測試，之後重新執行同 SHA的 FULL CI；聚焦通過不能取代完整發布 gate。第二組付費 Preview與正式更新仍須最新完整 CI通過。
+
+聚焦 run37120088769 在單元測試階段因既有 workflow契約假設所有 job均為付費 Preview而失敗（4439 passed、2 failed、106 skipped），E2E未執行。修正精確區分無 provider操作的 `regression-local`，其餘 job的核准、環境及清理條件保留。Preview手機 POS使用唯一可見按鈕，避免 responsive重複控制定位。DR入口部署同時明確覆寫 LINE平台與治理為 OFF、刪除 dry-run，與 Primary一致；沒有遠端設定異動。
+
+正式放行須由唯一 writer另行讀回真正 `.github/workflows/ci.yml` 完整 run成功、同一來源／tree，合併後再確認 main push完整 CI；Readiness的 Plan成功或 focused成功均不能取代此證據。正式 sequence為 DR schema Plan／Apply → Primary Plan／Apply（帶同一 DR schema Apply ID）→ replication Plan／Apply（帶同一 Primary Apply ID）→ 既有 DR入口 Plan／Update。每步使用當次 main來源與最新精確 run收據，讀回正式 target及受影響流程；不使用沒有 DR前置 ID的自動 Primary Plan。
