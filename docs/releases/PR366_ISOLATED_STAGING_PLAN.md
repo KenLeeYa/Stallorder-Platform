@@ -48,3 +48,11 @@ seed 測試身分為 `owner@stallorder.test`、`staff@stallorder.test`、`kitche
 公開點餐 Web 與 child Edge 共用本次生成的隔離雜湊密鑰；Turnstile 僅使用明確 test 模式的官方測試設定，不能計為真實驗證服務測試。QR、session 與 tracking token 只存 runner checkout 外的私有暫存目錄，不上傳 artifact，結束時移除。營業時間階段還原核對 open／closed 收據連續性及精確 updatedAt，失敗路徑交由 child finally 清除，不宣稱條件還原已通過。
 
 到期清理 heartbeat `pr366` 已設定；尚未建立 child 或 Preview，尚無 owner 收據或新增雲端資源費用。資源建立前須綁定最新可接受的 CI／Web 證據，並記錄唯一 manual run 與六小時期限。
+
+## 新增發布阻擋：未修補的 Web 開發依賴漏洞
+
+2026-10-03 Linux Web Install Scope Proof run `37084954668`（候選 `182bd920d35a635e123f0af2681626d7c23fcda6`）在 selected audit 階段回報 `WEB_RELEASE_SELECTED_AUDIT_NON_PASS`。實際 artifact 為 `.release-evidence/20261003/web-scope-182bd920/web-install-scope-37084954668/audit.json`，不是建置或正式部署成功收據。
+
+受影響鏈為 `eslint-config-next@16.3.6 → @next/eslint-plugin-next@16.3.6 → fast-glob@3.3.1 → micromatch@4.0.8 → braces@3.0.3`。[官方公告 GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) 將 `braces <=3.0.3` 列為 high，尚無 patched version。本次 npm metadata 讀回 braces 最新仍為 3.0.3，Next plugin 16.3.8 與 fast-glob 3.3.3 也仍使用受影響鏈，不能以一般 patch 升級解除阻擋。
+
+這是開發／建置依賴的實際 audit 失敗，不能直接聲稱正式 runtime 已遭利用，也不能以 runtime 排除證據偽稱目前全 Web install gate 通過。不忽略 advisory、不冒用其他套件名稱或更改 audit 成功判定；此輪不建立第三方 ESLint fork。隔離資源建立及正式發布維持待辦，等待有可驗證的依賴修補方案。測試 harness／本機回歸可以完成準備，但不計為遠端 Preview 或 Production 驗收。

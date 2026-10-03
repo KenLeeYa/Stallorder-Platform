@@ -1,6 +1,7 @@
 import { expect, test, vi } from 'vitest';
 import { createHash } from 'node:crypto';
-import { assertDatabaseTarget, createDatabaseFixtures, runDatabaseFixture } from './qa-pr366-preview-db-fixtures.mjs';
+import { assertDatabaseTarget, buildCalendarHours, createDatabaseFixtures, runDatabaseFixture } from './qa-pr366-preview-db-fixtures.mjs';
+import { isWithinBusinessHours } from '../src/lib/business-hours';
 const now = Date.parse('2026-10-03T10:00:00Z');
 function fixture() {
   const receipt = { resourceKey: 'manual-123', parent: 'eyuctbnlvnbnivwasvqr', project: 'prj_uoG4FNJIgnF1LdKRiXnfRaieXnUP', team: 'team_MMfsiG94K9Zy3e6w7Ccc9xY4', gitBranch: 'codex/integrated-production-20261002', expiresAt: new Date(now + 60_000).toISOString(), status: 'CAPTURED', branches: [{ id: 'child123' }], deployments: [{ id: 'dpl123', target: 'preview' }] };
@@ -305,4 +306,66 @@ test.each(['missing-connection', 'production-connection', 'paid-order'])('reject
     save: async evidence => saves.push(structuredClone(evidence)), clientFactory: async () => db });
   await expect(tool.syntheticInvoices()).rejects.toThrow('INVOICE_READBACK_FAILED');
   expect(saves).toHaveLength(1); expect(saves[0].status).toBe('PLANNED');
+});
+
+test.each(['2026-10-03T17:30:00Z', '2026-10-04T10:30:00Z', '2026-10-04T15:59:00Z'])('overnight fixture uses real Taipei weekday at %s', timestamp => {
+  const instant = new Date(timestamp);
+  const before = Array.from({ length: 7 }, (_, dayOfWeek) => ({ dayOfWeek }));
+  const rows = buildCalendarHours(before, 'OVERNIGHT', instant);
+  expect(rows.filter(row => !row.isClosed)).toHaveLength(1);
+  expect(isWithinBusinessHours(rows, 'Asia/Taipei', instant)).toBe(true);
+  const open = rows.find(row => !row.isClosed); expect(open.opensAt > open.closesAt).toBe(true);
+});
+
+test('cutoff fixture respects current local minute and refuses midnight boundary', () => {
+  const before = Array.from({ length: 7 }, (_, dayOfWeek) => ({ dayOfWeek }));
+  const rows = buildCalendarHours(before, 'CUTOFF', new Date('2026-10-04T10:30:00Z'));
+  expect(rows.every(row => !row.isClosed && row.lastOrderAt === '18:28')).toBe(true);
+  expect(() => buildCalendarHours(before, 'CUTOFF', new Date('2026-10-03T16:01:00Z'))).toThrow('CLOCK_BOUNDARY_PENDING');
+});
+
+test.each([false, true])('rejected order absence readback fails if rejected row exists: %s', exists => {
+  return (async () => {
+    const { db } = mockDatabase(); let reads = 0;
+    const existingIds = ['44444444-4444-4444-8444-444444444444', '55555555-5555-4555-8555-555555555555'];
+    const rejectedIds = ['66666666-6666-4666-8666-666666666666', '77777777-7777-4777-8777-777777777777'];
+    db.order = { findMany: async () => ++reads === 1 ? (exists ? [{ id: rejectedIds[0] }] : []) : existingIds.map(id => ({ id, items: [{ quantity: 1 }] })) };
+    const save = vi.fn(); const tool = await createDatabaseFixtures({ ...dbFixture(), now: () => now, save, clientFactory: async () => db });
+    const { receipt, binding } = dbFixture(); const evidence = { resourceKey: receipt.resourceKey, childRef: binding.childRef,
+      deploymentId: binding.deploymentId, sha: binding.sha, tree: binding.tree, phase: 'hours-closed', status: 'PASS', orderIds: existingIds,
+      results: ['DEFAULT', 'DELIVERY'].map((mode, i) => ({ mode, rejectedCreateOrderId: rejectedIds[i], increaseUnchanged: true, decreasedQuantity: 1 })) };
+    if (exists) { await expect(tool.verifyRejectedOrders(evidence)).rejects.toThrow('REJECTION_READBACK_FAILED'); expect(save).not.toHaveBeenCalled(); }
+    else expect((await tool.verifyRejectedOrders(evidence)).status).toBe('READBACK_VERIFIED');
+  })();
+});
+
+test.each([true, false])('future preorder uses canonical real-clock slots; available=%s', available => {
+  return (async () => {
+    const { db } = mockDatabase(); const saves = [];
+    let settings = { organizationId: '11111111-1111-4111-8111-111111111111', stallId: '22222222-2222-4222-8222-222222222222',
+      updatedAt: new Date(now), takeoutPreorderEnabled: false, preorderMinLeadMinutes: 5, preorderMaxDays: 7,
+      preorderSlotMinutes: 5, businessDayCutoffHour: 4 };
+    db.stallOrderingSettings = { findFirst: async () => structuredClone(settings), updateMany: async ({ data }) => {
+      settings = { ...settings, ...data, updatedAt: new Date(now + 1) }; return { count: 1 };
+    } };
+    db.$queryRawUnsafe = vi.fn(async (sql, parameter) => {
+      expect(sql).toBe('select public.get_takeout_preorder_slots($1::uuid, now()) as slots');
+      expect(parameter).toBe('22222222-2222-4222-8222-222222222222');
+      return [{ slots: available ? ['2026-10-04T09:00:00Z', '2026-10-04T09:30:00Z'] : [] }];
+    });
+    const tool = await createDatabaseFixtures({ ...dbFixture(), now: () => now,
+      save: async evidence => saves.push(structuredClone(evidence)), clientFactory: async () => db });
+    if (!available) {
+      await expect(tool.preparePreorder()).rejects.toThrow('CANONICAL_SLOT_REQUIRED');
+      expect(saves).toHaveLength(1); expect(saves[0].status).toBe('PLANNED');
+    } else {
+      const evidence = await tool.preparePreorder();
+      expect(evidence.scheduledPickupAt).toBe('2026-10-04T09:00:00.000Z');
+      expect(evidence.currentHoursClosed).toBe(true);
+      expect(isWithinBusinessHours(evidence.after.hours, 'Asia/Taipei', new Date(now))).toBe(false);
+      expect(isWithinBusinessHours(evidence.after.hours, 'Asia/Taipei', new Date(evidence.scheduledPickupAt))).toBe(true);
+      await tool.restorePreorder(JSON.parse(JSON.stringify(evidence))); expect(settings.takeoutPreorderEnabled).toBe(false);
+      expect(saves.at(-1).status).toBe('RESTORED');
+    }
+  })();
 });

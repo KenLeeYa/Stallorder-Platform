@@ -57,7 +57,7 @@ test("actual PR366 browser phases stay before cleanup and private handoffs stay 
   const qa = steps.find(step => step.name === "Capture fresh PR366 paired target and run browser QA before cleanup");
   expect(qa.run).toContain('PR366_PRIVATE_FIXTURE_DIR="$(mktemp -d)"');
   expect(qa.run).toContain('chmod 700 "$PR366_PRIVATE_FIXTURE_DIR"');
-  for (const phase of ['prepare-cash-shift', 'hours-open', 'hours-closed']) expect(qa.run).toContain(phase);
+  for (const phase of ['prepare-cash-shift', 'hours-open', 'hours-closed', 'hours-overnight', 'hours-cutoff', 'hours-preorder']) expect(qa.run).toContain(phase);
   expect(qa.run).toContain('JSON.stringify(open.after)!==JSON.stringify(closed.before)');
   expect(qa.run).toContain('fixture-original-hours.json');
   const artifact = steps.find(step => step.name === "Preserve PR366 baseline and actual browser evidence");

@@ -9,6 +9,26 @@ const stall = '22222222-2222-4222-8222-222222222222';
 const serialize = value => JSON.stringify(value, (_, item) => typeof item === 'bigint' ? String(item) : item);
 const hoursFields = row => ({ opensAt: row.opensAt, closesAt: row.closesAt, lastOrderAt: row.lastOrderAt, isClosed: row.isClosed });
 
+export function buildCalendarHours(before, mode, instant) {
+  if (!['OPEN', 'CLOSED', 'OVERNIGHT', 'CUTOFF'].includes(mode)) throw Error('FIXTURE_HOURS_MODE_DENIED');
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit',
+    day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(instant).map(part => [part.type, part.value]));
+  const minute = Number(parts.hour) * 60 + Number(parts.minute);
+  const weekday = new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day))).getUTCDay();
+  const time = value => `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
+  const rows = before.map(row => ({ ...row, opensAt: '00:00', closesAt: '00:00', lastOrderAt: null, isClosed: mode !== 'OPEN' }));
+  if (mode === 'OVERNIGHT') {
+    const row = rows.find(item => item.dayOfWeek === (minute < 720 ? (weekday + 6) % 7 : weekday));
+    row.opensAt = minute < 720 ? '23:59' : time(minute - 60);
+    row.closesAt = minute < 720 ? time(minute + 60) : '00:30'; row.isClosed = false;
+  }
+  if (mode === 'CUTOFF') {
+    if (minute < 2 || minute >= 1438) throw Error('FIXTURE_CLOCK_BOUNDARY_PENDING');
+    for (const row of rows) { row.isClosed = false; row.lastOrderAt = time(minute - 2); }
+  }
+  return rows;
+}
+
 export function assertDatabaseTarget(receipt, binding, databaseUrl, now = Date.now()) {
   assertTarget(receipt, binding, now);
   const url = new URL(databaseUrl);
@@ -28,8 +48,8 @@ export function assertDatabaseTarget(receipt, binding, databaseUrl, now = Date.n
 }
 
 export async function runDatabaseFixture(receipt, binding, outDir, operation, input) {
-  const actions = ['catalog-descriptor', 'prepare-ordering', 'restore-ordering', 'public-qr', 'prepare-pos-product', 'pos-descriptor', 'enable-circuit-b', 'restore-circuit-b', 'open-hours', 'closed-hours', 'restore-hours', 'enable-supply', 'restore-supply',
-    'dense-schedule', 'dense-workforce', 'dense-supply', 'dense-invoices', 'synthetic-invoices', 'inbox', 'inbox-readback'];
+  const actions = ['catalog-descriptor', 'verify-rejected-orders', 'prepare-ordering', 'restore-ordering', 'public-qr', 'prepare-pos-product', 'pos-descriptor', 'enable-circuit-b', 'restore-circuit-b', 'open-hours', 'closed-hours', 'overnight-hours', 'cutoff-hours', 'restore-hours', 'enable-supply', 'restore-supply',
+    'dense-schedule', 'dense-workforce', 'dense-supply', 'dense-invoices', 'synthetic-invoices', 'inbox', 'inbox-readback', 'prepare-preorder', 'restore-preorder'];
   if (!actions.includes(operation)) throw Error('FIXTURE_OPERATION_DENIED');
   const databaseUrl = process.env.PR366_CHILD_DATABASE_URL;
   if (!databaseUrl) throw Error('FIXTURE_CHILD_DATABASE_URL_REQUIRED');
@@ -47,6 +67,9 @@ export async function runDatabaseFixture(receipt, binding, outDir, operation, in
   } : undefined;
   const tool = await createDatabaseFixtures({ receipt, binding, databaseUrl, save, savePrivate });
   try {
+    if (operation === 'prepare-preorder') return await tool.preparePreorder();
+    if (operation === 'restore-preorder') return await tool.restorePreorder(input);
+    if (operation === 'verify-rejected-orders') return await tool.verifyRejectedOrders(input);
     if (operation === 'catalog-descriptor') return await tool.catalogDescriptor();
     if (operation === 'prepare-ordering') return await tool.prepareOrdering();
     if (operation === 'restore-ordering') return await tool.restoreOrdering(input);
@@ -57,6 +80,8 @@ export async function runDatabaseFixture(receipt, binding, outDir, operation, in
     if (operation === 'restore-circuit-b') return await tool.restoreCircuitB(input);
     if (operation === 'open-hours') return await tool.setHours('OPEN');
     if (operation === 'closed-hours') return await tool.setHours('CLOSED');
+    if (operation === 'overnight-hours') return await tool.setHours('OVERNIGHT');
+    if (operation === 'cutoff-hours') return await tool.setHours('CUTOFF');
     if (operation === 'restore-hours') return await tool.restoreHours(input);
     if (operation === 'enable-supply') return await tool.enableSupplyModule();
     if (operation === 'restore-supply') return await tool.restoreSupplyModule(input);
@@ -97,6 +122,10 @@ export async function createDatabaseFixtures({ receipt, binding, databaseUrl, sa
     staffDeliveryEnabled: true, printModuleEnabled: true, paymentModuleEnabled: true, kdsModuleEnabled: true };
   const orderingFields = row => ({ deliveryModuleEnabled: row.deliveryModuleEnabled, staffDeliveryEnabled: row.staffDeliveryEnabled,
     printModuleEnabled: row.printModuleEnabled, paymentModuleEnabled: row.paymentModuleEnabled, kdsModuleEnabled: row.kdsModuleEnabled });
+  const preorderSelect = { stallId: true, organizationId: true, updatedAt: true, takeoutPreorderEnabled: true,
+    preorderMinLeadMinutes: true, preorderMaxDays: true, preorderSlotMinutes: true, businessDayCutoffHour: true };
+  const preorderFields = row => ({ takeoutPreorderEnabled: row.takeoutPreorderEnabled, preorderMinLeadMinutes: row.preorderMinLeadMinutes,
+    preorderMaxDays: row.preorderMaxDays, preorderSlotMinutes: row.preorderSlotMinutes, businessDayCutoffHour: row.businessDayCutoffHour });
   async function parents() {
     guard();
     const [owner, shop] = await Promise.all([
@@ -121,6 +150,83 @@ export async function createDatabaseFixtures({ receipt, binding, databaseUrl, sa
     return evidence;
   }
   return {
+    async preparePreorder() {
+      await parents();
+      const settings = await db.stallOrderingSettings.findFirst({ where, select: preorderSelect });
+      const hours = await db.stallBusinessHour.findMany({ where, orderBy: { dayOfWeek: 'asc' } });
+      if (!settings || hours.length !== 7 || hours.some((row, index) => row.dayOfWeek !== index)) throw Error('FIXTURE_PREORDER_SNAPSHOT_DENIED');
+      const dateParts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' })
+        .formatToParts(new Date(now())).map(part => [part.type, part.value]));
+      const tomorrowDate = new Date(Date.UTC(Number(dateParts.year), Number(dateParts.month) - 1, Number(dateParts.day) + 1));
+      const tomorrow = tomorrowDate.toISOString().slice(0, 10);
+      const desiredSettings = { takeoutPreorderEnabled: true, preorderMinLeadMinutes: 15, preorderMaxDays: 2, preorderSlotMinutes: 30, businessDayCutoffHour: 0 };
+      const desiredHours = hours.map(row => ({ ...row, opensAt: '17:00', closesAt: '23:00', lastOrderAt: null, isClosed: row.dayOfWeek !== tomorrowDate.getUTCDay() }));
+      const evidence = { ...identity, kind: 'FUTURE_PREORDER', before: { settings, hours },
+        after: { settings: desiredSettings, hours: desiredHours }, tomorrow, status: 'PLANNED' };
+      await save(evidence); guard();
+      await db.$transaction(async tx => {
+        const changed = await tx.stallOrderingSettings.updateMany({ where: { ...where, updatedAt: settings.updatedAt, ...preorderFields(settings) }, data: desiredSettings });
+        if (changed.count !== 1) throw Error('FIXTURE_PREORDER_CONCURRENT_CHANGE');
+        for (const row of hours) {
+          const result = await tx.stallBusinessHour.updateMany({ where: { ...where, id: row.id, updatedAt: row.updatedAt, ...hoursFields(row) }, data: hoursFields(desiredHours[row.dayOfWeek]) });
+          if (result.count !== 1) throw Error('FIXTURE_PREORDER_CONCURRENT_CHANGE');
+        }
+      });
+      const actualSettings = await db.stallOrderingSettings.findFirst({ where, select: preorderSelect });
+      const actualHours = await db.stallBusinessHour.findMany({ where, orderBy: { dayOfWeek: 'asc' } });
+      if (!actualSettings || serialize(preorderFields(actualSettings)) !== serialize(desiredSettings)
+        || serialize(actualHours.map(hoursFields)) !== serialize(desiredHours.map(hoursFields))) throw Error('FIXTURE_PREORDER_READBACK_FAILED');
+      // Read the actual canonical slot generator at database now(), rather than inventing a session or quote.
+      const slotRows = await db.$queryRawUnsafe('select public.get_takeout_preorder_slots($1::uuid, now()) as slots', stall);
+      const slots = Array.isArray(slotRows[0]?.slots) ? slotRows[0].slots.filter(value => typeof value === 'string'
+        && Number.isFinite(Date.parse(value)) && new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value)) === tomorrow) : [];
+      if (!slots.length || slots.some(value => Date.parse(value) <= now() + 15 * 60000)) throw Error('FIXTURE_PREORDER_CANONICAL_SLOT_REQUIRED');
+      evidence.after = { settings: actualSettings, hours: actualHours };
+      evidence.scheduledPickupAt = new Date(slots[0]).toISOString(); evidence.canonicalSlots = slots;
+      evidence.currentHoursClosed = true; evidence.status = 'READBACK_VERIFIED';
+      await save(evidence); return evidence;
+    },
+    async restorePreorder(evidence) {
+      guard();
+      if (evidence.resourceKey !== receipt.resourceKey || evidence.childRef !== binding.childRef || evidence.kind !== 'FUTURE_PREORDER'
+        || evidence.status !== 'READBACK_VERIFIED' || evidence.before?.settings?.stallId !== stall
+        || evidence.after?.settings?.stallId !== stall || evidence.before?.hours?.length !== 7 || evidence.after?.hours?.length !== 7) throw Error('FIXTURE_RESTORE_RECEIPT_DENIED');
+      await db.$transaction(async tx => {
+        const changed = await tx.stallOrderingSettings.updateMany({ where: { ...where, updatedAt: new Date(evidence.after.settings.updatedAt),
+          ...preorderFields(evidence.after.settings) }, data: preorderFields(evidence.before.settings) });
+        if (changed.count !== 1) throw Error('FIXTURE_PREORDER_CONCURRENT_CHANGE');
+        for (const row of evidence.after.hours) {
+          const original = evidence.before.hours.find(item => item.id === row.id && item.dayOfWeek === row.dayOfWeek);
+          if (!original) throw Error('FIXTURE_RESTORE_RECEIPT_DENIED');
+          const restored = await tx.stallBusinessHour.updateMany({ where: { ...where, id: row.id, updatedAt: new Date(row.updatedAt), ...hoursFields(row) }, data: hoursFields(original) });
+          if (restored.count !== 1) throw Error('FIXTURE_PREORDER_CONCURRENT_CHANGE');
+        }
+      });
+      const settings = await db.stallOrderingSettings.findFirst({ where, select: preorderSelect });
+      const hours = await db.stallBusinessHour.findMany({ where, orderBy: { dayOfWeek: 'asc' } });
+      if (!settings || serialize(preorderFields(settings)) !== serialize(preorderFields(evidence.before.settings))
+        || serialize(hours.map(hoursFields)) !== serialize(evidence.before.hours.map(hoursFields))) throw Error('FIXTURE_RESTORE_READBACK_FAILED');
+      await save({ ...identity, kind: 'FUTURE_PREORDER', status: 'RESTORED' });
+    },
+    async verifyRejectedOrders(evidence) {
+      await parents();
+      if (Object.entries({ resourceKey: receipt.resourceKey, childRef: binding.childRef, deploymentId: binding.deploymentId,
+        sha: binding.sha, tree: binding.tree }).some(([key, value]) => evidence?.[key] !== value)
+        || evidence.phase !== 'hours-closed' || evidence.status !== 'PASS' || evidence.results?.length !== 2
+        || new Set(evidence.results.map(row => row.mode)).size !== 2
+        || evidence.results.some(row => !['DEFAULT', 'DELIVERY'].includes(row.mode)
+          || !/^[a-f0-9-]{36}$/i.test(row.rejectedCreateOrderId ?? '') || row.increaseUnchanged !== true || row.decreasedQuantity !== 1)
+        || evidence.orderIds?.length !== 2 || new Set(evidence.orderIds).size !== 2) throw Error('FIXTURE_REJECTION_EVIDENCE_DENIED');
+      const rejectedIds = evidence.results.map(row => row.rejectedCreateOrderId);
+      if (new Set(rejectedIds).size !== 2 || evidence.orderIds.some(id => rejectedIds.includes(id))) throw Error('FIXTURE_REJECTION_EVIDENCE_DENIED');
+      const rejected = await db.order.findMany({ where: { ...where, id: { in: rejectedIds } }, select: { id: true } });
+      const existing = await db.order.findMany({ where: { ...where, id: { in: evidence.orderIds } }, include: { items: true } });
+      if (rejected.length || existing.length !== 2 || evidence.orderIds.some(id => !existing.some(row => row.id === id
+        && row.items?.length === 1 && row.items[0].quantity === 1))) throw Error('FIXTURE_REJECTION_READBACK_FAILED');
+      const result = { ...identity, kind: 'CLOSED_ORDER_REJECTION', status: 'READBACK_VERIFIED',
+        rejectedOrderIds: rejectedIds, retainedOrderIds: evidence.orderIds, retainedQuantity: 1 };
+      await save(result); return result;
+    },
     async inbox() {
       const { owner } = await parents();
       const row = { id: randomUUID(), organizationId: org, notificationType: 'PR366_SYNTHETIC_UI', severity: 'INFO',
@@ -360,10 +466,9 @@ export async function createDatabaseFixtures({ receipt, binding, databaseUrl, sa
     },
     async setHours(mode) {
       await parents();
-      if (!['OPEN', 'CLOSED'].includes(mode)) throw Error('FIXTURE_HOURS_MODE_DENIED');
       const before = await db.stallBusinessHour.findMany({ where, orderBy: { dayOfWeek: 'asc' } });
       if (before.length !== 7 || before.some((row, index) => row.dayOfWeek !== index)) throw Error('FIXTURE_HOURS_SNAPSHOT_DENIED');
-      const after = before.map(row => ({ ...row, ...hoursFields({ opensAt: '00:00', closesAt: '00:00', lastOrderAt: null, isClosed: mode === 'CLOSED' }) }));
+      const after = buildCalendarHours(before, mode, new Date(now()));
       const evidence = { ...identity, kind: 'HOURS', mode, before, after, status: 'PLANNED' };
       await save(JSON.parse(serialize(evidence)));
       guard();

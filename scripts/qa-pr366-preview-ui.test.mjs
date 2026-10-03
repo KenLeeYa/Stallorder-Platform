@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { expect, test, vi } from 'vitest';
-import { assertTarget, assertCatalogFixture, assertReadbackFixture, assertPublicQrFixture, assertInboxFixture, requestPolicy, routePreviewRequest } from './qa-pr366-preview-ui.mjs';
+import { assertTarget, assertCatalogFixture, assertReadbackFixture, assertPublicQrFixture, assertInboxFixture, hoursPhasePolicy, assertPreorderFixture, requestPolicy, routePreviewRequest } from './qa-pr366-preview-ui.mjs';
 
 const now = Date.parse('2026-10-03T10:00:00Z');
 function fixture() {
@@ -84,4 +84,20 @@ test('inbox read requires exact owner-scoped isolated notification receipt', () 
   const inbox = { ...binding, kind: 'INBOX', status: 'READBACK_VERIFIED', organizationId: '11111111-1111-4111-8111-111111111111', source: 'BILLING', scope: { kind: 'ORGANIZATION', organizationId: '11111111-1111-4111-8111-111111111111' }, notificationId: '22222222-2222-4222-8222-222222222222', profileId: '33333333-3333-4333-8333-333333333333', title: `PR366 ${binding.resourceKey} 通知測試` };
   expect(assertInboxFixture(inbox, binding)).toBe(inbox);
   for (const patch of [{ childRef: 'production' }, { source: 'APPLICATION' }, { status: 'PLANNED' }, { title: 'real customer notice' }, { scope: { kind: 'PERSONAL' } }, { notificationId: '../escape' }, { profileId: 'foreign' }]) expect(() => assertInboxFixture({ ...inbox, ...patch }, binding)).toThrow('INBOX_FIXTURE_DENIED');
+});
+
+
+test('overnight success and cutoff rejection retain distinct actual database error contracts', () => {
+  expect(hoursPhasePolicy('hours-overnight')).toEqual({ opening: true, expectedMode: 'OVERNIGHT', deniedCode: 'STALL_CLOSED' });
+  expect(hoursPhasePolicy('hours-cutoff')).toEqual({ opening: false, expectedMode: 'CUTOFF', deniedCode: 'QR_LAST_ORDER_PASSED' });
+  expect(hoursPhasePolicy('hours-closed').deniedCode).toBe('STALL_CLOSED');
+  expect(() => hoursPhasePolicy('hours-fake-clock')).toThrow('HOURS_PHASE_DENIED');
+});
+
+
+test('future preorder accepts only actual canonical future slot and closed-current-hours receipt', () => {
+  const { binding } = fixture();
+  const future = { ...binding, kind: 'FUTURE_PREORDER', status: 'READBACK_VERIFIED', organizationId: '11111111-1111-4111-8111-111111111111', stallId: '22222222-2222-4222-8222-222222222222', currentHoursClosed: true, tomorrow: '2026-10-04', scheduledPickupAt: '2026-10-04T09:00:00.000Z', canonicalSlots: ['2026-10-04T17:00:00+08:00'], after: { settings: { takeoutPreorderEnabled: true }, hours: Array.from({ length: 7 }, (_, dayOfWeek) => ({ dayOfWeek, isClosed: dayOfWeek !== 0 })) } };
+  expect(assertPreorderFixture(future, binding, now)).toBe(future);
+  for (const patch of [{ childRef: 'production' }, { currentHoursClosed: false }, { canonicalSlots: [] }, { scheduledPickupAt: '2026-10-03T09:00:00Z' }, { tomorrow: '2026-10-05' }, { after: { settings: { takeoutPreorderEnabled: false }, hours: future.after.hours } }]) expect(() => assertPreorderFixture({ ...future, ...patch }, binding, now)).toThrow('PREORDER_FIXTURE_DENIED');
 });

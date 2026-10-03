@@ -93,9 +93,76 @@ export function assertPublicQrFixture(fixture, binding) {
   return fixture;
 }
 
+export function assertPreorderFixture(fixture, binding, now = Date.now()) {
+  if (!fixture || fixture.kind !== 'FUTURE_PREORDER' || fixture.status !== 'READBACK_VERIFIED'
+    || fixture.resourceKey !== binding.resourceKey || fixture.childRef !== binding.childRef
+    || fixture.deploymentId !== binding.deploymentId || fixture.sha !== binding.sha || fixture.tree !== binding.tree
+    || fixture.organizationId !== '11111111-1111-4111-8111-111111111111' || fixture.stallId !== '22222222-2222-4222-8222-222222222222'
+    || fixture.currentHoursClosed !== true || fixture.after?.settings?.takeoutPreorderEnabled !== true
+    || fixture.after?.hours?.length !== 7 || fixture.after.hours.filter(row => !row.isClosed).length !== 1
+    || !Array.isArray(fixture.canonicalSlots) || !fixture.canonicalSlots.some(slot => Date.parse(slot) === Date.parse(fixture.scheduledPickupAt))
+    || !(Date.parse(fixture.scheduledPickupAt) > now + 15 * 60000)
+    || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(fixture.scheduledPickupAt)) !== fixture.tomorrow) throw Error('PREORDER_FIXTURE_DENIED');
+  return fixture;
+}
+
+export async function runPreorderPhase(receipt, binding, outDir) {
+  const origin = assertTarget(receipt, binding);
+  const fixture = assertPreorderFixture(binding.fixtures?.preorder, binding);
+  const privateDir = process.env.PR366_PRIVATE_FIXTURE_DIR;
+  if (!privateDir || realpathSync(privateDir).startsWith(`${realpathSync(process.cwd())}${sep}`) || realpathSync(privateDir) === realpathSync(process.cwd())) throw Error('PRIVATE_HANDOFF_DIRECTORY_REQUIRED');
+  const qr = assertPublicQrFixture(JSON.parse(readFileSync(resolve(privateDir, 'fixture-public-qr.json'), 'utf8')), binding).qrs.find(row => row.mode === 'DEFAULT');
+  const product = assertCatalogFixture({ ...binding.fixtures.pos, originalName: binding.fixtures.pos?.name }, binding);
+  const { chromium, expect } = await import('@playwright/test');
+  const browser = await chromium.launch(); const context = await browser.newContext({ serviceWorkers: 'block' });
+  await context.route('**/*', route => routePreviewRequest(route, origin, process.env.PREVIEW_BYPASS_SECRET));
+  const deviceId = randomUUID(), orderId = randomUUID();
+  const evidence = { resourceKey: receipt.resourceKey, childRef: binding.childRef, deploymentId: binding.deploymentId,
+    sha: binding.sha, tree: binding.tree, phase: 'hours-preorder', status: 'INCOMPLETE', orderIds: [orderId], complete: false,
+    turnstile: 'OFFICIAL_TEST_KEY_ONLY', quoteSource: 'ACTUAL_ORDER_SESSION_MENU_AND_CANONICAL_SLOTS', pending: ['EXACT_MIDNIGHT_BOUNDARY_DEVICE_UI'] };
+  mkdirSync(outDir, { recursive: true });
+  async function call(path, method, data) {
+    assertTarget(receipt, binding);
+    return context.request.fetch(`${origin}${path}`, { method, maxRedirects: 0, ...(data ? { data } : {}), headers: { Origin: origin,
+      'x-stallorder-protocol-version': '1', 'x-stallorder-operation-id': randomUUID(), 'x-stallorder-device-id': deviceId,
+      ...requestPolicy(origin, origin, method, false, process.env.PREVIEW_BYPASS_SECRET).headers } });
+  }
+  try {
+    const issue = await call('/api/public/order-session', 'POST', { qrToken: qr.qrToken, deviceId, sessionRequestId: randomUUID(), orderingMode: 'PREORDER' });
+    expect(issue.status()).toBe(201); const session = await issue.json();
+    expect(session.orderingMode).toBe('PREORDER');
+    const canonicalSlot = session.preorderSlots.find(slot => Date.parse(slot) === Date.parse(fixture.scheduledPickupAt));
+    expect(typeof canonicalSlot).toBe('string');
+    const offered = session.products.find(row => row.id === product.productId);
+    expect(offered).toBeTruthy(); expect(offered.price).toBe(binding.fixtures.pos.price);
+    const created = await call('/api/public/orders', 'POST', { qrToken: qr.qrToken, orderSessionToken: session.orderSessionToken,
+      deviceId, idempotencyKey: randomUUID(), clientOrderId: orderId, turnstileIdempotencyKey: randomUUID(), turnstileToken: 'XXXX.DUMMY.TOKEN.XXXX',
+      orderingMode: 'PREORDER', scheduledPickupAt: canonicalSlot, customerName: 'PR366 未來預約測試', customerPhone: '0900000000',
+      customerNote: `PR366 ${receipt.resourceKey} future preorder`, waitAcknowledged: true, items: [{ productId: product.productId, quantity: 1 }] });
+    expect(created.status()).toBe(201); const accepted = await created.json(); expect(accepted.orderStatus).toBe('WAITING_CONFIRMATION');
+    const tracked = await call(`/api/public/orders/${encodeURIComponent(accepted.trackingToken)}`, 'GET');
+    expect(tracked.status()).toBe(200); const { order } = await tracked.json();
+    expect(order.orderNo).toBe(accepted.orderNo); expect(order.fulfillmentType).toBe('TAKEOUT');
+    expect(Date.parse(order.scheduledPickupAt)).toBe(Date.parse(canonicalSlot));
+    expect(order.items).toHaveLength(1); expect(order.items[0].quantity).toBe(1); expect(order.totalAmount).toBe(offered.price);
+    evidence.scheduledPickupAt = new Date(canonicalSlot).toISOString(); evidence.quotedTotal = offered.price; evidence.persistedTotal = order.totalAmount;
+    evidence.status = 'PASS';
+  } finally { writeFileSync(resolve(outDir, 'ui-hours-preorder.json'), JSON.stringify(evidence, null, 2)); await browser.close(); }
+  return evidence;
+}
+
+export function hoursPhasePolicy(phase) {
+  const opening = ['hours-open', 'hours-overnight'].includes(phase);
+  const expectedMode = { 'hours-open': 'OPEN', 'hours-closed': 'CLOSED', 'hours-overnight': 'OVERNIGHT', 'hours-cutoff': 'CUTOFF' }[phase];
+  const deniedCode = phase === 'hours-cutoff' ? 'QR_LAST_ORDER_PASSED' : 'STALL_CLOSED';
+  if (!expectedMode) throw Error('HOURS_PHASE_DENIED');
+  return { opening, expectedMode, deniedCode };
+}
+
+
 export async function runHoursPhase(receipt, binding, outDir, phase) {
   const origin = assertTarget(receipt, binding);
-  if (!['hours-open', 'hours-closed'].includes(phase)) throw Error('HOURS_PHASE_DENIED');
+  const { opening, expectedMode, deniedCode } = hoursPhasePolicy(phase);
   const privateDir = process.env.PR366_PRIVATE_FIXTURE_DIR;
   if (!privateDir || realpathSync(privateDir).startsWith(`${realpathSync(process.cwd())}${sep}`)
     || realpathSync(privateDir) === realpathSync(process.cwd())) throw Error('PRIVATE_HANDOFF_DIRECTORY_REQUIRED');
@@ -103,21 +170,24 @@ export async function runHoursPhase(receipt, binding, outDir, phase) {
   const hours = binding.fixtures?.hours;
   if (hours?.kind !== 'HOURS' || hours.status !== 'READBACK_VERIFIED' || hours.resourceKey !== receipt.resourceKey
     || hours.childRef !== binding.childRef || hours.deploymentId !== binding.deploymentId || hours.sha !== binding.sha
-    || hours.tree !== binding.tree || hours.mode !== (phase === 'hours-open' ? 'OPEN' : 'CLOSED')
-    || hours.after?.length !== 7 || hours.after.some(row => row.isClosed !== (phase === 'hours-closed'))) throw Error('HOURS_FIXTURE_DENIED');
+    || hours.tree !== binding.tree || hours.mode !== expectedMode
+    || hours.after?.length !== 7 || hours.after.some(row => typeof row.isClosed !== 'boolean')
+    || (phase === 'hours-closed' && hours.after.some(row => !row.isClosed))
+    || (['hours-open', 'hours-cutoff'].includes(phase) && hours.after.some(row => row.isClosed))
+    || (phase === 'hours-overnight' && hours.after.filter(row => !row.isClosed).length !== 1)) throw Error('HOURS_FIXTURE_DENIED');
   const product = binding.fixtures.pos ? assertCatalogFixture({ ...binding.fixtures.pos, originalName: binding.fixtures.pos.name }, binding)
     : assertCatalogFixture(binding.fixtures.catalogProduct, binding);
   const { chromium, expect } = await import('@playwright/test');
-  const handoffPath = resolve(privateDir, `hours-handoff-${receipt.resourceKey}.json`);
-  if (phase === 'hours-open' && existsSync(handoffPath)) throw Error('HOURS_HANDOFF_ALREADY_EXISTS');
+  const handoffPath = resolve(privateDir, `${['hours-overnight', 'hours-cutoff'].includes(phase) ? 'overnight' : 'hours'}-handoff-${receipt.resourceKey}.json`);
+  if (opening && existsSync(handoffPath)) throw Error('HOURS_HANDOFF_ALREADY_EXISTS');
   const identity = { resourceKey: receipt.resourceKey, childRef: binding.childRef, deploymentId: binding.deploymentId, sha: binding.sha, tree: binding.tree };
-  const state = phase === 'hours-open' ? { ...identity, status: 'PREPARING', modes: [] } : JSON.parse(readFileSync(handoffPath, 'utf8'));
+  const state = opening ? { ...identity, status: 'PREPARING', modes: [] } : JSON.parse(readFileSync(handoffPath, 'utf8'));
   if (Object.entries(identity).some(([key, value]) => state[key] !== value)
-    || (phase === 'hours-closed' && (state.status !== 'OPEN_VERIFIED' || state.modes?.length !== 2))) throw Error('HOURS_HANDOFF_DENIED');
+    || (!opening && (state.status !== (phase === 'hours-cutoff' ? 'OVERNIGHT_VERIFIED' : 'OPEN_VERIFIED') || state.modes?.length !== 2))) throw Error('HOURS_HANDOFF_DENIED');
   const browser = await chromium.launch(); const context = await browser.newContext({ serviceWorkers: 'block' });
   await context.route('**/*', route => routePreviewRequest(route, origin, process.env.PREVIEW_BYPASS_SECRET));
   const evidence = { ...identity, phase, status: 'INCOMPLETE', results: [], orderIds: state.modes.map(mode => mode.orderId), complete: false,
-    turnstile: 'OFFICIAL_TEST_KEY_ONLY', pending: ['MIDNIGHT_CUTOFF_FUTURE_PREORDER_DEVICE_UI'] };
+    turnstile: 'OFFICIAL_TEST_KEY_ONLY', pending: ['EXACT_MIDNIGHT_BOUNDARY_FUTURE_PREORDER_DEVICE_UI'] };
   mkdirSync(outDir, { recursive: true });
   function body(mode, token, quantity, orderId) {
     return { qrToken: mode.qrToken, orderSessionToken: token, deviceId: mode.deviceId, idempotencyKey: randomUUID(), clientOrderId: orderId,
@@ -134,9 +204,9 @@ export async function runHoursPhase(receipt, binding, outDir, phase) {
   }
   try {
     for (const item of qr.qrs) {
-      const mode = phase === 'hours-open' ? { ...item, deviceId: randomUUID(), orderId: randomUUID() } : state.modes.find(row => row.mode === item.mode);
-      const issue = await call('/api/public/order-session', 'POST', { qrToken: item.qrToken, deviceId: phase === 'hours-open' ? mode.deviceId : randomUUID(), sessionRequestId: randomUUID(), orderingMode: item.mode });
-      if (phase === 'hours-open') {
+      const mode = opening ? { ...item, deviceId: randomUUID(), orderId: randomUUID() } : state.modes.find(row => row.mode === item.mode);
+      const issue = await call('/api/public/order-session', 'POST', { qrToken: item.qrToken, deviceId: opening ? mode.deviceId : randomUUID(), sessionRequestId: randomUUID(), orderingMode: item.mode });
+      if (opening) {
         expect(issue.status()).toBe(201);
         mode.orderSessionToken = (await issue.json()).orderSessionToken;
         const reserve = await call('/api/public/order-session', 'POST', { qrToken: item.qrToken, deviceId: mode.deviceId, sessionRequestId: randomUUID(), orderingMode: item.mode });
@@ -151,18 +221,24 @@ export async function runHoursPhase(receipt, binding, outDir, phase) {
         expect(mode.orderSnapshot.items).toHaveLength(1); expect(mode.orderSnapshot.items[0].quantity).toBe(2);
         writeFileSync(handoffPath, JSON.stringify(state), { mode: 0o600 });
       } else {
-        expect(issue.status()).toBe(409); expect((await issue.json()).code).toBe('STALL_CLOSED');
+        expect(issue.status()).toBe(409); expect((await issue.json()).code).toBe(deniedCode);
         const before = await call(`/api/public/orders/${encodeURIComponent(mode.trackingToken)}`, 'GET', undefined, mode.deviceId);
         expect(before.status()).toBe(200); const snapshot = (await before.json()).order;
         expect(snapshot).toEqual(mode.orderSnapshot);
         const rejectedId = randomUUID(); const submit = await call('/api/public/orders', 'POST', body(mode, mode.unusedSessionToken, 2, rejectedId));
-        expect(submit.status()).toBe(409); expect((await submit.json()).code).toBe('STALL_CLOSED');
+        expect(submit.status()).toBe(409); expect((await submit.json()).code).toBe(deniedCode);
+        if (phase === 'hours-cutoff') {
+          const unchanged = await call(`/api/public/orders/${encodeURIComponent(mode.trackingToken)}`, 'GET', undefined, mode.deviceId);
+          expect(unchanged.status()).toBe(200); expect((await unchanged.json()).order).toEqual(snapshot);
+          evidence.results.push({ mode: item.mode, rejectedCreateOrderId: rejectedId, existingOrderUnchanged: true, code: deniedCode });
+          continue;
+        }
         const editBody = body(mode, mode.orderSessionToken, 3, mode.orderId);
         const edit = { deviceId: mode.deviceId, idempotencyKey: randomUUID(), turnstileToken: editBody.turnstileToken,
           customerName: editBody.customerName, customerPhone: editBody.customerPhone, deliveryAddress: editBody.deliveryAddress,
           customerNote: editBody.customerNote, items: editBody.items };
         const increase = await call(`/api/public/orders/${encodeURIComponent(mode.trackingToken)}`, 'PATCH', edit);
-        expect(increase.status()).toBe(409); expect((await increase.json()).code).toBe('STALL_CLOSED');
+        expect(increase.status()).toBe(409); expect((await increase.json()).code).toBe(deniedCode);
         const unchanged = await call(`/api/public/orders/${encodeURIComponent(mode.trackingToken)}`, 'GET', undefined, mode.deviceId);
         expect(unchanged.status()).toBe(200); expect((await unchanged.json()).order).toEqual(snapshot);
         const decrease = await call(`/api/public/orders/${encodeURIComponent(mode.trackingToken)}`, 'PATCH', { ...edit, idempotencyKey: randomUUID(), items: [{ productId: product.productId, quantity: 1 }] });
@@ -170,12 +246,12 @@ export async function runHoursPhase(receipt, binding, outDir, phase) {
         const reduced = await call(`/api/public/orders/${encodeURIComponent(mode.trackingToken)}`, 'GET', undefined, mode.deviceId);
         expect(reduced.status()).toBe(200); const finalOrder = (await reduced.json()).order;
         expect(finalOrder.items).toHaveLength(1); expect(finalOrder.items[0].quantity).toBe(1);
-        expect(finalOrder.total).toBeLessThan(snapshot.total);
+        expect(finalOrder.totalAmount).toBeLessThan(snapshot.totalAmount);
         evidence.results.push({ mode: item.mode, rejectedCreateOrderId: rejectedId, increaseUnchanged: true, decreasedQuantity: 1 });
       }
-      if (phase === 'hours-open') evidence.results.push({ mode: item.mode, opened: true, created: true, quantity: 2 });
+      if (opening) evidence.results.push({ mode: item.mode, opened: true, created: true, quantity: 2 });
     }
-    state.status = phase === 'hours-open' ? 'OPEN_VERIFIED' : 'CLOSED_VERIFIED'; writeFileSync(handoffPath, JSON.stringify(state), { mode: 0o600 });
+    state.status = `${expectedMode}_VERIFIED`; writeFileSync(handoffPath, JSON.stringify(state), { mode: 0o600 });
     evidence.status = 'PASS';
   } finally {
     writeFileSync(resolve(outDir, `ui-${phase}.json`), JSON.stringify(evidence, null, 2)); await browser.close();
@@ -620,7 +696,7 @@ export async function run(receipt, binding, outDir) {
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   try {
-    const execute = process.argv[5] === 'prepare-cash-shift' ? runCashShiftPhase : process.argv[5] ? runHoursPhase : run;
+    const execute = process.argv[5] === 'hours-preorder' ? runPreorderPhase : process.argv[5] === 'prepare-cash-shift' ? runCashShiftPhase : process.argv[5] ? runHoursPhase : run;
     await execute(JSON.parse(readFileSync(process.argv[2], 'utf8')), JSON.parse(readFileSync(process.argv[3], 'utf8')),
       process.argv[4] ?? '.release-evidence/pr366-preview-ui', process.argv[5]);
   } catch { console.error('PREVIEW_UI_FAILED'); process.exitCode = 1; }
