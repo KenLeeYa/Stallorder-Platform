@@ -125,13 +125,18 @@ test.describe("P2 後續成長功能", () => {
     await page.getByRole("button", { name: /English/ }).click();
     await expect(page.getByText(/English · \d+ 項/)).toBeVisible();
     await page.getByLabel("缺漏類型").selectOption("NOTE_OPTION");
-
+    await page.getByLabel("預覽攤位").selectOption(primaryStallId);
+    const previewLink = page.getByRole("complementary", { name: "QR 語系預覽", exact: true }).getByRole("link", { name: "English", exact: true });
+    await expect(previewLink).toHaveCount(1);
+    await expect(previewLink).toHaveAttribute("target", "_blank");
+    await expect(previewLink).toHaveAttribute("href", `/merchant/localization/preview?organizationId=${organizationId}&stallId=${primaryStallId}&locale=en&source=localization`);
+    const sessionCountBefore = await prisma.orderSession.count({ where: { organizationId, stallId: primaryStallId } });
     const previewPromise = page.waitForEvent("popup");
-    await page.getByRole("link", { name: /English/ }).last().click();
+    await previewLink.click();
     const preview = await previewPromise;
     await expect(preview.getByText("English · 預覽模式")).toBeVisible();
     await expect(preview.getByText("只供檢查翻譯與畫面，不會送出訂單。")).toBeVisible();
-    expect(await prisma.orderSession.count({ where: { createdAt: { gt: new Date(Date.now() - 5_000) } } })).toBe(0);
+    expect(await prisma.orderSession.count({ where: { organizationId, stallId: primaryStallId } })).toBe(sessionCountBefore);
     await preview.close();
   });
 

@@ -102,3 +102,11 @@ CI `37099582769`（`2a04964b`）在一小時 job 時限被取消，只完成八�
 失敗證據定位改版後 portal 明細／可見 KDS queue、完整商品管理入口、900px 平板斷點，以及保留稽核 fixture 後多攤位登入與報表 scope。測試沿真實登入 API 指定正常角色 next，保留認證、權限及結果斷言；公開外送改用實際 store 入口，該項 session/menu 仍 mock，真營業時間送單驗證待 Preview。結帳實收欄受 18px 根字級影響變為108px，新增100px上限，不改付款邏輯。
 
 隱私正向案例原先固定 DB55992、origin3093，且要求啟用此輪明確 OFF 的治理能力。OFF profile 應驗證不可用且不洩漏／不寫入，enabled 正向驗證保留為明確選用的隔離 profile，不宣稱此輪已通過。全部改動尚待新 CI；此輪單 worker 隔離 runner 無其他同攤位 writer，本機156-migration手動環境不升級、不重置。
+
+## 2026-10-03 完整 CI 37116981928 剩餘六項
+
+候選 10f5280c 完整 E2E 為217 passed、6 failed、78 skipped，無 flaky；整體仍 FAIL，resilience及 dependency audit尚未執行。隱私 OFF案例通過，不代表 enabled治理已驗證。
+
+六項原因為手機訂單摘要合併文字、外送 slug誤用 code入口及 QR context、QR預覽選錯多攤位預設、商品組合需明確指派、多欄 portal與結帳後明細關閉，以及未儲存 POS的原生放棄確認。修正保留付款、狀態、DB及拒絕邊界斷言，沒有放寬產品權限或營業時間。
+
+新增僅限候選分支手動 `regression-local`，重用 CI的 GitHub runner本機 Supabase及六個完整 spec，不使用 Preview secrets或建立付費 provider資源。精確取消本輪自動 FULL run並確認完成後才執行聚焦測試，之後重新執行同 SHA的 FULL CI；聚焦通過不能取代完整發布 gate。第二組付費 Preview與正式更新仍須最新完整 CI通過。

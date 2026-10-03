@@ -416,7 +416,14 @@ test("店員內用與外送使用獨立設定，且建立訂單時重新驗證",
       code: "TABLE_UNAVAILABLE",
     });
 
-    await dialog.getByTitle("關閉店員點餐").click();
+    const discardConfirmation = page.waitForEvent("dialog");
+    const closeComposer = dialog.getByTitle("關閉店員點餐").click();
+    const discard = await discardConfirmation;
+    expect(discard.type()).toBe("confirm");
+    expect(discard.message()).toBe("確定放棄目前尚未儲存的訂單內容？");
+    await discard.accept();
+    await closeComposer;
+    await expect(dialog).toBeHidden();
     await prisma.stallOrderingSettings.update({
       where: { stallId },
       data: {

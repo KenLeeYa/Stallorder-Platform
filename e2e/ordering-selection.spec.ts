@@ -35,6 +35,11 @@ test.beforeEach(async ({}, testInfo) => {
       } finally { await restore.$disconnect(); }
     };
     deliveryFixture = await createOpenQrFixture({ organizationId, stallId, tokenPrefix: "selection-delivery", label: "選項外送介面測試" });
+    const deliveryQr = await prisma.qrCode.updateMany({
+      where: { id: deliveryFixture.qrCodeId, token: deliveryFixture.qrToken, organizationId, stallId, fulfillmentTypeContext: null },
+      data: { fulfillmentTypeContext: "DELIVERY" },
+    });
+    if (deliveryQr.count !== 1) throw new Error("DELIVERY_FIXTURE_QR_SCOPE_MISMATCH");
   } finally { await prisma.$disconnect(); }
 });
 
@@ -87,7 +92,7 @@ for (const orderingMode of ["DEFAULT", "PREORDER", "DELIVERY"] as const) {
     }));
     await page.goto(orderingMode === "DEFAULT"
       ? "/q/selection-e2e-DEFAULT"
-      : orderingMode === "PREORDER" ? "/s/aming-chicken" : "/store/aming-chicken?view=delivery");
+      : orderingMode === "PREORDER" ? "/s/aming-chicken" : "/delivery/aming-chicken");
     await expect(page.getByRole("heading", { name: "勾選介面測試攤位" })).toBeVisible();
     if (orderingMode === "PREORDER") await page.getByRole("button", { name: "套用這個時間", exact: true }).click();
     await page.getByTestId("qr-open-product-configurator").click();

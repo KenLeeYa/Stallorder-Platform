@@ -286,7 +286,7 @@ test.describe("外帶 QR 先收款、人工核對後完成訂單", () => {
       await login(staffPage);
       await staffPage.goto("/staff/aming-chicken");
       await dismissStaffStartReminder(staffPage);
-      const staffOrder = staffPage
+      const staffOrder = staffPage.getByRole("main")
         .getByRole("article")
         .filter({ hasText: orderNo });
       await expect(staffOrder).toBeVisible();
@@ -294,11 +294,17 @@ test.describe("外帶 QR 先收款、人工核對後完成訂單", () => {
         .getByRole("button", { name: "查看明細", exact: true })
         .click();
 
+      const orderDialog = staffPage.getByRole("dialog", { name: `訂單 ${orderNo}`, exact: true });
+      await expect(orderDialog).toBeVisible();
+      const orderDetails = orderDialog.getByTestId("staff-order-mobile-detail");
+      const orderActions = orderDetails.getByTestId("staff-order-actions-pane");
+      const orderItems = orderDetails.getByTestId("staff-order-items-pane");
+
       const confirmResponsePromise = waitForOrderPatch(
         staffPage,
         createdOrderId,
       );
-      await staffOrder
+      await orderActions
         .getByRole("button", { name: "確認接單", exact: true })
         .click();
       const confirmResponse = await confirmResponsePromise;
@@ -307,7 +313,7 @@ test.describe("外帶 QR 先收款、人工核對後完成訂單", () => {
         status: "CONFIRMED",
       });
 
-      await staffOrder
+      await orderActions
         .getByRole("button", { name: "結帳收款", exact: true })
         .click();
       const paymentDialog = staffPage.getByRole("dialog", { name: "結帳收款" });
@@ -346,11 +352,14 @@ test.describe("外帶 QR 先收款、人工核對後完成訂單", () => {
         completedAt: null,
       });
 
+      await staffOrder.getByRole("button", { name: "查看明細", exact: true }).click();
+      await expect(orderDialog).toBeVisible();
+      await expect(orderDetails).toContainText("已付款");
       const preparingResponsePromise = waitForItemsPatch(
         staffPage,
         createdOrderId,
       );
-      await staffOrder
+      await orderItems
         .getByRole("button", { name: "全部開始製作（1）", exact: true })
         .click();
       const preparingResponse = await preparingResponsePromise;
@@ -360,7 +369,7 @@ test.describe("外帶 QR 先收款、人工核對後完成訂單", () => {
       });
 
       const readyResponsePromise = waitForItemsPatch(staffPage, createdOrderId);
-      await staffOrder
+      await orderItems
         .getByRole("button", { name: "全部餐點完成（1）", exact: true })
         .click();
       const readyResponse = await readyResponsePromise;
@@ -368,7 +377,7 @@ test.describe("外帶 QR 先收款、人工核對後完成訂單", () => {
       expect(readyResponse.request().postDataJSON()).toEqual({
         status: "READY",
       });
-      await staffOrder
+      await orderActions
         .getByRole("button", { name: "完成訂單", exact: true })
         .click();
       const pickupCheckout = staffPage.getByRole("dialog", {

@@ -17,7 +17,7 @@ on:
       operation:
         description: Validate a manual Preview or clean exact historical PR-owned resources
         type: choice
-        options: [validate, cleanup, cleanup-manual-run, resume-manual-run]
+        options: [validate, cleanup, cleanup-manual-run, resume-manual-run, regression-local]
         default: validate
       cleanup_pr_number:
         description: Exact closed PR number for manual cleanup only
@@ -33,10 +33,15 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ contains(fromJSON('["cleanup-manual-run","resume-manual-run"]'), inputs.operation) && format('manual-preview-recovery-workflow-{0}', inputs.cleanup_run_id) || format('ephemeral-preview-{0}', github.event.pull_request.number || github.ref) }}
+  group: ${{ inputs.operation == 'regression-local' && format('regression-local-{0}', github.ref) || contains(fromJSON('["cleanup-manual-run","resume-manual-run"]'), inputs.operation) && format('manual-preview-recovery-workflow-{0}', inputs.cleanup_run_id) || format('ephemeral-preview-{0}', github.event.pull_request.number || github.ref) }}
   cancel-in-progress: ${{ !contains(fromJSON('["cleanup-manual-run","resume-manual-run"]'), inputs.operation) }}
 
 jobs:
+  regression-local:
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'regression-local' && inputs.approve_external_preview == false && github.ref_name == 'codex/integrated-production-20261002'
+    uses: ./.github/workflows/ci.yml
+    with:
+      regression_only: true
   validate:
     if: >-
       github.event_name == 'workflow_dispatch' &&

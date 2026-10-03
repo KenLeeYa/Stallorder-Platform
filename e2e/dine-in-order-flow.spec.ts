@@ -631,7 +631,7 @@ test("內用桌位從 QR 點餐連動廚房、出餐與折扣結帳", async ({
   await checkout.getByRole("button", { name: "確認收款", exact: true }).click();
   expect((await checkoutResponse).status()).toBe(200);
   await expect(staffOrder).toBeVisible();
-  await expect(staffOrder.getByText("已付款", { exact: true })).toBeVisible();
+  await expect(staffOrder).toContainText("已付款");
   await staffOrder.getByRole("button", { name: "查看明細", exact: true }).click();
   await expect(staffDialog).toBeVisible();
   const finalizeButton = staffActions.getByRole("button", {

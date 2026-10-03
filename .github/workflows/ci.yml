@@ -1,6 +1,11 @@
 name: CI
 
 on:
+  workflow_call:
+    inputs:
+      regression_only:
+        type: boolean
+        default: false
   pull_request:
   push:
     branches:
@@ -110,10 +115,21 @@ jobs:
       - name: Verify independent status Worker bundle
         run: npm run status:check
       - name: Playwright end-to-end tests
+        if: inputs.regression_only != true
         env:
           PLAYWRIGHT_PRODUCTION_SERVER: "true"
           PLAYWRIGHT_APP_URL: http://127.0.0.1:3000
         run: npm run test:e2e
+      - name: Focused integrated release regressions
+        if: inputs.regression_only == true
+        env:
+          PLAYWRIGHT_PRODUCTION_SERVER: "true"
+          PLAYWRIGHT_APP_URL: http://127.0.0.1:3000
+          PLAYWRIGHT_TRUSTED_CLIENT_IP: 203.0.113.201
+        run: >-
+          npx concurrently --kill-others --success command-1
+          "npm run functions:serve:e2e"
+          "playwright test e2e/dine-in-order-flow.spec.ts e2e/ordering-selection.spec.ts e2e/p2-growth-tools.spec.ts e2e/product-bundles.spec.ts e2e/qr-manual-pickup-cash-checkout.spec.ts e2e/staff-pos-line-delivery.spec.ts"
       - name: Production-mode resilience smoke
         run: npm run test:e2e:resilience:production
       - name: Dependency audit
