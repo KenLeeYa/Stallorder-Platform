@@ -129,7 +129,7 @@ jobs:
         run: >-
           npx concurrently --kill-others --success command-1
           "npm run functions:serve:e2e"
-          "playwright test e2e/dine-in-order-flow.spec.ts e2e/ordering-selection.spec.ts e2e/p2-growth-tools.spec.ts e2e/product-bundles.spec.ts e2e/qr-manual-pickup-cash-checkout.spec.ts e2e/staff-pos-line-delivery.spec.ts e2e/product-availability-recovery.spec.ts e2e/staff-order-edit-regression.spec.ts e2e/reusable-note-navigation-local.spec.ts"
+          "playwright test e2e/dine-in-order-flow.spec.ts e2e/ordering-selection.spec.ts e2e/p2-growth-tools.spec.ts e2e/product-bundles.spec.ts e2e/qr-manual-pickup-cash-checkout.spec.ts e2e/staff-pos-line-delivery.spec.ts e2e/product-availability-recovery.spec.ts e2e/staff-order-edit-regression.spec.ts e2e/reusable-note-navigation-local.spec.ts e2e/public-cache.spec.ts e2e/theme-toggle.spec.ts"
       - name: Production-mode resilience smoke
         run: npm run test:e2e:resilience:production
       - name: Dependency audit
