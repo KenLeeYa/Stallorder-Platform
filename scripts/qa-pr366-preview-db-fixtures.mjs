@@ -8,6 +8,19 @@ const org = '11111111-1111-4111-8111-111111111111';
 const stall = '22222222-2222-4222-8222-222222222222';
 const serialize = value => JSON.stringify(value, (_, item) => typeof item === 'bigint' ? String(item) : item);
 const hoursFields = row => ({ opensAt: row.opensAt, closesAt: row.closesAt, lastOrderAt: row.lastOrderAt, isClosed: row.isClosed });
+const seedOwnerId = '55555555-5555-4555-8555-555555555551';
+function isSeedSupplyOverride(row, flagId, ownerId, instant) {
+  return row?.flagId === flagId && row.scopeType === 'ORGANIZATION' && row.organizationId === org
+    && row.stallId === null && row.deviceId === null && row.rolloutPercentage === null
+    && row.enabled === true && row.reason === 'Local Supply Lite verification only'
+    && ownerId === seedOwnerId && row.createdByProfileId === seedOwnerId && row.updatedByProfileId === seedOwnerId
+    && (row.expiresAt === null || Date.parse(row.expiresAt) > instant);
+}
+export function fixtureFailureCode(error) {
+  if (typeof error?.code === 'string' && /^P\d{4}$/.test(error.code)) return error.code;
+  if (typeof error?.message === 'string' && /^FIXTURE_[A-Z0-9_]+$/.test(error.message)) return error.message;
+  return 'UNCLASSIFIED';
+}
 export const MIDNIGHT_CASES = [
   ['before_open','2026-10-05T21:59:59+08:00','STALL_CLOSED'],
   ['opens_inclusive','2026-10-05T22:00:00+08:00',null],
@@ -112,7 +125,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     if (!receiptPath || !bindingPath || !outDir) throw Error('FIXTURE_ARGUMENTS_REQUIRED');
     await runDatabaseFixture(JSON.parse(readFileSync(receiptPath, 'utf8')), JSON.parse(readFileSync(bindingPath, 'utf8')),
       outDir, operation, inputPath ? JSON.parse(readFileSync(inputPath, 'utf8')) : undefined);
-  } catch { process.stderr.write('PREVIEW_FIXTURE_FAILED; retain fixture receipt for recovery\n'); process.exitCode = 1; }
+  } catch (error) { process.stderr.write(`PREVIEW_FIXTURE_FAILED ${fixtureFailureCode(error)}; retain fixture receipt for recovery\n`); process.exitCode = 1; }
 }
 
 // Root supplies a fresh provider binding and executes this explicitly. No CLI, env lookup or local-helper retarget.
@@ -536,7 +549,11 @@ export async function createDatabaseFixtures({ receipt, binding, databaseUrl, sa
       if (!flag || flag.isEmergency) throw Error('FIXTURE_MODULE_FLAG_DENIED');
       const scope = { flagId: flag.id, scopeType: 'ORGANIZATION', organizationId: org };
       const before = await db.resilienceFeatureFlagOverride.findMany({ where: scope });
-      if (before.length) throw Error('FIXTURE_EXISTING_MODULE_OVERRIDE_REQUIRES_REVIEW');
+      if (before.length) {
+        if (before.length !== 1 || !isSeedSupplyOverride(before[0], flag.id, owner.id, now())) throw Error('FIXTURE_EXISTING_MODULE_OVERRIDE_REQUIRES_REVIEW');
+        const evidence = { ...identity, kind: 'SUPPLY_MODULE', mode: 'READ_ONLY_SEED_REUSE', before, after: before[0], status: 'READBACK_VERIFIED' };
+        await save(JSON.parse(serialize(evidence))); return evidence;
+      }
       const row = { id: randomUUID(), ...scope, enabled: true, rolloutPercentage: 100,
         expiresAt: new Date(receipt.expiresAt), reason: `${marker} synthetic UI QA`,
         createdByProfileId: owner.id, updatedByProfileId: owner.id };
@@ -550,6 +567,17 @@ export async function createDatabaseFixtures({ receipt, binding, databaseUrl, sa
     },
     async restoreSupplyModule(evidence) {
       guard();
+      if (evidence?.mode === 'READ_ONLY_SEED_REUSE') {
+        const { owner } = await parents();
+        const flag = await db.resilienceFeatureFlag.findUnique({ where: { code: 'MODULE_SUPPLY_LITE_ENABLED' } });
+        if (!flag || flag.isEmergency || evidence.kind !== 'SUPPLY_MODULE' || evidence.status !== 'READBACK_VERIFIED'
+          || ['resourceKey','childRef','deploymentId','sha','tree','organizationId','stallId'].some(key => evidence[key] !== identity[key])
+          || evidence.before?.length !== 1 || serialize(evidence.before[0]) !== serialize(evidence.after)
+          || !isSeedSupplyOverride(evidence.after, flag.id, owner.id, now())) throw Error('FIXTURE_RESTORE_RECEIPT_DENIED');
+        const actual = await db.resilienceFeatureFlagOverride.findMany({ where: { flagId: flag.id, scopeType: 'ORGANIZATION', organizationId: org } });
+        if (actual.length !== 1 || serialize(actual[0]) !== serialize(evidence.after)) throw Error('FIXTURE_MODULE_CONCURRENT_CHANGE');
+        await save({ ...identity, kind: 'SUPPLY_MODULE', mode: 'READ_ONLY_SEED_REUSE', status: 'UNCHANGED_VERIFIED' }); return;
+      }
       if (evidence.resourceKey !== receipt.resourceKey || evidence.childRef !== binding.childRef
         || evidence.kind !== 'SUPPLY_MODULE' || evidence.status !== 'READBACK_VERIFIED'
         || evidence.before?.length !== 0 || evidence.after?.organizationId !== org

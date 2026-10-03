@@ -1065,6 +1065,8 @@ jobs:
           cache: npm
       - name: Verify actual Preview required-reviewers protection
         id: preview-approval
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: node scripts/awesome-optimization/preview-approval.mjs
       - name: Recover exact original completed run receipt without extending expiry
         run: |

@@ -1,6 +1,6 @@
 import { expect, test, vi } from 'vitest';
 import { createHash } from 'node:crypto';
-import { assertDatabaseTarget, buildCalendarHours, createDatabaseFixtures, runDatabaseFixture } from './qa-pr366-preview-db-fixtures.mjs';
+import { assertDatabaseTarget, buildCalendarHours, createDatabaseFixtures, runDatabaseFixture, fixtureFailureCode } from './qa-pr366-preview-db-fixtures.mjs';
 import { isWithinBusinessHours } from '../src/lib/business-hours';
 const now = Date.parse('2026-10-03T10:00:00Z');
 function syntheticDatabaseUrl(host, username = 'postgres', port = '5432', tls = true) {
@@ -255,6 +255,44 @@ test('existing module override is left untouched', async () => {
   const tool = await createDatabaseFixtures({ ...dbFixture(), now: () => now, save: vi.fn(), clientFactory: async () => db });
   await expect(tool.enableSupplyModule()).rejects.toThrow('EXISTING_MODULE_OVERRIDE');
   expect(write).not.toHaveBeenCalled();
+});
+
+function seedSupplyDatabase(patch = {}) {
+  const { db } = mockDatabase(); const write = vi.fn();
+  db.profile.findFirst = async () => ({ id: '55555555-5555-4555-8555-555555555551' });
+  const row = { id: 'seed-override', flagId: 'supply-flag', scopeType: 'ORGANIZATION', organizationId: '11111111-1111-4111-8111-111111111111',
+    stallId: null, deviceId: null, rolloutPercentage: null, enabled: true, expiresAt: null, reason: 'Local Supply Lite verification only',
+    createdByProfileId: '55555555-5555-4555-8555-555555555551', updatedByProfileId: '55555555-5555-4555-8555-555555555551',
+    createdAt: new Date(now), updatedAt: new Date(now), ...patch };
+  db.resilienceFeatureFlag = { findUnique: async () => ({ id: 'supply-flag', isEmergency: false }) };
+  db.resilienceFeatureFlagOverride = { findMany: async () => [row], create: write, deleteMany: write, updateMany: write };
+  return { db, row, write };
+}
+test('known enabled seed Supply override is reused read-only and remains byte-equivalent on restore', async () => {
+  const { db, write } = seedSupplyDatabase(); const save = vi.fn();
+  const tool = await createDatabaseFixtures({ ...dbFixture(), now: () => now, save, clientFactory: async () => db });
+  const evidence = await tool.enableSupplyModule();
+  expect(evidence).toMatchObject({ mode: 'READ_ONLY_SEED_REUSE', status: 'READBACK_VERIFIED' });
+  await tool.restoreSupplyModule(JSON.parse(JSON.stringify(evidence)));
+  expect(write).not.toHaveBeenCalled(); expect(save.mock.calls.at(-1)[0].status).toBe('UNCHANGED_VERIFIED');
+});
+test.each([{ enabled: false }, { reason: 'someone else' }, { createdByProfileId: 'other' }, { updatedByProfileId: 'other' },
+  { expiresAt: new Date(now) }, { rolloutPercentage: 50 }, { deviceId: 'other-device' }, { organizationId: 'other-org' }])('rejects unrecognized/expired Supply override %j', async patch => {
+  const { db, write } = seedSupplyDatabase(patch);
+  const tool = await createDatabaseFixtures({ ...dbFixture(), now: () => now, save: vi.fn(), clientFactory: async () => db });
+  await expect(tool.enableSupplyModule()).rejects.toThrow('EXISTING_MODULE_OVERRIDE'); expect(write).not.toHaveBeenCalled();
+});
+test('seed reuse restore refuses any changed field instead of deleting or overwriting it', async () => {
+  const { db, row, write } = seedSupplyDatabase();
+  const tool = await createDatabaseFixtures({ ...dbFixture(), now: () => now, save: vi.fn(), clientFactory: async () => db });
+  const evidence = JSON.parse(JSON.stringify(await tool.enableSupplyModule())); row.updatedAt = new Date(now + 1);
+  await expect(tool.restoreSupplyModule(evidence)).rejects.toThrow('CONCURRENT_CHANGE'); expect(write).not.toHaveBeenCalled();
+});
+test('fixture diagnostics expose only exact safe codes, never raw DB messages or URLs', () => {
+  expect(fixtureFailureCode({ code: 'P2002', message: 'postgresql://user:secret@db/' })).toBe('P2002');
+  expect(fixtureFailureCode(Error('FIXTURE_EXISTING_MODULE_OVERRIDE_REQUIRES_REVIEW'))).toBe('FIXTURE_EXISTING_MODULE_OVERRIDE_REQUIRES_REVIEW');
+  for (const error of [Error('postgresql://user:secret@db/'), { code: 'P2002 secret' }, Error('FIXTURE_DENIED\nsecret')])
+    expect(fixtureFailureCode(error)).toBe('UNCLASSIFIED');
 });
 
 test('catalog descriptor reads unique active assigned seed product without writes', async () => {
