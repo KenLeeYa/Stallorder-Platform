@@ -339,7 +339,11 @@ jobs:
               -e "TOKEN_DERIVATION_SECRET=${TOKEN_DERIVATION_SECRET}" \
               -e "TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY}" \
               -e "COMPLIANCE_ENABLED=false" \
-              -e "COMPLIANCE_DELETION_DRY_RUN=true"
+              -e "COMPLIANCE_DELETION_DRY_RUN=true" \
+              --build-env "LINE_PLATFORM_ENABLED=false" \
+              --build-env "LINE_PLATFORM_NOTIFICATIONS_ENABLED=false" \
+              -e "LINE_PLATFORM_ENABLED=false" \
+              -e "LINE_PLATFORM_NOTIFICATIONS_ENABLED=false"
           )"
           [[ "$deployment" == https://*.vercel.app ]] || {
             echo "::error::Vercel deployment URL was not returned."

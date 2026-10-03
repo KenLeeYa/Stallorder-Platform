@@ -92,3 +92,5 @@ CI `37099582769`（`2a04964b`）在一小時 job 時限被取消，只完成八�
 使用者在「再建立一組、新增 US$1、最長 6 小時、測完立即清理」的核准問題後指示「確認原因後繼續正式環境更新」。此輪按該具體範圍進行第二次驗證：同時最多一組 data-less child 與配對 Preview，另建精確 owner receipt 及到期監控，不沿用已刪除的 run／資源 ID，不自動延長、不建立第三組。最新必要 CI 與實際流程通過後，依既有授權建立新的 Production／DR Plan、Apply 並讀回正式流程。治理仍 OFF／dry-run，真 LINE／Pay 仍不在本次測試啟用範圍。
 
 重建前的完整 fixture 預查另確認：Supply 代碼與單位不符 DB 大寫／UOM 約束、通知類型不在 DB 白名單、seed 未提供行程地點。修正限定測試 helper：合法代碼／`G`、既有合法通知類型加 synthetic metadata、精確 child 的專用地點與 13 筆行程同交易建立並記錄 IDs。測試直接讀取真 migration 約束；80 項聚焦測試由作者與獨立審查者各自通過，Production guardrails 3190 檔案／173 migrations 通過。不修改正式 seed 或放寬資料庫保護，尚無第二組遠端 PASS 收據。
+
+本次首次升級的 Production candidate 明確覆寫 build/runtime `LINE_PLATFORM_ENABLED=false` 與 `LINE_PLATFORM_NOTIFICATIONS_ENABLED=false`，不修改共用設定或 legacy OA。獨立來源檢查確認新 platform order owner／pilot／integration 不由 migration 自動填入，故此次不建立平台通知工作；11 項部署契約測試通過。這不代表未來啟用 OA 後回復舊 worker 已安全：舊 worker 不區分 delivery mode，屆時必須另做工作隔離。Vercel alias 回復仍不會還原 migration、backfill 或 Edge。

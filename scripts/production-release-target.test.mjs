@@ -1,6 +1,18 @@
 import { test, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import yaml from 'js-yaml';
 import { assertPrimaryConfiguration, verifyReleaseTarget } from './production-release-target.mjs';
 const project = 'prj_uoG4FNJIgnF1LdKRiXnfRaieXnUP', team = 'team_MMfsiG94K9Zy3e6w7Ccc9xY4', sha = 'a'.repeat(40);
+test('approved Production artifact overrides inherited platform sender settings until separately activated', () => {
+  const workflow = yaml.load(readFileSync('.github/workflows/production-readiness.yml', 'utf8'));
+  const build = workflow.jobs['verify-remote'].steps.find(step => step.name === 'Build approved Production deployment without assigning domains').run;
+  for (const flag of ['LINE_PLATFORM_ENABLED', 'LINE_PLATFORM_NOTIFICATIONS_ENABLED']) {
+    expect(build).toContain(`--build-env "${flag}=false"`);
+    expect(build).toContain(`-e "${flag}=false"`);
+    expect(build).not.toContain(`${flag}=true`);
+  }
+  expect(build).toContain('--skip-domain');
+});
 function fixture() {
   const deployment = { id: 'dpl_candidate', projectId: project, target: 'production', readyState: 'READY', url: 'candidate.vercel.app', meta: { git_commit: sha } };
   const owner = { id: project, accountId: team, targets: { production: { id: deployment.id } } };
