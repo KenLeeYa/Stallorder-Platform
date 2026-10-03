@@ -874,6 +874,9 @@ jobs:
         with:
           node-version: 24
       - name: Verify actual Preview required-reviewers protection
+        id: preview-approval
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: node scripts/awesome-optimization/preview-approval.mjs
       - name: Read exact completed source run and its recovery artifacts
         shell: bash
@@ -895,7 +898,7 @@ jobs:
       - name: Clean and read back only the verified original manual run resources
         run: node scripts/manual-preview-cleanup.mjs cleanup
       - name: Preserve exact recovery cleanup or failure receipt
-        if: always()
+        if: always() && steps.preview-approval.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: manual-preview-recovery-${{ inputs.cleanup_run_id }}-${{ github.run_id }}
