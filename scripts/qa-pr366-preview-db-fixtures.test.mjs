@@ -22,6 +22,99 @@ function dbFixture() {
   return { ...target, databaseUrl: syntheticDatabaseUrl('db.child123.supabase.co') };
 }
 
+function membershipDatabase(existing = []) {
+  let member;
+  const create = vi.fn(async ({ data }) => { member = { ...data, updatedAt: new Date(now) }; return member; });
+  const db = {
+    profile: { findFirst: async query => ({ id: query.where.email.startsWith('owner') ? 'owner-id' : 'staff-id', email: query.where.email, isActive: true, platformRole: null }) },
+    stall: { findFirst: async () => ({ id: 'stall' }) },
+    billingNotification: { findFirst: async () => ({ id: 'notice-id', title: 'PR366 manual-123 通知測試' }) },
+    organizationMembership: { findMany: async () => existing, create, findFirst: async () => member }, $disconnect: vi.fn(),
+  };
+  return { db, create };
+}
+test('membership creates only the exact non-primary staff fixture and journals before write', async () => {
+  const { db, create } = membershipDatabase(); const save = vi.fn();
+  const tool = await createDatabaseFixtures({ ...dbFixture(), now: () => now, save, clientFactory: async () => db });
+  const result = await tool.inboxMembership();
+  expect(save.mock.calls[0][0]).toMatchObject({ status: 'PLANNED', role: 'FINANCE_VIEWER', isPrimaryOwner: false });
+  expect(create).toHaveBeenCalledWith({ data: expect.objectContaining({ organizationId: '11111111-1111-4111-8111-111111111111',
+    profileId: 'staff-id', role: 'FINANCE_VIEWER', isPrimaryOwner: false, isActive: true }) });
+  expect(result.status).toBe('READBACK_VERIFIED');
+});
+test('existing staff organization membership blocks fixture creation', async () => {
+  const { db, create } = membershipDatabase([{ id: 'existing-owner' }]);
+  const tool = await createDatabaseFixtures({ ...dbFixture(), now: () => now, save: vi.fn(), clientFactory: async () => db });
+  await expect(tool.inboxMembership()).rejects.toThrow('EXISTING_ORG_MEMBERSHIP'); expect(create).not.toHaveBeenCalled();
+});
+test('membership revoked DB readback requires the original owned descriptor and live-session API evidence', async () => {
+  const options = dbFixture(); const { db } = membershipDatabase(); const save = vi.fn();
+  const tool = await createDatabaseFixtures({ ...options, now: () => now, save, clientFactory: async () => db });
+  const descriptor = await tool.inboxMembership(); options.binding.fixtures = { membership: descriptor };
+  db.organizationMembership.findFirst = vi.fn(async () => ({ ...descriptor, isActive: false, profile: { email: 'staff@stallorder.test', isActive: true } }));
+  const evidence = { ...descriptor, kind: 'INBOX_MEMBERSHIP_REVOKED', status: 'API_REVOKE_VERIFIED',
+    sessionStillValid: true, ownerStillAuthorized: true, privateStateCleared: true };
+  expect((await tool.inboxMembershipReadback(evidence)).status).toBe('DB_REVOKE_VERIFIED');
+  expect(db.organizationMembership.findFirst).toHaveBeenCalledWith({ where: expect.objectContaining({ id: descriptor.membershipId,
+    profileId: descriptor.profileId, role: 'FINANCE_VIEWER', isActive: false, isPrimaryOwner: false }), include: { profile: true } });
+  for (const patch of [{ sessionStillValid: false }, { privateStateCleared: false }, { membershipId: 'another-row' }])
+    await expect(tool.inboxMembershipReadback({ ...evidence, ...patch })).rejects.toThrow('MEMBERSHIP_EVIDENCE_DENIED');
+});
+
+function midnightDatabase(wrongResult = false) {
+  const hours = Array.from({ length: 7 }, (_, dayOfWeek) => ({ id: `hour-${dayOfWeek}`, dayOfWeek, opensAt: '17:00', closesAt: '23:00', lastOrderAt: null, isClosed: false }));
+  let active = structuredClone(hours); let special = false; let rollbackCount = 0;
+  const queries = [];
+  const db = {
+    profile: { findFirst: async () => ({ id: 'owner' }) }, stall: { findFirst: async () => ({ id: 'stall' }) },
+    stallBusinessHour: { findMany: async () => structuredClone(active), updateMany: async ({ where, data }) => {
+      active = active.map(row => where.dayOfWeek === undefined || row.dayOfWeek === where.dayOfWeek ? { ...row, ...data } : row);
+      return { count: where.dayOfWeek === undefined ? 7 : 1 };
+    } },
+    stallSpecialClosure: { count: async () => special ? 1 : 0, create: async () => { special = true; } },
+    qrCode: { findMany: async () => [{ token: 'secret-default', fulfillmentTypeContext: null }, { token: 'secret-delivery', fulfillmentTypeContext: 'DELIVERY' }] },
+    $executeRaw: vi.fn(async () => 0), $queryRaw: async (strings, ...values) => {
+      if (!strings.join('').includes('public_order_calendar_code')) return [];
+      queries.push(values); const instant = new Date(values[1]).toISOString();
+      let actual = null;
+      if (special) actual = 'STALL_SPECIAL_CLOSURE';
+      else if (instant === '2026-10-05T13:59:59.000Z' || instant === '2026-10-05T18:00:00.000Z') actual = 'STALL_CLOSED';
+      else if (active[1].lastOrderAt && instant === '2026-10-05T17:30:00.000Z') actual = 'QR_LAST_ORDER_PASSED';
+      return [{ actual: wrongResult ? 'UNEXPECTED' : actual }];
+    },
+    $transaction: async action => { try { return await action(db); } catch (error) {
+      active = structuredClone(hours); special = false; rollbackCount++; throw error;
+    } }, $disconnect: vi.fn(),
+  };
+  return { db, queries, rollbackCount: () => rollbackCount };
+}
+test('midnight proof always rolls back and independently reads unchanged hours/absence before PASS', async () => {
+  const f = midnightDatabase(); const save = vi.fn();
+  const tool = await createDatabaseFixtures({ ...dbFixture(), now: () => now, save, clientFactory: async () => f.db });
+  const result = await tool.midnightRollback();
+  expect(f.rollbackCount()).toBe(1); expect(f.queries).toHaveLength(18);
+  expect(new Set(f.queries.map(row => row[0]))).toEqual(new Set(['secret-default','secret-delivery']));
+  expect(result).toMatchObject({ status: 'PASS', rolledBack: true, originalHoursUnchanged: true, closureAbsent: true });
+  expect(JSON.stringify(result)).not.toContain('secret-default');
+});
+test('any incorrect calendar result cannot PASS even when rollback succeeds', async () => {
+  const f = midnightDatabase(true); const save = vi.fn();
+  const tool = await createDatabaseFixtures({ ...dbFixture(), now: () => now, save, clientFactory: async () => f.db });
+  await expect(tool.midnightRollback()).rejects.toThrow('MIDNIGHT_PROOF_FAILED');
+  expect(f.rollbackCount()).toBe(1); expect(save.mock.calls.at(-1)[0].status).toBe('FAIL');
+});
+test('unexpected DB transaction error is not mistaken for intentional rollback success', async () => {
+  const f = midnightDatabase(); f.db.$queryRaw = async () => { throw Error('DB_UNAVAILABLE'); };
+  const save = vi.fn(); const tool = await createDatabaseFixtures({ ...dbFixture(), now: () => now, save, clientFactory: async () => f.db });
+  await expect(tool.midnightRollback()).rejects.toThrow('DB_UNAVAILABLE'); expect(save).not.toHaveBeenCalled();
+});
+test('midnight refuses ambiguous QR candidates and rolls back without a PASS receipt', async () => {
+  const f = midnightDatabase(); f.db.qrCode.findMany = async () => [{ token: 'secret-default', fulfillmentTypeContext: null }];
+  const save = vi.fn(); const tool = await createDatabaseFixtures({ ...dbFixture(), now: () => now, save, clientFactory: async () => f.db });
+  await expect(tool.midnightRollback()).rejects.toThrow('EXACT_QRS_REQUIRED');
+  expect(f.rollbackCount()).toBe(1); expect(f.queries).toHaveLength(0); expect(save).not.toHaveBeenCalled();
+});
+
 test.each([
   syntheticDatabaseUrl('db.eyuctbnlvnbnivwasvqr.supabase.co'),
   syntheticDatabaseUrl('localhost'),

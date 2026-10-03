@@ -8,6 +8,14 @@ const org = '11111111-1111-4111-8111-111111111111';
 const stall = '22222222-2222-4222-8222-222222222222';
 const serialize = value => JSON.stringify(value, (_, item) => typeof item === 'bigint' ? String(item) : item);
 const hoursFields = row => ({ opensAt: row.opensAt, closesAt: row.closesAt, lastOrderAt: row.lastOrderAt, isClosed: row.isClosed });
+export const MIDNIGHT_CASES = [
+  ['before_open','2026-10-05T21:59:59+08:00','STALL_CLOSED'],
+  ['opens_inclusive','2026-10-05T22:00:00+08:00',null],
+  ['before_midnight','2026-10-05T23:59:59+08:00',null],
+  ['after_midnight_today_closed','2026-10-06T00:00:00+08:00',null],
+  ['overnight_tail','2026-10-06T01:59:59+08:00',null],
+  ['closes_exclusive','2026-10-06T02:00:00+08:00','STALL_CLOSED'],
+];
 
 export function buildCalendarHours(before, mode, instant) {
   if (!['OPEN', 'CLOSED', 'OVERNIGHT', 'CUTOFF'].includes(mode)) throw Error('FIXTURE_HOURS_MODE_DENIED');
@@ -49,7 +57,7 @@ export function assertDatabaseTarget(receipt, binding, databaseUrl, now = Date.n
 
 export async function runDatabaseFixture(receipt, binding, outDir, operation, input) {
   const actions = ['catalog-descriptor', 'verify-rejected-orders', 'prepare-ordering', 'restore-ordering', 'public-qr', 'prepare-pos-product', 'pos-descriptor', 'enable-circuit-b', 'restore-circuit-b', 'open-hours', 'closed-hours', 'overnight-hours', 'cutoff-hours', 'restore-hours', 'enable-supply', 'restore-supply',
-    'dense-schedule', 'dense-workforce', 'dense-supply', 'dense-invoices', 'synthetic-invoices', 'inbox', 'inbox-readback', 'prepare-preorder', 'restore-preorder'];
+    'dense-schedule', 'dense-workforce', 'dense-supply', 'dense-invoices', 'synthetic-invoices', 'inbox', 'inbox-readback', 'prepare-preorder', 'restore-preorder', 'inbox-membership', 'inbox-membership-readback', 'midnight-rollback'];
   if (!actions.includes(operation)) throw Error('FIXTURE_OPERATION_DENIED');
   const databaseUrl = process.env.PR366_CHILD_DATABASE_URL;
   if (!databaseUrl) throw Error('FIXTURE_CHILD_DATABASE_URL_REQUIRED');
@@ -67,6 +75,9 @@ export async function runDatabaseFixture(receipt, binding, outDir, operation, in
   } : undefined;
   const tool = await createDatabaseFixtures({ receipt, binding, databaseUrl, save, savePrivate });
   try {
+    if (operation === 'inbox-membership') return await tool.inboxMembership();
+    if (operation === 'inbox-membership-readback') return await tool.inboxMembershipReadback(input);
+    if (operation === 'midnight-rollback') return await tool.midnightRollback();
     if (operation === 'prepare-preorder') return await tool.preparePreorder();
     if (operation === 'restore-preorder') return await tool.restorePreorder(input);
     if (operation === 'verify-rejected-orders') return await tool.verifyRejectedOrders(input);
@@ -150,6 +161,93 @@ export async function createDatabaseFixtures({ receipt, binding, databaseUrl, sa
     return evidence;
   }
   return {
+    async inboxMembership() {
+      const { owner } = await parents();
+      const staff = await db.profile.findFirst({ where: { email: 'staff@stallorder.test', isActive: true,
+        stallMemberships: { some: { ...where, isActive: true, role: 'STAFF' } } } });
+      if (!staff || staff.id === owner.id || staff.platformRole) throw Error('FIXTURE_NON_ADMIN_STAFF_REQUIRED');
+      const existing = await db.organizationMembership.findMany({ where: { organizationId: org, profileId: staff.id } });
+      if (existing.length) throw Error('FIXTURE_STAFF_EXISTING_ORG_MEMBERSHIP');
+      const notice = await db.billingNotification.findFirst({ where: { organizationId: org, title: `${marker} 通知測試`, dismissedAt: null } });
+      if (!notice) throw Error('FIXTURE_INBOX_REQUIRED');
+      const row = { id: randomUUID(), organizationId: org, profileId: staff.id, role: 'FINANCE_VIEWER', allStalls: true, isPrimaryOwner: false, isActive: true };
+      const evidence = { ...identity, kind: 'INBOX_MEMBERSHIP', status: 'PLANNED', membershipId: row.id,
+        profileId: staff.id, ownerProfileId: owner.id, email: staff.email, role: row.role, isPrimaryOwner: false,
+        notificationId: notice.id, title: notice.title, cleanup: 'RETAIN_AUDITED_MEMBERSHIP_UNTIL_CHILD_TEARDOWN' };
+      await save(JSON.parse(serialize(evidence))); guard();
+      await db.organizationMembership.create({ data: row });
+      const actual = await db.organizationMembership.findFirst({ where: row });
+      if (!actual) throw Error('FIXTURE_MEMBERSHIP_READBACK_FAILED');
+      evidence.updatedAt = actual.updatedAt; evidence.status = 'READBACK_VERIFIED';
+      await save(JSON.parse(serialize(evidence))); return evidence;
+    },
+    async inboxMembershipReadback(evidence) {
+      guard();
+      const fixture = binding.fixtures?.membership;
+      if (!evidence || evidence.kind !== 'INBOX_MEMBERSHIP_REVOKED' || evidence.status !== 'API_REVOKE_VERIFIED'
+        || ['resourceKey','childRef','deploymentId','sha','tree','organizationId'].some(key => evidence[key] !== identity[key])
+        || evidence.sessionStillValid !== true || evidence.ownerStillAuthorized !== true
+        || evidence.privateStateCleared !== true || !fixture || fixture.kind !== 'INBOX_MEMBERSHIP' || fixture.status !== 'READBACK_VERIFIED'
+        || ['resourceKey','childRef','deploymentId','sha','tree','organizationId','membershipId','profileId','ownerProfileId','notificationId','email'].some(key => evidence[key] !== fixture[key])
+        || evidence.email !== 'staff@stallorder.test' || !evidence.membershipId || !evidence.profileId) throw Error('FIXTURE_MEMBERSHIP_EVIDENCE_DENIED');
+      const actual = await db.organizationMembership.findFirst({ where: { id: evidence.membershipId, organizationId: org,
+        profileId: evidence.profileId, role: 'FINANCE_VIEWER', isPrimaryOwner: false, isActive: false }, include: { profile: true } });
+      if (!actual || actual.profile.email !== evidence.email || !actual.profile.isActive) throw Error('FIXTURE_MEMBERSHIP_READBACK_FAILED');
+      const result = { ...evidence, status: 'DB_REVOKE_VERIFIED' }; await save(result); return result;
+    },
+    async midnightRollback() {
+      await parents();
+      const before = await db.stallBusinessHour.findMany({ where, orderBy: { dayOfWeek: 'asc' } });
+      if (before.length !== 7) throw Error('FIXTURE_SEVEN_HOURS_REQUIRED');
+      const rollback = new Error('MIDNIGHT_INTENTIONAL_ROLLBACK');
+      const results = [];
+      let rolledBack = false;
+      try {
+        await db.$transaction(async tx => {
+          guard();
+          await tx.$executeRaw`SET LOCAL lock_timeout = '2s'`;
+          await tx.$queryRaw`SELECT id FROM public.stalls WHERE id=${stall}::uuid AND organization_id=${org}::uuid FOR UPDATE NOWAIT`;
+          await tx.$queryRaw`SELECT id FROM public.stall_business_hours WHERE stall_id=${stall}::uuid FOR UPDATE NOWAIT`;
+          const shop = await tx.stall.findFirst({ where: { id: stall, organizationId: org, slug: 'aming-chicken', timezone: 'Asia/Taipei',
+            isActive: true, orderingEnabled: true, isSoldOut: false, businessStatus: 'OPEN', orderingState: 'OPEN' } });
+          if (!shop) throw Error('FIXTURE_OPEN_STALL_REQUIRED');
+          const locked = await tx.stallBusinessHour.findMany({ where, orderBy: { dayOfWeek: 'asc' } });
+          if (serialize(locked) !== serialize(before)) throw Error('FIXTURE_HOURS_CONCURRENT_CHANGE');
+          const overlap = await tx.stallSpecialClosure.count({ where: { ...where, startsOn: { lte: new Date('2026-10-06') }, endsOn: { gte: new Date('2026-10-05') } } });
+          if (overlap) throw Error('FIXTURE_MIDNIGHT_CLOSURE_OVERLAP');
+          const qrs = await tx.qrCode.findMany({ where: { ...where, state: 'ACTIVE', expiresAt: { gt: new Date(now()) },
+            diningTableId: null, locationId: null, stallScheduleId: null, marketEventId: null,
+            OR: [{ label: `${marker} DEFAULT`, fulfillmentTypeContext: null }, { label: `${marker} DELIVERY`, fulfillmentTypeContext: 'DELIVERY' }] } });
+          if (qrs.length !== 2 || qrs.filter(row => row.fulfillmentTypeContext === 'DELIVERY').length !== 1) throw Error('FIXTURE_EXACT_QRS_REQUIRED');
+          const updated = await tx.stallBusinessHour.updateMany({ where, data: { opensAt: '22:00', closesAt: '02:00', lastOrderAt: null, isClosed: true } });
+          if (updated.count !== 7) throw Error('FIXTURE_SEVEN_HOURS_REQUIRED');
+          const monday = await tx.stallBusinessHour.updateMany({ where: { ...where, dayOfWeek: 1 }, data: { isClosed: false } });
+          if (monday.count !== 1) throw Error('FIXTURE_MONDAY_REQUIRED');
+          async function check(cases) {
+            for (const qr of qrs) for (const [caseName, instant, expected] of cases) {
+              const rows = await tx.$queryRaw`SELECT public.public_order_calendar_code(${qr.token},${new Date(instant)}::timestamptz) AS actual`;
+              if (rows.length !== 1 || !Object.hasOwn(rows[0], 'actual')) throw Error('FIXTURE_CALENDAR_RESULT_INVALID');
+              results.push({ mode: qr.fulfillmentTypeContext === 'DELIVERY' ? 'DELIVERY' : 'DEFAULT', caseName,
+                actual: rows[0].actual, expected, passed: rows[0].actual === expected });
+            }
+          }
+          await check(MIDNIGHT_CASES);
+          await tx.stallBusinessHour.updateMany({ where: { ...where, dayOfWeek: 1 }, data: { lastOrderAt: '01:30' } });
+          await check([['before_overnight_cutoff','2026-10-06T01:29:59+08:00',null], ['overnight_cutoff_inclusive','2026-10-06T01:30:00+08:00','QR_LAST_ORDER_PASSED']]);
+          await tx.stallSpecialClosure.create({ data: { id: randomUUID(), ...where, startsOn: new Date('2026-10-06'), endsOn: new Date('2026-10-06'), title: `${marker} midnight rollback`, message: 'rollback-only' } });
+          await check([['special_closed_date_overrides_yesterday_tail','2026-10-06T00:00:00+08:00','STALL_SPECIAL_CLOSURE']]);
+          throw rollback;
+        }, { timeout: 30_000 });
+      } catch (error) { if (error !== rollback) throw error; rolledBack = true; }
+      guard();
+      const after = await db.stallBusinessHour.findMany({ where, orderBy: { dayOfWeek: 'asc' } });
+      const closure = await db.stallSpecialClosure.count({ where: { ...where, title: `${marker} midnight rollback` } });
+      const evidence = { ...identity, kind: 'MIDNIGHT_DB_CALENDAR', status: 'FAIL', rolledBack,
+        originalHoursUnchanged: serialize(after) === serialize(before), closureAbsent: closure === 0, results,
+        scope: 'DEPLOYED_DB_FUNCTION_EXPLICIT_CLOCK; NOT_LIVE_HTTP_MIDNIGHT_TRANSITION' };
+      if (rolledBack && evidence.originalHoursUnchanged && evidence.closureAbsent && results.length === 18 && results.every(row => row.passed)) evidence.status = 'PASS';
+      await save(evidence); if (evidence.status !== 'PASS') throw Error('FIXTURE_MIDNIGHT_PROOF_FAILED'); return evidence;
+    },
     async preparePreorder() {
       await parents();
       const settings = await db.stallOrderingSettings.findFirst({ where, select: preorderSelect });

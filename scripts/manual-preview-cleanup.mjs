@@ -44,9 +44,13 @@ export async function run(env, { cli, api, save, previous, now = new Date() }, o
       if (!Array.isArray(listing.deployments) || listing.deployments.length >= 100) throw Error('DEPLOYMENT_LIST_INCOMPLETE');
       for (const item of listing.deployments) {
         const id = item.uid ?? item.id;
-        if (!id) throw Error('DEPLOYMENT_ID_MISSING');
-        const row = await api('GET', id); assertDeployment(row, env);
-        if (!receipt.deployments.some(known => known.id === id)) receipt.deployments.push({ id, project: row.projectId, target: row.target ?? 'preview' });
+        const hostname = !id && typeof item.url === 'string'
+          ? /^(?:https:\/\/)?((?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+vercel\.app)\/?$/.exec(item.url)?.[1] : null;
+        if (!id && !hostname) throw Error('DEPLOYMENT_ID_MISSING');
+        const row = await api('GET', id ?? hostname); assertDeployment(row, env);
+        if (hostname && (row.url !== hostname || !/^dpl_[A-Za-z0-9]+$/.test(row.id))) throw Error('DEPLOYMENT_IDENTITY_MISMATCH');
+        if (id && row.id !== id) throw Error('DEPLOYMENT_IDENTITY_MISMATCH');
+        if (!receipt.deployments.some(known => known.id === row.id)) receipt.deployments.push({ id: row.id, project: row.projectId, target: row.target ?? 'preview' });
       }
       save(receipt);
     } else if (receipt.deployments.length) throw Error('VERCEL_AUTH_MISSING');

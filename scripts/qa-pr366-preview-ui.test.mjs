@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { expect, test, vi } from 'vitest';
-import { assertTarget, assertCatalogFixture, assertReadbackFixture, assertPublicQrFixture, assertInboxFixture, hoursPhasePolicy, assertPreorderFixture, requestPolicy, routePreviewRequest } from './qa-pr366-preview-ui.mjs';
+import { assertTarget, assertCatalogFixture, assertReadbackFixture, assertPublicQrFixture, assertInboxFixture, assertMembershipFixture, hoursPhasePolicy, assertPreorderFixture, requestPolicy, routePreviewRequest } from './qa-pr366-preview-ui.mjs';
 
 const now = Date.parse('2026-10-03T10:00:00Z');
 function fixture() {
@@ -10,6 +10,18 @@ function fixture() {
   binding.readback.childScope = { provider: 'supabase-cli', operation: 'branches list', parentProjectRef: receipt.parent };
   return { receipt, binding };
 }
+
+test('membership descriptor binds non-primary staff and exact owned notification', () => {
+  const { binding } = fixture();
+  const row = { ...binding, kind: 'INBOX_MEMBERSHIP', status: 'READBACK_VERIFIED', organizationId: '11111111-1111-4111-8111-111111111111',
+    membershipId: '66666666-6666-4666-8666-666666666669', profileId: '55555555-5555-4555-8555-555555555552',
+    ownerProfileId: '55555555-5555-4555-8555-555555555551', notificationId: '77777777-7777-4777-8777-777777777777',
+    role: 'FINANCE_VIEWER', isPrimaryOwner: false, email: 'staff@stallorder.test', title: 'PR366 manual-123 通知測試' };
+  expect(assertMembershipFixture(row, binding)).toBe(row);
+  for (const patch of [{ childRef: 'parent' }, { role: 'ORGANIZATION_OWNER' }, { isPrimaryOwner: true },
+    { email: 'owner@stallorder.test' }, { profileId: row.ownerProfileId }, { membershipId: '../unsafe' }, { title: 'unowned' }])
+    expect(() => assertMembershipFixture({ ...row, ...patch }, binding)).toThrow('MEMBERSHIP_FIXTURE_DENIED');
+});
 test('requires freshly read back exact child, deployment, owner and source', () => {
   const { receipt, binding } = fixture();
   expect(assertTarget(receipt, binding, now)).toBe(binding.origin);

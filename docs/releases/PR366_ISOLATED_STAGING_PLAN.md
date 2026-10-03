@@ -74,3 +74,11 @@ CI `37099582769`（`2a04964b`）在一小時 job 時限被取消，只完成八�
 已定位舊商品管理入口與三欄店員明細操作的測試選取、KDS 重複警示選取、LINE fixture 代碼格式及重新申請 fixture 縣市格式。稽核不可變保護使舊清理交易失敗，因此測試改為保留稽核紀錄與相關 actor、使用本輪識別並避免刪除受稽核外鍵保護的商家／攤位。單攤位案例僅暫停精確本機合成攤位，使用 updatedAt 比對並還原；正式稽核、權限及營業時間規則不放寬。CI 整體時限改為 120 分鐘，保留單 worker、原本單測時限、全部測試及 flaky 失敗判定。
 
 36 項表單契約與清理／執行器／fixture 聚焦測試通過，KDS 警示選取的最小瀏覽器重現通過；仍須最新版本完整 CI、配對 Preview 與正式流程讀回。外送選項測試使用 QR 的合成 session 只驗證元件；實際公開外送入口及營業時間驗收仍由配對 Preview 的真實 session／送單／DB 讀回完成。
+
+## 2026-10-03 同組 Preview 恢復驗證
+
+唯一 manual run `37103994917` 已建立 child `jwscaevupxhaolhfydtv` 和部署 `dpl_BrsgjRg4nnn2wZHXT5s8vCT1427e`，原始部署版本 `0b4e0d8c5967fed5540074c09062017d74370ca7`。173 筆 migration、隔離 pgTAP、DB lint 與 Web 建置已通過；CLI deployment listing 缺 ID 導致 capture／cleanup 失敗，瀏覽器驗收未執行，不計 PASS。
+
+恢復操作僅 `resume-manual-run`＋原 `cleanup_run_id=37103994917`，先原始 artifact owner／provider 身分讀回，再重用現有 pair；不建立、重新 migration 或部署任何新資源。原 runner expiry `2026-10-03T12:47:12.837Z` 不延長，本機監控仍採較早 `12:44:35Z`，六小時／US$1 不變。
+
+新版候選僅調整測試入口、同組恢復及 QA harness；續跑先驗證產品來源／lock 雜湊與全部 Supabase 來源相同，binding 仍以原部署 SHA/tree 產生，明示新 harness 雜湊，不能聲稱兩個完整 tree 相同。最新候選 CI／Web scope 與正式發布 Plan 仍須重新通過。新增會員真 API 撤權（session 保持有效）與 18 項部署 DB 函式跨午夜 rollback 補證；後者不是 live HTTP 真時鐘午夜切換。

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { run, ownedBranches, assertDeployment } from './manual-preview-cleanup.mjs';
 const env = { PREVIEW_RESOURCE_KEY: 'manual-123', PREVIEW_BRANCH_NAME: 'manual-123', PREVIEW_GIT_BRANCH: 'candidate', SUPABASE_PARENT_PROJECT_REF: 'parent', VERCEL_ORG_ID: 'team', VERCEL_PROJECT_ID: 'project', VERCEL_TOKEN: 'synthetic' };
 const branch = { name: 'manual-123', project_ref: 'child', with_data: false, git_branch: 'candidate' };
-const deployment = { id: 'dpl_test', projectId: 'project', target: null, meta: { stallorderPreviewResource: 'manual-123', githubCommitRef: 'candidate' } };
+const deployment = { id: 'dpl_test', url: 'owned-preview.vercel.app', projectId: 'project', target: null, meta: { stallorderPreviewResource: 'manual-123', githubCommitRef: 'candidate' } };
 function harness({ remain = false, failure = false, mismatch = false } = {}) {
   let branches = [branch], current = { ...deployment, projectId: mismatch ? 'other' : 'project' }, saved;
   const deleted = [];
@@ -69,4 +69,45 @@ test('workflow saves recoverable receipts before mutation and at paired/final st
   expect(workflow).toContain('Upload paired manual Preview deployment receipt');
   const cleanup = workflow.slice(workflow.indexOf('name: Clean exact manual Preview resources'), workflow.indexOf('\n  cleanup:'));
   expect(cleanup).toContain('always()'); expect(cleanup).not.toContain('|| true'); expect(cleanup).toContain('Upload final manual Preview cleanup or recovery receipt');
+});
+
+test('URL-only deployment listing resolves and saves provider ID before cleanup', async () => {
+  const h = harness();
+  const cli = h.adapters.cli, api = h.adapters.api;
+  const requests = [];
+  h.adapters.cli = (command, args) => command === 'npx'
+    ? JSON.stringify({ deployments: [{ url: 'owned-preview.vercel.app' }] }) : cli(command, args);
+  h.adapters.api = (method, id) => { requests.push([method, id]); return api(method, id); };
+  const receipt = await run(env, h.adapters, 'cleanup');
+  expect(requests[0]).toEqual(['GET', 'owned-preview.vercel.app']);
+  expect(requests).toContainEqual(['DELETE', 'dpl_test']);
+  expect(receipt.deployments[0].id).toBe('dpl_test');
+  expect(receipt.status).toBe('CLEANED');
+});
+
+test('URL-only identity mismatch prevents all deletion', async () => {
+  const h = harness({ mismatch: true });
+  h.adapters.cli = command => command === 'npx'
+    ? JSON.stringify({ deployments: [{ url: 'https://owned-preview.vercel.app' }] }) : JSON.stringify([branch]);
+  await expect(run(env, h.adapters, 'cleanup')).rejects.toThrow('DEPLOYMENT_IDENTITY_MISMATCH');
+  expect(h.deleted).toEqual([]);
+});
+
+test.each([{ url: 'other-preview.vercel.app' }, { id: 'not-a-deployment' }])('URL-only wrong provider URL or malformed ID prevents deletion: %j', async change => {
+  const h = harness();
+  h.adapters.cli = command => command === 'npx'
+    ? JSON.stringify({ deployments: [{ url: 'owned-preview.vercel.app' }] }) : JSON.stringify([branch]);
+  h.adapters.api = async () => ({ ...deployment, ...change });
+  await expect(run(env, h.adapters, 'cleanup')).rejects.toThrow('DEPLOYMENT_IDENTITY_MISMATCH');
+  expect(h.deleted).toEqual([]);
+  expect(h.saved.deployments).toEqual([]);
+});
+
+test.each(['evil.example', 'owned.vercel.app.evil.example', 'https://user@owned.vercel.app', 'https://owned.vercel.app/path', 'https://owned.vercel.app?token=value', 'https://owned.vercel.app:443', '//owned.vercel.app'])('invalid URL-only listing refuses provider lookup: %s', async url => {
+  const h = harness();
+  h.adapters.cli = command => command === 'npx'
+    ? JSON.stringify({ deployments: [{ url }] }) : JSON.stringify([branch]);
+  h.adapters.api = () => { throw Error('UNEXPECTED_LOOKUP'); };
+  await expect(run(env, h.adapters, 'cleanup')).rejects.toThrow('DEPLOYMENT_ID_MISSING');
+  expect(h.deleted).toEqual([]);
 });

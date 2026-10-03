@@ -79,6 +79,17 @@ export function assertInboxFixture(fixture, binding) {
   return fixture;
 }
 
+export function assertMembershipFixture(fixture, binding) {
+  if (!fixture || fixture.kind !== 'INBOX_MEMBERSHIP' || fixture.status !== 'READBACK_VERIFIED'
+    || ['resourceKey','childRef','deploymentId','sha','tree'].some(key => fixture[key] !== binding[key])
+    || fixture.organizationId !== '11111111-1111-4111-8111-111111111111' || fixture.role !== 'FINANCE_VIEWER'
+    || fixture.isPrimaryOwner !== false || fixture.email !== 'staff@stallorder.test'
+    || fixture.profileId === fixture.ownerProfileId || fixture.title !== `PR366 ${binding.resourceKey} 通知測試`
+    || ['membershipId','profileId','ownerProfileId','notificationId'].some(key => !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(fixture[key] ?? '')))
+    throw Error('MEMBERSHIP_FIXTURE_DENIED');
+  return fixture;
+}
+
 export function assertPublicQrFixture(fixture, binding) {
   if (!fixture || fixture.kind !== 'PUBLIC_QR' || fixture.status !== 'READBACK_VERIFIED'
     || fixture.resourceKey !== binding.resourceKey || fixture.childRef !== binding.childRef
@@ -661,6 +672,56 @@ export async function run(receipt, binding, outDir) {
       } finally { await staffContext.close(); }
     });
     else results.push({ name: 'staff-toolbar-and-real-cash-pos-checkout', status: 'PENDING', reason: 'EXACT_CHILD_POS_PRODUCT_AND_PRINT_OFF_READBACK_REQUIRED' });
+    if (binding.fixtures?.membership) await check('inbox-real-membership-revocation-with-valid-session', async () => {
+      const fixture = assertMembershipFixture(binding.fixtures.membership, binding);
+      const staffContext = await browser.newContext({ serviceWorkers: 'block' });
+      await staffContext.route('**/*', route => routePreviewRequest(route, origin, process.env.PREVIEW_BYPASS_SECRET));
+      const staffPage = await staffContext.newPage();
+      const query = `kind=ORGANIZATION&organizationId=${org}`;
+      const listPath = `/api/notifications?${query}`;
+      const detailPath = `/api/notifications/BILLING/${fixture.notificationId}?${query}`;
+      const readPath = `/api/notifications/BILLING/${fixture.notificationId}/read?${query}`;
+      async function request(actor, path, method = 'GET', data) {
+        assertTarget(receipt, binding);
+        const headers = { ...requestPolicy(`${origin}${path}`, origin, method, false, process.env.PREVIEW_BYPASS_SECRET).headers };
+        if (method !== 'GET') {
+          const csrf = (await actor.cookies(origin)).find(cookie => cookie.name === 'stallorder_csrf')?.value;
+          expect(csrf).toBeTruthy(); Object.assign(headers, { Origin: origin, 'x-csrf-token': csrf });
+        }
+        return actor.request.fetch(`${origin}${path}`, { method, maxRedirects: 0, headers, ...(data === undefined ? {} : { data }) });
+      }
+      try {
+        const ownerBefore = await request(context, '/api/auth/me');
+        expect(ownerBefore.status()).toBe(200); expect((await ownerBefore.json()).user.id).toBe(fixture.ownerProfileId);
+        await staffPage.goto(`${origin}/staff/login?next=${encodeURIComponent(`/notifications?${query}`)}`);
+        await staffPage.getByRole('button', { name: '使用電子郵件與密碼登入', exact: true }).click();
+        await staffPage.locator('input[name="email"]').fill(fixture.email);
+        await staffPage.locator('input[name="password"]').fill('StallOrderDemo!2026');
+        await staffPage.getByRole('button', { name: '登入', exact: true }).click();
+        await expect(staffPage).toHaveURL(`${origin}/notifications?${query}`);
+        const before = await request(staffContext, '/api/auth/me');
+        expect(before.status()).toBe(200); expect((await before.json()).user.id).toBe(fixture.profileId);
+        const list = staffPage.getByRole('region', { name: '通知列表', exact: true });
+        await list.getByRole('button').filter({ hasText: fixture.title }).click();
+        await expect(staffPage.getByRole('region', { name: '通知詳情', exact: true }).getByRole('heading', { name: fixture.title, exact: true })).toBeVisible();
+        const membershipPath = `/api/merchant/organizations/${org}/memberships/${fixture.membershipId}`;
+        const revoked = await request(context, membershipPath, 'PATCH', { role: 'FINANCE_VIEWER', isActive: false, allStalls: true });
+        expect(revoked.status()).toBe(200);
+        const after = await request(staffContext, '/api/auth/me');
+        expect(after.status()).toBe(200); expect((await after.json()).user.id).toBe(fixture.profileId);
+        for (const path of [listPath, detailPath]) expect((await request(staffContext, path)).status()).toBe(404);
+        expect((await request(staffContext, readPath, 'PATCH', {})).status()).toBe(404);
+        await staffPage.getByRole('button', { name: '套用篩選', exact: true }).click();
+        await expect(staffPage.getByText('登入或權限已變更，通知內容已清除。', { exact: true })).toBeVisible();
+        await expect(list).toBeHidden();
+        await expect(staffPage.getByRole('region', { name: '通知詳情', exact: true })).toBeHidden();
+        const ownerNotice = await request(context, detailPath);
+        expect(ownerNotice.status()).toBe(200); expect((await ownerNotice.json()).item.id).toBe(fixture.notificationId);
+        writeFileSync(resolve(outDir, 'inbox-membership-revoked.json'), JSON.stringify({ ...fixture,
+          kind: 'INBOX_MEMBERSHIP_REVOKED', status: 'API_REVOKE_VERIFIED', sessionStillValid: true,
+          ownerStillAuthorized: true, privateStateCleared: true, independentDatabaseReadback: 'PENDING' }, null, 2));
+      } finally { await staffContext.close(); }
+    }); else results.push({ name: 'inbox-real-membership-revocation-with-valid-session', status: 'PENDING', reason: 'BOUND_NON_PRIMARY_MEMBERSHIP_REQUIRED' });
     await check('inbox-real-session-revocation-clears-private-state', async () => {
       await page.goto(`${origin}/notifications?kind=ORGANIZATION&organizationId=${org}`);
       await expect(page.getByRole('region', { name: '通知列表', exact: true })).toBeVisible();
@@ -683,8 +744,9 @@ export async function run(receipt, binding, outDir) {
         requestPolicy(`${origin}/local-qa/line`, origin, 'GET', false, process.env.PREVIEW_BYPASS_SECRET).headers });
       expect(response.status()).toBe(404);
     });
-    for (const name of ['inbox-membership-revocation',
-      'public-hours-negative-and-midnight']) results.push({ name, status: 'PENDING', reason: 'BOUND_CHILD_FIXTURE_AND_ACTIONS_REQUIRED' });
+    results.push({ name: 'public-hours-negative-http-phases', status: 'PENDING', reason: 'SEPARATE_HOURS_PHASE_AND_DB_RECEIPTS_REQUIRED' });
+    results.push({ name: 'midnight-deployed-db-calendar-boundaries', status: 'PENDING', reason: 'SEPARATE_MIDNIGHT_ROLLBACK_DB_RECEIPT_REQUIRED' });
+    results.push({ name: 'live-http-clock-midnight-transition', status: 'NOT_RUN', reason: 'EXPLICIT_DB_CLOCK_PROOF_DOES_NOT_CLAIM_LIVE_HTTP_TRANSITION' });
   } finally {
     await browser.close();
     writeFileSync(resolve(outDir, 'ui-results.json'), JSON.stringify({ resourceKey: receipt.resourceKey,
