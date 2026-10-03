@@ -1,5 +1,6 @@
 import { expect, test, vi } from 'vitest';
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { assertDatabaseTarget, buildCalendarHours, createDatabaseFixtures, runDatabaseFixture, fixtureFailureCode } from './qa-pr366-preview-db-fixtures.mjs';
 import { isWithinBusinessHours } from '../src/lib/business-hours';
 const now = Date.parse('2026-10-03T10:00:00Z');
@@ -194,7 +195,9 @@ test.each(['denseSchedules', 'denseWorkforce', 'denseSupply'])('bounds %s to 13 
       stores.set(model, structuredClone(data)); return { count: data.length };
     }, findMany: async () => stores.get(model) };
   }
-  db.stallLocation = { findFirst: async () => ({ id: 'location' }) };
+  let scheduleLocation;
+  db.stallLocation = { create: async ({ data }) => { expect(saves[0].relatedIds.locationIds).toEqual([data.id]); scheduleLocation = data; },
+    findFirst: async () => scheduleLocation };
   db.stallMembership = { findFirst: async () => ({ profileId: 'staff' }) };
   db.productCategory = { findFirst: async () => ({ id: 'category' }) };
   const tool = await createDatabaseFixtures({ ...dbFixture(), now: () => now,
@@ -203,10 +206,20 @@ test.each(['denseSchedules', 'denseWorkforce', 'denseSupply'])('bounds %s to 13 
   expect(evidence.rows).toHaveLength(13);
   expect(new Set(evidence.rows.map(row => row.id)).size).toBe(13);
   expect(saves.at(-1).status).toBe('READBACK_VERIFIED');
-  if (action === 'denseSchedules') expect(stores.get('stallSchedule').every(row => !row.autoOpenEnabled && !row.autoCloseEnabled)).toBe(true);
+  if (action === 'denseSchedules') {
+    expect(stores.get('stallSchedule').every(row => !row.autoOpenEnabled && !row.autoCloseEnabled && row.locationId === scheduleLocation.id)).toBe(true);
+    expect(scheduleLocation.name).toBe('PR366 manual-123 schedule location');
+  }
   if (action === 'denseSupply') {
     expect(saves[0].relatedIds.ingredientIds).toHaveLength(13);
     expect(saves[0].relatedIds.recipeIds).toHaveLength(13);
+    const ddl = readFileSync(new URL('../supabase/migrations/20260826133000_supply_lite_foundation.sql', import.meta.url), 'utf8');
+    const codePattern = new RegExp(ddl.match(/supply_ingredients_code_check check \(code ~ '([^']+)'\)/)[1]);
+    const allowedUnits = [...ddl.match(/supply_ingredients_uom_check check \(base_uom in \(([^)]+)\)\)/)[1].matchAll(/'([^']+)'/g)].map(match => match[1]);
+    for (const ingredient of stores.get('supplyIngredient')) {
+      expect(ingredient.code).toMatch(codePattern); expect(ingredient.code.length).toBeLessThanOrEqual(40);
+      expect(allowedUnits).toContain(ingredient.baseUom);
+    }
   }
 });
 
@@ -228,6 +241,33 @@ test('missing recipe readback never persists verified supply receipt', async () 
   expect(saves).toHaveLength(1);
   expect(saves[0].status).toBe('PLANNED');
   expect(saves[0].relatedIds.recipeIds).toHaveLength(13);
+});
+
+test.each([false, true])('schedule location and 13 rows use one transaction without a seed location (fail=%s)', async fail => {
+  const { db } = mockDatabase(); const save = vi.fn(); let location; let rows = [];
+  const scope = { organizationId: '11111111-1111-4111-8111-111111111111', stallId: '22222222-2222-4222-8222-222222222222' };
+  db.stallLocation = { create: () => { throw Error('OUTSIDE_TRANSACTION'); }, findFirst: async ({ where }) => {
+    expect(where).toEqual({ ...scope, id: location.id }); return location;
+  } };
+  db.stallSchedule = { createMany: () => { throw Error('OUTSIDE_TRANSACTION'); }, findMany: async ({ where }) => {
+    expect(where).toMatchObject(scope); expect(where.id.in).toEqual(rows.map(row => row.id)); return rows;
+  } };
+  const tx = { stallLocation: { create: async ({ data }) => { expect(data).toMatchObject(scope); location = data; } },
+    stallSchedule: { createMany: async ({ data }) => {
+      expect(data).toHaveLength(13);
+      for (const row of data) expect(row).toMatchObject({ ...scope, locationId: location.id });
+      if (fail) throw Error('SCHEDULE_INSERT_FAILED'); rows = data;
+    } } };
+  db.$transaction = vi.fn(async action => { try { return await action(tx); } catch (error) { location = undefined; rows = []; throw error; } });
+  const tool = await createDatabaseFixtures({ ...dbFixture(), now: () => now, save, clientFactory: async () => db });
+  if (fail) {
+    await expect(tool.denseSchedules()).rejects.toThrow('SCHEDULE_INSERT_FAILED');
+    expect(location).toBeUndefined(); expect(rows).toEqual([]); expect(save.mock.calls.at(-1)[0].status).toBe('PLANNED');
+  } else {
+    const evidence = await tool.denseSchedules(); expect(evidence.relatedIds.locationIds).toEqual([location.id]);
+    expect(evidence.status).toBe('READBACK_VERIFIED');
+  }
+  expect(db.$transaction).toHaveBeenCalledOnce();
 });
 
 test('supply override is exact organization scoped, expires with child, and restores conditionally', async () => {
@@ -386,7 +426,10 @@ test('dedicated POS product creates one assigned product without note assignment
 test('inbox fixture does not enqueue delivery and reads only the actual personal read receipt', async () => {
   const { db } = mockDatabase(); let notification; const saves = [];
   db.billingNotification = { create: async ({ data }) => { notification = data; },
-    findFirst: async () => ({ ...notification, dismissedAt: null }) };
+    findFirst: async query => {
+      if (query.where.notificationType) expect(query.where.notificationType).toBe(notification.notificationType);
+      return { ...notification, dismissedAt: null };
+    } };
   db.notificationReadReceipt = { findFirst: async query => {
     expect(query.where.billingNotificationId).toBe(notification.id); expect(query.where.profileId).toBe('owner');
     return { id: 'personal-read', readAt: new Date(now) };
@@ -394,6 +437,10 @@ test('inbox fixture does not enqueue delivery and reads only the actual personal
   const tool = await createDatabaseFixtures({ ...dbFixture(), now: () => now,
     save: async evidence => saves.push(structuredClone(evidence)), clientFactory: async () => db });
   const evidence = await tool.inbox(); expect(evidence.status).toBe('READBACK_VERIFIED');
+  const ddl = readFileSync(new URL('../supabase/migrations/20260718233000_commercial_billing_phase1_workflows.sql', import.meta.url), 'utf8');
+  const allowed = [...ddl.match(/billing_notifications_notification_type_check check \(notification_type in \(([\s\S]+?)\)\)/)[1].matchAll(/'([^']+)'/g)].map(match => match[1]);
+  expect(allowed).toContain(notification.notificationType);
+  expect(notification.metadataJson).toEqual({ syntheticFixture: 'PR366 manual-123', providerDelivery: false });
   const read = await tool.inboxReadback(evidence); expect(read.status).toBe('UI_READ_PERSISTED');
   expect(saves[0].status).toBe('PLANNED'); expect(db.notificationOutbox).toBeUndefined();
 });

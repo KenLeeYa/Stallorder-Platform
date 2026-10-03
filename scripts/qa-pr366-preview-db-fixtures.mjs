@@ -340,8 +340,9 @@ export async function createDatabaseFixtures({ receipt, binding, databaseUrl, sa
     },
     async inbox() {
       const { owner } = await parents();
-      const row = { id: randomUUID(), organizationId: org, notificationType: 'PR366_SYNTHETIC_UI', severity: 'INFO',
+      const row = { id: randomUUID(), organizationId: org, notificationType: 'TRIAL_ENDING_7_DAYS', severity: 'INFO',
         status: 'UNREAD', title: `${marker} 通知測試`, message: '隔離介面通知，無對外傳送。',
+        metadataJson: { syntheticFixture: marker, providerDelivery: false },
         dedupeKey: `${marker}-${randomUUID()}`, createdAt: new Date(now() - 1000) };
       const evidence = { ...identity, kind: 'INBOX', status: 'PLANNED', notificationId: row.id, profileId: owner.id,
         title: row.title, source: 'BILLING', scope: { kind: 'ORGANIZATION', organizationId: org },
@@ -357,8 +358,9 @@ export async function createDatabaseFixtures({ receipt, binding, databaseUrl, sa
         || evidence.status !== 'READBACK_VERIFIED' || evidence.organizationId !== org || evidence.source !== 'BILLING') throw Error('FIXTURE_RESTORE_RECEIPT_DENIED');
       const owner = await db.profile.findFirst({ where: { id: evidence.profileId, email: 'owner@stallorder.test' } });
       const notification = await db.billingNotification.findFirst({ where: { id: evidence.notificationId, organizationId: org,
-        title: evidence.title, notificationType: 'PR366_SYNTHETIC_UI' } });
-      if (!owner || !notification) throw Error('FIXTURE_INBOX_OWNERSHIP_DENIED');
+        title: evidence.title, notificationType: 'TRIAL_ENDING_7_DAYS' } });
+      if (!owner || !notification || notification.metadataJson?.syntheticFixture !== marker
+        || notification.metadataJson?.providerDelivery !== false) throw Error('FIXTURE_INBOX_OWNERSHIP_DENIED');
       const read = await db.notificationReadReceipt.findFirst({ where: { profileId: owner.id, billingNotificationId: notification.id } });
       if (!read?.readAt) throw Error('FIXTURE_INBOX_READ_NOT_PERSISTED');
       const result = { ...evidence, status: 'UI_READ_PERSISTED', readReceiptId: read.id, readAt: read.readAt };
@@ -627,13 +629,20 @@ export async function createDatabaseFixtures({ receipt, binding, databaseUrl, sa
     },
     async denseSchedules() {
       await parents();
-      const location = await db.stallLocation.findFirst({ where: { ...where, isActive: true } });
-      if (!location) throw Error('FIXTURE_LOCATION_REQUIRED');
+      const location = { id: randomUUID(), ...where, name: `${marker} schedule location`, address: '隔離測試專用地點', isActive: true };
       const rows = Array.from({ length: 13 }, (_, index) => ({ id: randomUUID(), ...where, locationId: location.id,
         startsAt: new Date(now() + (index + 30) * 86400000), endsAt: new Date(now() + (index + 30) * 86400000 + 3600000),
         specialNotice: `${marker} schedule ${index + 1}`, autoOpenEnabled: false, autoCloseEnabled: false }));
-      return batch('DENSE_SCHEDULE', rows, tx => tx.stallSchedule.createMany({ data: rows }),
-        () => db.stallSchedule.findMany({ where: { ...where, id: { in: rows.map(row => row.id) } } }));
+      return batch('DENSE_SCHEDULE', rows, async tx => {
+        await tx.stallLocation.create({ data: location }); await tx.stallSchedule.createMany({ data: rows });
+      }, async () => {
+        const actualLocation = await db.stallLocation.findFirst({ where: { ...where, id: location.id } });
+        if (!actualLocation || actualLocation.name !== location.name || actualLocation.address !== location.address
+          || !actualLocation.isActive) throw Error('FIXTURE_LOCATION_READBACK_FAILED');
+        const actual = await db.stallSchedule.findMany({ where: { ...where, id: { in: rows.map(row => row.id) } } });
+        if (actual.some(row => row.organizationId !== org || row.stallId !== stall || row.locationId !== location.id)) throw Error('FIXTURE_SCHEDULE_LOCATION_READBACK_FAILED');
+        return actual;
+      }, { locationIds: [location.id] });
     },
     async denseWorkforce() {
       const { owner } = await parents();
@@ -652,8 +661,8 @@ export async function createDatabaseFixtures({ receipt, binding, databaseUrl, sa
       if (!category) throw Error('FIXTURE_CATEGORY_REQUIRED');
       const products = Array.from({ length: 13 }, (_, i) => ({ id: randomUUID(), organizationId: org, categoryId: category.id,
         name: `${marker} recipe ${i + 1}`, description: '隔離介面合成資料', defaultPrice: 100, isActive: true, sortOrder: 9000 + i }));
-      const ingredients = products.map((product, i) => ({ id: randomUUID(), organizationId: org, code: `pr366-${receipt.resourceKey}-${i}`,
-        name: product.name, baseUom: 'g', createdByProfileId: owner.id }));
+      const ingredients = products.map((product, i) => ({ id: randomUUID(), organizationId: org, code: `PR366-${receipt.resourceKey}-${i}`.toUpperCase(),
+        name: product.name, baseUom: 'G', createdByProfileId: owner.id }));
       const recipes = products.map((product, i) => ({ id: randomUUID(), organizationId: org, productId: product.id,
         ingredientId: ingredients[i].id, quantityMicros: 1000000n, createdByProfileId: owner.id }));
       const evidence = await batch('DENSE_SUPPLY', products, async tx => {
