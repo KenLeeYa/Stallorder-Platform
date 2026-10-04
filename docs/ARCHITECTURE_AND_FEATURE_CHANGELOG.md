@@ -193,3 +193,7 @@ Product behavior and bounded verification: [UI and order guard receipt](awesome-
 ### 2026-10-04 PR366-MSI-LOCAL-ACCEPTANCE-003 — local candidate; not released
 
 Fresh owned loopback Compose API/DB 54321/54322: 173 migrations, synthetic fixtures, core Playwright 234 passed/64 explicit skips/0 failed. Dedicated guarded 55721/55722 toggle suite: 14 passed. The preview lifecycle login regression passed. The Windows coordinator uses a native FileStream exclusive lock helper; focused tests 13 passed. See [MSI validation addendum](releases/PR366_CLOUD_HARNESS_20261004.md) and the task-level PR366_MSI_VALIDATION_20261004.md. No live provider integration, paid pair, Production/DR deployment, release merge, or exception extension. Full Windows unit and release gates remain separate evidence.
+
+### 2026-10-04 PR366-CLOUD-HARNESS-003 — local security follow-up; not released
+
+CodeQL on PR366 commit `51aa30ed` identified a new state-file check/read race in the offline pair store. The read now binds file type, size and content to one open handle, with no-follow on POSIX and a Windows path/link identity check. Focused coordinator tests passed; remote CodeQL and all prior tracked alerts remain release gates. See [PR366 harness evidence](releases/PR366_CLOUD_HARNESS_20261004.md).

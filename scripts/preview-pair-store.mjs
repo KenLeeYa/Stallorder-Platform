@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, lstat, realpath, readFile, open, rename, unlink } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { mkdir, lstat, realpath, open, rename, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
@@ -74,10 +75,20 @@ function validate(state) {
 export async function readState(directory, guard) {
   const path = await pathFor(directory, guard);
   try {
-    const info = await lstat(path);
-    if (!info.isFile() || info.isSymbolicLink() || info.size > 1024 * 1024) invalid();
-    const state = validate(JSON.parse(await readFile(path, 'utf8')));
-    guard.assertHeld(); return state;
+    // Check and read the same open inode, so a path replacement cannot change
+    // the bytes between validation and parsing.
+    const handle = await open(path, process.platform === 'win32' ? 'r' : constants.O_RDONLY | constants.O_NOFOLLOW);
+    try {
+      const info = await handle.stat();
+      if (!info.isFile() || info.size > 1024 * 1024) invalid();
+      if (process.platform === 'win32') {
+        // Windows lacks O_NOFOLLOW. Reject links and path swaps after opening.
+        const named = await lstat(path);
+        if (named.isSymbolicLink() || named.dev !== info.dev || named.ino !== info.ino) invalid();
+      }
+      const state = validate(JSON.parse(await handle.readFile('utf8')));
+      guard.assertHeld(); return state;
+    } finally { await handle.close(); }
   } catch (error) {
     if (error.code === 'ENOENT') throw Error('PREVIEW_STATE_MISSING');
     if (error.message === 'PREVIEW_LOCK_LOST') throw error;
