@@ -18,13 +18,20 @@ export function assertDeployment(row, env) {
     || row.meta?.stallorderPreviewResource !== env.PREVIEW_RESOURCE_KEY
     || row.meta?.githubCommitRef !== env.PREVIEW_GIT_BRANCH) throw Error('DEPLOYMENT_IDENTITY_MISMATCH');
 }
+function approvedExpiry(env, now) {
+  if (env.PREVIEW_GIT_BRANCH !== 'codex/integrated-production-20261002') return new Date(now.getTime() + 6 * 3600000);
+  if (env.PREVIEW_APPROVED_DEADLINE_UTC !== '2026-10-04T15:30:00Z') throw Error('PREVIEW_APPROVED_DEADLINE_INVALID');
+  const deadline = new Date(env.PREVIEW_APPROVED_DEADLINE_UTC);
+  if (now >= deadline) throw Error('PREVIEW_APPROVAL_EXPIRED');
+  return new Date(Math.min(now.getTime() + 3 * 3600000, deadline.getTime()));
+}
 export async function run(env, { cli, api, save, previous, now = new Date() }, operation) {
   if (!['capture', 'cleanup'].includes(operation)) throw Error('PREVIEW_OPERATION_INVALID');
   assertOwner(env);
   const receipt = previous ?? { resourceKey: env.PREVIEW_RESOURCE_KEY, branchName: env.PREVIEW_BRANCH_NAME,
     gitBranch: env.PREVIEW_GIT_BRANCH, parent: env.SUPABASE_PARENT_PROJECT_REF,
     team: env.VERCEL_ORG_ID ?? null, project: env.VERCEL_PROJECT_ID ?? null,
-    createdAt: now.toISOString(), expiresAt: new Date(now.getTime() + 6 * 3600000).toISOString(), branches: [], deployments: [] };
+    createdAt: now.toISOString(), expiresAt: approvedExpiry(env, now).toISOString(), branches: [], deployments: [] };
   if (receipt.resourceKey !== env.PREVIEW_RESOURCE_KEY || receipt.parent !== env.SUPABASE_PARENT_PROJECT_REF
     || receipt.gitBranch !== env.PREVIEW_GIT_BRANCH || receipt.team !== (env.VERCEL_ORG_ID ?? null)
     || receipt.project !== (env.VERCEL_PROJECT_ID ?? null)) throw Error('RECEIPT_IDENTITY_MISMATCH');
