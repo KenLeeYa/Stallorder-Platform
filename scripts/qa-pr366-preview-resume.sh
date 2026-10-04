@@ -15,7 +15,7 @@ trap resume_cleanup EXIT
 node scripts/pr366-preview-resume-source.mjs verify "$original_dir"
 ln -s "$root/node_modules" "$original_dir/node_modules"
 ln -s "$root/.preview-receipt" "$original_dir/.preview-receipt"
-for file in qa-pr366-preview-ui.mjs qa-pr366-preview-db-fixtures.mjs; do cp "$root/scripts/$file" "$original_dir/scripts/$file"; done
+for file in qa-pr366-preview-ui.mjs qa-pr366-preview-db-fixtures.mjs preview-harness-preflight.mjs; do cp "$root/scripts/$file" "$original_dir/scripts/$file"; done
 config="$(supabase branches get "$PREVIEW_BRANCH_NAME" --project-ref "$SUPABASE_PARENT_PROJECT_REF" --output json --log-level error)"
 raw_url="$(jq -r '.POSTGRES_URL' <<<"$config")"
 for value in "$(jq -r '.SUPABASE_ANON_KEY' <<<"$config")" "$(jq -r '.SUPABASE_SERVICE_ROLE_KEY // empty' <<<"$config")" "$raw_url"; do [ -z "$value" ] || echo "::add-mask::$value"; done

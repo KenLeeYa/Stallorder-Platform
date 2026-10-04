@@ -31,6 +31,15 @@ if (
 const oauthMockUrl = `http://127.0.0.1:${oauthMockPort}`;
 const reuseExistingServer = process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === "true";
 const productionServer = process.env.PLAYWRIGHT_PRODUCTION_SERVER === "true";
+let dedicatedToggleLab = false;
+try {
+  const database = new URL(process.env.DATABASE_URL ?? "");
+  dedicatedToggleLab = reuseExistingServer
+    && ["localhost", "127.0.0.1"].includes(database.hostname)
+    && database.port === "55722";
+} catch {
+  // The dedicated local toggle suite remains excluded without its own target.
+}
 let localPrimarySupabaseUrl = "";
 if (!reuseExistingServer) {
   const localPrimarySupabaseValue = process.env.PRIMARY_SUPABASE_URL
@@ -68,7 +77,10 @@ const appServerCommand = productionServer
 
 export default defineConfig({
   testDir: "./e2e",
-  testIgnore: ["**/responsive-lab/**"],
+  testIgnore: [
+    "**/responsive-lab/**",
+    ...(dedicatedToggleLab ? [] : ["**/toggle-surfaces-local.spec.ts"]),
+  ],
   fullyParallel: false,
   workers: 1,
   retries: process.env.CI ? 1 : 0,

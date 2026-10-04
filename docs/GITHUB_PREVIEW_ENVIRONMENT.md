@@ -137,3 +137,10 @@ gh variable delete VERCEL_PROJECT_ID `
 
 再到 Vercel Tokens 頁面撤銷 `stallorder-github-preview`。保留 Supabase
 設定時，工作流程仍會執行資料庫與建置驗證，但會跳過 Vercel cloud smoke。
+
+## PR366 雲端 harness 與重用原型（2026-10-04）
+
+[雲端驗證與MSI接手紀錄](releases/PR366_CLOUD_HARNESS_20261004.md) 說明語系、必要設定、部署座標、合成cash-shift及安全關閉的本地修正。`node scripts/preview-pair-reuse.mjs --dry-run` 只執行離線同pair／budget／deadline／cleanup狀態機，不連線provider、不建立資源，也不接受live開關。live保留／重用尚未接線；現有always-cleanup、監控與歷史期限保持原狀。不得以此文件、範例或旧批准當作新增費用、延長保留或新憑證授權。
+
+
+同日續作新增 `preview-pair-coordinator.mjs --dry-run demo <new-directory>` 與獨立 `--dry-run cleanup <directory>`，以mock provider contract、同主機OS鎖及atomic revision/CAS保存reservation和清理證據。仍無live transport／保留開關，不使用原resume舊批准。MSI須另驗Windows lock及完整DB/E2E；audit exception仍於2026-10-04 16:00UTC到期。

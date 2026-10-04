@@ -180,3 +180,16 @@ Product behavior and bounded verification: [UI and order guard receipt](awesome-
 第三組補充：`19ceb366` 完整 CI 通過，但 run37146767008 的 cash-shift browser 前置仍 INCOMPLETE，pending route.fetch shutdown error 掩蓋原錯誤。QA harness 固定繁中 context／cookie、脫敏 route failure、清理順序及失敗階段收據；workflow 遮罩 normalized bypass，保留所有真登入與結果斷言、來源／redirect 邊界。精確第三 child／deployment 已清理，意外出現在公開 log 的 bypass 已撤銷，公開 log 已移除，Primary／SSO 保護未變。工具修正候選待重新驗證，正式／DR 未發布；第四組／新 bypass 未授權。
 
 工具修正補充驗證：37 聚焦測試與真 Chromium loopback 回歸1項 PASS，新增標準 E2E `preview-harness-lifecycle.spec.ts` 防止語系及 pending HEAD／SSE shutdown 再次失敗。最初75秒 probe FAIL 保留；受控關閉只接受自身 closing 的精確 disposal，其他失敗仍阻擋。沒有新增 Docker／provider 資源，完整最新來源 CI 與 hosted／正式驗收仍待執行。
+
+### 2026-10-04 PR366-CLOUD-HARNESS-001 — local candidate; reuse prototype only; not released
+
+於精確 `89bb30e58` 隔離 worktree 修正 runner 注入繁中導致英文對照失敗，補齊 hosted 設定／deployment coordinates、合成 cash-shift 身分讀回與 browser 初始化失敗關閉；不變更應用程式或DB。新增離線同pair重用狀態機與budget/deadline/identity/forced-cleanup模擬，live adapter與可信持久化／跨程序鎖尚未實作，未啟用保留模式。完整unit4481 PASS／106 skipped、loopback1 PASS、types/lint/build及guardrails通過；本機Supabase拉取解壓峰值耗盡餘裕而停止，DB／App E2E未跑，Hosted／正式／DR未操作。詳見 [雲端證據、限制與MSI接手](releases/PR366_CLOUD_HARNESS_20261004.md)。無第四pair／新bypass／付費期限批准，不更新現有cleanup監控或舊批准期限。
+
+
+### 2026-10-04 PR366-CLOUD-HARNESS-002 — local mock coordinator; live still disabled
+
+接續001補齊精確provider read/remove contract（只接受原生mock）、同canonical directory的OS lock、atomic persistence/checksum、revision CAS與不可倒退預算／不可改attempt歷史。真兩程序同revision竞争與SIGKILL後uncertain RUNNING復原、partial cleanup及independent retry共29項聚焦PASS；不以本機lock當跨host lease，Windows鎖與真provider尚未驗證。詳見 [續作證據及限制](releases/PR366_CLOUD_HARNESS_20261004.md)。001的「尚未實作跨程序鎖」由此本機範圍結果補充；live provider transport、可信批准、MSI完整DB/E2E/resilience及發布仍未完成。audit exception維持2026-10-04 16:00UTC到期，不延長；無push、遠端provider或Production/DR寫入。
+
+### 2026-10-04 PR366-MSI-LOCAL-ACCEPTANCE-003 — local candidate; not released
+
+Fresh owned loopback Compose API/DB 54321/54322: 173 migrations, synthetic fixtures, core Playwright 234 passed/64 explicit skips/0 failed. Dedicated guarded 55721/55722 toggle suite: 14 passed. The preview lifecycle login regression passed. The Windows coordinator uses a native FileStream exclusive lock helper; focused tests 13 passed. See [MSI validation addendum](releases/PR366_CLOUD_HARNESS_20261004.md) and the task-level PR366_MSI_VALIDATION_20261004.md. No live provider integration, paid pair, Production/DR deployment, release merge, or exception extension. Full Windows unit and release gates remain separate evidence.

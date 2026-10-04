@@ -142,7 +142,11 @@ jobs:
           VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
           PREVIEW_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
+          if [ "$PREVIEW_GIT_BRANCH" = "codex/integrated-production-20261002" ]; then
+            node scripts/preview-harness-preflight.mjs settings
+          fi
           if [ -n "${VERCEL_TOKEN:-}" ] \
             && [ -n "${VERCEL_ORG_ID:-}" ] \
             && [ -n "${VERCEL_PROJECT_ID:-}" ]; then
@@ -718,6 +722,14 @@ jobs:
 
           echo "deployment_id=$deployment_id" >> "$GITHUB_OUTPUT"
           echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
+
+      - name: Verify captured Preview deployment coordinates
+        if: steps.vercel-preview.outputs.deployment_id != ''
+        env:
+          CAPTURED_DEPLOYMENT_ID: ${{ steps.vercel-preview.outputs.deployment_id }}
+          CAPTURED_DEPLOYMENT_URL: ${{ steps.vercel-preview.outputs.url }}
+        run: |
+          node -e 'process.stdout.write(JSON.stringify({id:process.env.CAPTURED_DEPLOYMENT_ID,url:process.env.CAPTURED_DEPLOYMENT_URL}))' | node scripts/preview-harness-preflight.mjs deployment
 
       - name: Capture exact manual Vercel deployment for recovery
         if: github.event_name == 'workflow_dispatch' && steps.vercel-auth.outputs.enabled == 'true'

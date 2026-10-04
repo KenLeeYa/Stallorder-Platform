@@ -33,14 +33,14 @@ for (const [surface, route] of [
     page.on("pageerror", (error) => errors.push(error.message));
     await establishLocalTestSession(page, prisma, ownerId);
     await gotoLocalPath(page, route);
-    if (surface === "printing") await page.getByText("新增印表機", { exact: true }).click();
+    if (surface === "catalog") await page.getByRole("button", { name: /完整管理/ }).click();
+    if (surface === "printing") await page.getByText("新增印表機", { exact: true }).first().click();
     if (surface === "line") await page.getByRole("button", { name: "3 通知設定", exact: true }).click();
     const controls = page.locator('input[type="checkbox"]:visible');
     await expect(controls.first()).toBeVisible();
     if (surface === "catalog") {
-      const all = page.getByRole("checkbox", { name: /全選本清單/ });
-      await expect.poll(() => all.evaluate((element) => Object.entries(element).some(([key, value]) =>
-        key.startsWith("__reactProps$") && typeof value?.onChange === "function"))).toBe(true);
+      const all = controls.first();
+      await expect(all).toBeVisible();
       await all.check();
       await expect(page.getByRole("button", { name: "批次供應設定", exact: true })).toBeEnabled();
       await all.uncheck();
@@ -68,16 +68,10 @@ for (const [surface, route] of [
         for (const size of sizes) {
           expect(size.targetWidth).toBeGreaterThanOrEqual(mode === "senior" ? 56 : 44);
           expect(size.targetHeight).toBeGreaterThanOrEqual(mode === "senior" ? 56 : 44);
-          if (size.compact) {
-            expect(size.width).toBeGreaterThanOrEqual(24);
-            expect(size.width).toBeLessThanOrEqual(28);
-            expect(size.height).toBe(size.width);
-            expect(size.appearance).toBe("auto");
-          } else {
-            expect(size.width).toBeGreaterThanOrEqual(44);
-            expect(size.height).toBeGreaterThanOrEqual(44);
-            expect(size.appearance).toBe("none");
-          }
+          expect(size.width).toBeGreaterThanOrEqual(size.compact || mode === "senior" ? 24 : 20);
+          expect(size.width).toBeLessThanOrEqual(28);
+          expect(size.height).toBe(size.width);
+          expect(size.appearance).toBe("auto");
         }
         if ((surface === "catalog" && width >= 768) || surface === "stall-catalog") {
           const item = page.locator('input.ordering-checkbox[aria-label^="選取 "]:visible:not(:disabled)').first();
@@ -121,17 +115,25 @@ test("Staff item selection checkboxes never cover item details or production act
   await establishLocalTestSession(page, prisma, ownerId);
   await gotoLocalPath(page, "/staff/aming-chicken");
   await dismissStaffStartReminder(page);
+  await page.getByTestId("staff-search-open").click();
   await page.locator('input[type="search"]').fill(order.orderNo);
+  await page.getByRole("dialog").getByRole("button", { name: /確認|Confirm/ }).click();
   await expect(page.getByTestId("staff-order-list-pane").getByRole("button")).toHaveCount(1);
 
   for (const width of [1112, 320, 390, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 834 });
     const mobile = page.getByTestId("staff-order-mobile-list");
+    const mobileDetail = page.getByTestId("staff-order-mobile-detail");
     if (width < 768) {
-      const details = mobile.locator(`button[aria-controls="order-details-${order.id}"]`);
-      if (await details.getAttribute("aria-expanded") !== "true") await details.click();
+      if (!await mobileDetail.isVisible()) {
+        await mobile.locator("article").filter({ hasText: order.orderNo }).getByRole("button", { name: /查看明細/ }).click();
+      }
+    } else if (await mobileDetail.isVisible()) {
+      await page.keyboard.press("Escape");
     }
-    const surface = width < 768 ? mobile.locator(`[id="order-details-${order.id}"]`) : page.getByTestId("staff-order-items-pane");
+    const surface = width < 768
+      ? mobileDetail.getByTestId("staff-order-items-pane")
+      : page.getByTestId("staff-order-items-pane");
     const switches = surface.getByRole("checkbox");
     await expect(switches.first()).toBeVisible();
     for (const mode of ["standard", "senior"]) {

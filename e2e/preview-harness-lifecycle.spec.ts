@@ -32,7 +32,9 @@ test("Preview harness fixes login locale and safely settles owned pending HEAD a
   let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
   try {
     browser = await chromium.launch();
-    const defaultContext = await browser.newContext();
+    // The Playwright runner also applies its zh-TW defaults to manual contexts.
+    // Make the negative control explicit so standalone and CI runs agree.
+    const defaultContext = await browser.newContext({ locale: "en-US" });
     const defaultPage = await defaultContext.newPage(); await defaultPage.goto(origin);
     await expect(defaultPage.getByRole("button", { name: "Sign in with email and password", exact: true })).toBeVisible();
     await expect(defaultPage.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true })).toHaveCount(0);

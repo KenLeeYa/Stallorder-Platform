@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { validateHeaderValue } from 'node:http';
+import { assertCashShift } from './preview-harness-preflight.mjs';
 
 // A coordinator-produced provider readback is required; never infer a child from a URL.
 export function assertTarget(receipt, binding, now = Date.now()) {
@@ -77,6 +78,21 @@ function previewRouteFailureCode(error) {
 }
 
 const previewRouteStates = new WeakMap();
+
+export async function launchPreviewBrowser(chromium, origin, bypassSecret) {
+  let browser;
+  try {
+    normalizePreviewBypassSecret(bypassSecret);
+    browser = await chromium.launch();
+    const context = await createPreviewContext(browser, origin, bypassSecret);
+    return { browser, context };
+  } catch {
+    if (browser) {
+      try { await shutdownPreviewBrowser(browser); } catch { /* Preserve safe setup failure. */ }
+    }
+    throw Error('PREVIEW_BROWSER_SETUP_FAILED');
+  }
+}
 
 export async function createPreviewContext(browser, origin, bypassSecret) {
   const context = await browser.newContext({ serviceWorkers: 'block', locale: 'zh-TW' });
@@ -204,7 +220,7 @@ export async function runPreorderPhase(receipt, binding, outDir) {
   const qr = assertPublicQrFixture(JSON.parse(readFileSync(resolve(privateDir, 'fixture-public-qr.json'), 'utf8')), binding).qrs.find(row => row.mode === 'DEFAULT');
   const product = assertCatalogFixture({ ...binding.fixtures.pos, originalName: binding.fixtures.pos?.name }, binding);
   const { chromium, expect } = await import('@playwright/test');
-  const browser = await chromium.launch(); const context = await createPreviewContext(browser, origin, process.env.PREVIEW_BYPASS_SECRET);
+  const { browser, context } = await launchPreviewBrowser(chromium, origin, process.env.PREVIEW_BYPASS_SECRET);
 
   const deviceId = randomUUID(), orderId = randomUUID();
   const evidence = { resourceKey: receipt.resourceKey, childRef: binding.childRef, deploymentId: binding.deploymentId,
@@ -281,7 +297,7 @@ export async function runHoursPhase(receipt, binding, outDir, phase) {
   const state = opening ? { ...identity, status: 'PREPARING', modes: [] } : JSON.parse(readFileSync(handoffPath, 'utf8'));
   if (Object.entries(identity).some(([key, value]) => state[key] !== value)
     || (!opening && (state.status !== (phase === 'hours-cutoff' ? 'OVERNIGHT_VERIFIED' : 'OPEN_VERIFIED') || state.modes?.length !== 2))) throw Error('HOURS_HANDOFF_DENIED');
-  const browser = await chromium.launch(); const context = await createPreviewContext(browser, origin, process.env.PREVIEW_BYPASS_SECRET);
+  const { browser, context } = await launchPreviewBrowser(chromium, origin, process.env.PREVIEW_BYPASS_SECRET);
 
   const evidence = { ...identity, phase, status: 'INCOMPLETE', results: [], orderIds: state.modes.map(mode => mode.orderId), complete: false,
     turnstile: 'OFFICIAL_TEST_KEY_ONLY', pending: ['EXACT_MIDNIGHT_BOUNDARY_FUTURE_PREORDER_DEVICE_UI'] };
@@ -365,7 +381,7 @@ export async function runHoursPhase(receipt, binding, outDir, phase) {
 export async function runCashShiftPhase(receipt, binding, outDir) {
   const origin = assertTarget(receipt, binding);
   const { chromium, expect } = await import('@playwright/test');
-  const browser = await chromium.launch(); const context = await createPreviewContext(browser, origin, process.env.PREVIEW_BYPASS_SECRET);
+  const { browser, context } = await launchPreviewBrowser(chromium, origin, process.env.PREVIEW_BYPASS_SECRET);
 
   mkdirSync(outDir, { recursive: true });
   const evidence = { resourceKey: receipt.resourceKey, childRef: binding.childRef, deploymentId: binding.deploymentId, sha: binding.sha, tree: binding.tree,
@@ -381,7 +397,8 @@ export async function runCashShiftPhase(receipt, binding, outDir) {
     stage = 'CASH_SHIFT_BEFORE_READBACK';
     const headers = requestPolicy(origin, origin, 'GET', false, process.env.PREVIEW_BYPASS_SECRET).headers;
     const before = await context.request.get(`${origin}/api/stalls/aming-chicken/cash-shifts`, { headers, maxRedirects: 0 });
-    expect(before.status()).toBe(200); expect((await before.json()).openShift).toBeNull();
+    expect(before.status()).toBe(200);
+    if ((await before.json()).openShift !== null) throw Error('PREVIEW_CASH_SHIFT_ALREADY_OPEN');
     stage = 'CASH_SHIFT_FORM';
     await page.getByRole('button', { name: '開始現金班次', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: '開啟現金班次', exact: true });
@@ -395,8 +412,7 @@ export async function runCashShiftPhase(receipt, binding, outDir) {
     stage = 'CASH_SHIFT_AFTER_READBACK';
     const after = await context.request.get(`${origin}/api/stalls/aming-chicken/cash-shifts`, { headers, maxRedirects: 0 });
     expect(after.status()).toBe(200); const shift = (await after.json()).openShift;
-    expect(shift).toMatchObject({ status: 'OPEN', openingAmount: 1000 });
-    evidence.cashShiftId = shift.id; evidence.status = 'READBACK_VERIFIED';
+    evidence.cashShiftId = assertCashShift(shift, receipt.resourceKey); evidence.status = 'READBACK_VERIFIED';
   } catch (error) {
     evidence.status = 'FAIL'; evidence.failure = sanitizedCaseFailure(error, stage);
     if (page) {
@@ -422,10 +438,9 @@ export async function runCashShiftPhase(receipt, binding, outDir) {
 export async function run(receipt, binding, outDir) {
   const origin = assertTarget(receipt, binding);
   const { chromium, expect } = await import('@playwright/test');
-  const browser = await chromium.launch();
+  const { browser, context } = await launchPreviewBrowser(chromium, origin, process.env.PREVIEW_BYPASS_SECRET);
   const results = [];
   mkdirSync(outDir, { recursive: true });
-  const context = await createPreviewContext(browser, origin, process.env.PREVIEW_BYPASS_SECRET);
   const page = await context.newPage();
   // Fetch redirects individually so credentials cannot follow an unreviewed origin.
 

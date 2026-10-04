@@ -192,3 +192,12 @@ test.each([
   expect(sanitizedCaseFailure({ name: 'TimeoutError', message }, 'STAFF_PASSWORD_LOGIN'))
     .toEqual({ stage: 'STAFF_PASSWORD_LOGIN', code: 'PREVIEW_UI_TIMEOUT' });
 });
+
+test('context setup failure closes the launched browser and never exposes raw errors', async () => {
+  const { launchPreviewBrowser } = await import('./qa-pr366-preview-ui.mjs');
+  const context = { addCookies: vi.fn(async () => { throw Error('private cookie'); }), close: vi.fn(), unrouteAll: vi.fn() };
+  const browser = { newContext: vi.fn(async () => context), contexts: () => [context], close: vi.fn() };
+  await expect(launchPreviewBrowser({ launch: async () => browser }, 'https://isolated.vercel.app', 'synthetic'))
+    .rejects.toThrow(/^PREVIEW_BROWSER_SETUP_FAILED$/);
+  expect(context.close).toHaveBeenCalled(); expect(browser.close).toHaveBeenCalled();
+});
