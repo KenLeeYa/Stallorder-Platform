@@ -1063,6 +1063,7 @@ jobs:
         with:
           node-version: 24
       - name: Verify actual Preview required-reviewers protection
+        id: preview-approval
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/awesome-optimization/preview-approval.mjs
@@ -1109,7 +1110,7 @@ jobs:
           cleanup_start_ms="$(node scripts/manual-preview-deadline-watch.mjs .manual-watch/initial/manual-resources.json)"
           while [ "$(date -u +%s%3N)" -lt "$cleanup_start_ms" ]; do sleep 20; done
       - name: Independently clean and read back only the original manual run resources
-        if: always() && steps.watch-ready.outcome == 'success'
+        if: always() && steps.preview-approval.outcome == 'success' && steps.watch-ready.outcome == 'success'
         shell: bash
         run: |
           mkdir -p .manual-recovery
@@ -1118,7 +1119,7 @@ jobs:
           node scripts/manual-preview-recovery.mjs .manual-recovery/source-run.json .manual-recovery
           node scripts/manual-preview-cleanup.mjs cleanup
       - name: Preserve independent deadline cleanup evidence
-        if: always() && steps.watch-ready.outcome == 'success'
+        if: always() && steps.preview-approval.outcome == 'success' && steps.watch-ready.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: manual-preview-watch-final-${{ inputs.cleanup_run_id }}-${{ github.run_id }}
