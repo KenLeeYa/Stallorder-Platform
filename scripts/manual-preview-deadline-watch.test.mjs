@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { approvedWatchExpiry } from './manual-preview-deadline-watch.mjs';
+import { approvedWatchExpiry, cleanupStartMs } from './manual-preview-deadline-watch.mjs';
 
 const expected = { sourceRunId: '123', parent: 'parent', team: 'team', project: 'project',
   branch: 'codex/integrated-production-20261002', now: new Date('2026-10-04T12:15:00Z') };
@@ -8,6 +8,7 @@ const receipt = { resourceKey: 'manual-123', branchName: 'manual-123', gitBranch
 
 test('watcher binds exact source identity and three-hour deadline', () => {
   expect(approvedWatchExpiry(receipt, expected)).toBe(Date.parse(receipt.expiresAt));
+  expect(cleanupStartMs(Date.parse(receipt.expiresAt))).toBe(Date.parse('2026-10-04T14:50:00Z'));
   expect(approvedWatchExpiry({ ...receipt, createdAt: '2026-10-04T13:00:00.000Z', expiresAt: '2026-10-04T15:30:00.000Z' }, expected))
     .toBe(Date.parse('2026-10-04T15:30:00Z'));
 });

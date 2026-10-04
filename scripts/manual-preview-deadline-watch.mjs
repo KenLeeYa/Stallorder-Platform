@@ -15,15 +15,20 @@ export function approvedWatchExpiry(receipt, { sourceRunId, parent, team, projec
   return expiry.getTime();
 }
 
+export function cleanupStartMs(expiryMs) {
+  if (!Number.isFinite(expiryMs)) throw Error('PREVIEW_WATCH_DEADLINE_INVALID');
+  return expiryMs - 10 * 60000;
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   try {
     const receipt = JSON.parse(readFileSync(process.argv[2], 'utf8'));
-    console.log(approvedWatchExpiry(receipt, {
+    console.log(cleanupStartMs(approvedWatchExpiry(receipt, {
       sourceRunId: process.env.CLEANUP_RUN_ID,
       parent: process.env.SUPABASE_PARENT_PROJECT_REF,
       team: process.env.VERCEL_ORG_ID,
       project: process.env.VERCEL_PROJECT_ID,
       branch: process.env.PREVIEW_GIT_BRANCH,
-    }));
+    })));
   } catch { console.error('PREVIEW_WATCH_RECEIPT_INVALID'); process.exitCode = 1; }
 }

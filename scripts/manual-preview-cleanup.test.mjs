@@ -39,6 +39,7 @@ test('PR366 manual receipt expires at the earlier of three hours and the approve
   const second = await run(approved, { ...h.adapters, now: new Date('2026-10-04T13:00:00Z') }, 'capture');
   expect(second.expiresAt).toBe('2026-10-04T15:30:00.000Z');
   await expect(run(approved, { ...h.adapters, now: new Date('2026-10-04T15:30:00Z') }, 'capture')).rejects.toThrow('PREVIEW_APPROVAL_EXPIRED');
+  await expect(run(approved, { ...h.adapters, now: new Date('2026-10-04T14:30:00Z') }, 'capture')).rejects.toThrow('PREVIEW_APPROVAL_WINDOW_TOO_SHORT');
   await expect(run({ ...approved, PREVIEW_APPROVED_DEADLINE_UTC: '2026-10-04T16:00:00Z' }, h.adapters, 'capture')).rejects.toThrow('PREVIEW_APPROVED_DEADLINE_INVALID');
 });
 test('provider deletion failure saves sanitized exact recovery receipt and fails', async () => {

@@ -23,7 +23,9 @@ function approvedExpiry(env, now) {
   if (env.PREVIEW_APPROVED_DEADLINE_UTC !== '2026-10-04T15:30:00Z') throw Error('PREVIEW_APPROVED_DEADLINE_INVALID');
   const deadline = new Date(env.PREVIEW_APPROVED_DEADLINE_UTC);
   if (now >= deadline) throw Error('PREVIEW_APPROVAL_EXPIRED');
-  return new Date(Math.min(now.getTime() + 3 * 3600000, deadline.getTime()));
+  const expiry = new Date(Math.min(now.getTime() + 3 * 3600000, deadline.getTime()));
+  if (expiry.getTime() - now.getTime() < 75 * 60000) throw Error('PREVIEW_APPROVAL_WINDOW_TOO_SHORT');
+  return expiry;
 }
 export async function run(env, { cli, api, save, previous, now = new Date() }, operation) {
   if (!['capture', 'cleanup'].includes(operation)) throw Error('PREVIEW_OPERATION_INVALID');

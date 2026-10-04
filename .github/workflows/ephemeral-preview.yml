@@ -1106,8 +1106,8 @@ jobs:
           test "$found" = true || { echo "::error::PREVIEW_INITIAL_RECEIPT_MISSING"; exit 1; }
           mkdir -p .manual-watch/initial
           gh run download "$CLEANUP_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$name" --dir .manual-watch/initial
-          expiry_ms="$(node scripts/manual-preview-deadline-watch.mjs .manual-watch/initial/manual-resources.json)"
-          while [ "$(date -u +%s%3N)" -lt "$expiry_ms" ]; do sleep 20; done
+          cleanup_start_ms="$(node scripts/manual-preview-deadline-watch.mjs .manual-watch/initial/manual-resources.json)"
+          while [ "$(date -u +%s%3N)" -lt "$cleanup_start_ms" ]; do sleep 20; done
       - name: Independently clean and read back only the original manual run resources
         if: always() && steps.watch-ready.outcome == 'success'
         shell: bash
