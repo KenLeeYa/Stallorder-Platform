@@ -49,3 +49,20 @@ Five flagged writes already have exclusive-create semantics. The remaining reads
 ## Remaining status
 
 All 18 annotations remain undisposed in this review. False-positive assessments are source-specific; residual tooling risks remain recorded above. Any later triage/dismissal should reference the exact revision and reviewed sink or exclusive-create semantics. New source changes require fresh review. Production publication still requires the independent release checks and actual affected-flow QA; neither CodeQL annotation severity nor this triage substitutes for those checks.
+
+## 2026-10-04 follow-up: check run `111416850127`
+
+At PR head `e9fbe68d8d315a9d636e91a689057728de3541eb`, CodeQL reported 25 annotations (18 failure, 7 warning). The original 18 findings above recur at this head; their source paths and assessments remain applicable after checking the current code. The preview pair store race from the preceding run no longer appears after the exclusive-create fix. This follow-up does not dismiss alerts or claim a passing CodeQL check.
+
+The seven additional annotations are:
+
+| Source and rule | Source-specific assessment |
+|---|---|
+| `scripts/production-release-target.mjs:25,39`, incomplete URL substring sanitization (2 failures) | Both checks used `Array.prototype.includes('app.qidaigo.com')`, which compares a complete alias element by equality; it is not a substring match. The follow-up patch expresses equality with `some(alias => alias === 'app.qidaigo.com')` and adds a lookalike-host regression. This is clarity and static-analysis hardening, not evidence of an exploitable host-validation flaw. |
+| `scripts/production-release-target.mjs:35`, file data in outbound network request (warning) | The CLI sends the configured Vercel token only to fixed `https://api.vercel.com` paths. Deployment identifiers are validated/encoded; `redirect: 'error'` prevents credential forwarding to a redirected origin. The token is not saved in the projected receipt. |
+| `scripts/production-release-target.mjs:49`, network data written to file (warning) | The output path is a trusted CLI argument; the receipt is a selected projection of project, team, deployment, aliases, SHA and status. Exclusive `wx` prevents overwriting an existing file. Invocation still requires a trusted workspace and path. |
+| `scripts/manage-dr-operator-entry.mjs:133`, file data in outbound network request (warning) | The URL is checked against the intended Vercel project identity before the health probe. The credential is an existing bypass credential and the fetch uses `redirect: 'manual'`, so it does not follow a redirect with that credential. This is an operator-only path, not a public request handler. |
+| `scripts/manage-dr-operator-entry.mjs:1426`, file data in outbound network request (warning) | Callers construct Vercel and Cloudflare API origins and attach provider credentials. Unlike the probe above, this shared `fetch` currently uses default redirect behavior. A provider-controlled redirect could forward a credential; add `redirect: 'error'` and provider mock tests in a separately scoped DR-operator hardening change. Do not dismiss this warning as a false positive. |
+| `scripts/manage-dr-operator-entry.mjs:1469`, network data written to file (warning) | Evidence path is an operator-selected environment variable, and the constructed evidence is serialized with mode `0600`. The write is not exclusive and an existing path can be replaced; require a designated evidence path and exclusive creation in the separately scoped DR-operator hardening change. Do not dismiss this warning as a false positive. |
+
+The GitHub staging ruleset requires `verify`, `validate`, and `Vercel`; CodeQL is currently advisory for that ruleset, but its failed result and the two DR-operator hardening items remain visible release evidence. A green required-check set would not mean that CodeQL passed.

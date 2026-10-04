@@ -22,7 +22,7 @@ export async function verifyReleaseTarget(expected, api, { promoted = false, bas
   const aliases = await api(`/v2/deployments/${encodeURIComponent(deployment.id)}/aliases?teamId=${team}`);
   if (!Array.isArray(aliases.aliases) || aliases.pagination?.next || aliases.aliases.some(row => typeof row.alias !== 'string' || !row.alias)) fail('RELEASE_ALIASES_UNPROVEN');
   const names = aliases.aliases.map(row => row.alias).sort();
-  if (promoted && (owner.targets?.production?.id !== deployment.id || !baseline?.aliases?.includes('app.qidaigo.com')
+  if (promoted && (owner.targets?.production?.id !== deployment.id || !baseline?.aliases?.some(alias => alias === 'app.qidaigo.com')
     || JSON.stringify(names) !== JSON.stringify([...baseline.aliases].sort()))) fail('RELEASE_PROMOTION_DRIFT');
   return { projectId: project, teamId: team, deploymentId: deployment.id, url: expected.deployment, sha: expected.sha,
     readyState: deployment.readyState, target: deployment.target, aliases: names, productionDeploymentId: owner.targets?.production?.id,
@@ -36,7 +36,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     const mode = process.argv[2], output = process.argv[3]; let result;
     if (mode === 'baseline') {
       result = await capturePrimaryBaseline({ deploymentId: process.env.RELEASE_HEALTHY_DEPLOYMENT_ID, sha: process.env.RELEASE_HEALTHY_SHA }, api);
-      if (!result.aliases.includes('app.qidaigo.com')) fail('RELEASE_PRIMARY_ALIAS_MISSING');
+      if (!result.aliases.some(alias => alias === 'app.qidaigo.com')) fail('RELEASE_PRIMARY_ALIAS_MISSING');
     } else if (mode === 'candidate' || mode === 'promoted') {
       result = await verifyReleaseTarget({ deployment: process.env.APPROVED_PRODUCTION_DEPLOYMENT, sha: process.env.GITHUB_SHA }, api,
         { promoted: mode === 'promoted', baseline: JSON.parse(readFileSync(process.argv[4], 'utf8')) });

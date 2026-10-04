@@ -40,6 +40,12 @@ test('accepts exact READY production candidate with git_commit metadata and comp
   f.owner.targets.production.id = 'dpl_candidate';
   expect((await verifyReleaseTarget(f.expected, f.api, { promoted: true, baseline: f.baseline })).status).toBe('PROMOTION_READBACK_VERIFIED');
 });
+test('promoted target requires the exact Production hostname in the saved alias set', async () => {
+  const f = fixture();
+  f.baseline.aliases = ['evilapp.qidaigo.com', 'stable.vercel.app'];
+  await expect(verifyReleaseTarget(f.expected, f.api, { promoted: true, baseline: f.baseline }))
+    .rejects.toThrow('RELEASE_PROMOTION_DRIFT');
+});
 test.each(['project', 'team', 'source', 'target', 'state', 'url'])('rejects candidate drift: %s', async kind => {
   const f = fixture();
   if (kind === 'project') f.deployment.projectId = 'other';
