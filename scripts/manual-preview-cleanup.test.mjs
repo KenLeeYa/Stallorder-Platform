@@ -28,19 +28,20 @@ test('capture does not mutate providers and deadline does not extend on replay',
   expect(next.expiresAt).toBe(first.expiresAt);
 });
 test('PR366 manual receipt expires at the earlier of three hours and the approved cutoff', async () => {
-  const approved = { ...env, PREVIEW_GIT_BRANCH: 'codex/integrated-production-20261002', PREVIEW_APPROVED_DEADLINE_UTC: '2026-10-04T15:30:00Z' };
+  const approved = { ...env, PREVIEW_GIT_BRANCH: 'codex/integrated-production-20261002', PREVIEW_APPROVED_DEADLINE_UTC: '2026-10-05T11:00:00Z' };
   const h = harness();
   const cli = h.adapters.cli;
   h.adapters.cli = (command, args) => command === 'npx' ? cli(command, args)
     : JSON.stringify(JSON.parse(cli(command, args)).map(row => ({ ...row, git_branch: approved.PREVIEW_GIT_BRANCH })));
   h.adapters.api = async () => ({ ...deployment, meta: { ...deployment.meta, githubCommitRef: approved.PREVIEW_GIT_BRANCH } });
-  const first = await run(approved, { ...h.adapters, now: new Date('2026-10-04T11:00:00Z') }, 'capture');
-  expect(first.expiresAt).toBe('2026-10-04T14:00:00.000Z');
-  const second = await run(approved, { ...h.adapters, now: new Date('2026-10-04T13:00:00Z') }, 'capture');
-  expect(second.expiresAt).toBe('2026-10-04T15:30:00.000Z');
-  await expect(run(approved, { ...h.adapters, now: new Date('2026-10-04T15:30:00Z') }, 'capture')).rejects.toThrow('PREVIEW_APPROVAL_EXPIRED');
-  await expect(run(approved, { ...h.adapters, now: new Date('2026-10-04T14:30:00Z') }, 'capture')).rejects.toThrow('PREVIEW_APPROVAL_WINDOW_TOO_SHORT');
-  await expect(run({ ...approved, PREVIEW_APPROVED_DEADLINE_UTC: '2026-10-04T16:00:00Z' }, h.adapters, 'capture')).rejects.toThrow('PREVIEW_APPROVED_DEADLINE_INVALID');
+  const first = await run(approved, { ...h.adapters, now: new Date('2026-10-05T08:00:00Z') }, 'capture');
+  expect(first.expiresAt).toBe('2026-10-05T11:00:00.000Z');
+  const second = await run(approved, { ...h.adapters, now: new Date('2026-10-05T09:00:00Z') }, 'capture');
+  expect(second.expiresAt).toBe('2026-10-05T11:00:00.000Z');
+  await expect(run(approved, { ...h.adapters, now: new Date('2026-10-05T07:59:59Z') }, 'capture')).rejects.toThrow('PREVIEW_APPROVAL_NOT_STARTED');
+  await expect(run(approved, { ...h.adapters, now: new Date('2026-10-05T11:00:00Z') }, 'capture')).rejects.toThrow('PREVIEW_APPROVAL_EXPIRED');
+  await expect(run(approved, { ...h.adapters, now: new Date('2026-10-05T10:00:00Z') }, 'capture')).rejects.toThrow('PREVIEW_APPROVAL_WINDOW_TOO_SHORT');
+  await expect(run({ ...approved, PREVIEW_APPROVED_DEADLINE_UTC: '2026-10-05T12:00:00Z' }, h.adapters, 'capture')).rejects.toThrow('PREVIEW_APPROVED_DEADLINE_INVALID');
 });
 test('provider deletion failure saves sanitized exact recovery receipt and fails', async () => {
   const h = harness({ failure: true }); await expect(run(env, h.adapters, 'cleanup')).rejects.toThrow('PROVIDER_OPERATION_FAILED');

@@ -20,8 +20,9 @@ export function assertDeployment(row, env) {
 }
 function approvedExpiry(env, now) {
   if (env.PREVIEW_GIT_BRANCH !== 'codex/integrated-production-20261002') return new Date(now.getTime() + 6 * 3600000);
-  if (env.PREVIEW_APPROVED_DEADLINE_UTC !== '2026-10-04T15:30:00Z') throw Error('PREVIEW_APPROVED_DEADLINE_INVALID');
+  if (env.PREVIEW_APPROVED_DEADLINE_UTC !== '2026-10-05T11:00:00Z') throw Error('PREVIEW_APPROVED_DEADLINE_INVALID');
   const deadline = new Date(env.PREVIEW_APPROVED_DEADLINE_UTC);
+  if (now < new Date('2026-10-05T08:00:00Z')) throw Error('PREVIEW_APPROVAL_NOT_STARTED');
   if (now >= deadline) throw Error('PREVIEW_APPROVAL_EXPIRED');
   const expiry = new Date(Math.min(now.getTime() + 3 * 3600000, deadline.getTime()));
   if (expiry.getTime() - now.getTime() < 75 * 60000) throw Error('PREVIEW_APPROVAL_WINDOW_TOO_SHORT');

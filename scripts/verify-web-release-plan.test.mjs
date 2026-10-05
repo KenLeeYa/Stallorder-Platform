@@ -12,7 +12,7 @@ const receipt = () => ({ status: 'PASS', scope: 'WEB_KNOWN_NATIVE_DEPENDENCY_EXC
 test('binds source and installation while allowing separately validated build IDs', () => {
   expect(verifyWebReleasePlan({ ...receipt(), buildId: 'plan' }, { ...receipt(), buildId: 'apply' }).status).toBe('PASS');
 });
-test('rejects policy drift even when both receipts agree and expiry',()=>{const changed={...receipt(),auditExceptionPolicySha256:'0'.repeat(64)};expect(()=>verifyWebReleasePlan(changed,changed)).toThrow('SCOPE_INVALID');expect(()=>verifyWebReleasePlan(receipt(),receipt(),Date.parse('2026-10-05T00:00:00+08:00')+1)).toThrow('EXPIRED');});
+test('rejects policy drift even when both receipts agree and expiry',()=>{const changed={...receipt(),auditExceptionPolicySha256:'0'.repeat(64)};expect(()=>verifyWebReleasePlan(changed,changed)).toThrow('SCOPE_INVALID');expect(()=>verifyWebReleasePlan(receipt(),receipt(),Date.parse('2026-10-06T08:00:00Z')+1)).toThrow('EXPIRED');});
 test('clean audit remains valid after exception expires but cannot silently replace approved disposition',()=>{const clean={...receipt(),selectedAuditStatus:'PASS',auditDecision:'ZERO_VULNERABILITIES'};expect(verifyWebReleasePlan(clean,clean,Date.parse('2026-10-06'))).toMatchObject({status:'PASS'});expect(()=>verifyWebReleasePlan(receipt(),clean)).toThrow('DECISION_MISMATCH');});
 test.each(['head', 'tree', 'sourceSha256', 'lockSha256', 'installedGraphSha256', 'verifierSha256'])('rejects changed %s', key => {
   expect(() => verifyWebReleasePlan(receipt(), { ...receipt(), [key]: '0'.repeat(receipt()[key].length) })).toThrow('BINDING_MISMATCH');

@@ -69,7 +69,7 @@ jobs:
       PREVIEW_BRANCH_NAME: ${{ github.event_name == 'pull_request' && format('pr-{0}-oauth-delivery', github.event.pull_request.number) || format('manual-{0}', github.run_id) }}
       PREVIEW_RESOURCE_KEY: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('manual-{0}', github.run_id) }}
       PREVIEW_GIT_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
-      PREVIEW_APPROVED_DEADLINE_UTC: "2026-10-04T15:30:00Z"
+      PREVIEW_APPROVED_DEADLINE_UTC: "2026-10-05T11:00:00Z"
       NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
       ALLOW_DEMO_SEED: "false"
     steps:
