@@ -65,7 +65,7 @@ export async function captureBinding(receipt,selection,baseline,adapters,now=new
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
  try{
   if(!process.env.VERCEL_TOKEN)fail('BINDING_ARGUMENTS_INVALID');
-  const api=async path=>{const response=await fetch(`https://api.vercel.com${path}`,{headers:{Authorization:`Bearer ${process.env.VERCEL_TOKEN}`},signal:AbortSignal.timeout(30000)});if(!response.ok)fail('BINDING_PROVIDER_READBACK_FAILED');return response.json();};
+  const api=async path=>{const response=await fetch(`https://api.vercel.com${path}`,{headers:{Authorization:`Bearer ${process.env.VERCEL_TOKEN}`},signal:AbortSignal.timeout(30000),redirect:'error'});if(!response.ok)fail('BINDING_PROVIDER_READBACK_FAILED');return response.json();};
   let result,output;
   if(process.argv[2]==='capture-baseline'&&process.argv.length===5){
    result=await capturePrimaryBaseline(JSON.parse(readFileSync(process.argv[3],'utf8')),api);output=process.argv[4];
