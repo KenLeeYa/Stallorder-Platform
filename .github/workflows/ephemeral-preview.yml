@@ -1121,7 +1121,7 @@ jobs:
           gh run download "$CLEANUP_RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern "manual-preview-*-$CLEANUP_RUN_ID" --dir .manual-recovery
           node scripts/manual-preview-recovery.mjs .manual-recovery/source-run.json .manual-recovery
       - name: Independently clean and read back only the original manual run resources
-        if: always() && steps.deadline-recovery.outcome == 'success'
+        if: always() && steps.preview-approval.outcome == 'success' && steps.watch-ready.outcome == 'success' && steps.deadline-recovery.outcome == 'success'
         run: node scripts/manual-preview-cleanup.mjs cleanup
       - name: Preserve independent deadline cleanup evidence
         if: always() && steps.preview-approval.outcome == 'success' && steps.watch-ready.outcome == 'success'
