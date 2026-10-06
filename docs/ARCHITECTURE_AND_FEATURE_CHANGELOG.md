@@ -201,3 +201,7 @@ CodeQL on PR366 commit `51aa30ed` identified a new state-file check/read race in
 ### 2026-10-06 PR366-DEADLINE-WATCHER-001 — local candidate; not released
 
 Affected surface: independent manual Preview deadline cleanup workflow. The watcher now passes recovered original-run ownership to cleanup across a GitHub Actions step boundary, while retaining exact receipt and provider identity checks. The local focused suite passed 51/51; hosted verification, push and release have not occurred. See [PR366 watcher regression evidence](releases/PR366_CLOUD_HARNESS_20261004.md). No provider resource or security setting was changed by this local patch.
+
+### 2026-10-06 PR366-WEB-AUDIT-PATCH-001 — local candidate; not released
+
+Affected surface: Web build dependency lock and exact audit-exception lock binding. Update transitive source-map-js from vulnerable 1.2.1 to upstream patched 1.2.2; the selected audit returns to the original five high braces-chain entries and the existing exception scope/expiry remain unchanged. See [Web audit review](releases/PR366_WEB_AUDIT_RISK_REVIEW_20261005.md). Hosted CI and Web scope proof remain release gates.
