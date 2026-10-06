@@ -197,3 +197,7 @@ Fresh owned loopback Compose API/DB 54321/54322: 173 migrations, synthetic fixtu
 ### 2026-10-04 PR366-CLOUD-HARNESS-003 — local security follow-up; not released
 
 CodeQL on PR366 commit `51aa30ed` identified a new state-file check/read race in the offline pair store. The read now binds file type, size and content to one open handle, with no-follow on POSIX and a Windows path/link identity check. Focused coordinator tests passed; remote CodeQL and all prior tracked alerts remain release gates. See [PR366 harness evidence](releases/PR366_CLOUD_HARNESS_20261004.md).
+
+### 2026-10-06 PR366-DEADLINE-WATCHER-001 — local candidate; not released
+
+Affected surface: independent manual Preview deadline cleanup workflow. The watcher now passes recovered original-run ownership to cleanup across a GitHub Actions step boundary, while retaining exact receipt and provider identity checks. The local focused suite passed 51/51; hosted verification, push and release have not occurred. See [PR366 watcher regression evidence](releases/PR366_CLOUD_HARNESS_20261004.md). No provider resource or security setting was changed by this local patch.

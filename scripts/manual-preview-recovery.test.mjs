@@ -8,3 +8,9 @@ for(const patch of [{id:124},{event:'pull_request'},{status:'in_progress'},{repo
 for(const patch of [{resourceKey:'manual-124'},{branchName:'manual-124'},{gitBranch:'codex/new'},{parent:'other'},{team:'other'},{project:'other'},{branches:[{id:'parent',name:'manual-123'}]},{deployments:[{id:'dpl_abc',project:'project',target:'production'}]}])test('rejects mismatched artifact owner '+JSON.stringify(patch),()=>expect(()=>validateRecovery(source,[{...receipt,...patch}],env)).toThrow('IDENTITY_INVALID'));
 test('rejects missing receipts and replacement branch across phases',()=>{expect(()=>validateRecovery(source,[],env)).toThrow();expect(()=>validateRecovery(source,[receipt,{...receipt,branches:[{id:'replacement',name:'manual-123'}]}],env)).toThrow();});
 test('preserves exact IDs recorded in earlier receipt phases',()=>{const result=validateRecovery(source,[receipt,{...receipt,branches:[],deployments:[]}],env);expect(result.receipt.deployments).toHaveLength(1);expect(result.receipt.branches).toHaveLength(1);});
+test('deadline watcher requires recovered source SHA and branch to match its bound run',()=>{
+ const bound={...env,PREVIEW_EXPECTED_HEAD_SHA:source.head_sha,PREVIEW_EXPECTED_GIT_BRANCH:source.head_branch};
+ expect(validateRecovery(source,[receipt],bound).receipt.recoverySource.headSha).toBe(source.head_sha);
+ expect(()=>validateRecovery({...source,head_sha:'b'.repeat(40)},[receipt],bound)).toThrow('IDENTITY_INVALID');
+ expect(()=>validateRecovery({...source,head_branch:'codex/other'},[{...receipt,gitBranch:'codex/other'}],bound)).toThrow('IDENTITY_INVALID');
+});

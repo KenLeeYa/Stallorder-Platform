@@ -8,6 +8,8 @@ export function validateRecovery(run,receipts,env){
  if(!/^[1-9][0-9]{0,19}$/.test(id??'')||String(run.id)!==id||run.event!=='workflow_dispatch'||run.status!=='completed'
   ||run.repository?.full_name!==env.GITHUB_REPOSITORY||run.path!=='.github/workflows/ephemeral-preview.yml'
   ||!/^codex\/[A-Za-z0-9._/-]+$/.test(run.head_branch??'')||!/^[a-f0-9]{40}$/.test(run.head_sha??'')
+  ||(env.PREVIEW_EXPECTED_HEAD_SHA&&run.head_sha!==env.PREVIEW_EXPECTED_HEAD_SHA)
+  ||(env.PREVIEW_EXPECTED_GIT_BRANCH&&run.head_branch!==env.PREVIEW_EXPECTED_GIT_BRANCH)
   ||!env.SUPABASE_PARENT_PROJECT_REF||!env.VERCEL_ORG_ID||!env.VERCEL_PROJECT_ID||!receipts.length)fail();
  const key=`manual-${id}`,branches=new Map(),deployments=new Map();
  for(const receipt of receipts){

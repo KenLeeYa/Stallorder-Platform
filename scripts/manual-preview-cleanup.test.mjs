@@ -27,6 +27,21 @@ test('capture does not mutate providers and deadline does not extend on replay',
   const next = await run(env, { ...h.adapters, previous: first, now: new Date('2026-10-03T05:00:00Z') }, 'capture');
   expect(next.expiresAt).toBe(first.expiresAt);
 });
+test('recovered original receipt cleans idempotently when providers are already empty', async () => {
+  const recovered = { resourceKey: env.PREVIEW_RESOURCE_KEY, branchName: env.PREVIEW_BRANCH_NAME,
+    gitBranch: env.PREVIEW_GIT_BRANCH, parent: env.SUPABASE_PARENT_PROJECT_REF,
+    team: env.VERCEL_ORG_ID, project: env.VERCEL_PROJECT_ID,
+    createdAt: '2026-10-03T00:00:00.000Z', expiresAt: '2026-10-03T06:00:00.000Z',
+    branches: [{ id: 'child', name: env.PREVIEW_BRANCH_NAME, absent: false }], deployments: [], status: 'RECOVERY_VERIFIED' };
+  const deleted = [];
+  const result = await run(env, { previous: recovered, save: () => {},
+    cli(command, args) { if (args.includes('delete')) deleted.push('branch');
+      return command === 'npx' ? JSON.stringify({ deployments: [] }) : JSON.stringify([]); },
+    api() { deleted.push('deployment'); throw Error('UNEXPECTED_PROVIDER_CALL'); },
+  }, 'cleanup');
+  expect(deleted).toEqual([]);
+  expect(result).toMatchObject({ status: 'CLEANED', branches: [{ id: 'child', absent: true }], deployments: [] });
+});
 test('PR366 manual receipt expires at the earlier of three hours and the approved cutoff', async () => {
   const approved = { ...env, PREVIEW_GIT_BRANCH: 'codex/integrated-production-20261002', PREVIEW_APPROVED_DEADLINE_UTC: '2026-10-06T04:00:00Z' };
   const h = harness();
@@ -61,6 +76,20 @@ test('parent, with-data and changed owner are rejected', () => {
 test('unknown operation refuses all provider calls and receipt writes', async () => {
   const forbidden = () => { throw Error('UNEXPECTED_PROVIDER_CALL'); };
   await expect(run(env, { cli: forbidden, api: forbidden, save: forbidden }, 'cleanupp')).rejects.toThrow('PREVIEW_OPERATION_INVALID');
+});
+test('missing recovered run owner and forged receipt scope refuse provider calls', async () => {
+  const forbidden = () => { throw Error('UNEXPECTED_PROVIDER_CALL'); };
+  const h = harness();
+  await expect(run({ ...env, PREVIEW_RESOURCE_KEY: undefined }, { cli: forbidden, api: forbidden, save: forbidden }, 'cleanup'))
+    .rejects.toThrow('PREVIEW_OWNER_INVALID');
+  const receipt = { resourceKey: env.PREVIEW_RESOURCE_KEY, branchName: env.PREVIEW_BRANCH_NAME,
+    gitBranch: env.PREVIEW_GIT_BRANCH, parent: env.SUPABASE_PARENT_PROJECT_REF,
+    team: env.VERCEL_ORG_ID, project: env.VERCEL_PROJECT_ID, branches: [], deployments: [] };
+  for (const patch of [{ resourceKey: 'manual-124' }, { parent: 'other-parent' }, { project: 'other-project' },
+    { gitBranch: 'other-branch' }, { team: 'other-team' }]) {
+    await expect(run(env, { ...h.adapters, previous: { ...receipt, ...patch } }, 'cleanup')).rejects.toThrow('RECEIPT_IDENTITY_MISMATCH');
+  }
+  expect(h.deleted).toEqual([]);
 });
 test('missing deployment readback reports explicit identity error', () => {
   expect(() => assertDeployment(null, env)).toThrow('DEPLOYMENT_IDENTITY_MISMATCH');
