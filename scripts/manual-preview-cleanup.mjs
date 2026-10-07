@@ -18,11 +18,11 @@ export function assertDeployment(row, env) {
     || row.meta?.stallorderPreviewResource !== env.PREVIEW_RESOURCE_KEY
     || row.meta?.githubCommitRef !== env.PREVIEW_GIT_BRANCH) throw Error('DEPLOYMENT_IDENTITY_MISMATCH');
 }
-function approvedExpiry(env, now) {
+export function approvedExpiry(env, now) {
   if (env.PREVIEW_GIT_BRANCH !== 'codex/integrated-production-20261002') return new Date(now.getTime() + 6 * 3600000);
-  if (env.PREVIEW_APPROVED_DEADLINE_UTC !== '2026-10-06T04:00:00Z') throw Error('PREVIEW_APPROVED_DEADLINE_INVALID');
+  if (env.PREVIEW_APPROVED_DEADLINE_UTC !== '2026-10-07T18:30:00Z') throw Error('PREVIEW_APPROVED_DEADLINE_INVALID');
   const deadline = new Date(env.PREVIEW_APPROVED_DEADLINE_UTC);
-  if (now < new Date('2026-10-06T01:00:00Z')) throw Error('PREVIEW_APPROVAL_NOT_STARTED');
+  if (now < new Date('2026-10-07T15:30:00Z')) throw Error('PREVIEW_APPROVAL_NOT_STARTED');
   if (now >= deadline) throw Error('PREVIEW_APPROVAL_EXPIRED');
   const expiry = new Date(Math.min(now.getTime() + 3 * 3600000, deadline.getTime()));
   if (expiry.getTime() - now.getTime() < 75 * 60000) throw Error('PREVIEW_APPROVAL_WINDOW_TOO_SHORT');

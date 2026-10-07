@@ -1,10 +1,10 @@
 {
-  "id": "WEB-20261005-BRACES-USER-ACCEPTED",
-  "expiresAt": "2026-10-06T08:00:00Z",
+  "id": "WEB-20261007-BRACES-USER-ACCEPTED",
+  "expiresAt": "2026-10-08T15:30:00Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
-  "authorization": "User explicitly accepted the reviewed, exact Web development dependency risk on 2026-10-05 through 2026-10-06 08:00 UTC; original audit remains NON_PASS.",
+  "authorization": "User explicitly accepted the reviewed, exact Web development dependency risk on 2026-10-07 through 2026-10-08 15:30 UTC; original audit remains NON_PASS.",
   "scope": "Web release only; no Native release; original audit remains NON_PASS",
-  "lockSha256": "b1ae2a6a50aec8032c81fb6e5017300f710235712b5c3b30a4737db2b3a94d3d",
+  "lockSha256": "5dbef665c707ba9d37fff33b17f2b5237c14a39df10d302fcee4d1fd3b67a9b2",
   "counts": {
     "info": 0,
     "low": 0,
