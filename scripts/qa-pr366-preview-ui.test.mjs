@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { createServer } from 'node:http';
 import { expect, test, vi } from 'vitest';
 import { assertTarget, assertCatalogFixture, assertReadbackFixture, assertPublicQrFixture, assertInboxFixture, assertMembershipFixture, hoursPhasePolicy, assertPreorderFixture, requestPolicy, routePreviewRequest, createPreviewContext, shutdownPreviewBrowser, sanitizedCaseFailure } from './qa-pr366-preview-ui.mjs';
 
@@ -201,3 +202,33 @@ test('context setup failure closes the launched browser and never exposes raw er
     .rejects.toThrow(/^PREVIEW_BROWSER_SETUP_FAILED$/);
   expect(context.close).toHaveBeenCalled(); expect(browser.close).toHaveBeenCalled();
 });
+
+test('slow Preview password login waits for a real successful response and rejects denied login', async () => {
+  const { chromium } = await import('@playwright/test');
+  const { submitPreviewPasswordLogin } = await import('./qa-pr366-preview-ui.mjs');
+  let denied = false;
+  const server = createServer((request, response) => {
+    if (request.url === '/api/auth/login') {
+      setTimeout(() => { response.writeHead(denied ? 403 : 200); response.end('{}'); }, denied ? 0 : 6000);
+    } else {
+      response.setHeader('Content-Type', 'text/html; charset=utf-8');
+      response.end('<button onclick="fetch(\'/api/auth/login\',{method:\'POST\'}).then(r=>{if(r.ok)location.href=\'/staff/aming-chicken/cash\'})">登入</button>');
+    }
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  let browser;
+  try {
+    browser = await chromium.launch();
+    const page = await browser.newPage();
+    const origin = `http://127.0.0.1:${server.address().port}`;
+    await page.goto(`${origin}/login`);
+    await submitPreviewPasswordLogin(page, `${origin}/staff/aming-chicken/cash`);
+    denied = true;
+    await page.goto(`${origin}/login`);
+    await expect(submitPreviewPasswordLogin(page, `${origin}/staff/aming-chicken/cash`)).rejects.toThrow('PREVIEW_LOGIN_HTTP_403');
+    expect(page.url()).toBe(`${origin}/login`);
+  } finally {
+    if (browser) await browser.close();
+    await new Promise(resolve => server.close(resolve));
+  }
+}, 25000);

@@ -140,8 +140,21 @@ export async function shutdownPreviewBrowser(browser) {
 }
 
 export function sanitizedCaseFailure(error, stage) {
-  return { stage, code: error?.name === 'TimeoutError' ? 'PREVIEW_UI_TIMEOUT'
+  return { stage, code: /^PREVIEW_LOGIN_HTTP_[1-5]\d{2}$/.test(error?.message ?? '') || error?.message === 'PREVIEW_LOGIN_REDIRECT_FAILED' ? error.message
+    : error?.name === 'TimeoutError' ? 'PREVIEW_UI_TIMEOUT'
     : error?.name === 'AssertionError' ? 'PREVIEW_UI_ASSERTION_FAILED' : 'PREVIEW_UI_OPERATION_FAILED' };
+}
+
+export async function submitPreviewPasswordLogin(page, expected) {
+  const { expect } = await import('@playwright/test');
+  const loginUrl = `${new URL(page.url()).origin}/api/auth/login`;
+  const [response] = await Promise.all([
+    page.waitForResponse(candidate => candidate.url() === loginUrl && candidate.request().method() === 'POST', { timeout: 45_000 }),
+    page.getByRole('button', { name: '登入', exact: true }).click(),
+  ]);
+  if (response.status() !== 200) throw Error(`PREVIEW_LOGIN_HTTP_${response.status()}`);
+  try { await expect(page).toHaveURL(expected, { timeout: 45_000 }); }
+  catch { throw Error('PREVIEW_LOGIN_REDIRECT_FAILED'); }
 }
 
 export function assertCatalogFixture(fixture, binding) {
@@ -393,7 +406,7 @@ export async function runCashShiftPhase(receipt, binding, outDir) {
     stage = 'STAFF_PASSWORD_LOGIN';
     await page.getByRole('button', { name: '使用電子郵件與密碼登入', exact: true }).click();
     await page.locator('input[name="email"]').fill('staff@stallorder.test'); await page.locator('input[name="password"]').fill('StallOrderDemo!2026');
-    await page.getByRole('button', { name: '登入', exact: true }).click(); await expect(page).toHaveURL(/\/staff\/aming-chicken\/cash/);
+    await submitPreviewPasswordLogin(page, /\/staff\/aming-chicken\/cash/);
     stage = 'CASH_SHIFT_BEFORE_READBACK';
     const headers = requestPolicy(origin, origin, 'GET', false, process.env.PREVIEW_BYPASS_SECRET).headers;
     const before = await context.request.get(`${origin}/api/stalls/aming-chicken/cash-shifts`, { headers, maxRedirects: 0 });
@@ -454,8 +467,7 @@ export async function run(receipt, binding, outDir) {
     await page.getByRole('button', { name: '使用電子郵件與密碼登入', exact: true }).click();
     await page.locator('input[name="email"]').fill('owner@stallorder.test');
     await page.locator('input[name="password"]').fill('StallOrderDemo!2026');
-    await page.getByRole('button', { name: '登入', exact: true }).click();
-    await expect(page).not.toHaveURL(/\/login(?:\?|$)/);
+    await submitPreviewPasswordLogin(page, /\/merchant(?:\/|\?|$)/);
     const identity = await context.request.get(`${origin}/api/auth/me`, { maxRedirects: 0, headers:
       requestPolicy(`${origin}/api/auth/me`, origin, 'GET', false, process.env.PREVIEW_BYPASS_SECRET).headers });
     expect(identity.status()).toBe(200);
@@ -474,7 +486,7 @@ export async function run(receipt, binding, outDir) {
           await rolePage.goto(`${origin}/${email.startsWith('platform.') ? 'login' : 'staff/login'}?next=${encodeURIComponent(next)}`);
           await rolePage.getByRole('button', { name: '使用電子郵件與密碼登入', exact: true }).click();
           await rolePage.locator('input[name="email"]').fill(email); await rolePage.locator('input[name="password"]').fill('StallOrderDemo!2026');
-          await rolePage.getByRole('button', { name: '登入', exact: true }).click(); await expect(rolePage).toHaveURL(expected);
+          await submitPreviewPasswordLogin(rolePage, expected);
           const me = await roleContext.request.get(`${origin}/api/auth/me`, { maxRedirects: 0, headers: requestPolicy(origin, origin, 'GET', false, process.env.PREVIEW_BYPASS_SECRET).headers });
           expect(me.status()).toBe(200); expect((await me.json()).user?.email).toBe(email);
           if (!email.startsWith('platform.')) {
@@ -754,7 +766,7 @@ export async function run(receipt, binding, outDir) {
         await staffPage.goto(`${origin}/staff/login?next=%2Fstaff%2Faming-chicken`);
         await staffPage.getByRole('button', { name: '使用電子郵件與密碼登入', exact: true }).click();
         await staffPage.locator('input[name="email"]').fill('staff@stallorder.test'); await staffPage.locator('input[name="password"]').fill('StallOrderDemo!2026');
-        await staffPage.getByRole('button', { name: '登入', exact: true }).click(); await expect(staffPage).toHaveURL(/\/staff\/aming-chicken/);
+        await submitPreviewPasswordLogin(staffPage, /\/staff\/aming-chicken/);
         const response = await staffContext.request.get(`${origin}/api/stalls/aming-chicken/pos-configuration?includeCatalog=true`, { maxRedirects: 0, headers: requestPolicy(origin, origin, 'GET', false, process.env.PREVIEW_BYPASS_SECRET).headers });
         expect(response.status()).toBe(200); const config = await response.json();
         expect(config.modules.print).toBe(false);
@@ -831,8 +843,7 @@ export async function run(receipt, binding, outDir) {
         await staffPage.getByRole('button', { name: '使用電子郵件與密碼登入', exact: true }).click();
         await staffPage.locator('input[name="email"]').fill(fixture.email);
         await staffPage.locator('input[name="password"]').fill('StallOrderDemo!2026');
-        await staffPage.getByRole('button', { name: '登入', exact: true }).click();
-        await expect(staffPage).toHaveURL(`${origin}/notifications?${query}`);
+        await submitPreviewPasswordLogin(staffPage, `${origin}/notifications?${query}`);
         const before = await request(staffContext, '/api/auth/me');
         expect(before.status()).toBe(200); expect((await before.json()).user.id).toBe(fixture.profileId);
         const list = staffPage.getByRole('region', { name: '通知列表', exact: true });
