@@ -1,5 +1,15 @@
 import {test,expect} from 'vitest';
-import {captureBinding,capturePrimaryBaseline,capturePublicBackendConfigFingerprint,databaseProof} from './qa-pr366-preview-binding.mjs';
+import {captureBinding,capturePrimaryBaseline,capturePublicBackendConfigFingerprint,databaseProof,publicBackendConfigShape} from './qa-pr366-preview-binding.mjs';
+test('configuration diagnosis contains only shape booleans and counts, never provider values',()=>{
+ const config={envs:[{key:'NEXT_PUBLIC_SUPABASE_URL',id:'private-id',type:'sensitive',target:['production'],updatedAt:123,value:'private-value'}]};
+ const shape=publicBackendConfigShape(config);
+ expect(shape.productionPublicRowCount).toBe(1);expect(shape.rows[0].valueNonEmptyString).toBe(true);
+ for(const value of Object.values(shape.rows[0]))expect(typeof value).toBe('boolean');
+ expect(JSON.stringify(shape)).not.toMatch(/private-id|private-value|sensitive|123/);
+ delete config.envs[0].value;config.envs[0].updatedAt='123';
+ expect(publicBackendConfigShape(config).rows[0]).toMatchObject({valuePresent:false,updatedAtFiniteNumber:false});
+ expect(publicBackendConfigShape({})).toMatchObject({envsArray:false,productionPublicRowCount:0});
+});
 function syntheticDatabaseUrl(pooler) {
   const url = new URL('postgresql://aws-0.pooler.supabase.com/postgres');
   url.username = 'postgres.child'; url.password = 'synthetic'; url.port = '6543';

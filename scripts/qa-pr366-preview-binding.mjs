@@ -17,6 +17,15 @@ export function databaseProof(config, privateUrl, childRef, resourceKey){
  return {projectRef:childRef,host:actual.hostname,database:'postgres',username:decodeURIComponent(actual.username),port:actual.port||'5432',ownerResourceKey:resourceKey,
   identityFingerprint:createHash('sha256').update(identity(actual)).digest('hex'),provider:'supabase-cli',operation:'branches get',parentProjectRef:parent};
 }
+export function publicBackendConfigShape(config){
+ const rows=Array.isArray(config?.envs)?config.envs.filter(row=>row?.key==='NEXT_PUBLIC_SUPABASE_URL'):[];
+ return {envsArray:Array.isArray(config?.envs),paginationNextTruthy:Boolean(config?.pagination?.next),publicKeyRowCount:rows.length,
+  productionPublicRowCount:rows.filter(row=>Array.isArray(row.target)&&row.target.includes('production')).length,
+  rows:rows.map(row=>({targetArray:Array.isArray(row.target),productionTarget:Array.isArray(row.target)&&row.target.includes('production'),
+   idPresent:Boolean(row.id),idString:typeof row.id==='string',typePresent:Boolean(row.type),typeString:typeof row.type==='string',
+   updatedAtPresent:Object.hasOwn(row,'updatedAt'),updatedAtFiniteNumber:Number.isFinite(row.updatedAt),updatedAtNumberType:typeof row.updatedAt==='number',
+   valuePresent:Object.hasOwn(row,'value'),valueString:typeof row.value==='string',valueNonEmptyString:typeof row.value==='string'&&Boolean(row.value)}))};
+}
 export async function capturePublicBackendConfigFingerprint(api){
  const config=await api(`/v9/projects/${project}/env?teamId=${team}`);
  const rows=config?.envs?.filter(row=>row.key==='NEXT_PUBLIC_SUPABASE_URL'&&Array.isArray(row.target)&&row.target.includes('production'));
@@ -77,7 +86,9 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
   if(!process.env.VERCEL_TOKEN)fail('BINDING_ARGUMENTS_INVALID');
   const api=async path=>{const response=await fetch(`https://api.vercel.com${path}`,{headers:{Authorization:`Bearer ${process.env.VERCEL_TOKEN}`},signal:AbortSignal.timeout(30000),redirect:'error'});if(!response.ok)fail('BINDING_PROVIDER_READBACK_FAILED');return response.json();};
   let result,output;
-  if(process.argv[2]==='capture-baseline'&&process.argv.length===5){
+  if(process.argv[2]==='diagnose-public-config'&&process.argv.length===3){
+   console.log(JSON.stringify(publicBackendConfigShape(await api(`/v9/projects/${project}/env?teamId=${team}`))));
+  }else if(process.argv[2]==='capture-baseline'&&process.argv.length===5){
    result=await capturePrimaryBaseline(JSON.parse(readFileSync(process.argv[3],'utf8')),api);output=process.argv[4];
   }else if(process.argv[2]==='capture-binding'&&process.argv.length===7){
    const receipt=JSON.parse(readFileSync(process.argv[3],'utf8')),selection=JSON.parse(readFileSync(process.argv[4],'utf8')),baseline=JSON.parse(readFileSync(process.argv[5],'utf8'));output=process.argv[6];
@@ -86,6 +97,6 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
     databaseUrl:process.env.PR366_CHILD_DATABASE_URL,
     branchGet:(name,ref)=>JSON.parse(execFileSync('supabase',['branches','get',name,'--project-ref',ref,'--output','json','--log-level','error'],{encoding:'utf8',stdio:['ignore','pipe','pipe'],timeout:30000})),api});
   }else fail('BINDING_ARGUMENTS_INVALID');
-  writeFileSync(output,JSON.stringify(result,null,2)+'\n',{flag:'wx'});console.log('BINDING_READBACK_VERIFIED');
+  if(output){writeFileSync(output,JSON.stringify(result,null,2)+'\n',{flag:'wx'});console.log('BINDING_READBACK_VERIFIED');}
  }catch(error){console.error(/^BINDING_[A-Z_]+$/.test(error.message)?error.message:'BINDING_PROVIDER_READBACK_FAILED');process.exitCode=1;}
 }

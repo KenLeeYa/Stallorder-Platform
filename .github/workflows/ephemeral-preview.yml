@@ -1219,6 +1219,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/awesome-optimization/preview-approval.mjs
+      - name: Diagnose public configuration shape for failed pre-creation run
+        if: inputs.cleanup_run_id == '37735318177'
+        run: node scripts/qa-pr366-preview-binding.mjs diagnose-public-config
       - name: Read exact completed source run and its recovery artifacts
         shell: bash
         run: |
