@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const originalArgv = [...process.argv];
 const managedEnvironmentNames = [
   "GITHUB_ENV",
+  "GITHUB_ACTIONS",
   "SUPABASE_ACCESS_TOKEN",
   "PRIMARY_SUPABASE_PROJECT_REF",
   "DR_SUPABASE_PROJECT_REF",
@@ -25,6 +26,38 @@ afterEach(() => {
 });
 
 describe("Supabase DR runtime environment export", () => {
+  it.each([undefined, "false"])("rejects non-Actions execution (%s) before reading secrets or calling the API", async runner => {
+    vi.resetModules();
+    if (runner === undefined) delete process.env.GITHUB_ACTIONS;
+    else process.env.GITHUB_ACTIONS = runner;
+    delete process.env.SUPABASE_ACCESS_TOKEN;
+    const request = vi.fn();
+    vi.stubGlobal("fetch", request);
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    await expect(import("./export-dr-runtime-environment.mjs")).rejects.toThrow("DR_RUNTIME_ACTIONS_REQUIRED");
+    expect(request).not.toHaveBeenCalled();
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  it("rejects a fully configured bare CLI before fetching or exposing a secret", async () => {
+    vi.resetModules();
+    process.env.GITHUB_ACTIONS = "false";
+    process.env.SUPABASE_ACCESS_TOKEN = "synthetic-management-secret";
+    process.env.PRIMARY_SUPABASE_PROJECT_REF = "abcdefghijklmnopqrst";
+    process.env.DR_SUPABASE_PROJECT_REF = "zyxwvutsrqponmlkjihg";
+    process.env.GITHUB_ENV = "must-not-write";
+    process.argv.splice(2, process.argv.length);
+    const request = vi.fn().mockResolvedValue(Response.json([
+      { type: "secret", name: "default", api_key: "must-not-log-secret" },
+      { type: "publishable", name: "default", api_key: "synthetic-public-key" },
+    ]));
+    vi.stubGlobal("fetch", request);
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    await expect(import("./export-dr-runtime-environment.mjs")).rejects.toThrow("DR_RUNTIME_ACTIONS_REQUIRED");
+    expect(request).not.toHaveBeenCalled();
+    expect(log).not.toHaveBeenCalled();
+  });
+
   it("exports only DR bindings in DR-only mode", async () => {
     const directory = await mkdtemp(join(tmpdir(), "stallorder-dr-runtime-"));
     const githubEnvironment = join(directory, "github-env");
@@ -39,6 +72,7 @@ describe("Supabase DR runtime environment export", () => {
       "--dr-only",
     );
     process.env.GITHUB_ENV = githubEnvironment;
+    process.env.GITHUB_ACTIONS = "true";
     process.env.SUPABASE_ACCESS_TOKEN = "test-access-token";
     process.env.DR_SUPABASE_PROJECT_REF = projectRef;
     delete process.env.PRIMARY_SUPABASE_PROJECT_REF;
@@ -67,6 +101,7 @@ describe("Supabase DR runtime environment export", () => {
         `DR_SUPABASE_FUNCTIONS_URL=https://${projectRef}.supabase.co/functions/v1`,
       ]);
       expect(lines.some((line) => line.startsWith("PRIMARY_"))).toBe(false);
+      expect(console.log).toHaveBeenCalledWith("::add-mask::dr-secret");
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
