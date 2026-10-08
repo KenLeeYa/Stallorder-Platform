@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readCheckedFile } from './checked-file-read.mjs';
-import { mkdtempSync, writeFileSync, statSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, openSync, fstatSync, closeSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -19,7 +19,10 @@ describe('descriptor-bound evidence reads', () => {
   const directory = mkdtempSync(join(tmpdir(), 'checked-file-'));
   try {
    const file = join(directory, 'evidence'); writeFileSync(file, 'safe');
-   const expected = statSync(file); expect(readCheckedFile(file, { expected }).toString()).toBe('safe');
+   const fd = openSync(file, 'r');
+   let expected;
+   try { expected = fstatSync(fd); } finally { closeSync(fd); }
+   expect(readCheckedFile(file, { expected }).toString()).toBe('safe');
    rmSync(file); writeFileSync(file, 'replacement');
    expect(() => readCheckedFile(file, { expected })).toThrow('FILE_READ_IDENTITY_CHANGED');
   } finally { rmSync(directory, { recursive: true, force: true }); }

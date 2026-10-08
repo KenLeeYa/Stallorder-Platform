@@ -43,7 +43,7 @@ for (const batch of ['batch-3', 'batch-4a']) {
   };
   test(`${batch}: a concurrent receipt winner prevents service startup`, async () => {
     Object.assign(state, { events: [], collision: true, writeFailure: false });
-    await expect(run()).rejects.toMatchObject({ code: 'EEXIST' });
+    await expect(run()).rejects.toMatchObject({ code: 'EEXIST', message: batch==='batch-3'?'BATCH3_RUNTIME_RECEIPT_EXISTS':'BATCH4A_RUNTIME_RECEIPT_EXISTS' });
     expect(state.events).toEqual(['reserve']);
   });
   test(`${batch}: startup occurs after reservation and failed evidence kills its child`, async () => {

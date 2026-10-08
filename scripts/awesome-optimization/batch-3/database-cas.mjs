@@ -1,19 +1,19 @@
 import { loadEnvFile } from 'node:process';
 import { randomUUID, createHash } from 'node:crypto';
-import { writeFileSync, existsSync, openSync, closeSync } from 'node:fs';
+import { writeFileSync, openSync, closeSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { openGuardedDatabase, verifyLiveFixture } from '../../../docs/awesome-optimization/qa/live-fixture-guard.mjs';
 loadEnvFile('.env.local');
 const directory='.superpowers/sdd/2026-10-01-awesome-optimization/batch-3';
 const mode=process.argv[2]??'stale';
 const receiptPath=`${directory}/database-${mode}-${process.argv[3]??'red'}.json`;
-if(existsSync(receiptPath))throw Error('BATCH3_RECEIPT_EXISTS');
 const db=await openGuardedDatabase();
 const proof={mode,startedAt:new Date().toISOString(),status:'RUNNING',checks:[],syntheticLocalOnly:true};
 let receiptFd,primaryError;
 try {
  proof.corpus=(await verifyLiveFixture(db)).receipt;
- receiptFd=openSync(receiptPath,'wx');
+ try { receiptFd=openSync(receiptPath,'wx'); }
+ catch(error){if(error.code==='EEXIST')throw Object.assign(Error('BATCH3_RECEIPT_EXISTS'),{code:'EEXIST',cause:error});throw error;}
  const {saveMerchantApplicationDraft,submitMerchantApplication,getApplicantApplication}=await import('../../../src/server/merchant-applications/merchant-application-service.ts');
  const {prisma}=await import('../../../src/lib/prisma.ts');
  const profileId=randomUUID(),email=`awesome-b3-${mode}-${profileId}@stallorder.test`;

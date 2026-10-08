@@ -23,7 +23,7 @@ for(const [name,file]of [['cas','batch-3/database-cas.mjs'],['constraints','batc
  const run=async()=>{vi.resetModules();process.argv=[process.execPath,file,'synthetic'];vi.spyOn(console,'log').mockImplementation(()=>{});if(name==='cas')await import('./batch-3/database-cas.mjs');else await import('./batch-4a/database-constraints.mjs');};
  test(`${name}: receipt collision after verified target prevents all mutations`,async()=>{
   Object.assign(state,{events:[],collision:true,guardFailure:false,writeFailure:false,closeFailure:false});
-  await expect(run()).rejects.toMatchObject({code:'EEXIST'});
+  await expect(run()).rejects.toMatchObject({code:'EEXIST',message:name==='cas'?'BATCH3_RECEIPT_EXISTS':'IMMUTABLE_RECEIPT_EXISTS'});
   expect(state.events).toEqual(['target','guard','reserve','disconnect']);
  });
  test(`${name}: failed target guard neither reserves nor writes a receipt and disconnects`,async()=>{
@@ -54,4 +54,16 @@ test('fixture freeze collision reads the winner and rejects different digest wit
  const fail=()=>runInNewContext(fragment,{output:'synthetic',frozen:{digest:'same'},JSON,
   writeFileSync:()=>{throw Object.assign(Error('denied'),{code:'EACCES'});},readFileSync:()=>{throw Error('must not read');}});
  expect(fail).toThrow('denied');
+});
+test('capture snapshot atomically maps collision and only treats ENOENT as an absent source',async()=>{
+ const fs=await vi.importActual('node:fs');
+ const source=fs.readFileSync(new URL('./batch-2/capture.mjs',import.meta.url),'utf8');
+ const body=source.slice(source.indexOf(' const snapshot ='),source.indexOf('\n});'));
+ const run=(read,write)=>runInNewContext(`(path=>{${body}})('source.ts')`,{directory:'synthetic',readFileSync:read,writeFileSync:write,createHash:()=>({update(){return this;},digest:()=> 'synthetic-hash'})});
+ let writes=0;
+ expect(()=>run(()=>Buffer.from('source'),(_file,_bytes,options)=>{writes++;expect(options.flag).toBe('wx');throw Object.assign(Error('occupied'),{code:'EEXIST'});})).toThrow('PREIMAGE_ALREADY_CAPTURED:source.ts');
+ expect(writes).toBe(1);
+ const absent=run(()=>{throw Object.assign(Error('missing'),{code:'ENOENT'});},()=>{throw Error('must not write');});
+ expect(absent).toMatchObject({existed:false,snapshot:null});
+ expect(()=>run(()=>{throw Object.assign(Error('denied'),{code:'EACCES'});},()=>{})).toThrow('denied');
 });

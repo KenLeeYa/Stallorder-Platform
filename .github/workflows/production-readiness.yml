@@ -248,6 +248,14 @@ jobs:
         run: supabase db push --db-url "$SUPABASE_CI_DATABASE_URL" --dry-run --include-all
       - name: Lint remote database before apply
         run: supabase db lint --db-url "$SUPABASE_CI_DATABASE_URL" --level warning --fail-on warning
+      - name: Verify actual Production legacy login before immutable Plan
+        if: github.event_name == 'push' || !inputs.apply_migrations
+        env:
+          LEGACY_LOGIN_DEPLOYED_SOURCE_SHA: 5cc15c6a6189cfd56e127676bc5228e9ffd2ff56
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          mkdir -p artifacts/production-target
+          node scripts/verify-legacy-login-safety.mjs plan artifacts/production-target/login-plan.json
       - name: Create immutable Production plan receipt
         if: github.event_name == 'push' || !inputs.apply_migrations
         env:
@@ -459,15 +467,20 @@ jobs:
               echo "::warning::Production smoke failed; rolling back the Vercel alias."
               vercel rollback "$RELEASE_ROLLBACK_DEPLOYMENT" --yes --token "$VERCEL_TOKEN"
               node scripts/production-release-target.mjs recovered artifacts/production-target/recovery.json artifacts/production-target/baseline.json
+              LEGACY_LOGIN_DEPLOYED_SOURCE_SHA=5cc15c6a6189cfd56e127676bc5228e9ffd2ff56 node scripts/verify-legacy-login-safety.mjs recovery artifacts/production-target/login-recovery.json
               npm run production:smoke
             fi
           }
           trap rollback_on_error ERR
           node scripts/production-release-target.mjs recovered artifacts/production-target/pre-promote.json artifacts/production-target/baseline.json
           npm run production:smoke
+          LEGACY_LOGIN_DEPLOYED_SOURCE_SHA=5cc15c6a6189cfd56e127676bc5228e9ffd2ff56 node scripts/verify-legacy-login-safety.mjs pre-promotion artifacts/production-target/login-pre-promote.json
+          node scripts/production-release-target.mjs candidate artifacts/production-target/pre-promote-candidate.json artifacts/production-target/baseline.json
+          LEGACY_LOGIN_URL="$APPROVED_PRODUCTION_DEPLOYMENT/staff/login" LEGACY_LOGIN_DEPLOYED_SOURCE_SHA="$GITHUB_SHA" node scripts/verify-legacy-login-safety.mjs candidate artifacts/production-target/login-candidate.json
           promoted=true
           vercel promote "$APPROVED_PRODUCTION_DEPLOYMENT" --yes --token "$VERCEL_TOKEN"
           node scripts/production-release-target.mjs promoted artifacts/production-target/promoted.json artifacts/production-target/baseline.json
+          LEGACY_LOGIN_DEPLOYED_SOURCE_SHA="$GITHUB_SHA" node scripts/verify-legacy-login-safety.mjs post-promotion artifacts/production-target/login-promoted.json
           npm run production:smoke
           trap - ERR
       - name: Create immutable successful Production migration evidence
@@ -486,7 +499,7 @@ jobs:
           retention-days: 30
 
       - name: Preserve Primary target and recovery readbacks
-        if: always() && inputs.apply_migrations
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: production-target-${{ github.run_id }}

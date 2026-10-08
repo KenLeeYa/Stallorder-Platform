@@ -1,18 +1,19 @@
 import {spawn} from 'node:child_process';
 import {loadEnvFile} from 'node:process';
-import {writeFileSync,existsSync,openSync,closeSync} from 'node:fs';
+import {writeFileSync,openSync,closeSync} from 'node:fs';
 import {createServer} from 'node:net';
 import {openGuardedDatabase,verifyLiveFixture} from '../../../docs/awesome-optimization/qa/live-fixture-guard.mjs';
 import {readResponsiveBuildProvenance} from '../../responsive-build-provenance.mjs';
 loadEnvFile('.env.local');
 const label=process.argv[2]??'first';if(!/^[a-z0-9-]+$/.test(label))throw Error('BATCH3_RUNTIME_LABEL_INVALID');
 const receipt=`.superpowers/sdd/2026-10-01-awesome-optimization/batch-3/runtime-${label}.json`;
-if(existsSync(receipt))throw Error('BATCH3_RUNTIME_RECEIPT_EXISTS');
 if(!process.env.AWESOME_QA_EXPECTED_SOURCE_SHA256)throw Error('BATCH3_EXPECTED_SOURCE_LITERAL_REQUIRED');
 const source=readResponsiveBuildProvenance({expectedSourceSha256:process.env.AWESOME_QA_EXPECTED_SOURCE_SHA256});
 const db=await openGuardedDatabase();const corpus=(await verifyLiveFixture(db)).receipt;await db.$disconnect();
 await new Promise((resolve,reject)=>{const probe=createServer();probe.once('error',()=>reject(Error('BATCH3_APP_PORT_IN_USE')));probe.listen(3026,'127.0.0.1',()=>probe.close(resolve));});
-const receiptFd=openSync(receipt,'wx');
+let receiptFd;
+try { receiptFd=openSync(receipt,'wx'); }
+catch(error) { if(error.code==='EEXIST')throw Object.assign(Error('BATCH3_RUNTIME_RECEIPT_EXISTS'),{code:'EEXIST',cause:error});throw error; }
 let child;
 let startupError;
 try {
