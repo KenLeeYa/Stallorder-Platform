@@ -847,8 +847,7 @@ jobs:
           trap 'rm -rf "$PR366_PRIVATE_FIXTURE_DIR"' EXIT
           node -e 'require("node:fs").writeFileSync(".preview-receipt/ui-selection.json", JSON.stringify({childRef:process.env.PR366_CHILD_REF,deploymentId:process.env.PR366_DEPLOYMENT_ID}), {flag:"wx"})'
           node scripts/qa-pr366-preview-binding.mjs capture-binding .preview-receipt/manual-resources.json .preview-receipt/ui-selection.json .preview-receipt/primary-baseline.json .preview-receipt/ui-binding.json
-          preview_origin="$(node -e 'const b=JSON.parse(require("node:fs").readFileSync(".preview-receipt/ui-binding.json","utf8")); process.stdout.write(new URL(b.origin).origin);')"
-          supabase secrets set --project-ref "$PR366_CHILD_REF" "PUBLIC_APP_ORIGINS=$preview_origin" "TRUSTED_CLIENT_IP_HEADER=x-real-ip" > /dev/null
+          node scripts/set-pr366-preview-public-secrets.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-public-secret-configuration.json
           node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui catalog-descriptor
           for operation in enable-supply dense-schedule dense-workforce dense-supply synthetic-invoices inbox inbox-membership; do
             node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui "$operation"
