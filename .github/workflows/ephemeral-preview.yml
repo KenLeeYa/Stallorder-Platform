@@ -17,7 +17,7 @@ on:
       operation:
         description: Validate a manual Preview or clean exact historical PR-owned resources
         type: choice
-        options: [validate, cleanup, cleanup-manual-run, deadline-cleanup-manual-run, resume-manual-run, regression-local]
+        options: [validate, cleanup, cleanup-manual-run, deadline-cleanup-manual-run, resume-manual-run, regression-local, verify-deployment-evidence]
         default: validate
       cleanup_pr_number:
         description: Exact closed PR number for manual cleanup only
@@ -25,7 +25,7 @@ on:
         default: ""
 
       cleanup_run_id:
-        description: Exact completed manual validation run ID for recovery cleanup only
+        description: Exact manual validation run ID for recovery cleanup or read-only deployment evidence verification
         type: string
         default: ""
 
@@ -33,10 +33,63 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ inputs.operation == 'regression-local' && format('regression-local-{0}', github.ref) || inputs.operation == 'deadline-cleanup-manual-run' && format('deadline-preview-watch-{0}', inputs.cleanup_run_id) || contains(fromJSON('["cleanup-manual-run","resume-manual-run"]'), inputs.operation) && format('manual-preview-recovery-workflow-{0}', inputs.cleanup_run_id) || format('ephemeral-preview-{0}', github.event.pull_request.number || github.ref) }}
-  cancel-in-progress: ${{ !contains(fromJSON('["cleanup-manual-run","deadline-cleanup-manual-run","resume-manual-run"]'), inputs.operation) }}
+  group: ${{ inputs.operation == 'verify-deployment-evidence' && format('deployment-evidence-{0}', inputs.cleanup_run_id) || inputs.operation == 'regression-local' && format('regression-local-{0}', github.ref) || inputs.operation == 'deadline-cleanup-manual-run' && format('deadline-preview-watch-{0}', inputs.cleanup_run_id) || contains(fromJSON('["cleanup-manual-run","resume-manual-run"]'), inputs.operation) && format('manual-preview-recovery-workflow-{0}', inputs.cleanup_run_id) || format('ephemeral-preview-{0}', github.event.pull_request.number || github.ref) }}
+  cancel-in-progress: ${{ !contains(fromJSON('["cleanup-manual-run","deadline-cleanup-manual-run","resume-manual-run","verify-deployment-evidence"]'), inputs.operation) }}
 
 jobs:
+  deployment-evidence:
+    # Other operations must not create a skipped required Vercel check.
+    name: ${{ github.event_name == 'workflow_dispatch' && inputs.operation == 'verify-deployment-evidence' && 'Vercel' || 'deployment-evidence-not-requested' }}
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'verify-deployment-evidence'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    environment:
+      name: Preview
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb
+        with:
+          version: 2.109.1
+      - name: Require the authorized read-only verification request
+        env:
+          VALIDATION_RUN_ID: ${{ inputs.cleanup_run_id }}
+          APPROVE_EXTERNAL_PREVIEW: ${{ inputs.approve_external_preview }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = 'KenLeeYa/Stallorder-Platform'
+          [[ "$GITHUB_REF_NAME" = 'codex/integrated-production-20261002' || "$GITHUB_REF_NAME" = 'staging' ]]
+          test "$APPROVE_EXTERNAL_PREVIEW" = 'false'
+          [[ "$VALIDATION_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]]
+      - name: Download original exact-run deployment and cleanup evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VALIDATION_RUN_ID: ${{ inputs.cleanup_run_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p .deployment-proof
+          for name in "manual-preview-final-$VALIDATION_RUN_ID" "pr366-browser-qa-$VALIDATION_RUN_ID"; do
+            gh run download "$VALIDATION_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$name" --dir ".deployment-proof/$name"
+          done
+      - name: Verify repository-owned deployment gate with fresh provider reads
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          VALIDATION_RUN_ID: ${{ inputs.cleanup_run_id }}
+        run: node scripts/verify-pr366-deployment-evidence.mjs "$VALIDATION_RUN_ID" .deployment-proof .deployment-proof/result.json
+      - name: Preserve the sanitized repository-owned gate receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pr366-deployment-evidence-${{ github.run_id }}
+          path: .deployment-proof/result.json
+          if-no-files-found: warn
   regression-local:
     if: github.event_name == 'workflow_dispatch' && inputs.operation == 'regression-local' && inputs.approve_external_preview == false && github.ref_name == 'codex/integrated-production-20261002'
     uses: ./.github/workflows/ci.yml

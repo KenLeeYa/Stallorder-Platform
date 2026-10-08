@@ -17,6 +17,16 @@ export function databaseProof(config, privateUrl, childRef, resourceKey){
  return {projectRef:childRef,host:actual.hostname,database:'postgres',username:decodeURIComponent(actual.username),port:actual.port||'5432',ownerResourceKey:resourceKey,
   identityFingerprint:createHash('sha256').update(identity(actual)).digest('hex'),provider:'supabase-cli',operation:'branches get',parentProjectRef:parent};
 }
+export async function capturePublicBackendConfigFingerprint(api){
+ const config=await api(`/v9/projects/${project}/env?teamId=${team}`);
+ const rows=config?.envs?.filter(row=>row.key==='NEXT_PUBLIC_SUPABASE_URL'&&Array.isArray(row.target)&&row.target.includes('production'));
+ if(config?.pagination?.next||rows?.length!==1)fail('BINDING_PUBLIC_CONFIG_INVALID');
+ const row=rows[0];
+ if(!row.id||!row.type||!Number.isFinite(row.updatedAt)||typeof row.value!=='string'||!row.value)fail('BINDING_PUBLIC_CONFIG_INVALID');
+ // The provider intentionally cannot decrypt sensitive variables. Compare unchanged metadata,
+ // never claim this fingerprint proves a fresh server database connection or expose its value.
+ return createHash('sha256').update(JSON.stringify({id:row.id,key:row.key,type:row.type,target:[...row.target].sort(),updatedAt:row.updatedAt,value:row.value})).digest('hex');
+}
 export async function capturePrimaryBaseline(expected,api,now=new Date()){
  if(!/^dpl_[A-Za-z0-9]+$/.test(expected.deploymentId??'')||!/^[a-f0-9]{40}$/.test(expected.sha??''))fail('BINDING_PRIMARY_BASELINE_REQUIRED');
  const actualProject=await api(`/v9/projects/${project}?teamId=${team}`);
@@ -25,7 +35,7 @@ export async function capturePrimaryBaseline(expected,api,now=new Date()){
  if(deployment?.id!==expected.deploymentId||deployment.projectId!==project||deployment.target!=='production'||deployment.readyState!=='READY'
   ||(deployment.meta?.githubCommitSha??deployment.meta?.git_commit)!==expected.sha)fail('BINDING_PRIMARY_CHANGED');
  return {projectId:actualProject.id,teamId:actualProject.accountId,deploymentId:deployment.id,sha:expected.sha,
-  aliases:aliasNames(await api(`/v2/deployments/${encodeURIComponent(deployment.id)}/aliases?teamId=${team}`)),capturedAt:now.toISOString(),provider:'VERCEL_TEAM_SCOPED_GET'};
+  aliases:aliasNames(await api(`/v2/deployments/${encodeURIComponent(deployment.id)}/aliases?teamId=${team}`)),publicBackendConfigFingerprint:await capturePublicBackendConfigFingerprint(api),capturedAt:now.toISOString(),provider:'VERCEL_TEAM_SCOPED_GET'};
 }
 export async function captureBinding(receipt,selection,baseline,adapters,now=new Date()){
  if(receipt.parent!==parent||receipt.team!==team||receipt.project!==project||receipt.gitBranch!=='codex/integrated-production-20261002'
@@ -43,7 +53,7 @@ export async function captureBinding(receipt,selection,baseline,adapters,now=new
  const actualProject=await adapters.api(`/v9/projects/${encodeURIComponent(project)}?teamId=${team}`);
  if(actualProject?.id!==project||actualProject.accountId!==team)fail('BINDING_PROJECT_OWNER_DRIFT');
  const deployment=await adapters.api(`/v13/deployments/${encodeURIComponent(selection.deploymentId)}?teamId=${team}`);
- if(deployment?.id!==selection.deploymentId||deployment.projectId!==project||!['preview',null].includes(deployment.target)
+ if(deployment?.id!==selection.deploymentId||deployment.projectId!==project||deployment.readyState!=='READY'||!['preview',null].includes(deployment.target)
   ||deployment.meta?.stallorderPreviewResource!==receipt.resourceKey||deployment.meta?.githubCommitRef!==receipt.gitBranch||deployment.meta?.githubCommitSha!==source.sha)fail('BINDING_DEPLOYMENT_DRIFT');
  const origin=new URL(`https://${deployment.url}`);
  if(origin.hostname!==deployment.url||!origin.hostname.endsWith('.vercel.app')||origin.port||origin.pathname!=='/'||origin.username||origin.password)fail('BINDING_ORIGIN_INVALID');
@@ -56,7 +66,7 @@ export async function captureBinding(receipt,selection,baseline,adapters,now=new
  const child=matches[0];
  const database=adapters.databaseUrl?databaseProof(await adapters.branchGet(receipt.branchName,parent),adapters.databaseUrl,child.project_ref,receipt.resourceKey):undefined;
  return {origin:origin.origin,resourceKey:receipt.resourceKey,childRef:selection.childRef,deploymentId:deployment.id,sha:source.sha,tree:source.tree,
-  providerReadback:'VERIFIED',productionAlias:false,dataLess:true,readback:{verifiedAt:now.toISOString(),
+  providerReadback:'VERIFIED',productionAlias:false,dataLess:true,readback:{verifiedAt:now.toISOString(),readyState:deployment.readyState,
    child:{project_ref:child.project_ref,name:child.name,with_data:child.with_data,git_branch:child.git_branch,...(child.parent_project_ref===undefined?{}:{parent_project_ref:child.parent_project_ref})},
    childScope:{provider:'supabase-cli',operation:'branches list',parentProjectRef:parent},
    deployment:{id:deployment.id,projectId:deployment.projectId,teamId:actualProject.accountId,target:deployment.target===null?'preview':deployment.target,rawTarget:deployment.target,origin:origin.origin,meta:{stallorderPreviewResource:deployment.meta.stallorderPreviewResource,githubCommitRef:deployment.meta.githubCommitRef,githubCommitSha:deployment.meta.githubCommitSha}},
