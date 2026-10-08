@@ -27,7 +27,8 @@ function fixture() {
   const owner = { id: project, accountId: team, targets: { production: { id: deployment.id } } };
   const aliases = { aliases: [{ alias: 'app.qidaigo.com' }, { alias: 'stable.vercel.app' }] };
   const healthy = { ...deployment, id: 'dpl_healthy', meta: { git_commit: 'b'.repeat(40) } };
-  const api = async path => path.startsWith('/v13/deployments/dpl_healthy') ? healthy : path.startsWith('/v13/') ? deployment : path.startsWith('/v9/') ? owner : aliases;
+  const publicConfig = { envs: [{ id: 'public-url', key: 'NEXT_PUBLIC_SUPABASE_URL', type: 'sensitive', target: ['production'], updatedAt: 123, value: 'synthetic-encrypted-public-value' }] };
+  const api = async path => path.startsWith('/v13/deployments/dpl_healthy') ? healthy : path.startsWith('/v13/') ? deployment : path.startsWith(`/v9/projects/${project}/env?`) ? publicConfig : path.startsWith('/v9/') ? owner : aliases;
   return { deployment, owner, aliases, api, expected: { deployment: 'https://candidate.vercel.app', sha }, baseline: { deploymentId: 'dpl_healthy', sha: 'b'.repeat(40), aliases: ['app.qidaigo.com', 'stable.vercel.app'] } };
 }
 test('requires exact Primary variables, not DR or an inferred project', () => {

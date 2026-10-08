@@ -8,6 +8,15 @@ test("ordinary PR cannot enter any Preview resource or secrets job", () => {
   expect(workflow.on.workflow_dispatch.inputs.approve_external_preview.default).toBe(false);
   for (const [name, job] of Object.entries(workflow.jobs)) {
     expect(job.if).toContain("github.event_name == 'workflow_dispatch' &&");
+    if (name === "deployment-evidence") {
+      expect(job.if).toContain("inputs.operation == 'verify-deployment-evidence'");
+      expect(job.permissions).toEqual({ contents: "read", actions: "read" });
+      expect(job.environment.name).toBe("Preview");
+      const guard = job.steps.find(step => step.name === "Require the authorized read-only verification request");
+      expect(guard.run).toContain('test "$APPROVE_EXTERNAL_PREVIEW" = \'false\'');
+      expect(job.steps.map(step => step.run ?? "").join("\n")).not.toMatch(/branches create|db reset|vercel deploy|manual-preview-cleanup\.mjs cleanup/);
+      continue;
+    }
     if (name === "regression-local") {
       expect(job.if).toContain("inputs.approve_external_preview == false &&");
       expect(job.if).toContain("inputs.operation == 'regression-local'");
@@ -77,6 +86,7 @@ test("actual PR366 browser phases stay before cleanup and private handoffs stay 
 test("all Preview resource jobs read actual approval rules before mutations; always cleanup cannot bypass failure", () => {
   for (const [name, job] of Object.entries(workflow.jobs)) {
     if (name === "regression-local") continue; // No provider steps; isolation is asserted above.
+    if (name === "deployment-evidence") continue; // Read-only evidence and explicit request guards are asserted above and in the dedicated gate tests.
     const guardIndex = job.steps.findIndex((step) => step.id === "preview-approval");
     expect(guardIndex).toBeGreaterThan(0);
     expect(job.steps.slice(0, guardIndex).some((step) => step.uses?.startsWith("actions/checkout@"))).toBe(true);
