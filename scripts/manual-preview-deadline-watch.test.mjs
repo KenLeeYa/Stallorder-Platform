@@ -4,20 +4,20 @@ import { readFileSync } from 'node:fs';
 import yaml from 'js-yaml';
 
 const expected = { sourceRunId: '123', parent: 'parent', team: 'team', project: 'project',
-  branch: 'codex/integrated-production-20261002', now: new Date('2026-10-07T17:45:00Z') };
+  branch: 'codex/integrated-production-20261002', now: new Date('2026-10-08T02:15:00Z') };
 const receipt = { resourceKey: 'manual-123', branchName: 'manual-123', gitBranch: expected.branch,
-  parent: 'parent', team: 'team', project: 'project', createdAt: '2026-10-07T17:30:00.000Z', expiresAt: '2026-10-07T20:30:00.000Z' };
+  parent: 'parent', team: 'team', project: 'project', createdAt: '2026-10-08T02:00:00.000Z', expiresAt: '2026-10-08T05:00:00.000Z' };
 
 test('watcher binds exact source identity and three-hour deadline', () => {
   expect(approvedWatchExpiry(receipt, expected)).toBe(Date.parse(receipt.expiresAt));
-  expect(cleanupStartMs(Date.parse(receipt.expiresAt))).toBe(Date.parse('2026-10-07T20:20:00Z'));
-  expect(approvedWatchExpiry({ ...receipt, createdAt: '2026-10-07T18:30:00.000Z', expiresAt: '2026-10-07T20:30:00.000Z' }, expected))
-    .toBe(Date.parse('2026-10-07T20:30:00Z'));
+  expect(cleanupStartMs(Date.parse(receipt.expiresAt))).toBe(Date.parse('2026-10-08T04:50:00Z'));
+  expect(approvedWatchExpiry({ ...receipt, createdAt: '2026-10-08T03:00:00.000Z', expiresAt: '2026-10-08T05:00:00.000Z' }, expected))
+    .toBe(Date.parse('2026-10-08T05:00:00Z'));
 });
 test('watcher rejects changed ownership, extended or expired receipts', () => {
   for (const changed of [{ ...receipt, resourceKey: 'manual-456' }, { ...receipt, parent: 'dr' },
-    { ...receipt, createdAt: '2026-10-07T17:29:59Z', expiresAt: '2026-10-07T20:29:59Z' },
-    { ...receipt, expiresAt: '2026-10-07T21:30:00Z' }]) expect(() => approvedWatchExpiry(changed, expected)).toThrow();
+    { ...receipt, createdAt: '2026-10-08T01:59:59Z', expiresAt: '2026-10-08T04:59:59Z' },
+    { ...receipt, expiresAt: '2026-10-08T06:00:00Z' }]) expect(() => approvedWatchExpiry(changed, expected)).toThrow();
   expect(() => approvedWatchExpiry(receipt, { ...expected, now: new Date(receipt.expiresAt) })).toThrow('PREVIEW_WATCH_DEADLINE_INVALID');
 });
 
