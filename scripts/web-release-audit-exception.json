@@ -4,7 +4,7 @@
   "advisory": "GHSA-vfj7-8cjw-p6xm",
   "authorization": "User explicitly accepted the reviewed, exact Web development dependency risk on 2026-10-07 through 2026-10-08 15:30 UTC; original audit remains NON_PASS.",
   "scope": "Web release only; no Native release; original audit remains NON_PASS",
-  "lockSha256": "5dbef665c707ba9d37fff33b17f2b5237c14a39df10d302fcee4d1fd3b67a9b2",
+  "lockSha256": "00f3c2b4363f58e2485fb9139142ac9d611671ad04e8561150cf35be8015bc6c",
   "counts": {
     "info": 0,
     "low": 0,
