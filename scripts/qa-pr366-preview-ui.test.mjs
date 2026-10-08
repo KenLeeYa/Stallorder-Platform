@@ -190,7 +190,7 @@ test.each([
   let routed;
   const pending = new Promise(resolve => { finish = resolve; });
   const order = [];
-  const context = { addCookies: vi.fn(), route: vi.fn(async (_pattern, callback) => { handler = callback; }),
+  const context = { setDefaultTimeout: vi.fn(), setDefaultNavigationTimeout: vi.fn(), addCookies: vi.fn(), route: vi.fn(async (_pattern, callback) => { handler = callback; }),
     unrouteAll: vi.fn(async options => { expect(options).toEqual({ behavior: 'ignoreErrors' }); order.push('unrouted'); }),
     close: vi.fn(async () => { order.push('context-closed'); finish(); }) };
   const browser = { newContext: vi.fn(async () => context), contexts: () => [context], close: vi.fn(async () => { order.push('browser-closed'); }) };
@@ -212,7 +212,7 @@ test.each([
 
 test('context setup failure closes the launched browser and never exposes raw errors', async () => {
   const { launchPreviewBrowser } = await import('./qa-pr366-preview-ui.mjs');
-  const context = { addCookies: vi.fn(async () => { throw Error('private cookie'); }), close: vi.fn(), unrouteAll: vi.fn() };
+  const context = { setDefaultTimeout: vi.fn(), setDefaultNavigationTimeout: vi.fn(), addCookies: vi.fn(async () => { throw Error('private cookie'); }), close: vi.fn(), unrouteAll: vi.fn() };
   const browser = { newContext: vi.fn(async () => context), contexts: () => [context], close: vi.fn() };
   await expect(launchPreviewBrowser({ launch: async () => browser }, 'https://isolated.vercel.app', 'synthetic'))
     .rejects.toThrow(/^PREVIEW_BROWSER_SETUP_FAILED$/);
@@ -248,3 +248,137 @@ test('slow Preview password login waits for a real successful response and rejec
     await new Promise(resolve => server.close(resolve));
   }
 }, 25000);
+
+test('Preview contexts bound locator actions and navigation before first use', async () => {
+  const context = { setDefaultTimeout: vi.fn(), setDefaultNavigationTimeout: vi.fn(), addCookies: vi.fn(), route: vi.fn() };
+  await createPreviewContext({ newContext: async () => context }, 'https://isolated.vercel.app', '');
+  expect(context.setDefaultTimeout).toHaveBeenCalledWith(30_000);
+  expect(context.setDefaultNavigationTimeout).toHaveBeenCalledWith(45_000);
+});
+
+test('each case persists started and terminal sanitized progress without swallowing failure evidence', async () => {
+  const { createCaseRunner } = await import('./qa-pr366-preview-ui.mjs');
+  const receipts = [];
+  const results = [];
+  const check = createCaseRunner(results, row => receipts.push(structuredClone(row)), () => 123);
+  await expect(check('required-case', async () => {
+    throw Error('private token https://secret.example');
+  })).rejects.toThrow('PREVIEW_UI_CASE_FAILED');
+  expect(receipts[0]).toMatchObject({ currentCase: 'required-case', state: 'RUNNING', results: [] });
+  expect(receipts[1]).toMatchObject({
+    currentCase: 'required-case', state: 'FAIL',
+    results: [{ name: 'required-case', status: 'FAIL', failure: { stage: 'required-case', code: 'PREVIEW_UI_OPERATION_FAILED' } }],
+  });
+  expect(JSON.stringify(receipts)).not.toContain('secret.example');
+});
+
+test('locator timeout persists failure then stops subsequent cases', async () => {
+  const { createCaseRunner } = await import('./qa-pr366-preview-ui.mjs');
+  const results = [], receipts = [];
+  const later = vi.fn();
+  const check = createCaseRunner(results, row => receipts.push(structuredClone(row)));
+  const failure = Object.assign(Error('private locator'), { name: 'TimeoutError' });
+  await expect((async () => {
+    await check('first', async () => { throw failure; });
+    await check('later', later);
+  })()).rejects.toThrow('PREVIEW_UI_CASE_FAILED');
+  expect(later).not.toHaveBeenCalled();
+  expect(receipts.at(-1)).toMatchObject({
+    state: 'FAIL', results: [{ name: 'first', status: 'FAIL', failure: { code: 'PREVIEW_UI_TIMEOUT' } }],
+  });
+});
+
+test('real Chromium missing locator rejects at an explicit action deadline', async () => {
+  const { chromium } = await import('@playwright/test');
+  const server = createServer((_request, response) => {
+    response.setHeader('Content-Type', 'text/html');
+    response.end('<p>no button</p>');
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  let browser;
+  try {
+    browser = await chromium.launch();
+    const origin = `http://127.0.0.1:${server.address().port}`;
+    const owned = await createPreviewContext(browser, origin, '');
+    const bounded = await owned.newPage();
+    await bounded.goto(origin);
+    // Shorten only the test's page deadline; the context configuration test checks the real 30-second value.
+    bounded.setDefaultTimeout(100);
+    await expect(bounded.getByRole('button', { name: 'missing' }).click()).rejects.toThrow('Timeout 100ms exceeded');
+  } finally {
+    if (browser) await shutdownPreviewBrowser(browser);
+    await new Promise(resolve => server.close(resolve));
+  }
+}, 10000);
+
+test.each(['AssertionError', 'Error'])('every case failure stops later cases including %s', async name => {
+  const { createCaseRunner } = await import('./qa-pr366-preview-ui.mjs');
+  const receipts = [], results = [];
+  const later = vi.fn();
+  const check = createCaseRunner(results, row => receipts.push(structuredClone(row)));
+  await expect((async () => {
+    await check('first', async () => { throw Object.assign(Error('private'), { name }); });
+    await check('later', later);
+  })()).rejects.toThrow('PREVIEW_UI_CASE_FAILED');
+  expect(later).not.toHaveBeenCalled();
+  expect(receipts.at(-1).state).toBe('FAIL');
+});
+
+test('a failed real submit trigger observes its response waiter and closes before any late mutation', async () => {
+  const { chromium } = await import('@playwright/test');
+  let writes = 0;
+  const server = createServer((request, response) => {
+    if (request.method === 'POST') writes++;
+    response.setHeader('Content-Type', 'text/html');
+    response.end('<button disabled onclick="fetch(\'/mutation\',{method:\'POST\'})">Submit</button>');
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  let browser;
+  try {
+    browser = await chromium.launch();
+    const origin = `http://127.0.0.1:${server.address().port}`;
+    const context = await createPreviewContext(browser, origin, '');
+    const page = await context.newPage();
+    await page.goto(origin);
+    page.setDefaultTimeout(100);
+    const receipts = [], results = [];
+    const { createCaseRunner, waitForResponseAndClick } = await import('./qa-pr366-preview-ui.mjs');
+    const check = createCaseRunner(results, row => receipts.push(structuredClone(row)));
+    await expect(check('submit', async () => {
+      await waitForResponseAndClick(page, row => row.request().method() === 'POST',
+        () => page.getByRole('button', { name: 'Submit' }).click(), { timeout: 1000 });
+    })).rejects.toThrow('PREVIEW_UI_CASE_FAILED');
+    await shutdownPreviewBrowser(browser);
+    browser = undefined;
+    await new Promise(resolve => setTimeout(resolve, 150));
+    expect(writes).toBe(0);
+    expect(receipts.at(-1)).toMatchObject({
+      state: 'FAIL', results: [{ name: 'submit', status: 'FAIL', failure: { code: 'PREVIEW_UI_TIMEOUT' } }],
+    });
+  } finally {
+    if (browser) await shutdownPreviewBrowser(browser);
+    await new Promise(resolve => server.close(resolve));
+  }
+}, 10000);
+
+test('submit failure waits for the bounded counterpart before restoration can start', async () => {
+  const { waitForResponseAndClick } = await import('./qa-pr366-preview-ui.mjs');
+  let releaseClick;
+  const click = new Promise(resolve => { releaseClick = resolve; });
+  const failure = Error('response failed');
+  const restored = vi.fn();
+  const page = { waitForResponse: vi.fn(async () => { throw failure; }) };
+  const operation = (async () => {
+    try {
+      await waitForResponseAndClick(page, () => true, () => click);
+    } finally {
+      restored();
+    }
+  })();
+  const observed = operation.catch(error => error);
+  await new Promise(resolve => setTimeout(resolve, 20));
+  expect(restored).not.toHaveBeenCalled();
+  releaseClick();
+  expect(await observed).toBe(failure);
+  expect(restored).toHaveBeenCalledTimes(1);
+});

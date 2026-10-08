@@ -96,6 +96,8 @@ export async function launchPreviewBrowser(chromium, origin, bypassSecret) {
 
 export async function createPreviewContext(browser, origin, bypassSecret) {
   const context = await browser.newContext({ serviceWorkers: 'block', locale: 'zh-TW' });
+  context.setDefaultTimeout(30_000);
+  context.setDefaultNavigationTimeout(45_000);
   await context.addCookies([{ name: 'stallorder_locale', value: 'zh-TW', url: origin }]);
   const state = { closing: false, pending: new Set(), failures: [] };
   previewRouteStates.set(context, state);
@@ -145,13 +147,25 @@ export function sanitizedCaseFailure(error, stage) {
     : error?.name === 'AssertionError' ? 'PREVIEW_UI_ASSERTION_FAILED' : 'PREVIEW_UI_OPERATION_FAILED' };
 }
 
+export async function waitForResponseAndClick(page, predicate, click, options) {
+  let firstFailure;
+  const observe = promise => promise.catch(error => {
+    firstFailure ??= error;
+    throw error;
+  });
+  const response = observe(page.waitForResponse(predicate, options));
+  const trigger = observe(Promise.resolve().then(click));
+  const settled = await Promise.allSettled([response, trigger]);
+  if (firstFailure) throw firstFailure;
+  return settled[0].value;
+}
+
 export async function submitPreviewPasswordLogin(page, expected) {
   const { expect } = await import('@playwright/test');
   const loginUrl = `${new URL(page.url()).origin}/api/auth/login`;
-  const [response] = await Promise.all([
-    page.waitForResponse(candidate => candidate.url() === loginUrl && candidate.request().method() === 'POST', { timeout: 45_000 }),
-    page.getByRole('button', { name: '登入', exact: true }).click(),
-  ]);
+  const response = await waitForResponseAndClick(page,
+    candidate => candidate.url() === loginUrl && candidate.request().method() === 'POST',
+    () => page.getByRole('button', { name: '登入', exact: true }).click(), { timeout: 45_000 });
   if (response.status() !== 200) throw Error(`PREVIEW_LOGIN_HTTP_${response.status()}`);
   try { await expect(page).toHaveURL(expected, { timeout: 45_000 }); }
   catch { throw Error('PREVIEW_LOGIN_REDIRECT_FAILED'); }
@@ -428,9 +442,10 @@ export async function runCashShiftPhase(receipt, binding, outDir) {
     await dialog.getByLabel('備註（選填）', { exact: true }).fill(`PR366 ${receipt.resourceKey} isolated shift`);
     assertTarget(receipt, binding);
     stage = 'CASH_SHIFT_SUBMIT';
-    const accepted = page.waitForResponse(response => response.url() === `${origin}/api/stalls/aming-chicken/cash-shifts` && response.request().method() === 'POST');
-    await dialog.getByRole('button', { name: '開始班次', exact: true }).click();
-    expect((await accepted).status()).toBe(200);
+    const accepted = await waitForResponseAndClick(page,
+      response => response.url() === `${origin}/api/stalls/aming-chicken/cash-shifts` && response.request().method() === 'POST',
+      () => dialog.getByRole('button', { name: '開始班次', exact: true }).click());
+    expect(accepted.status()).toBe(200);
     stage = 'CASH_SHIFT_AFTER_READBACK';
     const after = await context.request.get(`${origin}/api/stalls/aming-chicken/cash-shifts`, { headers, maxRedirects: 0 });
     expect(after.status()).toBe(200); const shift = readPreviewOpenCashShift(await after.json());
@@ -457,6 +472,18 @@ export async function runCashShiftPhase(receipt, binding, outDir) {
   return evidence;
 }
 
+export function createCaseRunner(results, save, now = Date.now) {
+  return async (name, action) => {
+    const startedAt = now();
+    save({ currentCase: name, state: 'RUNNING', startedAt, results });
+    let failure;
+    try { await action(); results.push({ name, status: 'PASS' }); }
+    catch (error) { failure = sanitizedCaseFailure(error, name); results.push({ name, status: 'FAIL', failure }); }
+    save({ currentCase: name, state: failure ? 'FAIL' : 'PASS', startedAt, elapsedMs: now() - startedAt, results });
+    if (failure) throw Error('PREVIEW_UI_CASE_FAILED');
+  };
+}
+
 export async function run(receipt, binding, outDir) {
   const origin = assertTarget(receipt, binding);
   const { chromium, expect } = await import('@playwright/test');
@@ -467,10 +494,9 @@ export async function run(receipt, binding, outDir) {
   // Fetch redirects individually so credentials cannot follow an unreviewed origin.
 
   const org = '11111111-1111-4111-8111-111111111111';
-  async function check(name, action) {
-    try { await action(); results.push({ name, status: 'PASS' }); }
-    catch { results.push({ name, status: 'FAIL' }); }
-  }
+  const check = createCaseRunner(results, progress => writeFileSync(resolve(outDir, 'ui-progress.json'), JSON.stringify({
+    resourceKey: receipt.resourceKey, childRef: binding.childRef, deploymentId: binding.deploymentId,
+    sha: binding.sha, tree: binding.tree, ...progress, complete: false }, null, 2)));
   try {
     await page.goto(`${origin}/login?next=${encodeURIComponent(`/merchant?organizationId=${org}`)}`);
     await page.getByRole('button', { name: '使用電子郵件與密碼登入', exact: true }).click();
@@ -576,9 +602,9 @@ export async function run(receipt, binding, outDir) {
       const detail = page.getByRole('region', { name: '通知詳情', exact: true });
       await expect(detail.getByRole('heading', { name: fixture.title, exact: true })).toBeVisible();
       assertTarget(receipt, binding);
-      const marked = page.waitForResponse(response => response.url() === readUrl && response.request().method() === 'PATCH');
-      await detail.getByRole('button', { name: '標記為已讀', exact: true }).click();
-      const response = await marked; expect(response.status()).toBe(200);
+      const response = await waitForResponseAndClick(page,
+        response => response.url() === readUrl && response.request().method() === 'PATCH',
+        () => detail.getByRole('button', { name: '標記為已讀', exact: true }).click()); expect(response.status()).toBe(200);
       const { readAt } = await response.json(); expect(Number.isFinite(Date.parse(readAt))).toBe(true);
       expect((await readNotification()).readAt).toBe(readAt);
       await expect(notification).toContainText('已讀');
@@ -629,9 +655,10 @@ export async function run(receipt, binding, outDir) {
         const editor = page.getByRole('dialog', { name: '編輯商品', exact: true });
         await editor.getByLabel('商品名稱', { exact: true }).fill(name);
         assertTarget(receipt, binding);
-        const command = page.waitForResponse(response => response.url() === `${origin}/api/merchant/organizations/${org}/catalog` && response.request().method() === 'POST');
-        await editor.getByRole('button', { name: '儲存', exact: true }).click();
-        expect((await command).status()).toBe(200);
+        const command = await waitForResponseAndClick(page,
+          response => response.url() === `${origin}/api/merchant/organizations/${org}/catalog` && response.request().method() === 'POST',
+          () => editor.getByRole('button', { name: '儲存', exact: true }).click());
+        expect(command.status()).toBe(200);
         await expect(editor).toBeHidden(); expect(page.url()).toBe(before);
         await expect(page.getByRole('searchbox', { name: '搜尋商品', exact: true })).toHaveValue(snapshot.name);
       }
@@ -811,9 +838,9 @@ export async function run(receipt, binding, outDir) {
         await note.getByRole('button', { name: '儲存', exact: true }).click();
         assertTarget(receipt, binding);
         writeFileSync(resolve(outDir, 'pos-orders.json'), JSON.stringify({ resourceKey: receipt.resourceKey, childRef: binding.childRef, status: 'SUBMITTING', productId: fixture.productId, orderIds: [], cleanup: 'EXACT_CHILD_TEARDOWN' }));
-        const accepted = staffPage.waitForResponse(response => response.url() === `${origin}/api/stalls/aming-chicken/orders` && response.request().method() === 'POST');
-        await pos.getByRole('button', { name: '建立訂單並收款', exact: true }).click();
-        const created = await accepted; expect(created.status()).toBe(201); const order = (await created.json()).order;
+        const created = await waitForResponseAndClick(staffPage,
+          response => response.url() === `${origin}/api/stalls/aming-chicken/orders` && response.request().method() === 'POST',
+          () => pos.getByRole('button', { name: '建立訂單並收款', exact: true }).click()); expect(created.status()).toBe(201); const order = (await created.json()).order;
         expect(order.total).toBe(fixture.price); expect(order.paymentStatus).toBe('PAID');
         expect(created.request().postDataJSON().items).toEqual([{ productId: fixture.productId, quantity: 1, note: '', noteOptionIds: [], bundleChoiceIds: [] }]);
         expect(order.items).toHaveLength(1); expect(order.items[0]).toMatchObject({ name: fixture.name, unitPrice: fixture.price, quantity: 1 });
@@ -902,11 +929,13 @@ export async function run(receipt, binding, outDir) {
     results.push({ name: 'midnight-deployed-db-calendar-boundaries', status: 'PENDING', reason: 'SEPARATE_MIDNIGHT_ROLLBACK_DB_RECEIPT_REQUIRED' });
     results.push({ name: 'live-http-clock-midnight-transition', status: 'NOT_RUN', reason: 'EXPLICIT_DB_CLOCK_PROOF_DOES_NOT_CLAIM_LIVE_HTTP_TRANSITION' });
   } finally {
-    try { await shutdownPreviewBrowser(browser); }
-    catch { results.push({ name: 'browser-shutdown', status: 'FAIL', code: 'PREVIEW_BROWSER_SHUTDOWN_FAILED' }); }
-    writeFileSync(resolve(outDir, 'ui-results.json'), JSON.stringify({ resourceKey: receipt.resourceKey,
+    const persist = () => writeFileSync(resolve(outDir, 'ui-results.json'), JSON.stringify({ resourceKey: receipt.resourceKey,
       childRef: binding.childRef, deploymentId: binding.deploymentId, sha: binding.sha, tree: binding.tree,
       results, complete: false }, null, 2));
+    persist();
+    try { await shutdownPreviewBrowser(browser); }
+    catch { results.push({ name: 'browser-shutdown', status: 'FAIL', code: 'PREVIEW_BROWSER_SHUTDOWN_FAILED' }); }
+    persist();
   }
   if (results.some(row => row.status === 'FAIL')) throw Error('PREVIEW_UI_CASE_FAILED');
   return results;
