@@ -1,0 +1,12 @@
+# PR366 single evening Preview approval — 2026-10-08
+
+The human explicitly authorized this single replacement pair in this conversation at Taipei approximately 18:35 on October 8. Earlier pairs were consumed and independently cleaned; they do not authorize this pair.
+
+- Incremental cost management target US$2, not a provider hard cap. One data-less Supabase child under `eyuctbnlvnbnivwasvqr`, paired with one Vercel Preview in project `prj_uoG4FNJIgnF1LdKRiXnfRaieXnUP`, team `team_MMfsiG94K9Zy3e6w7Ccc9xY4`. Synthetic fixtures only; existing Preview credentials only. No rebuild, second pair, extension or new credentials.
+- Approved window: October 8 11:00–14:00 UTC (Taipei 19:00–22:00). Latest creation 12:45 UTC, preserving at least 75 minutes. Cleanup begins ten minutes before receipt expiry, no later than 13:50 UTC; successful or failed validation triggers immediate exact cleanup and independent absence readback.
+- Update and independently review creation/watcher deadline safeguards. Require fresh full CI and Web scope on the final same source/tree before creation. Preserve Preview environment review; the exact source run and same-head watcher must be bound and watcher READY before writer approval. If gates miss latest creation, create nothing.
+- This approval does not extend the exact five-item Web exception (15:30 UTC expiry), waive CodeQL or Native, alter Production/DR permissions, or enable LIVE OA/Pay. Existing protected release and actual-use QA requirements remain.
+
+Pre-deadline-update candidate `9d4842106a48b2dd3e8bd72ece5ddc917f77777f`, tree `e189329e68236e62a628a4a0132d9d481bf9e01f`, passed full CI `37756844722`: 4616 unit passed/106 skipped, 234 browser passed, eight Production-mode resilience passed, DB tests/lint, Web scope and runner cleanup passed. Both actual Linux detached-process regressions executed and passed. Web install run `37756844696` and source scan `37756844799` passed. CodeQL remained FAILURE: 16 failure/7 warning annotations, content unchanged from the preceding candidate. This evidence does not substitute for fresh CI after this deadline change or hosted acceptance.
+
+Retain raw source/watcher, immutable candidate and original final receipts under `.release-evidence/20261008/`. Record the actual source run, watcher, child, deployment and timestamps before operating resources. Never use PLANNED/no-resource metadata alone as proof that an executing run created nothing.
