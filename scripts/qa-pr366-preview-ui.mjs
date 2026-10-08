@@ -119,31 +119,45 @@ export async function createPreviewContext(browser, origin, bypassSecret) {
   return context;
 }
 
-async function shutdownPreviewContext(context) {
+async function cleanupStep(stage, operation, { save = () => {}, timeoutMs = 5_000 } = {}) {
+  save({ stage, state: 'RUNNING' });
+  let timer;
+  try {
+    await Promise.race([Promise.resolve().then(operation), new Promise((_, reject) => {
+      timer = setTimeout(() => reject(Error('PREVIEW_BROWSER_CLEANUP_TIMEOUT')), timeoutMs);
+    })]);
+    save({ stage, state: 'PASS' });
+  } catch {
+    save({ stage, state: 'FAIL', code: 'PREVIEW_BROWSER_SHUTDOWN_FAILED' });
+    throw Error('PREVIEW_BROWSER_SHUTDOWN_FAILED');
+  } finally { clearTimeout(timer); }
+}
+
+export async function shutdownPreviewContext(context, options = {}) {
   const state = previewRouteStates.get(context);
   if (state) state.closing = true;
   let failed = false;
   // Waiting for route handlers before closing can deadlock SSE fulfillment.
-  try { await context.unrouteAll({ behavior: 'ignoreErrors' }); } catch { failed = true; }
-  try { await context.close(); } catch { failed = true; }
+  try { await cleanupStep('context-unroute', () => context.unrouteAll({ behavior: 'ignoreErrors' }), options); } catch { failed = true; }
+  try { await cleanupStep('context-close', () => context.close(), options); } catch { failed = true; }
   if (state) {
-    await Promise.allSettled([...state.pending]);
+    try { await cleanupStep('context-routes-settle', () => Promise.allSettled([...state.pending]), options); } catch { failed = true; }
     if (state.failures.length) failed = true;
   }
   if (failed) throw Error('PREVIEW_BROWSER_SHUTDOWN_FAILED');
 }
 
-export async function shutdownPreviewBrowser(browser) {
+export async function shutdownPreviewBrowser(browser, options = {}) {
   let failed = false;
   for (const context of browser.contexts()) {
-    try { await shutdownPreviewContext(context); } catch { failed = true; }
+    try { await shutdownPreviewContext(context, options); } catch { failed = true; }
   }
-  try { await browser.close(); } catch { failed = true; }
+  try { await cleanupStep('browser-close', () => browser.close(), options); } catch { failed = true; }
   if (failed) throw Error('PREVIEW_BROWSER_SHUTDOWN_FAILED');
 }
 
 export function sanitizedCaseFailure(error, stage) {
-  return { stage, code: /^PREVIEW_(?:LOGIN|MERCHANT)_HTTP_[1-5]\d{2}$/.test(error?.message ?? '') || ['PREVIEW_LOGIN_REDIRECT_FAILED', 'PREVIEW_MERCHANT_REDIRECT_FAILED'].includes(error?.message) ? error.message
+  return { stage, code: /^PREVIEW_(?:LOGIN|MERCHANT)_HTTP_[1-5]\d{2}$/.test(error?.message ?? '') || ['PREVIEW_LOGIN_REDIRECT_FAILED', 'PREVIEW_MERCHANT_REDIRECT_FAILED', 'PREVIEW_FIXTURE_STEP_TIMEOUT'].includes(error?.message) ? error.message
     : error?.name === 'TimeoutError' ? 'PREVIEW_UI_TIMEOUT'
     : error?.name === 'AssertionError' ? 'PREVIEW_UI_ASSERTION_FAILED' : 'PREVIEW_UI_OPERATION_FAILED' };
 }
@@ -160,6 +174,22 @@ export async function openMerchantDashboard(page, origin, organizationId, expect
   if (landed.origin !== target.origin || landed.pathname !== target.pathname
     || landed.searchParams.get('organizationId') !== organizationId) throw Error('PREVIEW_MERCHANT_REDIRECT_FAILED');
   await expect(page.getByTestId('merchant-function-navigation')).toBeVisible();
+}
+
+export async function boundedFixtureStep(stage, operation, save, timeoutMs = 30_000) {
+  save({ stage, state: 'RUNNING' });
+  let timer;
+  try {
+    const result = await Promise.race([Promise.resolve().then(operation), new Promise((_, reject) => {
+      timer = setTimeout(() => reject(Error('PREVIEW_FIXTURE_STEP_TIMEOUT')), timeoutMs);
+    })]);
+    save({ stage, state: 'PASS' });
+    return result;
+  } catch (error) {
+    save({ stage, state: 'FAIL', code: error?.message === 'PREVIEW_FIXTURE_STEP_TIMEOUT'
+      ? 'PREVIEW_FIXTURE_STEP_TIMEOUT' : 'PREVIEW_FIXTURE_STEP_FAILED' });
+    throw error;
+  } finally { clearTimeout(timer); }
 }
 
 export async function waitForResponseAndClick(page, predicate, click, options) {
@@ -475,7 +505,10 @@ export async function runCashShiftPhase(receipt, binding, outDir) {
   } finally {
     const path = resolve(outDir, 'ui-cash-shift.json');
     writeFileSync(path, JSON.stringify(evidence, null, 2));
-    try { await shutdownPreviewBrowser(browser); }
+    const cleanupSteps = [];
+    try { await shutdownPreviewBrowser(browser, { save: step => { cleanupSteps.push(step); writeFileSync(resolve(outDir, 'ui-cleanup-progress.json'), JSON.stringify({
+      resourceKey: receipt.resourceKey, childRef: binding.childRef, deploymentId: binding.deploymentId,
+      sha: binding.sha, tree: binding.tree, steps: cleanupSteps, complete: false }, null, 2)); } }); }
     catch {
       evidence.shutdown = 'PREVIEW_BROWSER_SHUTDOWN_FAILED';
       const primaryFailure = evidence.status === 'FAIL';
@@ -494,7 +527,9 @@ export function createCaseRunner(results, save, now = Date.now) {
     let failure;
     try { await action(); results.push({ name, status: 'PASS' }); }
     catch (error) { failure = sanitizedCaseFailure(error, name); results.push({ name, status: 'FAIL', failure }); }
-    save({ currentCase: name, state: failure ? 'FAIL' : 'PASS', startedAt, elapsedMs: now() - startedAt, results });
+    const endedAt = now();
+    Object.assign(results.at(-1), { startedAt, endedAt, elapsedMs: endedAt - startedAt });
+    save({ currentCase: name, state: failure ? 'FAIL' : 'PASS', startedAt, endedAt, elapsedMs: endedAt - startedAt, results });
     if (failure) throw Error('PREVIEW_UI_CASE_FAILED');
   };
 }
@@ -709,21 +744,33 @@ export async function run(receipt, binding, outDir) {
     else results.push({ name: 'catalog-real-save-readback-return-restore', status: 'PENDING', reason: 'EXACT_ISOLATED_SEED_PRODUCT_RECEIPT_REQUIRED' });
     if (binding.fixtureActions?.prepareDenseExpenses === true) await check('dense-expense-mobile-more-collapse-full-desktop-summary', async () => {
       const { createFixtureClient } = await import('./qa-pr366-preview-fixtures.mjs');
-      const csrfToken = (await context.cookies(origin)).find(cookie => cookie.name === 'stallorder_csrf')?.value;
-      const request = { fetch: (url, options) => {
+      const saveStep = step => writeFileSync(resolve(outDir, 'ui-expense-progress.json'), JSON.stringify({
+        resourceKey: receipt.resourceKey, childRef: binding.childRef, deploymentId: binding.deploymentId,
+        sha: binding.sha, tree: binding.tree, currentCase: 'dense-expense-mobile-more-collapse-full-desktop-summary',
+        ...step, complete: false }, null, 2));
+      const csrfToken = (await boundedFixtureStep('session-cookies', () => context.cookies(origin), saveStep))
+        .find(cookie => cookie.name === 'stallorder_csrf')?.value;
+      let requestIndex = 0;
+      const request = { fetch: async (url, options) => {
         if (new URL(url).origin !== origin) throw Error('FIXTURE_ORIGIN_DENIED');
-        return context.request.fetch(url, { ...options, maxRedirects: 0, headers: { ...options.headers,
-          ...requestPolicy(url, origin, options.method, false, process.env.PREVIEW_BYPASS_SECRET).headers } });
+        const stage = `request-${++requestIndex}-${options.method}`;
+        // A timed-out mutation is never retried; its exact child is cleaned by the owner workflow.
+        const response = await boundedFixtureStep(stage, () => context.request.fetch(url, {
+          ...options, timeout: 30_000, maxRedirects: 0, headers: { ...options.headers,
+            ...requestPolicy(url, origin, options.method, false, process.env.PREVIEW_BYPASS_SECRET).headers } }), saveStep);
+        return { status: () => response.status(), json: () => boundedFixtureStep(`${stage}-body`, () => response.json(), saveStep) };
       } };
       const fixture = await createFixtureClient({ receipt, binding, request, csrfToken,
         save: evidence => writeFileSync(resolve(outDir, 'dense-expense-fixture.json'), JSON.stringify(evidence, null, 2)) }).prepareExpenses(13);
       expect(fixture.status).toBe('READBACK_VERIFIED');
       expect(fixture.totalRows).toBeGreaterThanOrEqual(13);
       expect(fixture.expectedVisibleIds).toHaveLength(fixture.totalRows);
+      saveStep({ stage: 'mobile-navigation', state: 'RUNNING' });
       await page.setViewportSize({ width: 390, height: 900 }); await page.goto(fixture.ui.url);
       const records = page.getByTestId(/^correct-operating-expense-/);
       const controls = page.getByLabel('已入帳支出清單顯示', { exact: true });
       await expect(records).toHaveCount(6);
+      saveStep({ stage: 'mobile-expand', state: 'RUNNING' });
       await controls.getByRole('button', { name: '顯示更多已入帳支出', exact: true }).click();
       await expect(records).toHaveCount(12);
       for (let count = 12; count < fixture.totalRows; count += 6) {
@@ -732,15 +779,18 @@ export async function run(receipt, binding, outDir) {
       }
       for (const id of fixture.expectedVisibleIds) await expect(page.getByTestId(`correct-operating-expense-${id}`)).toBeVisible();
       const last = page.getByTestId(`correct-operating-expense-${fixture.expectedVisibleIds.at(-1)}`);
+      saveStep({ stage: 'last-record-correction', state: 'RUNNING' });
       await last.click(); await expect(page.getByRole('heading', { name: '更正已入帳支出', exact: true })).toBeVisible();
       await page.getByRole('button', { name: '取消', exact: true }).click();
       await controls.getByRole('button', { name: '收合已入帳支出', exact: true }).click(); await expect(records).toHaveCount(6);
+      saveStep({ stage: 'desktop-summary', state: 'RUNNING' });
       await page.setViewportSize({ width: 1440, height: 900 }); await expect(records).toHaveCount(fixture.totalRows);
       await expect(controls).toBeHidden();
       const metric = page.getByRole('region', { name: '營運損益摘要', exact: true }).locator('article').filter({ hasText: '其他營業支出' });
       expect(Number.isFinite(fixture.summary?.operatingExpenseAmount)).toBe(true);
       const amount = new Intl.NumberFormat('zh-TW', { style: 'currency', currency: 'TWD', maximumFractionDigits: 0 }).format(fixture.summary.operatingExpenseAmount);
       await expect(metric).toContainText(amount);
+      saveStep({ stage: 'desktop-summary', state: 'PASS' });
     });
     else results.push({ name: 'dense-expense-mobile-more-collapse-full-desktop-summary', status: 'PENDING', reason: 'DEDICATED_CHILD_EXPENSE_FIXTURE_ACTION_REQUIRED' });
     for (const [key, kind, label] of [['schedule', 'DENSE_SCHEDULE', '行程與現場狀態'], ['workforce', 'DENSE_WORKFORCE', '班表安排'], ['invoices', 'DENSE_MOCK_INVOICE', '電子發票紀錄']]) {
@@ -961,7 +1011,10 @@ export async function run(receipt, binding, outDir) {
       childRef: binding.childRef, deploymentId: binding.deploymentId, sha: binding.sha, tree: binding.tree,
       results, complete: false }, null, 2));
     persist();
-    try { await shutdownPreviewBrowser(browser); }
+    const cleanupSteps = [];
+    try { await shutdownPreviewBrowser(browser, { save: step => { cleanupSteps.push(step); writeFileSync(resolve(outDir, 'ui-cleanup-progress.json'), JSON.stringify({
+      resourceKey: receipt.resourceKey, childRef: binding.childRef, deploymentId: binding.deploymentId,
+      sha: binding.sha, tree: binding.tree, steps: cleanupSteps, complete: false }, null, 2)); } }); }
     catch { results.push({ name: 'browser-shutdown', status: 'FAIL', code: 'PREVIEW_BROWSER_SHUTDOWN_FAILED' }); }
     persist();
   }

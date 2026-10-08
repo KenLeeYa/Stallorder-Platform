@@ -1,14 +1,20 @@
 import { test, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { run, ownedBranches, assertDeployment, approvedExpiry } from './manual-preview-cleanup.mjs';
+
+test('next acceptance window rejects the prior approval and prior creation time', () => {
+  const approved = { PREVIEW_GIT_BRANCH: 'codex/integrated-production-20261002', PREVIEW_APPROVED_DEADLINE_UTC: '2026-10-09T02:00:00Z' };
+  expect(() => approvedExpiry({ ...approved, PREVIEW_APPROVED_DEADLINE_UTC: '2026-10-08T22:00:00Z' }, new Date('2026-10-08T23:00:00Z'))).toThrow('PREVIEW_APPROVED_DEADLINE_INVALID');
+  expect(() => approvedExpiry(approved, new Date('2026-10-08T16:00:00Z'))).toThrow('PREVIEW_APPROVAL_NOT_STARTED');
+});
 const env = { PREVIEW_RESOURCE_KEY: 'manual-123', PREVIEW_BRANCH_NAME: 'manual-123', PREVIEW_GIT_BRANCH: 'candidate', SUPABASE_PARENT_PROJECT_REF: 'parent', VERCEL_ORG_ID: 'team', VERCEL_PROJECT_ID: 'project', VERCEL_TOKEN: 'synthetic' };
 test('paid creation rechecks remaining time after watcher wait without changing the receipt', () => {
-  const approved = { ...env, PREVIEW_GIT_BRANCH: 'codex/integrated-production-20261002', PREVIEW_APPROVED_DEADLINE_UTC: '2026-10-08T22:00:00Z' };
-  expect(approvedExpiry(approved, new Date('2026-10-08T16:00:00Z')).toISOString()).toBe('2026-10-08T19:00:00.000Z');
-  expect(approvedExpiry(approved, new Date('2026-10-08T19:00:00Z')).toISOString()).toBe('2026-10-08T22:00:00.000Z');
-  expect(approvedExpiry(approved, new Date('2026-10-08T20:45:00Z')).toISOString()).toBe('2026-10-08T22:00:00.000Z');
-  expect(() => approvedExpiry(approved, new Date('2026-10-08T20:45:01Z'))).toThrow('PREVIEW_APPROVAL_WINDOW_TOO_SHORT');
-  expect(() => approvedExpiry({ ...approved, PREVIEW_APPROVED_DEADLINE_UTC: '2026-10-08T14:00:00Z' }, new Date('2026-10-08T16:00:00Z'))).toThrow('PREVIEW_APPROVED_DEADLINE_INVALID');
+  const approved = { ...env, PREVIEW_GIT_BRANCH: 'codex/integrated-production-20261002', PREVIEW_APPROVED_DEADLINE_UTC: '2026-10-09T02:00:00Z' };
+  expect(approvedExpiry(approved, new Date('2026-10-08T23:00:00Z')).toISOString()).toBe('2026-10-09T02:00:00.000Z');
+  expect(approvedExpiry(approved, new Date('2026-10-09T00:00:00Z')).toISOString()).toBe('2026-10-09T02:00:00.000Z');
+  expect(approvedExpiry(approved, new Date('2026-10-09T00:45:00Z')).toISOString()).toBe('2026-10-09T02:00:00.000Z');
+  expect(() => approvedExpiry(approved, new Date('2026-10-09T00:45:01Z'))).toThrow('PREVIEW_APPROVAL_WINDOW_TOO_SHORT');
+  expect(() => approvedExpiry({ ...approved, PREVIEW_APPROVED_DEADLINE_UTC: '2026-10-08T14:00:00Z' }, new Date('2026-10-08T23:00:00Z'))).toThrow('PREVIEW_APPROVED_DEADLINE_INVALID');
   const workflow = readFileSync(new URL('../.github/workflows/ephemeral-preview.yml', import.meta.url), 'utf8');
   expect(workflow).toMatch(/approvedExpiry\(process\.env, new Date\(\)\);"\s+supabase branches create/);
 });
@@ -55,25 +61,25 @@ test('recovered original receipt cleans idempotently when providers are already 
   expect(result).toMatchObject({ status: 'CLEANED', branches: [{ id: 'child', absent: true }], deployments: [] });
 });
 test('PR366 manual receipt expires at the earlier of 3 hours and the approved cutoff', async () => {
-  const approved = { ...env, PREVIEW_GIT_BRANCH: 'codex/integrated-production-20261002', PREVIEW_APPROVED_DEADLINE_UTC: '2026-10-08T22:00:00Z' };
+  const approved = { ...env, PREVIEW_GIT_BRANCH: 'codex/integrated-production-20261002', PREVIEW_APPROVED_DEADLINE_UTC: '2026-10-09T02:00:00Z' };
   const h = harness();
   const cli = h.adapters.cli;
   h.adapters.cli = (command, args) => command === 'npx' ? cli(command, args)
     : JSON.stringify(JSON.parse(cli(command, args)).map(row => ({ ...row, git_branch: approved.PREVIEW_GIT_BRANCH })));
   h.adapters.api = async () => ({ ...deployment, meta: { ...deployment.meta, githubCommitRef: approved.PREVIEW_GIT_BRANCH } });
-  const first = await run(approved, { ...h.adapters, now: new Date('2026-10-08T16:00:00Z') }, 'capture');
-  expect(first.expiresAt).toBe('2026-10-08T19:00:00.000Z');
-  const second = await run(approved, { ...h.adapters, now: new Date('2026-10-08T17:00:00Z') }, 'capture');
-  expect(second.expiresAt).toBe('2026-10-08T20:00:00.000Z');
-  await expect(run(approved, { ...h.adapters, now: new Date('2026-10-08T15:59:59Z') }, 'capture')).rejects.toThrow('PREVIEW_APPROVAL_NOT_STARTED');
-  await expect(run(approved, { ...h.adapters, now: new Date('2026-10-08T22:00:00Z') }, 'capture')).rejects.toThrow('PREVIEW_APPROVAL_EXPIRED');
-  expect((await run(approved, { ...h.adapters, now: new Date('2026-10-08T20:45:00Z') }, 'capture')).expiresAt).toBe('2026-10-08T22:00:00.000Z');
-  await expect(run(approved, { ...h.adapters, now: new Date('2026-10-08T20:45:01Z') }, 'capture')).rejects.toThrow('PREVIEW_APPROVAL_WINDOW_TOO_SHORT');
-  await expect(run(approved, { ...h.adapters, now: new Date('2026-10-08T21:00:00Z') }, 'capture')).rejects.toThrow('PREVIEW_APPROVAL_WINDOW_TOO_SHORT');
-  for (const oldDeadline of ['2026-10-08T09:00:00Z', '2026-10-08T14:00:00Z', '2026-10-08T15:00:00Z', '2026-10-08T18:30:00Z']) {
+  const first = await run(approved, { ...h.adapters, now: new Date('2026-10-08T23:00:00Z') }, 'capture');
+  expect(first.expiresAt).toBe('2026-10-09T02:00:00.000Z');
+  const second = await run(approved, { ...h.adapters, now: new Date('2026-10-09T00:00:00Z') }, 'capture');
+  expect(second.expiresAt).toBe('2026-10-09T02:00:00.000Z');
+  await expect(run(approved, { ...h.adapters, now: new Date('2026-10-08T22:59:59Z') }, 'capture')).rejects.toThrow('PREVIEW_APPROVAL_NOT_STARTED');
+  await expect(run(approved, { ...h.adapters, now: new Date('2026-10-09T02:00:00Z') }, 'capture')).rejects.toThrow('PREVIEW_APPROVAL_EXPIRED');
+  expect((await run(approved, { ...h.adapters, now: new Date('2026-10-09T00:45:00Z') }, 'capture')).expiresAt).toBe('2026-10-09T02:00:00.000Z');
+  await expect(run(approved, { ...h.adapters, now: new Date('2026-10-09T00:45:01Z') }, 'capture')).rejects.toThrow('PREVIEW_APPROVAL_WINDOW_TOO_SHORT');
+  await expect(run(approved, { ...h.adapters, now: new Date('2026-10-09T01:00:00Z') }, 'capture')).rejects.toThrow('PREVIEW_APPROVAL_WINDOW_TOO_SHORT');
+  for (const oldDeadline of ['2026-10-08T09:00:00Z', '2026-10-08T14:00:00Z', '2026-10-08T15:00:00Z', '2026-10-09T01:30:00Z']) {
     await expect(run({ ...approved, PREVIEW_APPROVED_DEADLINE_UTC: oldDeadline }, h.adapters, 'capture')).rejects.toThrow('PREVIEW_APPROVED_DEADLINE_INVALID');
   }
-  await expect(run({ ...approved, PREVIEW_APPROVED_DEADLINE_UTC: '2026-10-08T19:00:00Z' }, h.adapters, 'capture')).rejects.toThrow('PREVIEW_APPROVED_DEADLINE_INVALID');
+  await expect(run({ ...approved, PREVIEW_APPROVED_DEADLINE_UTC: '2026-10-08T22:00:00Z' }, h.adapters, 'capture')).rejects.toThrow('PREVIEW_APPROVED_DEADLINE_INVALID');
 });
 test('provider deletion failure saves sanitized exact recovery receipt and fails', async () => {
   const h = harness({ failure: true }); await expect(run(env, h.adapters, 'cleanup')).rejects.toThrow('PROVIDER_OPERATION_FAILED');
