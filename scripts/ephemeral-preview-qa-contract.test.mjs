@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 
 const workflow = yaml.load(readFileSync('.github/workflows/ephemeral-preview.yml', 'utf8'));
 const main = workflow.jobs.validate.steps.find(step => step.name === 'Capture fresh PR366 paired target and run browser QA before cleanup').run;
-const resume = readFileSync('scripts/qa-pr366-preview-resume.sh', 'utf8');
+const resume = readFileSync('scripts/qa-pr366-preview-resume.sh', 'utf8').replace(/\r\n/g, '\n');
 const ci = yaml.load(readFileSync('.github/workflows/ci.yml', 'utf8'));
 
 test('manual regression runner is isolated from provider writes and full CI remains the default', () => {
