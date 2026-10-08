@@ -1,8 +1,8 @@
 {
-  "id": "WEB-20261007-BRACES-USER-ACCEPTED",
-  "expiresAt": "2026-10-08T15:30:00Z",
+  "id": "WEB-20261009-BRACES-USER-ACCEPTED",
+  "expiresAt": "2026-10-09T16:00:00Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
-  "authorization": "User explicitly accepted the reviewed, exact Web development dependency risk on 2026-10-07 through 2026-10-08 15:30 UTC; original audit remains NON_PASS.",
+  "authorization": "User explicitly renewed only the existing exact five high Web development dependency findings through Taipei 2026-10-10 00:00 (UTC 2026-10-09 16:00); original audit remains NON_PASS. New vulnerabilities or dependency changes remain blocking; no CodeQL, Native, live LINE or payment waiver.",
   "scope": "Web release only; no Native release; original audit remains NON_PASS",
   "lockSha256": "00f3c2b4363f58e2485fb9139142ac9d611671ad04e8561150cf35be8015bc6c",
   "counts": {

@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import path from "node:path";
@@ -52,7 +52,8 @@ async function freeze() {
   const flagDefaults = await prisma.resilienceFeatureFlag.findMany({ select: { code: true, defaultEnabled: true }, orderBy: { code: "asc" } });
   const contract = JSON.parse(JSON.stringify({ fullSettings, flagDefaults }));
   const contractFile = path.join(output, "runtime-contract-initial.json");
-  if (!existsSync(contractFile)) writeFileSync(contractFile, JSON.stringify(contract, null, 2) + "\n");
+  try { writeFileSync(contractFile, JSON.stringify(contract, null, 2) + "\n", { flag: "wx" }); }
+  catch (error) { if (error.code !== "EEXIST") throw error; }
   expect(contract).toEqual(JSON.parse(readFileSync(contractFile)));
   const surroundings = { orders: await prisma.order.groupBy({ by: ["status"], where: { stallId: fixture.stallId }, _count: true }), products: await prisma.stallProduct.count({ where: { stallId: fixture.stallId } }), tasks: await prisma.orderProductionTask.groupBy({ by: ["status"], where: { stallId: fixture.stallId }, _count: true }) };
   const canonical = rows => [...rows].sort((a, b) => (a.id ?? a.status).localeCompare(b.id ?? b.status));

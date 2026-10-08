@@ -1,5 +1,5 @@
 import {loadEnvFile} from 'node:process';
-import {readFileSync,writeFileSync,existsSync} from 'node:fs';
+import {readFileSync,writeFileSync,existsSync,openSync,closeSync} from 'node:fs';
 import {spawnSync} from 'node:child_process';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
@@ -9,9 +9,12 @@ loadEnvFile('.env.local');
 const label=process.argv[2];if(!/^[a-z0-9-]+$/.test(label??''))throw Error('B4A_LABEL_REQUIRED');
 const path=`.superpowers/sdd/2026-10-01-awesome-optimization/batch-4a/constraints-${label}.json`;if(existsSync(path))throw Error('IMMUTABLE_RECEIPT_EXISTS');
 const runtime=readResponsiveBuildProvenance({expectedSourceSha256:process.env.AWESOME_QA_EXPECTED_SOURCE_SHA256});
-const db=await openGuardedDatabase(),before=(await verifyLiveFixture(db)).receipt,checks=[];
+const db=await openGuardedDatabase(),checks=[];
+let before,receiptFd,primaryError,receiptAttempted=false;
 function sql(name,command,expected){const result=spawnSync('docker',['exec','-i','supabase_db_stallorder-responsive-20260930','psql','-X','-v','ON_ERROR_STOP=1','-v','VERBOSITY=verbose','-U','postgres','-d','postgres'],{input:`BEGIN;\n${command}\nROLLBACK;`,encoding:'utf8',windowsHide:true});checks.push({name,exitCode:result.status,stdout:result.stdout,stderr:result.stderr,transaction:'ROLLBACK or connection-close rollback'});if(expected){assert.notEqual(result.status,0);assert.match(result.stderr,new RegExp(expected));}else assert.equal(result.status,0);}
 try{
+ before=(await verifyLiveFixture(db)).receipt;
+ receiptFd=openSync(path,'wx');
  for(const role of ['anon','authenticated'])for(const table of ['notification_preferences','notification_read_receipts'])for(const operation of ['SELECT * FROM','INSERT INTO','UPDATE','DELETE FROM']){const tail=operation==='INSERT INTO'?' DEFAULT VALUES':operation==='UPDATE'?(table==='notification_preferences'?' SET version=version':' SET read_at=read_at'):'';sql(`${role}/${table}/${operation}`,`SET LOCAL ROLE ${role}; ${operation} public.${table}${tail};`,'42501');}
  const profile=randomUUID(),order=randomUUID(),delivery=randomUUID(),receipt=randomUUID();
  const seed=`INSERT INTO profiles(id,display_name,email) VALUES('${profile}','B4a transaction-only','awesome-b4a-sql-${profile}@stallorder.test');`;
@@ -29,5 +32,16 @@ try{
  sql('actual delivery paired with different existing order rejected by composite FK',`${seed} INSERT INTO notification_read_receipts(profile_id,staff_delivery_id,staff_order_id) VALUES('${profile}','${deliverySource.id}','${otherOrder.id}');`,'notification_receipt_staff_source_fk');
  sql('one personal receipt per real order source',`${seed} INSERT INTO notification_read_receipts(profile_id,staff_delivery_id,staff_order_id) VALUES('${profile}','${deliverySource.id}','${deliverySource.orderId}'),('${profile}','${deliverySource.id}','${deliverySource.orderId}');`,'notification_receipt_profile_order_key');
  const migration=readFileSync('supabase/migrations/20261001120000_personal_notification_inbox.sql','utf8');assert.ok(!migration.includes('DROP CONSTRAINT'));
- writeFileSync(path,JSON.stringify({runtime,before,after:(await verifyLiveFixture(db)).receipt,checks,status:'PASS',persistedTestWrites:0},null,2)+'\n',{flag:'wx'});
-}catch(error){writeFileSync(path,JSON.stringify({runtime,before,checks,status:'FAIL',error:String(error)},null,2)+'\n',{flag:'wx'});throw error;}finally{await db.$disconnect();}
+ const result={runtime,before,after:(await verifyLiveFixture(db)).receipt,checks,status:'PASS',persistedTestWrites:0};
+ receiptAttempted=true;
+ writeFileSync(receiptFd,JSON.stringify(result,null,2)+'\n');
+}catch(error){
+ primaryError=error;
+ if(receiptFd!==undefined&&!receiptAttempted)try{writeFileSync(receiptFd,JSON.stringify({runtime,before,checks,status:'FAIL',error:String(error)},null,2)+'\n');}catch{error.receiptWriteFailed=true;}
+ throw error;
+}finally{
+ let cleanupError;
+ if(receiptFd!==undefined)try{closeSync(receiptFd);}catch(error){cleanupError=error;}
+ try{await db.$disconnect();}catch(error){cleanupError??=error;}
+ if(cleanupError){if(primaryError)primaryError.cleanupFailed=true;else throw cleanupError;}
+}

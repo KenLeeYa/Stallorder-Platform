@@ -1,4 +1,4 @@
-import { readFileSync, statSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import vm from "node:vm";
@@ -17,7 +17,8 @@ const results = routes.map(route => {
   const manifest = context.globalThis.__RSC_MANIFEST[`/${route}`];
   const chunks = [...new Set(manifest.entryJSFiles[`[project]/src/app/${route}`])].map(file => {
     const location = path.join(".next", file);
-    return { file, bytes: statSync(location).size, sha256: createHash("sha256").update(readFileSync(location)).digest("hex") };
+    const bytes = readFileSync(location);
+    return { file, bytes: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") };
   });
   return { route, totalBytes: chunks.reduce((sum, chunk) => sum + chunk.bytes, 0), chunks };
 });

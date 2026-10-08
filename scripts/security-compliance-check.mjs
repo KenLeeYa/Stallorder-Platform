@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync, existsSync, statSync, mkdirSync, readdirSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
+import { readCheckedFile } from "./lib/checked-file-read.mjs";
 import { resolve } from "node:path";
 import { createHash } from "node:crypto";
 
@@ -18,8 +19,11 @@ const rules = [
 let scanned = 0;
 const scan = (file) => {
   const path = resolve(root, file);
-  if (!existsSync(path) || !statSync(path).isFile() || statSync(path).size > 20_000_000) return;
-  const content = readFileSync(path, "utf8"); scanned++;
+  let bytes;
+  try { bytes = readCheckedFile(path, { maxBytes: 20_000_000 }); }
+  catch (error) { if (error.code === "ENOENT") return; throw error; }
+  if (!bytes) return;
+  const content = bytes.toString("utf8"); scanned++;
   for (const [kind, pattern] of rules) for (const match of content.matchAll(pattern)) {
     candidates.push({ file, line: content.slice(0, match.index).split("\n").length, kind, fingerprint: sha256(match[0]).slice(0, 16) });
   }

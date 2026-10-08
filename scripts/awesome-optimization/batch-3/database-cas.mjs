@@ -1,6 +1,6 @@
 import { loadEnvFile } from 'node:process';
 import { randomUUID, createHash } from 'node:crypto';
-import { writeFileSync, existsSync } from 'node:fs';
+import { writeFileSync, existsSync, openSync, closeSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { openGuardedDatabase, verifyLiveFixture } from '../../../docs/awesome-optimization/qa/live-fixture-guard.mjs';
 loadEnvFile('.env.local');
@@ -10,8 +10,10 @@ const receiptPath=`${directory}/database-${mode}-${process.argv[3]??'red'}.json`
 if(existsSync(receiptPath))throw Error('BATCH3_RECEIPT_EXISTS');
 const db=await openGuardedDatabase();
 const proof={mode,startedAt:new Date().toISOString(),status:'RUNNING',checks:[],syntheticLocalOnly:true};
+let receiptFd,primaryError;
 try {
  proof.corpus=(await verifyLiveFixture(db)).receipt;
+ receiptFd=openSync(receiptPath,'wx');
  const {saveMerchantApplicationDraft,submitMerchantApplication,getApplicantApplication}=await import('../../../src/server/merchant-applications/merchant-application-service.ts');
  const {prisma}=await import('../../../src/lib/prisma.ts');
  const profileId=randomUUID(),email=`awesome-b3-${mode}-${profileId}@stallorder.test`;
@@ -53,5 +55,16 @@ try {
   proof.checks.push({case:'NEEDS_INFO sameid/version resubmit and rejected/withdrawn additive reapplication',id:first.id,versions:[1,3,4,5,7,8],reapplicationId:reapplication.id,afterWithdrawId:afterWithdraw.id,terminalPreimagePreserved:true});
  }
  await prisma.$disconnect();proof.status='PASS';
-}catch(error){proof.status='FAILED';proof.failure=error.stack;process.exitCode=1;}
-finally{proof.finishedAt=new Date().toISOString();await db.$disconnect();writeFileSync(receiptPath,JSON.stringify(proof,null,2)+'\n',{flag:'wx'});console.log(JSON.stringify({status:proof.status,checks:proof.checks.length,failure:proof.failure?.split('\n')[0],receiptPath}));}
+}catch(error){primaryError=error;proof.status='FAILED';proof.failure=error.stack;process.exitCode=1;}
+finally{
+ proof.finishedAt=new Date().toISOString();
+ try { await db.$disconnect(); }
+ catch(error){if(!primaryError)primaryError=error;proof.status='FAILED';proof.failure??=error.stack;}
+ if(receiptFd!==undefined){
+  try { writeFileSync(receiptFd,JSON.stringify(proof,null,2)+'\n'); }
+  catch(error){proof.status='FAILED';if(!primaryError)primaryError=error;else primaryError.receiptWriteFailed=true;}
+  finally { try { closeSync(receiptFd); } catch(error){if(!primaryError)primaryError=error;else primaryError.receiptCloseFailed=true;} }
+ }
+ console.log(JSON.stringify({status:proof.status,checks:proof.checks.length,failure:proof.failure?.split('\n')[0],receiptPath}));
+}
+if(primaryError)throw primaryError;

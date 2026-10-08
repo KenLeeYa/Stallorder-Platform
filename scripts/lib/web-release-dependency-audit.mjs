@@ -6,6 +6,7 @@ import {builtinModules} from 'node:module';
 import {tmpdir} from 'node:os';
 import ts from 'typescript';
 import {verifyWebInstallScope} from '../verify-web-install-scope.mjs';
+import {readCheckedFile} from './checked-file-read.mjs';
 
 const hash=value=>createHash('sha256').update(value).digest('hex');
 const nativePackage=name=>/^(?:expo(?:$|-)|@expo\/|react-native(?:$|-)|@react-native\/|node-forge$|decode-uri-component$|query-string$)/.test(name);
@@ -213,10 +214,12 @@ export function verifyGeneratedPrisma(root,packages){
    const path=join(real,name),target=realpathSync(path);
    if(!inside(generatedReal,target))reject('WEB_PRISMA_GENERATED_PATH_INVALID');
    if(name==='node_modules'||(name==='package.json'&&target!==join(generatedReal,'package.json')))reject('WEB_PRISMA_NESTED_PACKAGE_FORBIDDEN');
-   if(statSync(target).isDirectory()){walk(target);continue;}
-   if(!statSync(target).isFile())reject('WEB_PRISMA_GENERATED_PATH_INVALID');generatedFiles.push(target);
+   const expected=statSync(target);
+   if(expected.isDirectory()){walk(target);continue;}
+   const bytes=readCheckedFile(target,{expected});
+   if(!bytes)reject('WEB_PRISMA_GENERATED_PATH_INVALID');generatedFiles.push({path:target,sha256:hash(bytes)});
    if(/\.[cm]?js$/.test(name)){
-    const scan=inspectImports(readFileSync(target,'utf8'),target);
+    const scan=inspectImports(bytes.toString('utf8'),target);
     if(scan.parseErrors||scan.unknown.length)reject('WEB_PRISMA_GENERATED_IMPORT_UNPROVEN');
     for(const specifier of scan.imports){
      if(nativePackage(packageName(specifier)))reject('WEB_PRISMA_NATIVE_GENERATED_IMPORT');
@@ -233,7 +236,7 @@ export function verifyGeneratedPrisma(root,packages){
   else reject('WEB_PRISMA_GENERATED_IMPORT_UNPROVEN');
  };
  Object.values(pkg.imports??{}).forEach(aliases);walk(generatedReal);
- return {path:'node_modules/.prisma/client',name:pkg.name,version:pkg.version,schemaSha256:hash(schema),formatterSha256:hash(readFileSync(cli)),formatterWasmSha256:hash(readFileSync(wasm)),generatorSha256:hash(readFileSync(generator)),sourceSchemaSha256:hash(readFileSync(join(root,'prisma/schema.prisma'))),generatedFiles:generatedFiles.length,generatedFilesSha256:hash(generatedFiles.sort().map(path=>`${relative(generatedReal,path)}\0${hash(readFileSync(path))}`).join('\n'))};
+ return {path:'node_modules/.prisma/client',name:pkg.name,version:pkg.version,schemaSha256:hash(schema),formatterSha256:hash(readFileSync(cli)),formatterWasmSha256:hash(readFileSync(wasm)),generatorSha256:hash(readFileSync(generator)),sourceSchemaSha256:hash(readFileSync(join(root,'prisma/schema.prisma'))),generatedFiles:generatedFiles.length,generatedFilesSha256:hash(generatedFiles.sort((a,b)=>a.path<b.path?-1:a.path>b.path?1:0).map(row=>`${relative(generatedReal,row.path)}\0${row.sha256}`).join('\n'))};
 }
 
 export function verifyWebArtifact(root,baseline,audit,sbom,exception){

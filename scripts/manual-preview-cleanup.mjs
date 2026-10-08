@@ -20,9 +20,9 @@ export function assertDeployment(row, env) {
 }
 export function approvedExpiry(env, now) {
   if (env.PREVIEW_GIT_BRANCH !== 'codex/integrated-production-20261002') return new Date(now.getTime() + 6 * 3600000);
-  if (env.PREVIEW_APPROVED_DEADLINE_UTC !== '2026-10-08T14:00:00Z') throw Error('PREVIEW_APPROVED_DEADLINE_INVALID');
+  if (env.PREVIEW_APPROVED_DEADLINE_UTC !== '2026-10-08T22:00:00Z') throw Error('PREVIEW_APPROVED_DEADLINE_INVALID');
   const deadline = new Date(env.PREVIEW_APPROVED_DEADLINE_UTC);
-  if (now < new Date('2026-10-08T11:00:00Z')) throw Error('PREVIEW_APPROVAL_NOT_STARTED');
+  if (now < new Date('2026-10-08T16:00:00Z')) throw Error('PREVIEW_APPROVAL_NOT_STARTED');
   if (now >= deadline) throw Error('PREVIEW_APPROVAL_EXPIRED');
   const expiry = new Date(Math.min(now.getTime() + 3 * 3600000, deadline.getTime()));
   if (expiry.getTime() - now.getTime() < 75 * 60000) throw Error('PREVIEW_APPROVAL_WINDOW_TOO_SHORT');
@@ -65,6 +65,7 @@ export async function run(env, { cli, api, save, previous, now = new Date() }, o
       save(receipt);
     } else if (receipt.deployments.length) throw Error('VERCEL_AUTH_MISSING');
     if (operation === 'cleanup') {
+      receipt.cleanupStartedAt ??= now.toISOString(); save(receipt);
       for (const item of receipt.deployments) {
         const row = await api('GET', item.id);
         if (row) { assertDeployment(row, env); await api('DELETE', item.id); }
@@ -81,6 +82,7 @@ export async function run(env, { cli, api, save, previous, now = new Date() }, o
         item.absent = true; save(receipt);
       }
       receipt.status = 'CLEANED';
+      receipt.cleanupCompletedAt = new Date().toISOString();
     } else receipt.status = 'CAPTURED';
     save(receipt); return receipt;
   } catch (error) { receipt.status = 'RECOVERY_REQUIRED'; receipt.error = /^[A-Z_]+$/.test(error.message) ? error.message : 'PROVIDER_OPERATION_FAILED'; save(receipt); throw Error(receipt.error); }

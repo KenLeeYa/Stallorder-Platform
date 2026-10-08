@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { loadEnvFile } from 'node:process';
 import { assertResponsiveQaTarget } from '../../responsive-qa-target.mjs';
 import {projectLegacyApplications} from '../../../docs/awesome-optimization/qa/application-schema-overlay.mjs';
@@ -56,7 +56,8 @@ try {
   if (counts.organization!==2 || counts.stall!==3 || counts.product!==1000 || counts.order!==500 || counts.merchantApplication!==201) throw Error('AWESOME_FIXTURE_COUNTS_INVALID');
   const frozen = { marker:'awesome-b1', organizations, stalls, timestamp:timestamp.toISOString(), counts, digest:hash(dataset), recordIds:Object.fromEntries(Object.entries(dataset).map(([k,v])=>[k,v.map(r=>r.id)])) };
   const file=`${output}/fixture-freeze.json`;
-  if (existsSync(file)) { if (JSON.parse(readFileSync(file)).digest !== frozen.digest) throw Error('AWESOME_FIXTURE_DRIFT'); }
-  else writeFileSync(file,JSON.stringify(frozen,null,2)+'\n');
+  try { writeFileSync(file,JSON.stringify(frozen,null,2)+'\n',{flag:'wx'}); }
+  catch(error) { if(error.code!=='EEXIST')throw error; }
+  if (JSON.parse(readFileSync(file)).digest !== frozen.digest) throw Error('AWESOME_FIXTURE_DRIFT');
   console.log(JSON.stringify({marker:frozen.marker,counts,digest:frozen.digest,verifiedAt:new Date().toISOString()}));
 } finally { await database.$disconnect(); }

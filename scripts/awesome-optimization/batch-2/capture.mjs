@@ -8,9 +8,9 @@ const manifest = paths.map(path => {
  const snapshot = `${directory}/before/${path.replaceAll('/','__')}.before`;
  if (existsSync(snapshot)) throw Error(`PREIMAGE_ALREADY_CAPTURED:${path}`);
  const bytes = existsSync(path) ? readFileSync(path) : null;
- if(bytes) writeFileSync(snapshot,bytes);
+ if(bytes) writeFileSync(snapshot,bytes,{flag:'wx'});
  return {path,existed:!!bytes,sha256:bytes?createHash('sha256').update(bytes).digest('hex'):null,snapshot:bytes?snapshot:null};
 });
-writeFileSync(`${directory}/before-manifest.json`,JSON.stringify({at:new Date().toISOString(),head:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),paths:manifest},null,2)+'\n');
-writeFileSync(`${directory}/before-owned.patch`,execFileSync('git',['diff','--',...paths],{maxBuffer:64*1024*1024}));
+writeFileSync(`${directory}/before-manifest.json`,JSON.stringify({at:new Date().toISOString(),head:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),paths:manifest},null,2)+'\n',{flag:'wx'});
+writeFileSync(`${directory}/before-owned.patch`,execFileSync('git',['diff','--',...paths],{maxBuffer:64*1024*1024}),{flag:'wx'});
 console.log(`Captured ${paths.length} preimages`);

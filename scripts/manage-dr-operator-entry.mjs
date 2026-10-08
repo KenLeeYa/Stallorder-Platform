@@ -1340,7 +1340,7 @@ async function linkProject(projectId) {
 }
 
 async function readCloudflareAccessState() {
-  const response = await fetch(
+  const response = await fetchDrProvider(
     `https://api.cloudflare.com/client/v4/accounts/${cloudflareAccountId}/access/apps?per_page=1000`,
     { headers: cloudflareHeaders(), signal: AbortSignal.timeout(30_000) },
   );
