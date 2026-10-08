@@ -414,6 +414,16 @@ export function readPreviewOpenCashShift(payload) {
   return state.openShift;
 }
 
+export function catalogDesktopEditButton(page, productName) {
+  return page.getByRole('table', { name: '授權組織商品清單', exact: true })
+    .getByRole('row').filter({ has: page.getByText(productName, { exact: true }) })
+    .getByRole('button', { name: '編輯', exact: true });
+}
+
+export function catalogMobileEditButton(page, productName) {
+  return page.getByRole('button', { name: `編輯 ${productName}`, exact: true }).filter({ visible: true });
+}
+
 export async function runCashShiftPhase(receipt, binding, outDir) {
   const origin = assertTarget(receipt, binding);
   const { chromium, expect } = await import('@playwright/test');
@@ -497,6 +507,10 @@ export async function run(receipt, binding, outDir) {
   const check = createCaseRunner(results, progress => writeFileSync(resolve(outDir, 'ui-progress.json'), JSON.stringify({
     resourceKey: receipt.resourceKey, childRef: binding.childRef, deploymentId: binding.deploymentId,
     sha: binding.sha, tree: binding.tree, ...progress, complete: false }, null, 2)));
+  const catalogStep = step => writeFileSync(resolve(outDir, 'ui-catalog-progress.json'), JSON.stringify({
+    resourceKey: receipt.resourceKey, childRef: binding.childRef, deploymentId: binding.deploymentId,
+    sha: binding.sha, tree: binding.tree, currentCase: 'catalog-responsive-edit-cancel-return-mounted-save-failure',
+    step, complete: false }, null, 2));
   try {
     await page.goto(`${origin}/login?next=${encodeURIComponent(`/merchant?organizationId=${org}`)}`);
     await page.getByRole('button', { name: '使用電子郵件與密碼登入', exact: true }).click();
@@ -540,36 +554,45 @@ export async function run(receipt, binding, outDir) {
     });
     await check('catalog-responsive-edit-cancel-return-mounted-save-failure', async () => {
       for (const width of [320, 390, 768, 1440]) {
+        catalogStep(`responsive-${width}`);
         await page.setViewportSize({ width, height: 900 });
         await page.goto(`${origin}/merchant/catalog?organizationId=${org}`);
         await expect(page.getByRole('heading', { name: '共用商品', exact: true })).toBeVisible();
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
       }
+      catalogStep('desktop-search');
       await page.getByRole('searchbox', { name: '搜尋商品', exact: true }).fill('香酥雞排');
       await expect(page).toHaveURL(/q=/);
       const before = page.url();
-      await page.getByRole('button', { name: '編輯 香酥雞排', exact: true }).filter({ visible: true }).click();
+      catalogStep('desktop-edit');
+      await catalogDesktopEditButton(page, '香酥雞排').click();
       const editor = page.getByRole('dialog', { name: '編輯商品', exact: true });
       await expect(editor).toBeVisible();
+      catalogStep('desktop-cancel');
       await editor.getByRole('button', { name: '取消', exact: true }).click();
       await expect(editor).toBeHidden();
       await expect(page.getByRole('searchbox', { name: '搜尋商品', exact: true })).toHaveValue('香酥雞排');
       expect(page.url()).toBe(before);
+      await page.setViewportSize({ width: 390, height: 900 });
       // A mounted transport failure is not provider failure or database rollback evidence.
-      await page.getByRole('button', { name: '編輯 香酥雞排', exact: true }).filter({ visible: true }).click();
+      catalogStep('mobile-edit');
+      await catalogMobileEditButton(page, '香酥雞排').click();
       await editor.getByLabel('商品名稱', { exact: true }).fill('PR366 transport failure — not persisted');
       const commandUrl = `${origin}/api/merchant/organizations/${org}/catalog`;
       await page.route(commandUrl, route => route.request().method() === 'POST'
         ? route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: '隔離測試：模擬儲存失敗' }) })
         : route.continue());
       try {
+        catalogStep('mobile-save-failure');
         await editor.getByRole('button', { name: '儲存', exact: true }).click();
         await expect(editor.getByRole('alert')).toBeVisible();
         await expect(editor).toBeVisible();
         expect(page.url()).toBe(before);
+        catalogStep('mobile-cancel');
         await editor.getByRole('button', { name: '取消', exact: true }).click();
       } finally { await page.unroute(commandUrl); }
       await expect(page.getByRole('searchbox', { name: '搜尋商品', exact: true })).toHaveValue('香酥雞排');
+      catalogStep('mobile-return-verified');
     });
     await check('notification-navigation', async () => {
       await page.goto(`${origin}/merchant?organizationId=${org}`);

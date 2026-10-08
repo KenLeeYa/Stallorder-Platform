@@ -177,7 +177,7 @@ function InboxContents({ scope, authority }: Props & { authority: ReturnType<typ
       <label className="flex min-h-12 items-center gap-2" style={{ minHeight: 48 }}><input type="checkbox" name="unreadOnly" disabled={!ready || busy || blocked} />只看未讀</label>
       <label className="grid min-w-0 gap-1">起始日期（UTC，含）<input type="date" name="from" className={`min-w-0 w-full ${control}`} disabled={!ready || busy || blocked} /></label>
       <label className="grid min-w-0 gap-1">截止日期（UTC，不含）<input type="date" name="to" className={`min-w-0 w-full ${control}`} disabled={!ready || busy || blocked} /></label>
-      <button type="button" className={control} disabled={!ready || busy || blocked}>套用篩選</button>
+      <button type="submit" className={control} disabled={!ready || busy || blocked}>套用篩選</button>
     </form>
     {message ? <p role="status">{message}</p> : null}
     {blocked ? <p role="alert">請等待操作限制解除後再重試。</p> : null}
