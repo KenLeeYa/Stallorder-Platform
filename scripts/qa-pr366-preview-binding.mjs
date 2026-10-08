@@ -31,10 +31,12 @@ export async function capturePublicBackendConfigFingerprint(api){
  const rows=config?.envs?.filter(row=>row.key==='NEXT_PUBLIC_SUPABASE_URL'&&Array.isArray(row.target)&&row.target.includes('production'));
  if(config?.pagination?.next||rows?.length!==1)fail('BINDING_PUBLIC_CONFIG_INVALID');
  const row=rows[0];
- if(!row.id||!row.type||!Number.isFinite(row.updatedAt)||typeof row.value!=='string'||!row.value)fail('BINDING_PUBLIC_CONFIG_INVALID');
+ if(typeof row.id!=='string'||!row.id||typeof row.type!=='string'||!row.type||!Number.isFinite(row.updatedAt)||typeof row.value!=='string')fail('BINDING_PUBLIC_CONFIG_INVALID');
+ const mode=row.value?'opaque-value-v1':row.type==='sensitive'?'sensitive-redacted-v1':null;
+ if(!mode)fail('BINDING_PUBLIC_CONFIG_INVALID');
  // The provider intentionally cannot decrypt sensitive variables. Compare unchanged metadata,
  // never claim this fingerprint proves a fresh server database connection or expose its value.
- return createHash('sha256').update(JSON.stringify({id:row.id,key:row.key,type:row.type,target:[...row.target].sort(),updatedAt:row.updatedAt,value:row.value})).digest('hex');
+ return `${mode}:${createHash('sha256').update(JSON.stringify({mode,id:row.id,key:row.key,type:row.type,target:[...row.target].sort(),updatedAt:row.updatedAt,value:row.value})).digest('hex')}`;
 }
 export async function capturePrimaryBaseline(expected,api,now=new Date()){
  if(!/^dpl_[A-Za-z0-9]+$/.test(expected.deploymentId??'')||!/^[a-f0-9]{40}$/.test(expected.sha??''))fail('BINDING_PRIMARY_BASELINE_REQUIRED');

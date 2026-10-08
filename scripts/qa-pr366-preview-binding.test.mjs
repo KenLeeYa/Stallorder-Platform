@@ -17,6 +17,23 @@ function syntheticDatabaseUrl(pooler) {
   if (pooler) url.searchParams.set('pgbouncer', 'true');
   return url.href;
 }
+test('explicit sensitive redaction mode is stable but never equals opaque value evidence',async()=>{
+ const config={envs:[{key:'NEXT_PUBLIC_SUPABASE_URL',id:'id',type:'sensitive',target:['production'],updatedAt:123,value:''}]};
+ const api=async()=>config;const redacted=await capturePublicBackendConfigFingerprint(api);
+ expect(redacted).toMatch(/^sensitive-redacted-v1:[a-f0-9]{64}$/);expect(await capturePublicBackendConfigFingerprint(api)).toBe(redacted);
+ config.envs[0].value='opaque';expect(await capturePublicBackendConfigFingerprint(api)).not.toBe(redacted);
+ config.envs[0].value='';config.envs[0].type='encrypted';await expect(capturePublicBackendConfigFingerprint(api)).rejects.toThrow('PUBLIC_CONFIG_INVALID');
+});
+test.each(['id','type','target','updatedAt'])('redacted fingerprint changes with provider record metadata %s',async key=>{
+ const row={key:'NEXT_PUBLIC_SUPABASE_URL',id:'id',type:'sensitive',target:['production'],updatedAt:123,value:''};const api=async()=>({envs:[row]});
+ const before=await capturePublicBackendConfigFingerprint(api);
+ if(key==='id')row.id='other';if(key==='target')row.target.push('preview');if(key==='updatedAt')row.updatedAt++;
+ if(key==='type'){row.type='encrypted';await expect(capturePublicBackendConfigFingerprint(api)).rejects.toThrow('PUBLIC_CONFIG_INVALID');}else expect(await capturePublicBackendConfigFingerprint(api)).not.toBe(before);
+});
+test.each([undefined,null])('redacted mode rejects missing or null values %s',async value=>{
+ const row={key:'NEXT_PUBLIC_SUPABASE_URL',id:'id',type:'sensitive',target:['production'],updatedAt:123,value};
+ await expect(capturePublicBackendConfigFingerprint(async()=>({envs:[row]}))).rejects.toThrow('PUBLIC_CONFIG_INVALID');
+});
 const team='team_MMfsiG94K9Zy3e6w7Ccc9xY4',project='prj_uoG4FNJIgnF1LdKRiXnfRaieXnUP',parent='eyuctbnlvnbnivwasvqr';
 const now=new Date('2026-10-03T01:00:00Z'),sha='a'.repeat(40),tree='b'.repeat(40);
 function fixture(){const receipt={parent,team,project,gitBranch:'codex/integrated-production-20261002',resourceKey:'manual-123',branchName:'manual-123',status:'CAPTURED',expiresAt:'2026-10-03T05:00:00Z',branches:[{id:'child',name:'manual-123'}],deployments:[{id:'dpl_preview',target:'preview'}]};const selection={childRef:'child',deploymentId:'dpl_preview'};const baseline={projectId:project,deploymentId:'dpl_primary',aliases:['app.qidaigo.com']};const child={name:'manual-123',project_ref:'child',with_data:false,git_branch:receipt.gitBranch};const records={
@@ -28,7 +45,7 @@ function fixture(){const receipt={parent,team,project,gitBranch:'codex/integrate
  [`/v2/deployments/dpl_primary/aliases?teamId=${team}`]:{aliases:[{alias:'app.qidaigo.com'}]}};const calls=[];const api=async path=>{calls.push(path);return records[path];};const adapters={api,source:()=>({sha,tree}),branches:ref=>{expect(ref).toBe(parent);return [child];}};return{receipt,selection,baseline,child,records,api,adapters,calls,run:()=>captureBinding(receipt,selection,baseline,adapters,now)};}
 test('captures actual scoped parent provenance without inventing a raw parent field',async()=>{const f=fixture();const b=await f.run();expect(b.readback.child).not.toHaveProperty('parent_project_ref');expect(b.readback.childScope).toEqual({provider:'supabase-cli',operation:'branches list',parentProjectRef:parent});expect(b.readback.deployment).toMatchObject({teamId:team,rawTarget:null,target:'preview'});expect(b).toMatchObject({sha,tree,origin:'https://owned.vercel.app'});});
 test('captures full raw Primary aliases before creation',async()=>{const f=fixture();expect(await capturePrimaryBaseline({deploymentId:'dpl_primary',sha},f.api,now)).toMatchObject({projectId:project,teamId:team,aliases:['app.qidaigo.com'],sha});});
-test('public configuration fingerprint is stable, changes with metadata and never exposes the value',async()=>{const f=fixture();const first=await capturePublicBackendConfigFingerprint(f.api);expect(first).toMatch(/^[a-f0-9]{64}$/);expect(await capturePublicBackendConfigFingerprint(f.api)).toBe(first);f.records[`/v9/projects/${project}/env?teamId=${team}`].envs[0].updatedAt++;expect(await capturePublicBackendConfigFingerprint(f.api)).not.toBe(first);expect(first).not.toContain('synthetic');});
+test('public configuration fingerprint is stable, changes with metadata and never exposes the value',async()=>{const f=fixture();const first=await capturePublicBackendConfigFingerprint(f.api);expect(first).toMatch(/^opaque-value-v1:[a-f0-9]{64}$/);expect(await capturePublicBackendConfigFingerprint(f.api)).toBe(first);f.records[`/v9/projects/${project}/env?teamId=${team}`].envs[0].updatedAt++;expect(await capturePublicBackendConfigFingerprint(f.api)).not.toBe(first);expect(first).not.toContain('synthetic');});
 test.each(['missing','duplicate','pagination','value','updatedAt'])('public configuration fingerprint rejects ambiguous or incomplete provider metadata %s',async mode=>{const f=fixture();const config=f.records[`/v9/projects/${project}/env?teamId=${team}`];if(mode==='missing')config.envs=[];if(mode==='duplicate')config.envs.push({...config.envs[0]});if(mode==='pagination')config.pagination={next:1};if(mode==='value')delete config.envs[0].value;if(mode==='updatedAt')delete config.envs[0].updatedAt;await expect(capturePublicBackendConfigFingerprint(f.api)).rejects.toThrow('PUBLIC_CONFIG_INVALID');});
 for(const key of ['parent','team','project','gitBranch','resourceKey','branchName','status','expiresAt'])test('rejects receipt drift '+key,async()=>{const f=fixture();f.receipt[key]='wrong';await expect(f.run()).rejects.toThrow('RECEIPT_INVALID');});
 test('rejects wrong source SHA and unknown provider project owner',async()=>{const f=fixture();f.adapters.source=()=>({sha:'c'.repeat(40),tree});await expect(f.run()).rejects.toThrow('DEPLOYMENT_DRIFT');f.adapters.source=()=>({sha,tree});f.records[`/v9/projects/${project}?teamId=${team}`].accountId='other';await expect(f.run()).rejects.toThrow('PROJECT_OWNER_DRIFT');});

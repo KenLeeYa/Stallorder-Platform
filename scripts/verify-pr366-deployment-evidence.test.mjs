@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { SCOPE, REQUIRED_UI, verifyDeploymentEvidence, captureProviderReadback, selectLatestValidationRun } from './verify-pr366-deployment-evidence.mjs';
 function fixture() {
  const sha='a'.repeat(40), tree='b'.repeat(40), resourceKey='manual-37714174760', childRef='abcdefghijklmnopqrst', deploymentId='dpl_preview';
- const baseline={projectId:SCOPE.project,teamId:SCOPE.team,deploymentId:'dpl_primary',sha:'c'.repeat(40),aliases:['app.qidaigo.com'],provider:'VERCEL_TEAM_SCOPED_GET',publicBackendConfigFingerprint:'f'.repeat(64)};
+ const baseline={projectId:SCOPE.project,teamId:SCOPE.team,deploymentId:'dpl_primary',sha:'c'.repeat(40),aliases:['app.qidaigo.com'],provider:'VERCEL_TEAM_SCOPED_GET',publicBackendConfigFingerprint:'opaque-value-v1:'+'f'.repeat(64)};
  const cleanup={status:'CLEANED',resourceKey,branchName:resourceKey,gitBranch:SCOPE.branch,parent:SCOPE.parent,team:SCOPE.team,project:SCOPE.project,expiresAt:'2026-10-08T09:00:00Z',branches:[{id:childRef,absent:true}],deployments:[{id:deploymentId,target:'preview',absent:true}]};
  const origin='https://test.vercel.app';
  const binding={origin,resourceKey,childRef,deploymentId,sha,tree,providerReadback:'VERIFIED',productionAlias:false,dataLess:true,readback:{readyState:'READY',verifiedAt:'2026-10-08T07:00:00Z',child:{project_ref:childRef,name:resourceKey,with_data:false,git_branch:SCOPE.branch,parent_project_ref:SCOPE.parent},childScope:{provider:'supabase-cli',operation:'branches list',parentProjectRef:SCOPE.parent},deployment:{id:deploymentId,projectId:SCOPE.project,teamId:SCOPE.team,target:'preview',origin,meta:{stallorderPreviewResource:resourceKey,githubCommitRef:SCOPE.branch,githubCommitSha:sha}},source:{sha,tree},aliases:[],primary:{projectId:SCOPE.project,deploymentId:baseline.deploymentId,aliases:baseline.aliases}}};
@@ -33,6 +33,12 @@ function fixture() {
 test('synthetic complete fixture resolves separately bound phases without claiming current READY or live midnight',()=>{
  const result=verifyDeploymentEvidence(fixture()); assert.equal(result.status,'VERIFIED');assert.equal(result.currentDeployment,'ABSENT_404');assert.deepEqual(result.excludedScope,['live-http-clock-midnight-transition']);
 });
+test('redacted evidence claims metadata only and rejects an evidence-mode downgrade',()=>{
+ const f=fixture();f.baseline.publicBackendConfigFingerprint='sensitive-redacted-v1:'+ 'f'.repeat(64);f.provider.publicBackendConfigFingerprint=f.baseline.publicBackendConfigFingerprint;
+ const result=verifyDeploymentEvidence(f);assert.equal(result.publicProviderRecordMetadataUnchanged,true);assert.equal(result.publicOpaqueProviderValueCompared,false);assert.equal(result.publicConfigurationEvidenceMode,'sensitive-redacted-v1');
+ f.provider.publicBackendConfigFingerprint='opaque-value-v1:'+ 'f'.repeat(64);assert.throws(()=>verifyDeploymentEvidence(f),/PROVIDER_DRIFT/);
+ f.baseline.publicBackendConfigFingerprint=f.provider.publicBackendConfigFingerprint;f.provider.publicBackendConfigFingerprint='sensitive-redacted-v1:'+ 'f'.repeat(64);assert.throws(()=>verifyDeploymentEvidence(f),/PROVIDER_DRIFT/);
+});
 for(const [name,mutate] of [
  ['failed hosted run',f=>f.run.conclusion='failure'],['wrong SHA',f=>f.candidate.sha='d'.repeat(40)],['wrong tree',f=>f.candidate.tree='a'.repeat(40)],
  ['historical READY missing',f=>delete f.binding.readback.readyState],['historical READY failed',f=>f.binding.readback.readyState='ERROR'],['foreign repo',f=>f.run.repository.full_name='attacker/repo'],['foreign artifact',f=>f.artifacts[0].workflow_run.id=99],['rerun ambiguity',f=>f.run.run_attempt=2],
@@ -56,7 +62,7 @@ test('fresh provider adapter uses exact team-scoped deployment and parent list, 
   if(path.includes('/aliases?'))return {aliases:f.baseline.aliases.map(alias=>({alias}))};
   return {id:f.baseline.deploymentId,projectId:SCOPE.project,target:'production',readyState:'READY',meta:{githubCommitSha:f.baseline.sha}};
  }});
- assert.equal(result.deploymentStatus,404);assert.match(result.publicBackendConfigFingerprint,/^[a-f0-9]{64}$/);assert(!JSON.stringify(result).includes('synthetic-encrypted-value'));assert(calls.every(path=>path.includes(`teamId=${SCOPE.team}`)));assert(calls[0].includes(f.binding.deploymentId));
+ assert.equal(result.deploymentStatus,404);assert.match(result.publicBackendConfigFingerprint,/^opaque-value-v1:[a-f0-9]{64}$/);assert(!JSON.stringify(result).includes('synthetic-encrypted-value'));assert(calls.every(path=>path.includes(`teamId=${SCOPE.team}`)));assert(calls[0].includes(f.binding.deploymentId));
 });
 
 
