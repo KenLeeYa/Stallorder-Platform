@@ -16,12 +16,12 @@ test('all validate and resume UI phases are supervised while cleanup and evidenc
     }
   }
   expect(resume).toContain('for file in qa-pr366-preview-ui.mjs qa-pr366-preview-ui-supervised.mjs ');
-  expect(resume).toContain('mkdir -p "$original_dir/scripts/lib"\ncp "$root/scripts/lib/catalog-preview-locators.mjs" "$original_dir/scripts/lib/catalog-preview-locators.mjs"');
-  expect(readFileSync('scripts/qa-pr366-preview-ui.mjs', 'utf8')).toContain("from './lib/catalog-preview-locators.mjs'");
+  expect(resume).toContain('mkdir -p "$original_dir/scripts/lib"\ncp "$root/scripts/lib/catalog-preview-locators.cjs" "$original_dir/scripts/lib/catalog-preview-locators.cjs"');
+  expect(readFileSync('scripts/qa-pr366-preview-ui.mjs', 'utf8')).toContain("from './lib/catalog-preview-locators.cjs'");
   expect(readFileSync('scripts/pr366-preview-resume-source.mjs', 'utf8'))
     .toContain("'qa-pr366-preview-ui-supervised.mjs'");
   expect(readFileSync('scripts/pr366-preview-resume-source.mjs', 'utf8'))
-    .toContain("'lib/catalog-preview-locators.mjs'");
+    .toContain("'lib/catalog-preview-locators.cjs'");
   for (const name of ['validate', 'resume-manual-run']) {
     const job = workflow.jobs[name];
     const cleanup = job.steps.find(step => step.run === 'node scripts/manual-preview-cleanup.mjs cleanup');

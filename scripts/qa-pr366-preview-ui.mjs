@@ -4,7 +4,7 @@ import { resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { validateHeaderValue } from 'node:http';
 import { assertCashShift } from './preview-harness-preflight.mjs';
-import { catalogDesktopEditButton, catalogMobileEditButton } from './lib/catalog-preview-locators.mjs';
+import { catalogDesktopEditButton, catalogMobileEditButton } from './lib/catalog-preview-locators.cjs';
 
 // A coordinator-produced provider readback is required; never infer a child from a URL.
 export function assertTarget(receipt, binding, now = Date.now()) {
@@ -560,7 +560,7 @@ export async function run(receipt, binding, outDir) {
       const editor = page.getByRole('dialog', { name: '編輯商品', exact: true });
       await expect(editor).toBeVisible();
       catalogStep('desktop-cancel');
-      await editor.getByRole('button', { name: '取消', exact: true }).click();
+      await editor.getByRole('button', { name: '關閉', exact: true }).click();
       await expect(editor).toBeHidden();
       await expect(page.getByRole('searchbox', { name: '搜尋商品', exact: true })).toHaveValue('香酥雞排');
       expect(page.url()).toBe(before);
@@ -580,7 +580,7 @@ export async function run(receipt, binding, outDir) {
         await expect(editor).toBeVisible();
         expect(page.url()).toBe(before);
         catalogStep('mobile-cancel');
-        await editor.getByRole('button', { name: '取消', exact: true }).click();
+        await editor.getByRole('button', { name: '關閉', exact: true }).click();
       } finally { await page.unroute(commandUrl); }
       await expect(page.getByRole('searchbox', { name: '搜尋商品', exact: true })).toHaveValue('香酥雞排');
       catalogStep('mobile-return-verified');
