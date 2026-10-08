@@ -8,8 +8,8 @@ export function approvedWatchExpiry(receipt, { sourceRunId, parent, team, projec
     || receipt.gitBranch !== branch || receipt.parent !== parent || receipt.team !== team || receipt.project !== project
     || branch !== 'codex/integrated-production-20261002') throw Error('PREVIEW_WATCH_IDENTITY_INVALID');
   const created = new Date(receipt.createdAt), expiry = new Date(receipt.expiresAt);
-  const approvedCutoff = new Date('2026-10-08T05:00:00Z');
-  if (!Number.isFinite(created.getTime()) || !Number.isFinite(expiry.getTime()) || created < new Date('2026-10-08T02:00:00Z') || created >= expiry
+  const approvedCutoff = new Date('2026-10-08T09:00:00Z');
+  if (!Number.isFinite(created.getTime()) || !Number.isFinite(expiry.getTime()) || created < new Date('2026-10-08T06:00:00Z') || created >= expiry
     || expiry.getTime() !== Math.min(created.getTime() + 3 * 3600000, approvedCutoff.getTime())
     || expiry <= now) throw Error('PREVIEW_WATCH_DEADLINE_INVALID');
   return expiry.getTime();
