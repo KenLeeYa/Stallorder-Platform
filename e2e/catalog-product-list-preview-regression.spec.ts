@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import {
   catalogDesktopEditButton,
   catalogMobileEditButton,
-} from "../scripts/qa-pr366-preview-ui.mjs";
+} from "../scripts/lib/catalog-preview-locators.mjs";
 import { gotoLocalPath, loginLocalTestAccount } from "./local-navigation";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";

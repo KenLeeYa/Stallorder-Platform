@@ -4,6 +4,7 @@ import { resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { validateHeaderValue } from 'node:http';
 import { assertCashShift } from './preview-harness-preflight.mjs';
+import { catalogDesktopEditButton, catalogMobileEditButton } from './lib/catalog-preview-locators.mjs';
 
 // A coordinator-produced provider readback is required; never infer a child from a URL.
 export function assertTarget(receipt, binding, now = Date.now()) {
@@ -412,16 +413,6 @@ export function readPreviewOpenCashShift(payload) {
     throw Error('PREVIEW_CASH_SHIFT_RESPONSE_INVALID');
   }
   return state.openShift;
-}
-
-export function catalogDesktopEditButton(page, productName) {
-  return page.getByRole('table', { name: '授權組織商品清單', exact: true })
-    .getByRole('row').filter({ has: page.getByText(productName, { exact: true }) })
-    .getByRole('button', { name: '編輯', exact: true });
-}
-
-export function catalogMobileEditButton(page, productName) {
-  return page.getByRole('button', { name: `編輯 ${productName}`, exact: true }).filter({ visible: true });
 }
 
 export async function runCashShiftPhase(receipt, binding, outDir) {
