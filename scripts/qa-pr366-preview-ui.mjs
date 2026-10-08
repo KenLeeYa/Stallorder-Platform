@@ -143,9 +143,23 @@ export async function shutdownPreviewBrowser(browser) {
 }
 
 export function sanitizedCaseFailure(error, stage) {
-  return { stage, code: /^PREVIEW_LOGIN_HTTP_[1-5]\d{2}$/.test(error?.message ?? '') || error?.message === 'PREVIEW_LOGIN_REDIRECT_FAILED' ? error.message
+  return { stage, code: /^PREVIEW_(?:LOGIN|MERCHANT)_HTTP_[1-5]\d{2}$/.test(error?.message ?? '') || ['PREVIEW_LOGIN_REDIRECT_FAILED', 'PREVIEW_MERCHANT_REDIRECT_FAILED'].includes(error?.message) ? error.message
     : error?.name === 'TimeoutError' ? 'PREVIEW_UI_TIMEOUT'
     : error?.name === 'AssertionError' ? 'PREVIEW_UI_ASSERTION_FAILED' : 'PREVIEW_UI_OPERATION_FAILED' };
+}
+
+export function merchantDashboardPath(organizationId) {
+  return `/merchant/dashboard?organizationId=${encodeURIComponent(organizationId)}`;
+}
+
+export async function openMerchantDashboard(page, origin, organizationId, expect) {
+  const target = new URL(merchantDashboardPath(organizationId), origin);
+  const response = await page.goto(target.href);
+  if (!response || !response.ok()) throw Error(`PREVIEW_MERCHANT_HTTP_${response?.status() ?? 500}`);
+  const landed = new URL(page.url());
+  if (landed.origin !== target.origin || landed.pathname !== target.pathname
+    || landed.searchParams.get('organizationId') !== organizationId) throw Error('PREVIEW_MERCHANT_REDIRECT_FAILED');
+  await expect(page.getByTestId('merchant-function-navigation')).toBeVisible();
 }
 
 export async function waitForResponseAndClick(page, predicate, click, options) {
@@ -503,11 +517,11 @@ export async function run(receipt, binding, outDir) {
     sha: binding.sha, tree: binding.tree, currentCase: 'catalog-responsive-edit-cancel-return-mounted-save-failure',
     step, complete: false }, null, 2));
   try {
-    await page.goto(`${origin}/login?next=${encodeURIComponent(`/merchant?organizationId=${org}`)}`);
+    await page.goto(`${origin}/login?next=${encodeURIComponent(merchantDashboardPath(org))}`);
     await page.getByRole('button', { name: '使用電子郵件與密碼登入', exact: true }).click();
     await page.locator('input[name="email"]').fill('owner@stallorder.test');
     await page.locator('input[name="password"]').fill('StallOrderDemo!2026');
-    await submitPreviewPasswordLogin(page, /\/merchant(?:\/|\?|$)/);
+    await submitPreviewPasswordLogin(page, /\/merchant\/dashboard\?/);
     const identity = await context.request.get(`${origin}/api/auth/me`, { maxRedirects: 0, headers:
       requestPolicy(`${origin}/api/auth/me`, origin, 'GET', false, process.env.PREVIEW_BYPASS_SECRET).headers });
     expect(identity.status()).toBe(200);
@@ -586,7 +600,7 @@ export async function run(receipt, binding, outDir) {
       catalogStep('mobile-return-verified');
     });
     await check('notification-navigation', async () => {
-      await page.goto(`${origin}/merchant?organizationId=${org}`);
+      await openMerchantDashboard(page, origin, org, expect);
       await page.getByRole('link', { name: /通知中心/ }).filter({ visible: true }).first().click();
       await expect(page).toHaveURL(/\/notifications\?/);
       await expect(page.getByRole('heading', { name: '通知中心', exact: true })).toBeVisible();
