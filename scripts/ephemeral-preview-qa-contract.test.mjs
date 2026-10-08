@@ -7,6 +7,26 @@ const main = workflow.jobs.validate.steps.find(step => step.name === 'Capture fr
 const resume = readFileSync('scripts/qa-pr366-preview-resume.sh', 'utf8').replace(/\r\n/g, '\n');
 const ci = yaml.load(readFileSync('.github/workflows/ci.yml', 'utf8'));
 
+test('all validate and resume UI phases are supervised while cleanup and evidence remain unconditional', () => {
+  for (const source of [main, resume]) {
+    expect(source).not.toContain('node scripts/qa-pr366-preview-ui.mjs ');
+    expect(source.match(/node scripts\/qa-pr366-preview-ui-supervised\.mjs /g)).toHaveLength(7);
+    for (const phase of ['prepare-cash-shift', 'hours-open', 'hours-closed', 'hours-overnight', 'hours-cutoff', 'hours-preorder']) {
+      expect(source).toContain(`pr366-ui ${phase}\n`);
+    }
+  }
+  expect(resume).toContain('for file in qa-pr366-preview-ui.mjs qa-pr366-preview-ui-supervised.mjs ');
+  expect(readFileSync('scripts/pr366-preview-resume-source.mjs', 'utf8'))
+    .toContain("'qa-pr366-preview-ui-supervised.mjs'");
+  for (const name of ['validate', 'resume-manual-run']) {
+    const job = workflow.jobs[name];
+    const cleanup = job.steps.find(step => step.run === 'node scripts/manual-preview-cleanup.mjs cleanup');
+    expect(cleanup.if).toContain('always()');
+    expect(cleanup.if).toContain("steps.preview-approval.outcome == 'success'");
+    expect(job.steps.some(step => step.uses?.startsWith('actions/upload-artifact@') && step.if?.includes('always()'))).toBe(true);
+  }
+});
+
 test('manual regression runner is isolated from provider writes and full CI remains the default', () => {
   const job = workflow.jobs['regression-local'];
   expect(job.if).toContain("inputs.operation == 'regression-local'");
@@ -28,7 +48,7 @@ test('manual regression runner is isolated from provider writes and full CI rema
 test.each([['validate', main], ['resume', resume]])('%s prepares and binds membership before UI and verifies persisted revocation after UI', (_name, source) => {
   const fixtures = source.indexOf('synthetic-invoices inbox inbox-membership;');
   const binding = source.indexOf('membership:load("inbox-membership")');
-  const browser = source.indexOf('node scripts/qa-pr366-preview-ui.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui\n');
+  const browser = source.indexOf('node scripts/qa-pr366-preview-ui-supervised.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui\n');
   const readback = source.indexOf('inbox-membership-readback .preview-receipt/pr366-ui/inbox-membership-revoked.json');
   expect(fixtures).toBeGreaterThanOrEqual(0); expect(binding).toBeGreaterThan(fixtures);
   expect(browser).toBeGreaterThan(binding); expect(readback).toBeGreaterThan(browser);

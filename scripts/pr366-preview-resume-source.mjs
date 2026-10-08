@@ -34,7 +34,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       const original = sourceSnapshot(resolve(process.argv[3])), candidate = sourceSnapshot(process.cwd());
       const comparison = execFileSync('git', ['diff', '--name-only', original.head, 'HEAD', '--', 'supabase'], { encoding: 'utf8' }).trim();
       assertEquivalent(original, candidate, comparison === '');
-      const harness = Object.fromEntries(['qa-pr366-preview-ui.mjs', 'qa-pr366-preview-db-fixtures.mjs', 'qa-pr366-preview-resume.sh', 'preview-harness-preflight.mjs']
+      const harness = Object.fromEntries(['qa-pr366-preview-ui.mjs', 'qa-pr366-preview-ui-supervised.mjs', 'qa-pr366-preview-db-fixtures.mjs', 'qa-pr366-preview-resume.sh', 'preview-harness-preflight.mjs']
         .map(name => [name, createHash('sha256').update(readFileSync(`scripts/${name}`)).digest('hex')]));
       writeFileSync('.preview-receipt/runtime-equivalence.json', JSON.stringify({ status: 'RUNTIME_SOURCE_EQUIVALENT',
         original, candidate, supabaseUnchanged: true, harness,

@@ -15,7 +15,7 @@ trap resume_cleanup EXIT
 node scripts/pr366-preview-resume-source.mjs verify "$original_dir"
 ln -s "$root/node_modules" "$original_dir/node_modules"
 ln -s "$root/.preview-receipt" "$original_dir/.preview-receipt"
-for file in qa-pr366-preview-ui.mjs qa-pr366-preview-db-fixtures.mjs preview-harness-preflight.mjs; do cp "$root/scripts/$file" "$original_dir/scripts/$file"; done
+for file in qa-pr366-preview-ui.mjs qa-pr366-preview-ui-supervised.mjs qa-pr366-preview-db-fixtures.mjs preview-harness-preflight.mjs; do cp "$root/scripts/$file" "$original_dir/scripts/$file"; done
 config="$(supabase branches get "$PREVIEW_BRANCH_NAME" --project-ref "$SUPABASE_PARENT_PROJECT_REF" --output json --log-level error)"
 raw_url="$(jq -r '.POSTGRES_URL' <<<"$config")"
 for value in "$(jq -r '.SUPABASE_ANON_KEY' <<<"$config")" "$(jq -r '.SUPABASE_SERVICE_ROLE_KEY // empty' <<<"$config")" "$raw_url"; do [ -z "$value" ] || echo "::add-mask::$value"; done
@@ -43,10 +43,10 @@ node -e 'const fs = require("node:fs"); const p = ".preview-receipt/ui-binding.j
 for operation in prepare-ordering prepare-pos-product; do
   node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui "$operation"
 done
-node scripts/qa-pr366-preview-ui.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui prepare-cash-shift
+node scripts/qa-pr366-preview-ui-supervised.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui prepare-cash-shift
 node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui pos-descriptor
 node -e 'const fs=require("node:fs"); const p=".preview-receipt/ui-binding.json"; const b=JSON.parse(fs.readFileSync(p,"utf8")); b.fixtures.pos=JSON.parse(fs.readFileSync(".preview-receipt/pr366-ui/fixture-pos-descriptor.json","utf8")); fs.writeFileSync(p,JSON.stringify(b,null,2));'
-node scripts/qa-pr366-preview-ui.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui
+node scripts/qa-pr366-preview-ui-supervised.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui
 node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui inbox-readback .preview-receipt/pr366-ui/fixture-inbox.json
 node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui inbox-membership-readback .preview-receipt/pr366-ui/inbox-membership-revoked.json
 for operation in enable-circuit-b public-qr open-hours; do
@@ -58,19 +58,19 @@ refresh_binding() {
 }
 refresh_binding open
 node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui midnight-rollback
-node scripts/qa-pr366-preview-ui.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui hours-open
+node scripts/qa-pr366-preview-ui-supervised.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui hours-open
 node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui closed-hours
 refresh_binding closed
-node scripts/qa-pr366-preview-ui.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui hours-closed
+node scripts/qa-pr366-preview-ui-supervised.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui hours-closed
 node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui verify-rejected-orders .preview-receipt/pr366-ui/ui-hours-closed.json
 node -e 'const fs=require("node:fs"); const load=phase=>JSON.parse(fs.readFileSync(`.preview-receipt/pr366-ui/fixture-${phase}-hours.json`,"utf8")); const open=load("open"),closed=load("closed"); if(JSON.stringify(open.after)!==JSON.stringify(closed.before)) throw Error("HOURS_PHASE_CHAIN_CHANGED"); fs.writeFileSync(".preview-receipt/pr366-ui/fixture-original-hours.json",JSON.stringify({...closed,before:open.before}),{flag:"wx"});'
 node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui restore-hours .preview-receipt/pr366-ui/fixture-original-hours.json
 node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui overnight-hours
 refresh_binding overnight
-node scripts/qa-pr366-preview-ui.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui hours-overnight
+node scripts/qa-pr366-preview-ui-supervised.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui hours-overnight
 node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui cutoff-hours
 refresh_binding cutoff
-node scripts/qa-pr366-preview-ui.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui hours-cutoff
+node scripts/qa-pr366-preview-ui-supervised.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui hours-cutoff
 node -e 'const fs=require("node:fs"); const load=phase=>JSON.parse(fs.readFileSync(`.preview-receipt/pr366-ui/fixture-${phase}-hours.json`,"utf8")); const overnight=load("overnight"),cutoff=load("cutoff"); if(JSON.stringify(overnight.after)!==JSON.stringify(cutoff.before)) throw Error("HOURS_PHASE_CHAIN_CHANGED"); fs.writeFileSync(".preview-receipt/pr366-ui/fixture-calendar-original-hours.json",JSON.stringify({...cutoff,before:overnight.before}),{flag:"wx"});'
 node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui restore-hours .preview-receipt/pr366-ui/fixture-calendar-original-hours.json
 for operation in ordering supply; do
@@ -81,6 +81,6 @@ done
 node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui prepare-preorder
 node scripts/qa-pr366-preview-binding.mjs capture-binding .preview-receipt/manual-resources.json .preview-receipt/ui-selection.json .preview-receipt/primary-baseline.json .preview-receipt/ui-binding-preorder.json
 node -e 'const fs=require("node:fs"); const p=".preview-receipt/ui-binding.json"; const old=JSON.parse(fs.readFileSync(p,"utf8")); const fresh=JSON.parse(fs.readFileSync(".preview-receipt/ui-binding-preorder.json","utf8")); fresh.fixtures={...old.fixtures,preorder:JSON.parse(fs.readFileSync(".preview-receipt/pr366-ui/fixture-prepare-preorder.json","utf8"))}; fs.writeFileSync(p,JSON.stringify(fresh,null,2));'
-node scripts/qa-pr366-preview-ui.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui hours-preorder
+node scripts/qa-pr366-preview-ui-supervised.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui hours-preorder
 node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui restore-preorder .preview-receipt/pr366-ui/fixture-prepare-preorder.json
 node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui restore-circuit-b .preview-receipt/pr366-ui/fixture-enable-circuit-b.json
