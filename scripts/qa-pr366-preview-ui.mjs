@@ -391,6 +391,15 @@ export async function runHoursPhase(receipt, binding, outDir, phase) {
   return evidence;
 }
 
+export function readPreviewOpenCashShift(payload) {
+  const state = payload?.state;
+  if (!state || !Object.hasOwn(state, 'openShift')
+    || (state.openShift !== null && (typeof state.openShift !== 'object' || Array.isArray(state.openShift)))) {
+    throw Error('PREVIEW_CASH_SHIFT_RESPONSE_INVALID');
+  }
+  return state.openShift;
+}
+
 export async function runCashShiftPhase(receipt, binding, outDir) {
   const origin = assertTarget(receipt, binding);
   const { chromium, expect } = await import('@playwright/test');
@@ -411,7 +420,7 @@ export async function runCashShiftPhase(receipt, binding, outDir) {
     const headers = requestPolicy(origin, origin, 'GET', false, process.env.PREVIEW_BYPASS_SECRET).headers;
     const before = await context.request.get(`${origin}/api/stalls/aming-chicken/cash-shifts`, { headers, maxRedirects: 0 });
     expect(before.status()).toBe(200);
-    if ((await before.json()).openShift !== null) throw Error('PREVIEW_CASH_SHIFT_ALREADY_OPEN');
+    if (readPreviewOpenCashShift(await before.json()) !== null) throw Error('PREVIEW_CASH_SHIFT_ALREADY_OPEN');
     stage = 'CASH_SHIFT_FORM';
     await page.getByRole('button', { name: '開始現金班次', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: '開啟現金班次', exact: true });
@@ -424,7 +433,7 @@ export async function runCashShiftPhase(receipt, binding, outDir) {
     expect((await accepted).status()).toBe(200);
     stage = 'CASH_SHIFT_AFTER_READBACK';
     const after = await context.request.get(`${origin}/api/stalls/aming-chicken/cash-shifts`, { headers, maxRedirects: 0 });
-    expect(after.status()).toBe(200); const shift = (await after.json()).openShift;
+    expect(after.status()).toBe(200); const shift = readPreviewOpenCashShift(await after.json());
     evidence.cashShiftId = assertCashShift(shift, receipt.resourceKey); evidence.status = 'READBACK_VERIFIED';
   } catch (error) {
     evidence.status = 'FAIL'; evidence.failure = sanitizedCaseFailure(error, stage);

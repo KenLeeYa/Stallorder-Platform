@@ -1,7 +1,23 @@
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { expect, test, vi } from 'vitest';
-import { assertTarget, assertCatalogFixture, assertReadbackFixture, assertPublicQrFixture, assertInboxFixture, assertMembershipFixture, hoursPhasePolicy, assertPreorderFixture, requestPolicy, routePreviewRequest, createPreviewContext, shutdownPreviewBrowser, sanitizedCaseFailure } from './qa-pr366-preview-ui.mjs';
+import { assertTarget, assertCatalogFixture, assertReadbackFixture, assertPublicQrFixture, assertInboxFixture, assertMembershipFixture, hoursPhasePolicy, assertPreorderFixture, requestPolicy, routePreviewRequest, createPreviewContext, shutdownPreviewBrowser, sanitizedCaseFailure, readPreviewOpenCashShift } from './qa-pr366-preview-ui.mjs';
+
+test('cash shift readback accepts the API state envelope before opening a shift', () => {
+  const response = { state: { openShift: null, history: [], refundablePayments: [] }, permissions: { canManage: true } };
+  expect(response.openShift).not.toBe(null); // The old root-level lookup rejected this valid response.
+  expect(readPreviewOpenCashShift(response)).toBe(null);
+});
+
+test('cash shift readback retains the opened shift for ownership and amount verification', () => {
+  const shift = { id: 'owned-shift', status: 'OPEN', openingAmount: 1000 };
+  expect(readPreviewOpenCashShift({ state: { openShift: shift } })).toBe(shift);
+});
+
+test.each([null, {}, { openShift: null }, { state: {} }, { state: { openShift: undefined } },
+  { state: { openShift: [] } }, { state: { openShift: 'OPEN' } }])('cash shift readback rejects a missing or malformed state contract: %j', (response) => {
+  expect(() => readPreviewOpenCashShift(response)).toThrow('PREVIEW_CASH_SHIFT_RESPONSE_INVALID');
+});
 
 const now = Date.parse('2026-10-03T10:00:00Z');
 function fixture() {
