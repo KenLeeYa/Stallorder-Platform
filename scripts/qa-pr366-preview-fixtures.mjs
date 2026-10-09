@@ -1,4 +1,4 @@
-import { assertTarget } from './qa-pr366-preview-ui.mjs';
+import { assertTarget } from './lib/pr366-preview-target.mjs';
 
 const organizationId = '11111111-1111-4111-8111-111111111111';
 const stallId = '22222222-2222-4222-8222-222222222222';

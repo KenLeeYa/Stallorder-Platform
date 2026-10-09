@@ -1,10 +1,16 @@
 # PR366 authorized paid acceptance window — Taipei 2026-10-09
 
-## Next single pair — Taipei 07:00–10:00
+## Current next single pair — Taipei 11:00–14:00
+
+Root disclosed this next independent pair's US$2 management target (not a provider hard cap) under the owner's standing subsequent-cost authorization. Creation is allowed only UTC2026-10-09T03:00:00Z–06:00:00Z / Taipei11:00–14:00, with latest creationUTC04:45 / Taipei12:45 and at least75 minutes remaining. Expiry is min(original createdAt + three hours, UTC06:00 / Taipei14:00); exact-owner deadline cleanup starts ten minutes before expiry (UTC05:50 / Taipei13:50 at the cutoff), completes deletion/readback by expiry, and runs immediately after success or failure. Fresh full CI and independent review for the same source, exact ownership and independent watcher readiness are prerequisites. This is one new pair, not reuse of prior resources or extension of old receipts. No automatic rebuild, additional credentials or live payments/messages. The Web risk-policy expiry UTC16:00 is unchanged.
+
+All windows below are historical and cannot authorize new creation. Preserve every old resource receipt's original deadline.
+
+## Historical single pair — Taipei 07:00–10:00
 
 The prior 00:00–06:00 window is closed for new creation. The next pair has a US$2 incremental management target (not a provider hard cap), under the owner's standing subsequent-cost authorization; root disclosed this amount and window. This is one new acceptance pair, not reuse or extension of any old resource or receipt.
 
-Current creation guards use UTC2026-10-08T23:00:00Z–2026-10-09T02:00:00Z / Taipei2026-10-09 07:00–10:00. Latest creation is UTC00:45 / Taipei08:45, with at least75 minutes remaining. Expiry is min(original createdAt + three hours, UTC02:00 / Taipei10:00); start exact-owner cleanup ten minutes before expiry, complete deletion and readback by expiry, and clean immediately after success or failure. Fresh same-source full CI, independent review, immutable ownership and watcher readiness remain mandatory before creation. No automatic rebuild or extension, extra credentials, or live payments/messages are authorized. Existing receipts retain their original createdAt/expiresAt; do not rewrite them to this window. The five-item Web risk-policy expiry is unchanged.
+Historical creation guards used UTC2026-10-08T23:00:00Z–2026-10-09T02:00:00Z / Taipei2026-10-09 07:00–10:00. Latest creation is UTC00:45 / Taipei08:45, with at least75 minutes remaining. Expiry is min(original createdAt + three hours, UTC02:00 / Taipei10:00); start exact-owner cleanup ten minutes before expiry, complete deletion and readback by expiry, and clean immediately after success or failure. Fresh same-source full CI, independent review, immutable ownership and watcher readiness remain mandatory before creation. No automatic rebuild or extension, extra credentials, or live payments/messages are authorized. Existing receipts retain their original createdAt/expiresAt; do not rewrite them to this window. The five-item Web risk-policy expiry is unchanged.
 
 The paragraphs below retain the historical earlier-window approval and evidence; they do not authorize current new creation.
 
