@@ -8,6 +8,20 @@ const org = '11111111-1111-4111-8111-111111111111';
 const stall = '22222222-2222-4222-8222-222222222222';
 const serialize = value => JSON.stringify(value, (_, item) => typeof item === 'bigint' ? String(item) : item);
 const hoursFields = row => ({ opensAt: row.opensAt, closesAt: row.closesAt, lastOrderAt: row.lastOrderAt, isClosed: row.isClosed });
+async function exactHours(db) {
+  return db.$queryRaw`SELECT id, organization_id AS "organizationId", stall_id AS "stallId", day_of_week AS "dayOfWeek",
+    opens_at AS "opensAt", closes_at AS "closesAt", last_order_at AS "lastOrderAt", is_closed AS "isClosed",
+    created_at AS "createdAt", updated_at AS "updatedAt", updated_at::text AS "updatedAtExact"
+    FROM public.stall_business_hours WHERE organization_id=${org}::uuid AND stall_id=${stall}::uuid ORDER BY day_of_week`;
+}
+async function compareAndSetHours(db, row, desired) {
+  if (typeof row.updatedAtExact !== 'string' || !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d{1,6})?\+\d{2}(?::\d{2})?$/.test(row.updatedAtExact)) throw Error('FIXTURE_HOURS_EXACT_VERSION_REQUIRED');
+  return db.$executeRaw`UPDATE public.stall_business_hours SET opens_at=${desired.opensAt}, closes_at=${desired.closesAt},
+    last_order_at=${desired.lastOrderAt}, is_closed=${desired.isClosed}, updated_at=clock_timestamp()
+    WHERE organization_id=${org}::uuid AND stall_id=${stall}::uuid AND id=${row.id}::uuid
+    AND updated_at=${row.updatedAtExact}::timestamptz AND opens_at=${row.opensAt} AND closes_at=${row.closesAt}
+    AND last_order_at IS NOT DISTINCT FROM ${row.lastOrderAt}::text AND is_closed=${row.isClosed}`;
+}
 const seedOwnerId = '55555555-5555-4555-8555-555555555551';
 function isSeedSupplyOverride(row, flagId, ownerId, instant) {
   return row?.flagId === flagId && row.scopeType === 'ORGANIZATION' && row.organizationId === org
@@ -266,7 +280,7 @@ export async function createDatabaseFixtures({ receipt, binding, databaseUrl, sa
     async preparePreorder() {
       await parents();
       const settings = await db.stallOrderingSettings.findFirst({ where, select: preorderSelect });
-      const hours = await db.stallBusinessHour.findMany({ where, orderBy: { dayOfWeek: 'asc' } });
+      const hours = await exactHours(db);
       if (!settings || hours.length !== 7 || hours.some((row, index) => row.dayOfWeek !== index)) throw Error('FIXTURE_PREORDER_SNAPSHOT_DENIED');
       const dateParts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' })
         .formatToParts(new Date(now())).map(part => [part.type, part.value]));
@@ -281,12 +295,12 @@ export async function createDatabaseFixtures({ receipt, binding, databaseUrl, sa
         const changed = await tx.stallOrderingSettings.updateMany({ where: { ...where, updatedAt: settings.updatedAt, ...preorderFields(settings) }, data: desiredSettings });
         if (changed.count !== 1) throw Error('FIXTURE_PREORDER_CONCURRENT_CHANGE');
         for (const row of hours) {
-          const result = await tx.stallBusinessHour.updateMany({ where: { ...where, id: row.id, updatedAt: row.updatedAt, ...hoursFields(row) }, data: hoursFields(desiredHours[row.dayOfWeek]) });
-          if (result.count !== 1) throw Error('FIXTURE_PREORDER_CONCURRENT_CHANGE');
+          const result = await compareAndSetHours(tx, row, desiredHours[row.dayOfWeek]);
+          if (result !== 1) throw Error('FIXTURE_PREORDER_CONCURRENT_CHANGE');
         }
       });
       const actualSettings = await db.stallOrderingSettings.findFirst({ where, select: preorderSelect });
-      const actualHours = await db.stallBusinessHour.findMany({ where, orderBy: { dayOfWeek: 'asc' } });
+      const actualHours = await exactHours(db);
       if (!actualSettings || serialize(preorderFields(actualSettings)) !== serialize(desiredSettings)
         || serialize(actualHours.map(hoursFields)) !== serialize(desiredHours.map(hoursFields))) throw Error('FIXTURE_PREORDER_READBACK_FAILED');
       // Read the actual canonical slot generator at database now(), rather than inventing a session or quote.
@@ -311,12 +325,12 @@ export async function createDatabaseFixtures({ receipt, binding, databaseUrl, sa
         for (const row of evidence.after.hours) {
           const original = evidence.before.hours.find(item => item.id === row.id && item.dayOfWeek === row.dayOfWeek);
           if (!original) throw Error('FIXTURE_RESTORE_RECEIPT_DENIED');
-          const restored = await tx.stallBusinessHour.updateMany({ where: { ...where, id: row.id, updatedAt: new Date(row.updatedAt), ...hoursFields(row) }, data: hoursFields(original) });
-          if (restored.count !== 1) throw Error('FIXTURE_PREORDER_CONCURRENT_CHANGE');
+          const restored = await compareAndSetHours(tx, row, original);
+          if (restored !== 1) throw Error('FIXTURE_PREORDER_CONCURRENT_CHANGE');
         }
       });
       const settings = await db.stallOrderingSettings.findFirst({ where, select: preorderSelect });
-      const hours = await db.stallBusinessHour.findMany({ where, orderBy: { dayOfWeek: 'asc' } });
+      const hours = await exactHours(db);
       if (!settings || serialize(preorderFields(settings)) !== serialize(preorderFields(evidence.before.settings))
         || serialize(hours.map(hoursFields)) !== serialize(evidence.before.hours.map(hoursFields))) throw Error('FIXTURE_RESTORE_READBACK_FAILED');
       await save({ ...identity, kind: 'FUTURE_PREORDER', status: 'RESTORED' });
@@ -607,7 +621,7 @@ export async function createDatabaseFixtures({ receipt, binding, databaseUrl, sa
     },
     async setHours(mode) {
       await parents();
-      const before = await db.stallBusinessHour.findMany({ where, orderBy: { dayOfWeek: 'asc' } });
+      const before = await exactHours(db);
       if (before.length !== 7 || before.some((row, index) => row.dayOfWeek !== index)) throw Error('FIXTURE_HOURS_SNAPSHOT_DENIED');
       const after = buildCalendarHours(before, mode, new Date(now()));
       const evidence = { ...identity, kind: 'HOURS', mode, before, after, status: 'PLANNED' };
@@ -615,11 +629,11 @@ export async function createDatabaseFixtures({ receipt, binding, databaseUrl, sa
       guard();
       await db.$transaction(async tx => {
         for (const row of before) {
-          const changed = await tx.stallBusinessHour.updateMany({ where: { ...where, id: row.id, updatedAt: row.updatedAt, ...hoursFields(row) }, data: hoursFields(after[row.dayOfWeek]) });
-          if (changed.count !== 1) throw Error('FIXTURE_HOURS_CONCURRENT_CHANGE');
+          const changed = await compareAndSetHours(tx, row, after[row.dayOfWeek]);
+          if (changed !== 1) throw Error('FIXTURE_HOURS_CONCURRENT_CHANGE');
         }
       });
-      const readback = await db.stallBusinessHour.findMany({ where, orderBy: { dayOfWeek: 'asc' } });
+      const readback = await exactHours(db);
       if (serialize(readback.map(hoursFields)) !== serialize(after.map(hoursFields))) throw Error('FIXTURE_READBACK_FAILED');
       evidence.after = readback; evidence.status = 'READBACK_VERIFIED';
       await save(JSON.parse(serialize(evidence))); return evidence;
@@ -632,11 +646,11 @@ export async function createDatabaseFixtures({ receipt, binding, databaseUrl, sa
         for (const row of evidence.after) {
           const original = evidence.before.find(item => item.id === row.id && item.dayOfWeek === row.dayOfWeek);
           if (!original) throw Error('FIXTURE_RESTORE_RECEIPT_DENIED');
-          const restored = await tx.stallBusinessHour.updateMany({ where: { ...where, id: row.id, updatedAt: new Date(row.updatedAt), ...hoursFields(row) }, data: hoursFields(original) });
-          if (restored.count !== 1) throw Error('FIXTURE_HOURS_CONCURRENT_CHANGE');
+          const restored = await compareAndSetHours(tx, row, original);
+          if (restored !== 1) throw Error('FIXTURE_HOURS_CONCURRENT_CHANGE');
         }
       });
-      const actual = await db.stallBusinessHour.findMany({ where, orderBy: { dayOfWeek: 'asc' } });
+      const actual = await exactHours(db);
       if (serialize(actual.map(hoursFields)) !== serialize(evidence.before.map(hoursFields))) throw Error('FIXTURE_RESTORE_READBACK_FAILED');
       await save({ resourceKey: receipt.resourceKey, childRef: binding.childRef, kind: 'HOURS', status: 'RESTORED' });
     },

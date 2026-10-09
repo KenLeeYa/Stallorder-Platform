@@ -1,6 +1,10 @@
 # PR366 authorized paid acceptance window — Taipei 2026-10-09
 
-## Current next single pair — Taipei 19:00–22:00
+## Current next single pair — Taipei 21:00–23:50
+
+Root discloses this next independent pair's US$2 management target (not a provider hard cap) under the owner's standing subsequent-cost authorization before creation. Creation is allowed only UTC2026-10-09T13:00:00Z–15:50:00Z / Taipei21:00–23:50, with latest creationUTC14:35 / Taipei22:35 and at least75 minutes remaining. Expiry is min(original createdAt + three hours, UTC15:50 / Taipei23:50), so the window caps this pair at two hours fifty minutes; exact-owner deadline cleanup starts ten minutes before expiry (UTC15:40 / Taipei23:40 at the cutoff), completes deletion/readback by expiry, and runs immediately after success or failure. Fresh full CI and independent review for the same source, exact ownership and independent watcher readiness are prerequisites. If free CI cannot finish in time, do not create resources. This is one new pair, not reuse of prior resources or extension of old receipts. No automatic rebuild, additional credentials or live payments/messages. The Web risk-policy expiry UTC16:00 is unchanged.
+
+## Historical prior single pair — Taipei 19:00–22:00 (consumed and cleaned)
 
 Root discloses this next independent pair's US$2 management target (not a provider hard cap) under the owner's standing subsequent-cost authorization before creation. Creation is allowed only UTC2026-10-09T11:00:00Z–14:00:00Z / Taipei19:00–22:00, with latest creationUTC12:45 / Taipei20:45 and at least75 minutes remaining. Expiry is min(original createdAt + three hours, UTC14:00 / Taipei22:00); exact-owner deadline cleanup starts ten minutes before expiry (UTC13:50 / Taipei21:50 at the cutoff), completes deletion/readback by expiry, and runs immediately after success or failure. Fresh full CI and independent review for the same source, exact ownership and independent watcher readiness are prerequisites. This is one new pair, not reuse of prior resources or extension of old receipts. No automatic rebuild, additional credentials or live payments/messages. The Web risk-policy expiry UTC16:00 is unchanged.
 

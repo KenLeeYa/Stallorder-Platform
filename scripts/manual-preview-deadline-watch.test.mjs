@@ -4,29 +4,32 @@ import { readFileSync } from 'node:fs';
 import yaml from 'js-yaml';
 
 const expected = { sourceRunId: '123', parent: 'parent', team: 'team', project: 'project',
-  branch: 'codex/integrated-production-20261002', now: new Date('2026-10-09T11:15:00Z') };
+  branch: 'codex/integrated-production-20261002', now: new Date('2026-10-09T13:15:00Z') };
 const receipt = { resourceKey: 'manual-123', branchName: 'manual-123', gitBranch: expected.branch,
-  parent: 'parent', team: 'team', project: 'project', createdAt: '2026-10-09T11:00:00.000Z', expiresAt: '2026-10-09T14:00:00.000Z' };
+  parent: 'parent', team: 'team', project: 'project', createdAt: '2026-10-09T13:00:00.000Z', expiresAt: '2026-10-09T15:50:00.000Z' };
 
 test('watcher binds exact source identity and three-hour deadline capped at the approved window', () => {
   expect(approvedWatchExpiry(receipt, expected)).toBe(Date.parse(receipt.expiresAt));
-  expect(cleanupStartMs(Date.parse(receipt.expiresAt))).toBe(Date.parse('2026-10-09T13:50:00Z'));
-  const last = { ...receipt, createdAt: '2026-10-09T12:45:00.000Z', expiresAt: '2026-10-09T14:00:00.000Z' };
-  expect(approvedWatchExpiry(last, expected)).toBe(Date.parse('2026-10-09T14:00:00Z'));
-  expect(cleanupStartMs(Date.parse(last.expiresAt))).toBe(Date.parse('2026-10-09T13:50:00Z'));
+  expect(cleanupStartMs(Date.parse(receipt.expiresAt))).toBe(Date.parse('2026-10-09T15:40:00Z'));
+  const last = { ...receipt, createdAt: '2026-10-09T14:35:00.000Z', expiresAt: '2026-10-09T15:50:00.000Z' };
+  expect(approvedWatchExpiry(last, expected)).toBe(Date.parse('2026-10-09T15:50:00Z'));
+  expect(cleanupStartMs(Date.parse(last.expiresAt))).toBe(Date.parse('2026-10-09T15:40:00Z'));
 });
 test('watcher rejects changed ownership, extended or expired receipts', () => {
   for (const changed of [{ ...receipt, resourceKey: 'manual-456' }, { ...receipt, parent: 'dr' },
     { ...receipt, createdAt: '2026-10-08T11:00:00Z', expiresAt: '2026-10-08T14:00:00Z' },
-    { ...receipt, createdAt: '2026-10-09T10:59:59Z' },
-    { ...receipt, createdAt: '2026-10-09T12:45:01Z', expiresAt: '2026-10-09T14:00:00Z' },
-    { ...receipt, expiresAt: '2026-10-09T13:30:00Z' },
-    { ...receipt, expiresAt: '2026-10-09T14:00:01Z' },
-    { ...receipt, createdAt: '2026-10-09T14:00:00Z', expiresAt: '2026-10-09T14:00:01Z' }]) expect(() => approvedWatchExpiry(changed, expected)).toThrow();
+    { ...receipt, createdAt: '2026-10-09T12:59:59Z' },
+    { ...receipt, createdAt: '2026-10-09T14:35:01Z', expiresAt: '2026-10-09T15:50:00Z' },
+    { ...receipt, expiresAt: '2026-10-09T15:20:00Z' },
+    { ...receipt, expiresAt: '2026-10-09T15:50:01Z' },
+    { ...receipt, createdAt: '2026-10-09T15:50:00Z', expiresAt: '2026-10-09T15:50:01Z' }]) expect(() => approvedWatchExpiry(changed, expected)).toThrow();
   expect(() => approvedWatchExpiry(receipt, { ...expected, now: new Date(receipt.expiresAt) })).toThrow('PREVIEW_WATCH_DEADLINE_INVALID');
 });
 
 test('new watcher never reuses or extends an old-window owner receipt', () => {
+  const priorEvening = { ...receipt, createdAt: '2026-10-09T11:00:00Z', expiresAt: '2026-10-09T14:00:00Z' };
+  expect(() => approvedWatchExpiry(priorEvening, expected)).toThrow('PREVIEW_WATCH_DEADLINE_INVALID');
+  expect(priorEvening.expiresAt).toBe('2026-10-09T14:00:00Z');
   const priorAfternoon = { ...receipt, createdAt: '2026-10-09T07:00:00Z', expiresAt: '2026-10-09T10:00:00Z' };
   expect(() => approvedWatchExpiry(priorAfternoon, expected)).toThrow('PREVIEW_WATCH_DEADLINE_INVALID');
   expect(priorAfternoon.expiresAt).toBe('2026-10-09T10:00:00Z');

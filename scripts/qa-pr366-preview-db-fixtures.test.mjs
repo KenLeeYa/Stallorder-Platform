@@ -145,7 +145,7 @@ test('accepts provider-issued pooler only with exact child user and identity fin
 });
 
 function mockDatabase(conflict = false) {
-  let rows = Array.from({ length: 7 }, (_, dayOfWeek) => ({ id: `hour-${dayOfWeek}`, dayOfWeek, opensAt: '17:00', closesAt: '23:00', lastOrderAt: null, isClosed: false, updatedAt: new Date(now) }));
+  let rows = Array.from({ length: 7 }, (_, dayOfWeek) => ({ id: `hour-${dayOfWeek}`, dayOfWeek, opensAt: '17:00', closesAt: '23:00', lastOrderAt: null, isClosed: false, updatedAt: new Date(now), updatedAtExact: '2026-10-03 10:00:00.000123+00' }));
   const updates = [];
   const db = {
     profile: { findFirst: async () => ({ id: 'owner' }) }, stall: { findFirst: async () => ({ id: 'stall' }) },
@@ -155,6 +155,17 @@ function mockDatabase(conflict = false) {
       rows = rows.map(row => row.id === query.where.id ? { ...row, ...query.data, updatedAt: new Date(now + 1) } : row);
       return { count: 1 };
     } },
+    $queryRaw: async () => structuredClone(rows),
+    $executeRaw: async (sql, ...values) => {
+      const [opensAt, closesAt, lastOrderAt, isClosed, organizationId, stallId, id, updatedAtExact, beforeOpen, beforeClose, beforeLast, beforeClosed] = values;
+      const row = rows.find(item => item.id === id);
+      if (conflict === 'microseconds' && row) row.updatedAtExact = '2026-10-03 10:00:00.000124+00';
+      updates.push({ where: { id, organizationId, stallId, updatedAtExact }, data: { opensAt, closesAt, lastOrderAt, isClosed } });
+      if (conflict === true || !row || row.updatedAtExact !== updatedAtExact || row.opensAt !== beforeOpen || row.closesAt !== beforeClose
+        || row.lastOrderAt !== beforeLast || row.isClosed !== beforeClosed) return 0;
+      Object.assign(row, { opensAt, closesAt, lastOrderAt, isClosed, updatedAt: new Date(now + 1), updatedAtExact: '2026-10-03 10:00:00.001456+00' });
+      return 1;
+    },
     $transaction: async action => action(db), $disconnect: vi.fn(),
   };
   return { db, updates };
@@ -168,7 +179,9 @@ test('hours snapshot/readback and conditional restore include exact rows and ver
   expect(save.mock.calls[0][0].status).toBe('PLANNED');
   await tool.restoreHours(JSON.parse(JSON.stringify(evidence)));
   expect(updates).toHaveLength(14);
-  expect(updates.every(query => query.where.id && query.where.updatedAt && query.where.organizationId && query.where.stallId)).toBe(true);
+  expect(updates.every(query => query.where.id && query.where.updatedAtExact && query.where.organizationId && query.where.stallId)).toBe(true);
+  expect(evidence.before[0].updatedAt.toISOString()).toBe('2026-10-03T10:00:00.000Z');
+  expect(evidence.before[0].updatedAtExact).toBe('2026-10-03 10:00:00.000123+00');
   expect(save.mock.calls.at(-1)[0].status).toBe('RESTORED');
   await tool.disconnect(); expect(db.$disconnect).toHaveBeenCalledOnce();
 });
@@ -177,6 +190,12 @@ test('concurrent hours changes reject instead of overwriting', async () => {
   const { db } = mockDatabase(true);
   const tool = await createDatabaseFixtures({ ...dbFixture(), now: () => now, save: vi.fn(), clientFactory: async () => db });
   await expect(tool.setHours('OPEN')).rejects.toThrow('CONCURRENT_CHANGE');
+});
+
+test('hours CAS rejects a concurrent microsecond version change within the same JS millisecond', async () => {
+  const { db } = mockDatabase('microseconds');
+  const tool = await createDatabaseFixtures({ ...dbFixture(), now: () => now, save: vi.fn(), clientFactory: async () => db });
+  await expect(tool.setHours('OPEN')).rejects.toThrow('FIXTURE_HOURS_CONCURRENT_CHANGE');
 });
 
 test('invoice setup requires 13 separately receipted actual test orders', async () => {
