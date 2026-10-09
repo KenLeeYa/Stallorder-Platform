@@ -211,3 +211,7 @@ Affected surface: independent manual Preview deadline cleanup workflow. The watc
 ### 2026-10-06 PR366-WEB-AUDIT-PATCH-001 — local candidate; not released
 
 Affected surface: Web build dependency lock and exact audit-exception lock binding. Update transitive source-map-js from vulnerable 1.2.1 to upstream patched 1.2.2; the selected audit returns to the original five high braces-chain entries and the existing exception scope/expiry remain unchanged. See [Web audit review](releases/PR366_WEB_AUDIT_RISK_REVIEW_20261005.md). Hosted CI and Web scope proof remain release gates.
+
+### 2026-10-10 PR366-AUTHORIZED-WINDOW-001 — reviewed candidate; not released
+
+Affected surfaces: manual Preview creation and independent deadline cleanup guards, plus the existing exact Web audit policy. Owner approved the original five braces high findings only through Taipei12:00 / UTC04:00; original audit remains NON_PASS and advisory, package graph and lock binding are unchanged. One new independent pair is disclosed with a US$2 management target (not a hard cap), Taipei08:00–11:00, latest creation09:45, minimum75 minutes, maximum3 hours and cleanup10:50 at cutoff; historical receipts retain their deadlines. Window tests30/30 and audit tests61/61 passed; independent review passed. Fresh same-source CI, hosted acceptance, exact cleanup, staging/main and Production/DR affected-flow verification remain required. See [approval and window](releases/PR366_PREVIEW_APPROVAL_20261009.md).

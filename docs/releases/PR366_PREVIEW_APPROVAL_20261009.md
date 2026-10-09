@@ -1,6 +1,10 @@
 # PR366 authorized paid acceptance window — Taipei 2026-10-09
 
-## Current next single pair — Taipei 21:00–23:50
+## Current next single pair — Taipei 2026-10-10 08:00–11:00
+
+Root discloses one independent pair with a US$2 management target (not a provider hard cap) under standing subsequent-cost authorization. Creation is allowed only UTC2026-10-10T00:00:00Z–03:00:00Z / Taipei08:00–11:00, latest creation UTC01:45 / Taipei09:45, with at least75 minutes remaining. Expiry is min(original createdAt + three hours, UTC03:00 / Taipei11:00); exact-owner cleanup starts ten minutes before expiry (UTC02:50 / Taipei10:50 at the cutoff), completes deletion/readback by expiry, and runs immediately after success or failure. Fresh same-source full CI, independent review, exact ownership and independent watcher readiness are prerequisites. If free checks cannot finish in time, do not create. No automatic rebuild, new credentials or live payments/messages. Historical pairs are consumed and retain their original receipts and deadlines. The owner separately approved only the exact five Web braces findings through UTC2026-10-10T04:00:00Z / Taipei12:00; original audit remains NON_PASS, and this does not extend resource expiry or waive CodeQL/Native/new findings.
+
+## Historical consumed pair — Taipei 2026-10-09 21:00–23:50
 
 Root discloses this next independent pair's US$2 management target (not a provider hard cap) under the owner's standing subsequent-cost authorization before creation. Creation is allowed only UTC2026-10-09T13:00:00Z–15:50:00Z / Taipei21:00–23:50, with latest creationUTC14:35 / Taipei22:35 and at least75 minutes remaining. Expiry is min(original createdAt + three hours, UTC15:50 / Taipei23:50), so the window caps this pair at two hours fifty minutes; exact-owner deadline cleanup starts ten minutes before expiry (UTC15:40 / Taipei23:40 at the cutoff), completes deletion/readback by expiry, and runs immediately after success or failure. Fresh full CI and independent review for the same source, exact ownership and independent watcher readiness are prerequisites. If free CI cannot finish in time, do not create resources. This is one new pair, not reuse of prior resources or extension of old receipts. No automatic rebuild, additional credentials or live payments/messages. The Web risk-policy expiry UTC16:00 is unchanged.
 
