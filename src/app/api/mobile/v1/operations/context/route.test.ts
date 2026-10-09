@@ -1,0 +1,14 @@
+import {beforeEach,expect,it,vi} from 'vitest';
+const mocks=vi.hoisted(()=>({authorize:vi.fn(),workspaces:vi.fn()}));
+vi.mock('@/server/mobile/authorization',()=>({authorizeMobileApiRequest:mocks.authorize}));
+vi.mock('@/lib/workspace',()=>({getMemberWorkspaceAccess:mocks.workspaces}));
+import {GET} from './route';
+const id='13359669-1381-4f85-84e1-533abc8bf626';
+const principal={sessionId:'family-current',user:{id:'55555555-5555-4555-8555-555555555551',platformRole:null}};
+const workspace={id,status:'ACTIVE',roles:['ORGANIZATION_OWNER'],canUseAllStalls:true,stalls:[{id:'e786bdc1-fad7-4369-8e6d-6929b1ae1fa0',isActive:true,roles:['ORGANIZATION_OWNER']}]};
+beforeEach(()=>{vi.clearAllMocks();mocks.authorize.mockResolvedValue({ok:true,principal,requestId:'request'});mocks.workspaces.mockResolvedValue([workspace]);});
+const request=(query='')=>new Request('http://127.0.0.1:3026/api/mobile/v1/operations/context'+query);
+it('supports a merchant personal Inbox without inventing an organization grant',async()=>{const response=await GET(request());expect(response.status).toBe(200);const scope=await response.json();expect(scope.context).toEqual({kind:'platform'});expect(scope.principalKey).toMatch(/^[a-f0-9]{64}$/);expect(mocks.workspaces).not.toHaveBeenCalled();});
+it('checks current workspace membership on every explicit organization request',async()=>{expect((await GET(request('?organizationId='+id))).status).toBe(200);mocks.workspaces.mockResolvedValue([]);expect((await GET(request('?organizationId='+id))).status).toBe(403);});
+it('rejects platform cross-context, duplicated and malformed scope selectors',async()=>{for(const query of ['?organizationId=wrong','?organizationId='+id+'&organizationId='+id,'?stallId='+id])expect((await GET(request(query))).status).toBe(400);mocks.authorize.mockResolvedValue({ok:true,principal:{...principal,user:{...principal.user,platformRole:'PLATFORM_ADMIN'}},requestId:'request'});expect((await GET(request('?organizationId='+id))).status).toBe(403);});
+it('isolates same-organization principals and replacement sessions',async()=>{const first=await (await GET(request('?organizationId='+id))).json();mocks.authorize.mockResolvedValue({ok:true,principal:{...principal,sessionId:'second-family',user:{...principal.user,id:'21a61e14-0fb8-40a0-8da8-972ebd73aac8'}},requestId:'request'});const second=await (await GET(request('?organizationId='+id))).json();expect(second.principalKey).not.toBe(first.principalKey);expect(second.sessionEpoch).not.toBe(first.sessionEpoch);});

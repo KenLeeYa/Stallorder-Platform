@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Request, type Route } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { dateInTimeZone } from "../src/lib/special-closures-client";
 import { dismissStaffStartReminder, gotoLocalPath, loginLocalTestAccount } from "./local-navigation";
@@ -123,7 +123,11 @@ test("an existing preorder shows a new closure notice and a pickup-day popup wit
   await prisma.order.update({ where: { id: order.id }, data: { committedFulfillmentAt: tomorrowAt } });
   await page.context().addCookies([{ name: "stallorder_device", value: order.deviceId, url: order.origin }]);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/order/" + order.trackingToken);
+  const [initialClosures] = await Promise.all([
+    page.waitForResponse(response => new URL(response.url()).pathname.endsWith("/closures"), { timeout: 60_000 }),
+    page.goto("/order/" + order.trackingToken),
+  ]);
+  expect(initialClosures.status()).toBe(200);
   await expect(page.getByTestId("order-closure-notice")).toHaveCount(0);
   closureId = (await prisma.stallSpecialClosure.create({ data: {
     organizationId, stallId, startsOn: new Date(pickupDay), endsOn: new Date(tomorrow),
@@ -148,11 +152,55 @@ test("an existing preorder shows a new closure notice and a pickup-day popup wit
     await page.screenshot({ path: test.info().outputPath(`pickup-day-closure-${viewport.width}.png`) });
   }
   await page.getByRole("button", { name: "我知道了", exact: true }).click();
-  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
-  await expect(page.getByRole("alertdialog", { name: "取餐安排遇到店休公告" })).toHaveCount(0);
-  expect((await prisma.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe("WAITING_CONFIRMATION");
-  await prisma.stallSpecialClosure.delete({ where: { id: closureId } });
-  closureId = "";
-  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
-  await expect(page.getByTestId("order-closure-notice")).toHaveCount(0);
+  let releaseClosureResponse!: () => void;
+  const heldClosureResponse = new Promise<void>(resolve => { releaseClosureResponse = resolve; });
+  let closureRead!: () => void;
+  const closureRequestRead = new Promise<void>(resolve => { closureRead = resolve; });
+  let firstClosureRequest = true;
+  let heldClosureRequest!: Request;
+  const pendingClosureHandlers = new Set<Promise<void>>();
+  const closureRoute = (route: Route) => {
+    const first = firstClosureRequest;
+    firstClosureRequest = false;
+    const pending = (async () => {
+      if (!first) return route.continue();
+      heldClosureRequest = route.request();
+      const response = await route.fetch();
+      closureRead();
+      await heldClosureResponse;
+      await route.fulfill({ response });
+    })();
+    pendingClosureHandlers.add(pending);
+    void pending.finally(() => pendingClosureHandlers.delete(pending)).catch(() => {});
+    return pending;
+  };
+  const closurePattern = "**/api/public/stores/*/closures";
+  await page.route(closurePattern, closureRoute);
+  try {
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    await closureRequestRead;
+    await expect(page.getByRole("alertdialog", { name: "取餐安排遇到店休公告" })).toHaveCount(0);
+    expect((await prisma.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe("WAITING_CONFIRMATION");
+    await prisma.stallSpecialClosure.delete({ where: { id: closureId } });
+    closureId = "";
+    const freshClosures = page.waitForResponse(response => (
+      response.url() === heldClosureRequest.url()
+      && response.request().method() === "GET"
+      && response.request() !== heldClosureRequest
+    ), { timeout: 10_000 });
+    const [freshResponse] = await Promise.all([
+      freshClosures,
+      (async () => {
+        await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+        releaseClosureResponse();
+      })(),
+    ]);
+    expect(freshResponse.status()).toBe(200);
+    expect((await freshResponse.json()).closures).toEqual([]);
+    await expect(page.getByTestId("order-closure-notice")).toHaveCount(0);
+  } finally {
+    releaseClosureResponse();
+    await Promise.allSettled([...pendingClosureHandlers]);
+    await page.unroute(closurePattern, closureRoute);
+  }
 });

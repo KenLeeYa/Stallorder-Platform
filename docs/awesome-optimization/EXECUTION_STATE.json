@@ -1,0 +1,1108 @@
+{
+  "schemaVersion": 1,
+  "repository": "KenLeeYa/Stallorder-Platform",
+  "worktree": "C:/Users/KY/.codex/worktrees/responsive-cross-device/Stallorder-Platform",
+  "branch": "codex/responsive-cross-device-20260930",
+  "HEAD": "87230e266281472a71fd764d616be1adf788c635",
+  "sourcePrompt": "C:/Users/KY/Downloads/STALLORDER_GITHUB_AWESOME_OPTIMIZATION_MASTER_PROMPT_20260930.md",
+  "sourcePromptSha256": "9028b6fd7bf80ce816eb49a316067b2dd8dd5fca61eaf0f3df63315bbebfb01b",
+  "sourcePromptReadLines": 1098,
+  "startedAt": "2026-09-30T21:28:57.6370764Z",
+  "updatedAt": "2026-10-02T09:00:26.2295839Z",
+  "currentPhase": "10",
+  "tasks": [
+    {
+      "phase": "00",
+      "status": "IN_PROGRESS",
+      "evidence": [
+        ".superpowers/sdd/2026-10-01-awesome-optimization/audit-web-mobile.md",
+        ".superpowers/sdd/2026-10-01-awesome-optimization/audit-backend-events.md",
+        "docs/awesome-optimization/evidence/single-environment-20261001.json",
+        "docs/awesome-optimization/REPOSITORY_AUDIT.md",
+        "docs/awesome-optimization/BASELINE_RESULTS.md",
+        ".superpowers/sdd/2026-10-01-awesome-optimization/batch-1-report.md"
+      ]
+    },
+    {
+      "phase": "01",
+      "status": "IN_PROGRESS",
+      "evidence": [
+        "docs/awesome-optimization/CANDIDATE_EVALUATION.md",
+        "docs/awesome-optimization/DEPENDENCY_LICENSE_MATRIX.md",
+        ".superpowers/sdd/2026-10-01-awesome-optimization/batch-1/package-artifact-review.json"
+      ]
+    },
+    {
+      "phase": "02",
+      "status": "IN_PROGRESS",
+      "evidence": [
+        "docs/awesome-optimization/IMPLEMENTATION_PLAN.md",
+        ".superpowers/sdd/2026-10-01-awesome-optimization/frontend-implementation-contract.md",
+        ".superpowers/sdd/2026-10-01-awesome-optimization/backend-implementation-contract.md",
+        ".superpowers/sdd/2026-10-01-awesome-optimization/native-forwardport-contract.md"
+      ]
+    },
+    {
+      "phase": "03",
+      "status": "IN_PROGRESS",
+      "evidence": [
+        ".superpowers/sdd/2026-10-01-awesome-optimization/batch-2-brief.md"
+      ]
+    },
+    {
+      "phase": "04",
+      "status": "IN_PROGRESS",
+      "evidence": [
+        ".superpowers/sdd/2026-10-01-awesome-optimization/batch-2-brief.md"
+      ]
+    },
+    {
+      "phase": "05",
+      "status": "IN_PROGRESS",
+      "evidence": [
+        ".superpowers/sdd/2026-10-01-awesome-optimization/batch-2-brief.md"
+      ]
+    },
+    {
+      "phase": "06",
+      "status": "IN_PROGRESS",
+      "evidence": [
+        ".superpowers/sdd/2026-10-01-awesome-optimization/batch-3-brief.md"
+      ]
+    },
+    {
+      "phase": "07",
+      "status": "IN_PROGRESS",
+      "evidence": [
+        ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4a/pre-schema-proposal.md",
+        ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4a-ruling-35.md"
+      ]
+    },
+    {
+      "phase": "08",
+      "status": "IN_PROGRESS",
+      "evidence": []
+    },
+    {
+      "phase": "09",
+      "status": "IN_PROGRESS",
+      "evidence": [
+        ".superpowers/sdd/2026-10-01-awesome-optimization/batch-5-brief.md",
+        ".superpowers/sdd/2026-10-01-awesome-optimization/batch-5/database-bundle-v1.json"
+      ]
+    },
+    {
+      "phase": "10",
+      "status": "IN_PROGRESS",
+      "evidence": [
+        ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4a-brief.md"
+      ]
+    },
+    {
+      "phase": "11",
+      "status": "NOT_STARTED",
+      "evidence": []
+    },
+    {
+      "phase": "12",
+      "status": "NOT_STARTED",
+      "evidence": []
+    },
+    {
+      "phase": "13",
+      "status": "REFERENCE_ONLY",
+      "evidence": [
+        "docs/awesome-optimization/OMO_PATTERN_ASSESSMENT.md"
+      ]
+    },
+    {
+      "phase": "14",
+      "status": "IN_PROGRESS",
+      "evidence": [
+        "docs/awesome-optimization/SECURITY_REVIEW.md",
+        ".superpowers/sdd/2026-10-01-awesome-optimization/native-prerequisites-target-audit.json"
+      ]
+    },
+    {
+      "phase": "15",
+      "status": "NOT_STARTED",
+      "evidence": []
+    },
+    {
+      "phase": "16",
+      "status": "IN_PROGRESS",
+      "evidence": [
+        ".superpowers/sdd/2026-10-01-awesome-optimization/batch-1/runs/2026-10-01T01-27-41-925Z/receipt.json",
+        ".superpowers/sdd/2026-10-01-awesome-optimization/batch-1-report.md",
+        ".superpowers/sdd/2026-10-01-awesome-optimization/batch-1-review.md",
+        ".superpowers/sdd/2026-10-01-awesome-optimization/batch-1-repair-report.md",
+        ".superpowers/sdd/2026-10-01-awesome-optimization/batch-1/runs/2026-10-01T01-57-51-630Z/receipt.json",
+        ".superpowers/sdd/2026-10-01-awesome-optimization/batch-1-rereview.md"
+      ]
+    },
+    {
+      "phase": "17",
+      "status": "NOT_STARTED",
+      "evidence": []
+    },
+    {
+      "phase": "18",
+      "status": "NOT_STARTED",
+      "evidence": []
+    },
+    {
+      "phase": "19",
+      "status": "NOT_STARTED",
+      "evidence": []
+    }
+  ],
+  "decisions": [
+    "Reuse isolated responsive worktree after its existing final fix and independent rereview; no concurrent product writers.",
+    "New Awesome increment is unstaged/uncommitted local diff only: no git add/commit/push/merge/deploy or remote activation.",
+    "Reuse evidence only as historical crosswalk; rerun affected actual source in this increment.",
+    "User2026-10-01 prioritizes Awesome first then unified responsive implementation/verification; one shared local Docker project unless a documented necessary isolation reason exists.",
+    "Serialized security dependency patch after B2 same-framework paired AFTER and independent review, before form/Native; no blanket upgrade or remote action.",
+    "Latest Awesome3.2 governs disabled local merchant OA capability; platform OA explicit alternative; missing same-Provider binding NONE/paused; no live activation/historical intent rewrite.",
+    "Native Phase09 requires actual bounded one-screen NativeWind/StyleSheet pilot; temporary verified candidate only, remove if no clear benefit and rebuild final single-style source.",
+    "Completeness ruling19: B4 explicitly supplies local Mock webhook read-test-diff-explicit-apply-readback plus audited legacy notification_jobs fifth-attempt/fence/frozen-intent/UNKNOWN verification; B5 mounts merchant/admin personal preference form; B7 owns actual final verification report while root owns execution state/remote coordination.",
+    "Completeness ruling20: B7 owns explicit Phase16 portable static auth-wrapper/unauthorized auto-collection negatives and current CI binding, reusing B1 checks; runtime auth/consent and hosted CI statuses remain distinct.",
+    "Ruling21: serialize heavy security stages, whole unit suite once CLI maxWorkers1/current config4 preserved, owned Wrangler telemetry disabled/localdryrun; one shared backend and complete coverage.",
+    "Ruling22: exact eslint-config-next16.3.6 supplemental official-version MIT notice conditional on matching actualNext notice/source provenance; no bundled-proof fabrication/generalwaiver, preservefailedgate.",
+    "Ruling23: npm EOVERRIDE minimal eslint@^9 key matches unchanged directspec; actual9.39.5 locked/installed invariant, allotherexactparents unchanged; firstfailure preserved.",
+    "Ruling24: full lint scratch-only2268errors; exacteslint.configpreimage plus .superpowers/** globalignore only, realinputs/rules preserved and tested; fullfailure retained. 18owned. Setting restoreCAS ownpostimage only.",
+    "Ruling25: exact3unitfailure test/config closure,21owned; meaningful48/date/permissiontests, exactnode:test standalone split,100skips notPASS; oldreceiptunchangedmatchinghash, norestore. B7 persistentrecipepending.",
+    "Ruling26: exactunchanged statusdryrun recipeassert/hash, singleoutdir substitution to ownscratch, credentials removedchildonly/metricsfalse, initialduplicate failurepreserved; no package/providerchange.",
+    "Ruling27: scratch-only orderQA ESM package boundary after actualCJS collection failure, rawbeforeeffectfailurepreserved; routine owneddriver syntax/path/module fixes autonomous, guard/source/authority/expectedfacts unchanged; actualrequiredflow remainsmandatory.",
+    "Ruling29: exact existing expiry SQL function version increment only; same new migration staged receipts preserved, guarded owned eligibility and privilege/search_path proof; no general trigger/scheduler or historical rewrite.",
+    "Ruling30: B4 closes required order→existing notification→Mock→personalInbox through minimum current StaffPush/order-source projection/receipt and per-principal stable identity; prior Billing/Application-only proposal insufficient; no new ledger/queue/grants/live sender and precise seam review before schema.",
+    "Ruling31: B3 intermediate failed-stage preimages reconstructed scratch-only/hash-verified AFTER_EDIT if already edited; honest capture limitation, originalpreimages/rootboundhash/diff retained, no working-file rollback/historyfabrication; unresolved byte gap blocks only dependent evidence.",
+    "Ruling32: strict validdraft600/profile/hour/non-draft60/hour/invalid60/hour separatebuckets, submit-specificantispamunchanged;429honestdeadline/dirty/noexpiryautoretry; actualnormal-flow/boundary/scopeproof +scopedreview beforeacceptance; no sharedbucketclear/newservice/remote.",
+    "Ruling33 — close the actual B3 concurrent admin-review RED through only the existing approveMerchantApplication/applyMerchantApplicationReviewAction wrappers. Exact reviewed preimages: approval8b734b71bbc070c025a80ebd5527c0a277c179fb13c7ae3f011e38e3c9e31c94, adminService6c1848e833ccd9449de5dbe7735e052367f870e6bae45010bfb7f828155d143e. At most3 total transaction attempts, retry only PrismaClientKnownRequestError P2010 with structured meta.code exactly40001 or P2034; each retry repeats the entire existing Serializable transaction including FOR UPDATE/current-state authorization/fences. Only transactionally rolled-back DB work is retryable; any external effect must not be retried. Preserve APPROVED+org same-ID idempotent return, mixed-state transition denial, draft-version semantics, existing P2002/GlobalStallCode mappings and all unrelated errors. On recognized conflict exhaustion use the matching existing APPLICATION_STATE_CONFLICT→409/no-store response; never absorb arbitrary SQL/errors or return success on exhaustion. Why: two real overlapping APPROVE requests and APPROVE-vs-REQUEST_INFO produced200+500 with PostgreSQL40001 at FOR UPDATE; existing transaction prevented duplicate provisioning but unexpected HTTP500 is not an acceptable concurrent review result. Cost if wrong: bounded retries add transaction work and require actual overlapping same-action/mixed-action HTTP+DB verification of one canonical org/trial/Owner/setup/notification/audit effect and no conflicting notes, plus persistent recognized-code/max-attempt/exhaustion/unrecognized-error/P2002/current-state regression tests. Preserve exact RED evidence/preimages and rollback proof; fresh source/build binding, affected-flow QA and SAME independent scoped review remain required. No shared generic transaction framework, new ledger/schema/scheduler/trigger, extraDocker, remote write or user approval request.",
+    "Ruling34 — execute planned parentBatch4 as three serial coherent sub-batches with fresh implementer and different independent reviewer for each:4a personalInbox/Web/personalreceipts/preferences plus actual Ruling30order-notification projection,4b existingreportdelivery crash-safe owner/manualoperationsUI,4c legacyLINEjob safety plus actual disabledMockWebhookmanagement/policy. Original parent briefs/requirements remain immutable aggregate contract; no requirement removed, silently deferred or claimedcomplete before its assignedgate. OverallBatch4 remainsINCOMPLETE untilallthree gates; B5 followsallthree, B7 verifiescurrentcombinedcross-contractflows. Each exactsource/schema/preimage/runtime handoff and necessary Ruling28overlay is serial; oneDocker/backend/App writer, no parallel product writes. Why: backend preparation section7 already identifies independent Inbox/report/LINE owners; one broad task would mix three different authority/state machines and make a single review/fix surface unnecessarily difficult to assess. Cost if wrong: up tothree necessary builds/source bindings/scopedgates and explicit stable handoff checks, while avoiding redundant broadparentreview or duplicateframeworks; actualMockorderInbox remains4a (notshifted), reportcrashcases4b, legacy+Webhookcases4c. Most-capable architecture model for these authority/schema designs as required bySDD, with independent review scaled to actualrisk. This changes execution granularity only, adds no feature/remoteactivation/provider/fee/newenvironment; B3fix1 mustclose before4a dispatch.",
+    "Ruling36 — after actual B4a browser-first FAIL/FAIL/PASS, permit only owned test-runner React condition compatibility: remove --conditions=react-server from the isolated Node24+tsx callback subprocess and register an exact server-only marker alias to existing src/test/server-only.ts after URL/Docker/source/corpus/ownership guards. Record shim bytes/hash and scratch packaging; preserve the original three callbacks, assertions, deadlines and socket deny. Do not alias Next navigation, authorization, Prisma, worker, transport or any arbitrary package; do not change App/build React conditions or report ordinary-runner success. The original two actual SQL-produced deliveries remain owned additive facts only when bound to this task original manifest/order/subscription IDs and full metadata; include them in every same-now global eligibility proof and final preservation/diff, never modify their timestamps/status/attempts to manufacture eligibility. Expiry is handled only by original dispatcher. Why: actual original worker import failed at React.createContext before invocation because the standalone callback process selected React server exports while Next navigation uses client context; an exact inert server-only marker in this local test process allows the actual authorization/DB/dispatcher path to load without mocking those boundaries. Cost if wrong: the shim could hide a runtime import boundary defect, so original failure, production build identity, exact alias bytes and limited resolution proof remain visible; new runtime acceptance must pass all original actual-flow callbacks and independent review, while ordinary Playwright/provider evidence stays incomplete. Existing48-unit actual failure must be diagnosed/fixed, not waived. No product/runtime effect is approved by this runner-only ruling, no extra retained environment or old fact reset.",
+    "Ruling37 — preserve existing merchant billing consumer and MERCHANT_BILLING_VISIBLE=false denial, and add the same NotificationInboxEntry to the current authorized /merchant/dashboard workspace using its exact current organization and existing authorizeInbox VIEW_BILLING checks. Fresh-before capture of the single existing dashboard page expands owned paths29→30; no dashboard report/entitlement change, flag/subscription/RBAC fallback or additional service. Actual browser consumer enters through the dashboard notification link; assert the existing feature-off billing404 explicitly. After membership revocation use actual Inbox API404/mounted-private-DOM clearing/hard-navigation404, not the success-only navigation helper or the unrelated billing feature-off404 as revocation proof. Why: exact readonly billing-page.ts guard at line16 calls notFound before organization selection because merchantBillingVisible is false, despite valid new trial subscription and current owner/finance memberships; the merchant Inbox entry otherwise depends on an intentionally unavailable billing page. Cost if wrong: one extra existing server consumer and possible entry-query work require current-authorization/48px/nooverflow/browser proof and independent review; feature-on billing-page traversal remains NOT_RUN_FEATURE_DISABLED and must stay visible in combined/release verification, never silently reported as a successful active billing page. This is a minimum real merchant Inbox entry correction, no new billing feature or authority. Current source7aa and all prior actual FAIL/DB proof remain immutable; new exact source gate required before dependent build/runtime."
+  ],
+  "changedFiles": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/ephemeral-preview.yml",
+    "docs/ARCHITECTURE_AND_FEATURE_CHANGELOG.md",
+    "docs/awesome-optimization/API_AND_CACHE_CONTRACTS.md",
+    "docs/awesome-optimization/BASELINE_RESULTS.md",
+    "docs/awesome-optimization/CANDIDATE_EVALUATION.md",
+    "docs/awesome-optimization/DECISIONS.md",
+    "docs/awesome-optimization/DEPENDENCY_LICENSE_MATRIX.md",
+    "docs/awesome-optimization/EXECUTION_STATE.json",
+    "docs/awesome-optimization/EXTERNAL_SETUP_CHECKLIST.md",
+    "docs/awesome-optimization/FEATURE_PARITY_MATRIX.md",
+    "docs/awesome-optimization/IMPLEMENTATION_PLAN.md",
+    "docs/awesome-optimization/licenses/react-hook-form-7.89.0.LICENSE",
+    "docs/awesome-optimization/OMO_PATTERN_ASSESSMENT.md",
+    "docs/awesome-optimization/qa/application-schema-overlay.mjs",
+    "docs/awesome-optimization/qa/application-schema-overlay.test.mjs",
+    "docs/awesome-optimization/qa/live-fixture-guard.mjs",
+    "docs/awesome-optimization/REPOSITORY_AUDIT.md",
+    "docs/awesome-optimization/SECURITY_REVIEW.md",
+    "docs/MERCHANT_APPLICATION_ARCHITECTURE.md",
+    "e2e/responsive-lab/awesome-batch3-onboarding.spec.ts",
+    "e2e/responsive-lab/responsive-admin-workflows.spec.ts",
+    "e2e/responsive-lab/responsive-merchant-workflows.spec.ts",
+    "package-lock.json",
+    "package.json",
+    "prisma/schema.prisma",
+    "scripts/awesome-optimization/batch-2/fixture.mjs",
+    "scripts/awesome-optimization/batch-3/database-cas.mjs",
+    "scripts/awesome-optimization/batch-3/migrate.mjs",
+    "scripts/awesome-optimization/batch-3/runtime.mjs",
+    "scripts/awesome-optimization/boundaries.mjs",
+    "scripts/awesome-optimization/boundaries.test.mjs",
+    "scripts/awesome-optimization/boundary-baseline.json",
+    "scripts/awesome-optimization/cli.mjs",
+    "scripts/awesome-optimization/cli.test.mjs",
+    "scripts/awesome-optimization/lab-import.test.mjs",
+    "scripts/awesome-optimization/runner.mjs",
+    "scripts/awesome-optimization/runner.test.mjs",
+    "scripts/awesome-optimization/workflow.test.mjs",
+    "src/app/api/onboarding/route.ts",
+    "src/app/onboarding/edit/page.tsx",
+    "src/app/onboarding/page.tsx",
+    "src/components/onboarding-form.batch3.test.ts",
+    "src/components/onboarding-form.tsx",
+    "src/lib/merchant-application-contract.test.ts",
+    "src/lib/merchant-application-contract.ts",
+    "src/lib/messages/onboarding.ts",
+    "src/server/merchant-applications/approve-merchant-application.ts",
+    "src/server/merchant-applications/merchant-application-admin-service.ts",
+    "src/server/merchant-applications/merchant-application-service.ts",
+    "supabase/migrations/20261001090000_merchant_application_draft_version.sql"
+  ],
+  "verificationEvidence": [
+    {
+      "kind": "READ_ONLY_PRODUCTION_AVAILABILITY",
+      "path": "docs/awesome-optimization/evidence/production-baseline-20261001.json",
+      "authenticatedFlow": "NOT_RUN",
+      "remoteWrites": false
+    },
+    {
+      "authenticatedFlow": "NOT_RUN",
+      "remoteWrites": false,
+      "kind": "READ_ONLY_PRODUCTION_AVAILABILITY",
+      "path": "docs/awesome-optimization/evidence/production-pre-implementation-20261001.json"
+    },
+    {
+      "kind": "READ_ONLY_PRODUCTION_AVAILABILITY",
+      "path": "docs/awesome-optimization/evidence/production-periodic-batch1-20261001.json",
+      "authenticatedFlow": "NOT_RUN",
+      "remoteWrites": false
+    },
+    {
+      "kind": "READ_ONLY_PRODUCTION_AVAILABILITY",
+      "path": "docs/awesome-optimization/evidence/production-periodic-batch1-repair-20261001.json",
+      "authenticatedFlow": "NOT_RUN",
+      "remoteWrites": false
+    },
+    {
+      "kind": "READ_ONLY_PRODUCTION_AVAILABILITY",
+      "path": "docs/awesome-optimization/evidence/production-periodic-batch2-20261001.json",
+      "authenticatedFlow": "NOT_RUN",
+      "remoteWrites": false
+    },
+    {
+      "kind": "READ_ONLY_PRODUCTION_AVAILABILITY",
+      "path": "docs/awesome-optimization/evidence/production-periodic-batch2-0249-20261001.json",
+      "authenticatedFlow": "NOT_RUN",
+      "remoteWrites": false
+    },
+    {
+      "kind": "READ_ONLY_PRODUCTION_AVAILABILITY",
+      "path": "docs/awesome-optimization/evidence/production-periodic-batch2-0315-20261001.json",
+      "authenticatedFlow": "NOT_RUN",
+      "remoteWrites": false
+    },
+    {
+      "kind": "READ_ONLY_LOCAL_RESOURCE_CHECKPOINT",
+      "path": "docs/awesome-optimization/evidence/single-environment-batch2-0336-20261001.json",
+      "remoteWrites": false,
+      "freeMemoryMiB": 3359,
+      "runningProjectCount": 1,
+      "runningContainerCount": 7
+    },
+    {
+      "kind": "READ_ONLY_PRODUCTION_AVAILABILITY",
+      "path": "docs/awesome-optimization/evidence/production-periodic-batch2-0345-20261001.json",
+      "authenticatedFlow": "NOT_RUN",
+      "remoteWrites": false
+    },
+    {
+      "kind": "READ_ONLY_PRODUCTION_AVAILABILITY",
+      "path": "docs/awesome-optimization/evidence/production-periodic-batch2-review-0429-20261001.json",
+      "authenticatedFlow": "NOT_RUN",
+      "remoteWrites": false
+    },
+    {
+      "kind": "READ_ONLY_LOCAL_RESOURCE_CHECKPOINT",
+      "path": "docs/awesome-optimization/evidence/single-environment-batch2-review-0429-20261001.json",
+      "freeMemoryMiB": 2916,
+      "stallorderTestProjectCount": 1,
+      "stallorderContainerCount": 7,
+      "externalContainerCount": 5,
+      "remoteWrites": false
+    },
+    {
+      "kind": "READ_ONLY_LOCAL_RESOURCE_CHECKPOINT",
+      "path": "docs/awesome-optimization/evidence/single-environment-batch2-repair-0455-20261001.json",
+      "freeMemoryMiB": 6602,
+      "stallorderTestProjectCount": 1,
+      "stallorderContainerCount": 7,
+      "externalContainerCount": 0,
+      "remoteWrites": false
+    },
+    {
+      "kind": "READ_ONLY_PRODUCTION_AVAILABILITY",
+      "path": "docs/awesome-optimization/evidence/production-periodic-batch2-repair-0458-20261001.json",
+      "authenticatedFlow": "NOT_RUN",
+      "remoteWrites": false
+    },
+    {
+      "kind": "READ_ONLY_PRODUCTION_AVAILABILITY",
+      "path": "docs/awesome-optimization/evidence/production-periodic-batch2-repair2-0607-20261001.json",
+      "authenticatedFlow": "NOT_RUN",
+      "remoteWrites": false
+    },
+    {
+      "kind": "READ_ONLY_LOCAL_RESOURCE_CHECKPOINT",
+      "path": "docs/awesome-optimization/evidence/single-environment-batch2-repair2-0610-20261001.json",
+      "freeMemoryMiB": 5203,
+      "stallorderTestProjectCount": 1,
+      "stallorderContainerCount": 7,
+      "externalContainerCount": 0,
+      "remoteWrites": false
+    },
+    {
+      "authenticatedFlow": "NOT_RUN",
+      "kind": "READ_ONLY_PRODUCTION_AVAILABILITY",
+      "path": "docs/awesome-optimization/evidence/production-periodic-batch2-repair2-0636-20261001.json",
+      "remoteWrites": false
+    },
+    {
+      "authenticatedFlow": "NOT_RUN",
+      "remoteWrites": false,
+      "path": "docs/awesome-optimization/evidence/production-periodic-security-0707-20261001.json",
+      "kind": "READ_ONLY_PRODUCTION_AVAILABILITY"
+    },
+    {
+      "kind": "READ_ONLY_PRODUCTION_AVAILABILITY",
+      "path": "docs/awesome-optimization/evidence/production-periodic-security-0734-20261001.json",
+      "authenticatedFlow": "NOT_RUN",
+      "remoteWrites": false
+    },
+    {
+      "kind": "READ_ONLY_PRODUCTION_AVAILABILITY",
+      "path": "docs/awesome-optimization/evidence/production-periodic-security-0805-20261001.json",
+      "authenticatedFlow": "NOT_RUN",
+      "remoteWrites": false
+    },
+    {
+      "kind": "CONTROLLER_OWNED_DIFF_AND_RECEIPT_READBACK",
+      "path": ".superpowers/sdd/2026-10-01-awesome-optimization/security-patch/root-final-readback.json",
+      "ownedFiles": 21,
+      "indexedReceipts": 458,
+      "allVerified": true,
+      "remoteWrites": false
+    },
+    {
+      "kind": "READ_ONLY_PRODUCTION_AVAILABILITY",
+      "path": "docs/awesome-optimization/evidence/production-periodic-security-review-0835-20261001.json",
+      "authenticatedFlow": "NOT_RUN",
+      "remoteWrites": false
+    },
+    {
+      "kind": "READ_ONLY_LOCAL_RESOURCE_CHECKPOINT",
+      "path": "docs/awesome-optimization/evidence/single-environment-batch3-0838-20261001.json",
+      "stallorderTestProjectCount": 1,
+      "stallorderContainerCount": 7,
+      "externalContainerCount": 0,
+      "remoteWrites": false
+    },
+    {
+      "kind": "READ_ONLY_PRODUCTION_AVAILABILITY",
+      "path": "docs/awesome-optimization/evidence/production-periodic-batch3-0912-20261001.json",
+      "authenticatedFlow": "NOT_RUN",
+      "remoteWrites": false
+    },
+    {
+      "kind": "CONTROLLER_PREBUILD_SOURCE_AND_OWNED_HASH_READBACK",
+      "path": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-3/root-prebuild-1-binding.json",
+      "allVerified": true,
+      "ownedFiles": 31,
+      "sourceInputs": 3033,
+      "remoteWrites": false
+    },
+    {
+      "kind": "READ_ONLY_PRODUCTION_AVAILABILITY",
+      "path": "docs/awesome-optimization/evidence/production-periodic-batch3-0942-20261001.json",
+      "authenticatedFlow": "NOT_RUN",
+      "remoteWrites": false
+    },
+    {
+      "kind": "READ_ONLY_LOCAL_RESOURCE_CHECKPOINT",
+      "path": "docs/awesome-optimization/evidence/single-environment-batch3-repair-0947-20261001.json",
+      "freeMemoryMiB": 5551,
+      "remoteWrites": false
+    },
+    {
+      "kind": "CONTROLLER_PREBUILD_SOURCE_AND_OWNED_HASH_READBACK",
+      "path": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-3/root-prebuild-2-binding.json",
+      "allVerified": true,
+      "ownedFiles": 31,
+      "sourceInputs": 3033,
+      "remoteWrites": false
+    },
+    {
+      "kind": "READ_ONLY_PRODUCTION_AVAILABILITY",
+      "path": "docs/awesome-optimization/evidence/production-periodic-batch3-1006-20261001.json",
+      "authenticatedFlow": "NOT_RUN",
+      "remoteWrites": false
+    },
+    {
+      "kind": "READ_ONLY_LOCAL_RESOURCE_CHECKPOINT",
+      "path": "docs/awesome-optimization/evidence/single-environment-batch3-repair-1009-20261001.json",
+      "stallorderTestProjectCount": 1,
+      "stallorderContainerCount": 7,
+      "externalContainerCount": 0,
+      "freeMemoryMiB": 6287,
+      "remoteWrites": false
+    },
+    {
+      "kind": "CONTROLLER_PREBUILD_SOURCE_AND_OWNED_HASH_READBACK",
+      "path": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-3/root-prebuild-3-binding.json",
+      "allVerified": true,
+      "ownedFiles": 31,
+      "sourceInputs": 3033,
+      "remoteWrites": false
+    },
+    {
+      "kind": "CONTROLLER_FAILED_STAGE_PREIMAGE_READBACK",
+      "path": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-3/root-repair-2-readback.json",
+      "allVerified": true,
+      "freshSnapshots": 2,
+      "remoteWrites": false
+    },
+    {
+      "kind": "CONTROLLER_PREBUILD_SOURCE_AND_OWNED_HASH_READBACK",
+      "path": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-3/root-prebuild-4-binding.json",
+      "allVerified": true,
+      "ownedFiles": 31,
+      "sourceInputs": 3033,
+      "remoteWrites": false
+    },
+    {
+      "kind": "CONTROLLER_FAILED_STAGE_PREIMAGE_READBACK",
+      "path": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-3/root-repair-3-readback.json",
+      "allVerified": true,
+      "freshSnapshots": 1,
+      "remoteWrites": false
+    },
+    {
+      "kind": "CONTROLLER_OWNED_DIFF_AND_RECEIPT_READBACK",
+      "path": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-3/root-final-readback.json",
+      "ownedFiles": 31,
+      "indexedReceipts": 427,
+      "sourceInputs": 3033,
+      "allVerified": true,
+      "remoteWrites": false
+    },
+    {
+      "kind": "READ_ONLY_PRODUCTION_AVAILABILITY",
+      "path": "docs/awesome-optimization/evidence/production-periodic-batch3-review-1036-20261001.json",
+      "authenticatedFlow": "NOT_RUN",
+      "remoteWrites": false
+    },
+    {
+      "kind": "READ_ONLY_PRODUCTION_AVAILABILITY",
+      "path": "docs/awesome-optimization/evidence/production-periodic-batch3-fix1-1112-20261001.json",
+      "authenticatedFlow": "NOT_RUN",
+      "remoteWrites": false
+    },
+    {
+      "kind": "READ_ONLY_LOCAL_RESOURCE_CHECKPOINT",
+      "path": "docs/awesome-optimization/evidence/single-environment-batch3-fix1-1116-20261001.json",
+      "freeMemoryMiB": 5425,
+      "remoteWrites": false
+    },
+    {
+      "kind": "CONTROLLER_FIX1_CANONICAL_PREBUILD_BINDING",
+      "path": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-3/fix-1/root-candidate-1-binding-2.json",
+      "allVerified": true,
+      "ownedFiles": 12,
+      "sourceInputs": 3036,
+      "remoteWrites": false
+    },
+    {
+      "kind": "READ_ONLY_PRODUCTION_AVAILABILITY",
+      "path": "docs/awesome-optimization/evidence/production-periodic-batch3-fix1-1137-20261001.json",
+      "authenticatedFlow": "NOT_RUN",
+      "remoteWrites": false
+    },
+    {
+      "kind": "CONTROLLER_FIX1_FINAL_PACKAGE_READBACK",
+      "path": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-3/fix-1/root-final-package-readback.json",
+      "allVerified": true,
+      "ownedFiles": 12,
+      "combinedCurrentFiles": 35,
+      "newReceipts": 181,
+      "historicalReceipts": 427,
+      "sourceInputs": 3036,
+      "remoteWrites": false
+    },
+    {
+      "kind": "CONTROLLER_B3_SCOPED_GATE_CURRENT_READBACK",
+      "path": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-3/root-b3-scoped-gate-readback.json",
+      "allVerified": true,
+      "remoteWrites": false
+    },
+    {
+      "kind": "SHARED_QA_APPEND_ONLY_CAS",
+      "path": ".superpowers/sdd/2026-10-01-awesome-optimization/shared-qa-b3-append/receipt.json",
+      "prefixAndAppendReadback": true,
+      "remoteWrites": false,
+      "memoryWrite": false
+    },
+    {
+      "kind": "READ_ONLY_PRODUCTION_AVAILABILITY",
+      "path": "docs/awesome-optimization/evidence/production-periodic-batch4a-1205-20261001.json",
+      "authenticatedFlow": "NOT_RUN",
+      "remoteWrites": false
+    },
+    {
+      "kind": "READ_ONLY_LOCAL_RESOURCE_CHECKPOINT",
+      "path": "docs/awesome-optimization/evidence/single-environment-batch4a-preproposal-20261001.json",
+      "freeMemoryMiB": 6282,
+      "runningProjectCount": 1,
+      "runningContainerCount": 7,
+      "remoteWrites": false
+    },
+    {
+      "kind": "CONTROLLER_B4A_SCHEMA_SOURCE_GATE_ONLY",
+      "path": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4a/root-schema-candidate-2-binding.json",
+      "allVerified": true,
+      "buildAccepted": false,
+      "remoteWrites": false
+    },
+    {
+      "kind": "READ_ONLY_PRODUCTION_AVAILABILITY",
+      "path": "docs/awesome-optimization/evidence/production-periodic-batch4a-1233-20261001.json",
+      "authenticatedFlow": "NOT_RUN",
+      "remoteWrites": false
+    },
+    {
+      "kind": "ROOT_APPEND_ONLY_LOCAL_SERVICE_DEPENDENCY_NOTE",
+      "path": ".superpowers/sdd/2026-10-01-awesome-optimization/root-lifecycle-awesome/receipt.json",
+      "prefixPreserved": true,
+      "remoteWrites": false
+    },
+    {
+      "kind": "CONTROLLER_PREBUILD_SOURCE_GATE_ONLY",
+      "path": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4a/root-build-candidate-3-binding.json",
+      "remoteWrites": false
+    },
+    {
+      "kind": "READ_ONLY_PRODUCTION_AVAILABILITY",
+      "path": "docs/awesome-optimization/evidence/production-periodic-batch4a-1303-20261001.json",
+      "authenticatedFlow": "NOT_RUN",
+      "remoteWrites": false
+    },
+    {
+      "kind": "CONTROLLER_PREBUILD_SOURCE_GATE_ONLY",
+      "path": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4a/root-build-candidate-4-binding.json",
+      "remoteWrites": false
+    },
+    {
+      "kind": "CONTROLLER_PREBUILD_SOURCE_GATE_ONLY",
+      "path": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4a/root-build-candidate-5-binding.json",
+      "remoteWrites": false
+    },
+    {
+      "kind": "CONTROLLER_PREBUILD_SOURCE_GATE_ONLY",
+      "path": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4a/root-build-candidate-6-binding.json",
+      "remoteWrites": false
+    },
+    {
+      "kind": "CONTROLLER_PREBUILD_SOURCE_GATE_ONLY",
+      "path": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4a/root-build-candidate-7-binding.json",
+      "remoteWrites": false
+    },
+    {
+      "kind": "READ_ONLY_PRODUCTION_AVAILABILITY",
+      "path": "docs/awesome-optimization/evidence/production-periodic-batch4a-1333-20261001.json",
+      "authenticatedFlow": "NOT_RUN",
+      "remoteWrites": false
+    }
+  ],
+  "externalBlockers": [
+    "GitHub Preview required-reviewer rule MISSING in 2026-10-01 read-only API; no remote setting write. New local workflow must refuse external writes until rule is configured and read-back succeeds."
+  ],
+  "internalBlockers": "B1/B2/security/B3/B4a/B4b/B4c scoped independent gates approved. B5 current Android and Web build/hash gates passed; runtime fixture committed and preserved. Actual HTTP/Native, styling pilot and B5 review pending. B6/B7/final combined cross-device acceptance not run. Required whole-suite/matchedmetrics/native/device/external/release gaps remain separate; no overall completion.",
+  "pendingUserClarifications": [
+    "Earlier platform OA expectation differs from newest spec merchant OA; unanswered. Disabled local candidate follows latest spec with both explicit policies tested; no real sender/default/Webhook/credential or historical recipient change. Real activation requires resolution and exact rollout settings."
+  ],
+  "nextSafeTask": "Fresh B4a architecture writer → independent review →4b→4c→5→6→7 and combined responsive verification; one shared Docker.",
+  "currentBatch": {
+    "id": "batch-4b",
+    "writer": "awesome_report_delivery_owner",
+    "fullAcceptance": "INCOMPLETE",
+    "scope": "Existing report delivery owner crash safety + real operations UI; same single environment; schema/root literal gate first",
+    "brief": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4b-brief.md",
+    "implementation": "SECOND_SQL_APPLIED_CONFLICT_TRANSLATION_R40_SHAPE_PENDING_EXACT_GATE",
+    "incomingSourceSha256": "ae56884a752e29e8f63aceb224b722408f2c30d9117766a9ddbd62fcee4eaf91",
+    "review": "NOT_STARTED",
+    "agent": "/root/awesome_report_delivery_owner",
+    "schemaProposalSha256": "6546e958a1d7b498e6358f86626e39350c7989f4346fecaa3ae154227a808762",
+    "shapeRulingSha256": "2e250557b805d8a6942869c55719a9f5b2e2c1ff58aba77a6898365766e459d3",
+    "checkpoint": "Correctiveconditional0preservinglegacy1..10 appliedonce. DBroles/immutable/hash/state/lease/one-rowclaim positives reported; harnessFAIL expectedoneorgunique P2010dropsconstraintname. R40exactSQLdiagnostictranslation/privatefunctionsameidentity+strictNodeknownmarker/wholeclaimrollback proposed; freshliteral gatebeforethirdSQL, no prior migration overwrite. No fullQAclaim.",
+    "schemaGateSourceSha256": "214eeaa85b1c2ebc41faa36fa8481c1ca7e92eb6ce07cd93fa602d824b55db92",
+    "proposedSchemaSha256": "97e0328971091b3fffb67cb8abcc4ece5569348fa99278b61322297380fab901",
+    "migrationSha256": "da3330530643d649dcfb173b5a09923a7f4fd19b284226f83393a51453bebe28",
+    "correctiveSourceSha256": "10b8724488c7a3a3590309b1aaac334ea80d1784a49a880a7ad5d6d361205428",
+    "correctiveMigrationSha256": "6ac231a9877d3f88ece6addee4475e5961190fb3a910db6624381841f1c3ec85"
+  },
+  "completedBatches": [
+    {
+      "review": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-1-rereview.md",
+      "id": "batch-1",
+      "status": "BOUNDED_FOUNDATION_REVIEW_APPROVED",
+      "fullAcceptance": "INCOMPLETE"
+    },
+    {
+      "fullAcceptance": "INCOMPLETE",
+      "reviewSha256": "5ed382a623ace2116dd4ec61df57009d9404cc30d8cd174755abac9c83e45557",
+      "sourceSha256": "042517aae786cd9e11bcd024c84550b99494e7180a18a47fae90e65baa9b07ff",
+      "review": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-2-rereview-2.md",
+      "status": "BOUNDED_IMPLEMENTATION_REVIEW_APPROVED",
+      "performance": "JS_REQUESTS_NOT_MET; SQL_COUNT_UNAVAILABLE; B7_PENDING",
+      "openFindings": 0,
+      "id": "batch-2"
+    },
+    {
+      "review": "SPEC_AND_QUALITY_APPROVED_BOUNDED",
+      "fullAcceptance": "INCOMPLETE",
+      "id": "security-patch",
+      "incomingSourceSha256": "042517aae786cd9e11bcd024c84550b99494e7180a18a47fae90e65baa9b07ff",
+      "writer": "awesome_security_dependency_patch",
+      "scope": "Finite Next/config16.3.6 and compatible scoped minimatch/brace/undici leaves; actual caller/worker/proxy/full audit/affectedflow gates",
+      "implementation": "DONE_WITH_CONCERNS",
+      "preflight": "Root full report/1017-line increment read;21 current owned/snapshot/preimages and458 indexed immutable receipts verified. Audit0/lint0errors9warnings/type/caller10/runtime9+cleanup/status10+dryrun/4B2/auth/canonical130TWD cash-KDS-pickup boundedPASS. Whole original unitexit1 with named7+13 closures;100skips and metadata pre/ownpost UNMEASURED remain explicit. Independent spec+quality gate pending; full acceptance INCOMPLETE.",
+      "candidateSourceSha256": "36c89f8906acc0a74b561202357312fc434905acd778f67c5c46f1d1fdb99da1",
+      "reviewer": "awesome_security_patch_independent_review",
+      "reviewPath": ".superpowers/sdd/2026-10-01-awesome-optimization/security-patch-review.md",
+      "reviewSha256": "e6f0056cf7770e04eef736ae048660b1a8b2fecf6356cc00065af56c7eecc182",
+      "findings": {
+        "critical": 0,
+        "important": 0,
+        "minor": 0,
+        "verificationLimits": 6
+      }
+    },
+    {
+      "id": "batch-3",
+      "writer": "awesome_onboarding_draft_cas",
+      "implementation": "FIX_ROUND_1_DONE_WITH_CONCERNS",
+      "review": "SCOPED_SPEC_AND_QUALITY_APPROVED",
+      "fullAcceptance": "INCOMPLETE",
+      "incomingSourceSha256": "36c89f8906acc0a74b561202357312fc434905acd778f67c5c46f1d1fdb99da1",
+      "scope": "Existing four-step RHF/Zod form and monotonic persisted draft CAS; real API/DB/mounted lifecycle in one shared environment",
+      "brief": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-3-brief.md",
+      "agent": "/root/awesome_onboarding_draft_cas",
+      "checkpoint": "B3 scoped review6e908d11 C0/I0/M0; root fresh readback11:59:13 all12+35+181+427+3036/artifact PASS. Ordinary runner/whole suite/physical/external/release remain incomplete.",
+      "schemaOverlaySha256": "0687ed869af58e1c87de319035bc922279963bd4fde8bc131ec8c451e924e29e",
+      "schemaHandoff": "Ruling28: current explicitB3schemaoverlay, laterB4/B5/B6 separate reviewedreceipt/guardpreimage+negative rebind; oldfreeze/digest/201version0/2oldapprovals retained, nodynamicselfapproval.",
+      "prebuildSourceSha256": "59e97944b509cd253986855b5e8c07d08ed13d042f21b674460d30946c536337",
+      "reviewer": "/root/awesome_batch3_independent_review",
+      "reportSha256": "352fc2d51500cae34f528b34867ed69572b0988daf3914d32f0de58eca7a03e3",
+      "reviewPackageSha256": "fa07d50dda61f0c182b795dab87b05c65028b3f794942f9a7b414c6f6e4ca36d",
+      "fixRound": 1,
+      "initialReviewSha256": "2e58739cd90d979d89e1a76152bc4c8ac80d2eb24fae72c0286082b5f2925284",
+      "reviewPath": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-3-rereview-1.md",
+      "reviewSha256": "6e908d117db02cd668b80ad4224c12716819664c3fc441dc6835e2ada69f88a7"
+    },
+    {
+      "id": "batch-4a",
+      "implementation": "SEALED",
+      "review": "SCOPED_REREVIEW_1_SPEC_PASS_QUALITY_APPROVED",
+      "fullAcceptance": "ASSIGNED_LOCAL_SCOPE_PASS_EXTERNAL_AND_PARENT_PENDING",
+      "incomingSourceSha256": "59e97944b509cd253986855b5e8c07d08ed13d042f21b674460d30946c536337",
+      "schemaOverlaySha256": "a521bedc84d77249c13e59c0671083d7762ea30bad542553d0789aa97b93f3c6",
+      "brief": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4a-brief.md",
+      "scope": "Personal Inbox actual Web + actual order notification projection; Ruling30 proposal before schema; Ruling34 serialized4a/4b/4c",
+      "writer": "awesome_inbox_order_projection",
+      "agent": "/root/awesome_inbox_order_projection",
+      "checkpoint": "Root final source/artifact/31owned/5fix preimages/835old+285new immutable and all5actualcallbackPASS. Same original independentreviewer scopedrereview dispatched. Actual18facts/subs fullpreserved; syntheticlogin/nativecallback/provider boundaries explicit. M2toolwarningsdeferred. One retainedApp50352/14548 and7existingDocker.",
+      "schemaGateSourceSha256": "24ee9f8fd427e878c34691a2c797112bc2563f0d59376a81649d62b3dee6ec39",
+      "proposedSchemaSha256": "a521bedc84d77249c13e59c0671083d7762ea30bad542553d0789aa97b93f3c6",
+      "migrationReceiptSha256": "5c2d7d8fba9664fb58339305ee9dd10efdbeee9e7c7812d2dfc26cb6f21574a1d",
+      "incomingSchemaSha256": "0687ed869af58e1c87de319035bc922279963bd4fde8bc131ec8c451e924e29e",
+      "migrationStatus": "APPLIED_ONCE_CATALOG_READBACK_PASS; FULL_FLOW_PENDING",
+      "prebuildSourceSha256": "ae56884a752e29e8f63aceb224b722408f2c30d9117766a9ddbd62fcee4eaf91",
+      "reviewer": "/root/awesome_batch4a_independent_review",
+      "reportSha256": "07d407117d93ee11225f3cfd1fddd61d2f34096e885ee11d559c76c3005df0b1",
+      "fixRound": 1,
+      "initialReviewSha256": "e6c703cf58be43f4063293dc6d463d8e9f381769ded610535e642e0b8270e630",
+      "reviewPath": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4a-review.md",
+      "reReviewSha256": "9b4e1715179d06fc156de0c3ed8910ffad17ce4e6751c8dde261ca0542d15133"
+    }
+  ],
+  "controllerRulingCount": 85,
+  "checkpoints": [
+    {
+      "remoteWrites": false,
+      "kind": "CONTROLLER_PREBUILD_SOURCE_GATE_ONLY",
+      "allVerified": true,
+      "path": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4a/root-build-candidate-8b-binding.json",
+      "buildAccepted": false
+    },
+    {
+      "remoteWrites": false,
+      "kind": "CONTROLLER_B4A_FINAL_PACKAGE_READBACK",
+      "allVerified": true,
+      "path": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4a/root-final-package-readback.json"
+    },
+    {
+      "authenticatedFlow": "NOT_RUN",
+      "remoteWrites": false,
+      "kind": "READ_ONLY_PRODUCTION_AVAILABILITY",
+      "path": "docs/awesome-optimization/evidence/production-periodic-batch4a-review-1404-20261001.json"
+    },
+    {
+      "freeMemoryMiB": 3711,
+      "remoteWrites": false,
+      "kind": "READ_ONLY_LOCAL_RESOURCE_CHECKPOINT",
+      "exactContainers": 7,
+      "path": "docs/awesome-optimization/evidence/single-environment-batch4a-review-1404-20261001.json"
+    },
+    {
+      "evidence": [
+        ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4a/fix-1/precision-red-5.json",
+        ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4a/fix-1/detail-red.json",
+        "docs/awesome-optimization/evidence/production-periodic-batch4a-fix1-1447-20261001.json"
+      ],
+      "at": "2026-10-01T14:51:56.5581791Z",
+      "details": "Both sources expected25/actual10; held-detail nextpage spinner. Actual authorized approval200; prior setup failures retained; no additional Docker.",
+      "batch": "4a",
+      "state": "FIX1_GENUINE_RED_REPRODUCED_WRITER_REPORTED_PENDING_ROOT_PACKAGE_CHECK"
+    },
+    {
+      "at": "2026-10-01T15:02:59.9448718Z",
+      "operatorCorrection": "v1 mistakenly included2declaredLIVElogs; preservedFAIL; v2 uses originalindexLIVE_MUTABLE classification,835immutable allverified",
+      "batch": "4a",
+      "state": "FIX1_PREBUILD_ROOT_PASS_RUNTIME_PENDING",
+      "evidence": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4a/root-fix1-candidate1-binding-v2.json"
+    },
+    {
+      "state": "FIX1_ROOT_FINAL_PASS_SAME_REVIEWER_DISPATCHED",
+      "batch": "4a",
+      "at": "2026-10-01T15:25:15.6338552Z",
+      "evidence": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4a/root-fix1-final-binding.json"
+    },
+    {
+      "evidence": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4a-rereview-1.md",
+      "state": "SCOPED_REREVIEW1_APPROVED_FRESH_B4B_WRITER_DISPATCH",
+      "at": "2026-10-01T15:38:07.2762567Z",
+      "batch": "4a",
+      "deferred": "M2toolwarnings/finalownertooling; wordingsource-vsbuildliteral; providerphysicalnativeOAuthordinaryrunnerCIreleasepending"
+    }
+  ],
+  "currentBatch4bImplementation": "SCOPED_FIX1_SPEC_PASS_QUALITY_APPROVED",
+  "latestReportSourceStage": {
+    "sourceSha256": "2a9f0d7658631999980284fd37009e9a224eacc8dc1510dc9cdd65eadb7a59d6",
+    "inputs": 3071,
+    "owned": 38,
+    "rootGate": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4b/root-worker-candidate22-binding.json",
+    "qualityApproved": false,
+    "buildId": "yBAEYHQ4EItUMjLuiZ1Jh",
+    "artifactSha256": "63ba7b984cac9c47aa14c1b8e61f37aeaad79818263513ec9b8e07fd101bd306",
+    "artifactGate": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4b/root-build3-artifact-gate-v1.json",
+    "browser2": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4b/browser-2-results.json",
+    "browser3": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4b/browser-3-results.json",
+    "finalGate": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4b/root-final-candidate1-binding.json",
+    "receiptGate": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4b/root-final-receipt-index-gate.json",
+    "reviewer": "/root/awesome_batch4b_independent_review",
+    "review": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4b-review.md",
+    "reviewSha256": "1bedc3af83e0c862c51e9daab2bb1fffab3c339e0e20e61dd806efd93708a228"
+  },
+  "batch4bFix1": {
+    "sourceSha256": "700e5fbd6006ed2daa429865d6efb486d07d4177f5315bed26c908c37d507223",
+    "inputs": 3072,
+    "scopedOwned": 3,
+    "combinedOwned": 39,
+    "buildId": "ngGRx4GWpS_A_OauemwFD",
+    "artifactSha256": "d5756e854391ffdfa3cd773d7396279f70799e4dd12bcf9849b50b2437a1dbf2",
+    "mountedCurrentCallbacks": "11_PASS_NO_REUSE",
+    "qualityApproved": true,
+    "reviewPath": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4b-rereview-1.md",
+    "reviewSha256": "3ca536405a3abdea72290bfdf889719c75eb4298a97da2c1cda05eb328ca8dc2",
+    "writerReleased": true,
+    "appStopped": true,
+    "report": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4b/fix-1/report.md",
+    "receiptCount": 278,
+    "receiptIndexSha256": "44f25461d987df167e9fc8cd3bdad85ccb63e6a6b4b276b65f77997698487c63",
+    "reviewer": "/root/awesome_batch4b_independent_review"
+  },
+  "currentBatch4cImplementation": "LOCAL_SCHEMA_APPLIED_LITERAL_CATALOG_APPROVED_WORKER_WEBHOOK_QA_PENDING",
+  "batch4cWriter": "/root/awesome_legacy_line_webhook_owner",
+  "latestReadonlyPrimary": "docs/awesome-optimization/evidence/production-periodic-batch4c-schema-2127-20261002.json",
+  "batch4cSchema": {
+    "sourceSha256": "d71e3318474b544cc709d245ad79b8b909d12f2f0d7c51825943215411a5d90d",
+    "catalogueSha256": "2d192dc60b300f604044ce480792d211ffc7b0d74868813dd6990f8bd675ce65",
+    "rootApproval": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4c/root-schema-postcatalog-approval.json",
+    "firstApplyRolledBack": true,
+    "secondApplyCommitted": true,
+    "original77JobRowsUnchanged": true,
+    "preparedReaderCompatibility": "B7_CONTROLLED_PAUSE_RESTART_PROOF_REQUIRED",
+    "productQAComplete": false
+  },
+  "batch4cRed": {
+    "path": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4c/fifth-red-v8-result.json",
+    "actualWorker": true,
+    "phase": "TARGET_ASSERTION",
+    "networkCalls": 0,
+    "syntheticCrashStateOnly": true,
+    "actualFifthExecutionProof": false,
+    "earlierSetupFailuresRetained": true
+  },
+  "batch4cRuling": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4c-ruling-45.md",
+  "batch4cRenderLossRed": {
+    "path": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4c/render-loss-cases.json",
+    "classification": "TARGET_REDS",
+    "cases": 2,
+    "mockRequests": 3,
+    "actualWorker": true,
+    "simulatedTransportOnly": true,
+    "cleanup": "PASS_SERVER_CLOSED",
+    "productQAComplete": false
+  },
+  "batch4cActualFifth": {
+    "effects": 0,
+    "status": "PASS",
+    "actualClaims": 5,
+    "path": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4c/fifth-green-result.json",
+    "finalStatus": "FAILED",
+    "naturalLeaseExpiries": 5,
+    "productQAComplete": false,
+    "priorFullRowsUnchanged": [
+      77,
+      3,
+      57
+    ]
+  },
+  "batch4cActualMockWorker": {
+    "status": "PASS_LOCAL_SIMULATED_ONLY",
+    "frozenRetryPayload": true,
+    "receipt": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4c/mock-worker-green-result.json",
+    "unknownNoAutomaticRetry": true,
+    "productQAComplete": false,
+    "independentUnlockedGrantProbes": 4,
+    "nextProtectedBaseline": [
+      81,
+      5,
+      61
+    ],
+    "actualWorker": true,
+    "priorFullRowsUnchanged": [
+      78,
+      4,
+      58
+    ],
+    "sourceSha256": "47e8325e74127c5137e5ea436074fb21e38db371fa52a1d783bea9b837769d5a"
+  },
+  "currentAction": "B5 corrected native APK/Web artifacts ready; prepare finite real Android consumer integration using one Docker/App3026/AVD, no reseed or HTTP52 replay.",
+  "latestProductionReadback": "docs/awesome-optimization/evidence/production-periodic-b5-1342-20261002.json",
+  "batch4cActualGrouped": {
+    "status": "PASS_LOCAL_MOCK_AND_REAL_DB_TRANSACTIONS",
+    "source": "f7689c5069eb2b6ca6e2a2284cb26cbf6fdf084fbf5b2a15579ce30ea2530435",
+    "authorityCases": 7,
+    "forcedCrashes": 1,
+    "requests": 1,
+    "forbiddenFetches": 0,
+    "priorFullRowsUnchanged": {
+      "jobs": 81,
+      "integrations": 5,
+      "links": 61
+    },
+    "finalCounts": {
+      "jobs": 90,
+      "integrations": 15,
+      "links": 71
+    },
+    "vaultProof": false,
+    "realProviderProof": false,
+    "productQaComplete": false
+  },
+  "batch4cCurrentStatic": {
+    "source": "323785bca239f8084f3bc88d43dccc76e5791c505747f7b292ee11cee0070796",
+    "focusedTests": 25,
+    "focusedFiles": 10,
+    "tests": "PASS",
+    "lint": "PASS_ZERO_ERRORS_ZERO_WARNINGS",
+    "typecheck": "PASS_CURRENT_SOURCE_PID30564",
+    "build": "PASS_CURRENT_SOURCE_PID51908",
+    "mounted": "PASS_SPLIT_428_EQUIVALENT_SEGMENTS_AND_CURRENT323_ACTUAL_TAIL",
+    "independentReview": "SPEC_FAIL_QUALITY_NEEDS_FIXES_3_IMPORTANT",
+    "overallComplete": false,
+    "buildId": "MtE7LJgb6VIZiHGwRwUmV",
+    "artifact": "380d4c0e3ab7a8dc56fdf3ea4d3e2c4cbc0777a7d1c6e930619e127487e60685"
+  },
+  "batch4cReview": {
+    "ruling": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4c-ruling-49.md",
+    "sha256": "5b9ec7f7211f4354cec7f24b3cf2532f9c9abe8da632a4e69297dbcfa99c6f64",
+    "fixRound": 1,
+    "report": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4c-review.md",
+    "important": 0,
+    "approved": true,
+    "critical": 0,
+    "minorInheritedNonblocking": 1,
+    "rereviewReport": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4c-rereview-1.md",
+    "rereviewSha256": "a5faebf86442858095b82469ed85e77eea5e87cab6b82537dbbcfdf615099997"
+  },
+  "batch4cFix1": {
+    "build": "PASS_PID13768_NO_TIMEOUT_NO_PRISMA_GENERATION",
+    "overallComplete": false,
+    "lint": "PASS_PID37100_ZERO_WARNINGS",
+    "ruling": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4c-ruling-56.md",
+    "finalReadback": "READONLY_RECONCILIATION_PASS_PID11608",
+    "source": "320ea3a362fa0d6df285c4c895611506ae6bfb9100cbb477f35a93b4c98ec90a",
+    "originalGroupedRuntime": "EXIT1_RETAINED",
+    "typecheck": "PASS_PID33624",
+    "independentReview": "SPEC_PASS_QUALITY_APPROVED_I1_I2_I3_CLOSED",
+    "buildId": "XzNiNbQiKMVOvJsop-SMW",
+    "artifact": "140236768ab6f9ad135a18bae1ecbd00fa1568acbd8ac3e4ada4980e58336277",
+    "rootReadback": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4c/fix-1/root-build-readback.json",
+    "writerReleased": true,
+    "repairReport": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-4c/fix-1/report.md",
+    "repairReportSha256": "5c5b0d901301d3fffe75433845aeb64a5863098bb99e31aecd0a6ef72d7fdc5f",
+    "sealSha256": "861fe9f7ba9904f29ceca576b2dae9b2adab06dd88a103a41b768fbc6145b9dd"
+  },
+  "batch5": {
+    "owner": "/root/awesome_native_integration_owner",
+    "nativeProof": "NOT_RUN",
+    "model": "gpt-6-astra",
+    "apiPort": 56821,
+    "sharedDockerProject": "stallorder-responsive-20260930",
+    "overallComplete": false,
+    "appPort": 3026,
+    "review": "NOT_STARTED",
+    "status": "HTTP_BEHAVIOR_AND_PRESERVATION_PASS_ACTUAL_NATIVE_UI_AND_STYLE_PILOT_PENDING",
+    "dbPort": 56822,
+    "incomingSource": "320ea3a362fa0d6df285c4c895611506ae6bfb9100cbb477f35a93b4c98ec90a",
+    "ruling": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-5-ruling-61.md",
+    "helperSource": "403450b1eff31ae3fb6c7dfa2ec5bfa697420247acb7b2584133547c5abcd2d3",
+    "ddlReadback": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-5/root-ddl-readback.json",
+    "ddlOldSessionsUnchanged": 1326,
+    "fixtureReadback": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-5/root-fixture-v3-readback.json",
+    "fixtureSource": "866680af4edabfb908b4ef5eb4a0a11c830d695434fffb4cf328562cf891a3ee",
+    "androidGeneration": "75_GENERATED_AND82_BINDINGS_ROOT_HASH_VERIFIED",
+    "iosGeneration": "EXPO_CLI_WINDOWS_SKIPPED_NOT_IOS_BINARY_PROOF",
+    "androidBuild": "A6_ACTUAL_EXIT0_ROOT_APK_HASH_PASS_RUNTIME_PENDING",
+    "buildRuling": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-5-ruling-70.md",
+    "buildSource": "62cdfe8a0c1fff623aca90a5656812986b52e8645e0c111a655a82cf93b280a3",
+    "priorNativeBuildFailures": "A3_LONG_PATH_A4_RELEASE_LINT_A5_PREFLIGHT_CACHE_RETAINED",
+    "bootstrapRegression": "ROUTE_MOCK_AUTHORITY_RED2_GREEN2_HTTP_NATIVE_PENDING",
+    "runtimePrerequisites": "READONLY_V2_PASS_FIVE_CREDENTIALS_PRESENT_1326_SESSIONS_UNCHANGED",
+    "runtimeActorDetail": "V9_ACTUAL_EXIT0_COMMITTED_ROOT_READBACK_PASS_HTTP_NATIVE_PENDING",
+    "androidBinarySha256": "f3a06ccb0fbb37da240729e898c147cac06656defa3bdfafdef4ca11ae500664",
+    "androidBinaryBytes": 41569427,
+    "androidBuildReadback": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-5/root-native-a6-build-readback.json",
+    "webBuild": "V4_ACTUAL_EXIT0_ROOT_ARTIFACT_PASS_NATIVE_RUNTIME_PENDING",
+    "webBuildId": "gUkuv38lcUDdB9YhAkPFo",
+    "webArtifact": "5ccb598cc668c87464037256f0c0d10ddbc62625fd528bb682d274d1745ba083",
+    "latestRuling": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-5-ruling-85.md",
+    "runtimeActorDetailReadback": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-5/root-runtime-fixture-v9-readback.json",
+    "httpRuntime": "V1_ACTUAL52_BEHAVIOR_PASS_ORIGINAL_EXIT1_RECONCILIATION_EXIT0",
+    "httpRootRequestReadback": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-5/root-http-v1-request-readback.json",
+    "httpRootRateReadback": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-5/root-http-v1-rate-readback.json",
+    "httpRateFacts": {
+      "original": 47,
+      "retained": 44,
+      "naturallyExpiredRemoved": 3,
+      "owned": 20,
+      "checks": 54,
+      "resets": 2
+    },
+    "httpPreservation": "359_PROFILE_EXACT_EXCEPT_OBSERVED_CLOCKS_REUSE_EPOCH_1326_OLDSESSIONS_EXACT_10_OWN_REVOKED",
+    "httpReconciliationReadback": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-5/root-http-reconcile-v1-readback.json",
+    "httpLostEvidence": [
+      "tokenHash-to-session in-memory join NOT_RETAINED; actual audit IDs/family/time/device verified",
+      "observed501 IDarray NOT_RETAINED; original assertion completed"
+    ],
+    "nativeBoot": "CURRENT_NATIVE_SCREEN_ACTUAL_RED_OLD_SESSION_RECOVERY_NO_LOGIN_EXIT",
+    "nativeBootCleanup": {
+      "emulatorPid": 27024,
+      "emulatorExited": true,
+      "portalOriginal": "null",
+      "portalRestored": true,
+      "appInstalled": true,
+      "appDataIdentityPreserved": true,
+      "adb": "OWNER39072_AND_ROOT_AUTOSTART51896_EXACT_EMPTY_DEVICE_CLEANUP_PASS"
+    },
+    "nativeExistingApkInspection": {
+      "v1": "ACTUAL_EXIT1_STAT_REMOTE_TOKENIZATION_NO_TIMEOUT_NO_INSTALL_LAUNCH",
+      "installedSha256": "62574390dbccaf6cd89c129f10fe77a0f55c761576e4bf112f080d02d7e4c6d3",
+      "bytes": 78063462,
+      "cleanup": "OWN_EMULATOR_EXIT0_ADB_STOPPED_EMPTY_DEVICES",
+      "v2": "ACTUAL_EXIT1_UNSTABLE_DUMPSYS_FULL_COMPARE_PURE_IMMUTABLE_RECONCILIATION_PASS",
+      "reconciliation": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-5/root-android-inspection-reconciliation.json",
+      "exactKnownReferenceArtifact": "C:/SO-R1B/apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk",
+      "sameCertificate": true,
+      "backup": "C:/b5a4/avd-existing-before.apk",
+      "upgrade": "R83_ACTUAL_INSTALL_R_DATA_IDENTITY_PRESERVED_EXIT1_LOGIN_UI_NOT_VISIBLE_OLD_SESSION_RESTORE"
+    },
+    "recoveryFix": {
+      "status": "OWNER_MINIMAL_SOURCE_FIX_17_FOCUSED_PASS_TYPE_LINT0_NATIVE_REBUILD_PENDING",
+      "proof": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-5/recovery-fix-green-2.log",
+      "originalRed": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-5/recovery-fix-red.log",
+      "actualNativeRegression": "NOT_RUN_CURRENT_SOURCE",
+      "rootRawReadback": "3files/17cases/exit0"
+    },
+    "currentSource": "5eb4feffb66e73a7e197bdc3673d065a1c90aaf9a7bac426a84373241faea83b",
+    "recoveryRebuild": "A8_AND_WEBV4_ACTUAL_EXIT0_ROOT_CURRENT_IDENTITY_PASS",
+    "nativeBuild": "A8_ACTUAL_EXIT0_ROOT_APK_AND_SOURCE_PASS_NATIVE_RUNTIME_PENDING",
+    "nativeApk": "3f49cd5165deb103df5aaca4632a8ede6fd72050cd5f8f68a8a5bb682be7cd5a",
+    "nativeRootReadback": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-5/root-native-a8-build-readback.json",
+    "httpProofSource": "62cdfe8a0c1fff623aca90a5656812986b52e8645e0c111a655a82cf93b280a3",
+    "webRootReadback": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-5/root-web-build-v4-readback.json"
+  },
+  "nativeAdaptiveRuntime": {
+    "status": "IN_PROGRESS_NOT_COMPLETE_RESOURCE_HOLD",
+    "ruling": "R104",
+    "source": "5eb4feffb66e73a7e197bdc3673d065a1c90aaf9a7bac426a84373241faea83b",
+    "actualPriorAttempts": [
+      "v1 RAM preclient RED",
+      "v2 RAM preclient RED",
+      "v3 unresolved pm path RED with full preservation",
+      "v4 EEXIST shared trace RED preboot",
+      "v5 oldAVD install UNKNOWN timeout; full preservation PASS",
+      "v6 oldAVD install UNKNOWN timeout; full preservation PASS",
+      "v7 freshAVD install/currentAPK/login/bootstrap PASS; completed first50 PASS; memory observation failure exit1 exact lifecycle cleanup; full preservation rate proof RED"
+    ],
+    "r89": "RECORDED_PACKAGE_UNRESOLVED_IDENTITY_CONFIRMED_READONLY_EXIT0",
+    "next": "After sequential B6 slices and reviews, freshly bind source/schema/artifacts/lineage for outstanding Native actual cases; retain R102/R103 resource RED",
+    "independentReview": "NOT_STARTED",
+    "requiredInbox": "NOT_RUN",
+    "requiredNativeWind": "NOT_RUN",
+    "v7": {
+      "newFamilyRevocation": "PASS_NORMAL_ROUTE_DEVICE_REVOKED_AND_CLEANUP_WEB_LOGOUT",
+      "allFilter": "FAILED_ZERO_ROWS",
+      "offlineRecovery": "NOT_RUN",
+      "all501": "NOT_RUN",
+      "requestCount": 38,
+      "preservation": "FAILED_OLD_BUCKET_EXPIRING_DURING_RUN_NOT_APPROVED",
+      "cleanupErrors": 0,
+      "detail20": "NOT_RUN"
+    },
+    "rateReconciliation": {
+      "independentSavedReplay": "EXACT_38_EVENTS_TO_48_ROWS",
+      "originalRowsExpiringDuringRun": 0,
+      "cause": "Permanent oldKeys misclassifies recreated generations",
+      "fullPreservation": "PASS_READONLY_R78_V7_R100_LINEAGE_WITH_ORIGINAL_FAIL_RETAINED",
+      "originalCheck": "FAILED_OLD_BUCKET_EXPIRING_DURING_RUN_NOT_APPROVED",
+      "assessment": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-5/root-r99-independent-rate-assessment.md",
+      "sha256": "d9198de43b15d56c87a525e2dd61d5be27d3091e3a1a5a94704913ee53e21fa4",
+      "fixedProofIndependentReviewSha256": "d87f8ab67b66ffdc89b8614dec0c4e91a8cf7c2ad1f12904b13a491d0571b373"
+    },
+    "cleanup": {
+      "dockerCount": 7,
+      "receipt": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-5/native-v7-cleanup-v1-result.json",
+      "runtimeStopped": true,
+      "newFamiliesRevoked": 2,
+      "otherDomains": "CLEANUP_START_TO_POST_ONLY",
+      "old1336": "FULL_UNCHANGED",
+      "status": "PASS",
+      "sealSha256": "0fa5898516789971668a5daccddbec3f210d7bd59bf009ca3273314b46c73753"
+    },
+    "allFilterFix": {
+      "source": "e8c4a0c26d0c94feee9151fd8ccb0c8b7b4682020b330367083feb8c7b5bbd79",
+      "webArtifact": "OLD_SOURCE_5eb4_5ccb",
+      "tests": 8,
+      "status": "UNIT_RED_GREEN_PASS_INDEPENDENT_SPEC_PASS_QUALITY_APPROVED",
+      "ownedFiles": 2,
+      "evidence": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-5/filter-fix-r101",
+      "unownedDrift": 0,
+      "nativeRuntime": "NOT_RUN_NEW_SOURCE",
+      "inputs": 3186,
+      "independentReviewSha256": "983a6e5feb9674d759e04bc89f40297eef916dafd0cd3ea34942150df59e87f0"
+    },
+    "currentLineage": {
+      "receipt": ".superpowers/sdd/2026-10-01-awesome-optimization/batch-5/readonly-lineage-r101-result.json",
+      "oldApprovals": 2,
+      "old1336": "FULL_UNCHANGED",
+      "sha256": "769ea6bef55f0eba7cbbed488a11df712604f603553029340480274ec102b4a2",
+      "originalV7Exit": "1_UNCHANGED",
+      "sessions": 1338,
+      "rates": 45,
+      "staffDeliveries": 18,
+      "knownNewRevokedFamilies": 2,
+      "profiles": 359,
+      "staffSubscriptions": 18,
+      "reports": 112,
+      "newNativeAcceptance": "NOT_RUN"
+    }
+  }
+}

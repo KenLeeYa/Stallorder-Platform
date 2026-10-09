@@ -18,7 +18,7 @@ const presentationSource = readFileSync(fileURLToPath(new URL(
 describe("StaffOrderBoard presentation characterization", () => {
   it("keeps the parent composition-only and delegates orchestration to the controller", () => {
     expect(boardSource).toContain("useStaffOrderBoardController(props)");
-    expect(boardSource).toContain("<StaffOrderBoardPresentation {...presentation} />");
+    expect(boardSource).toContain("<StaffOrderBoardPresentation {...presentation} queueRedesignEnabled={props.queueRedesignEnabled ?? false} notificationIdentity={props.notificationIdentity} />");
     expect(boardSource).not.toMatch(/use(?:Callback|Effect|Memo|Ref|State)\(/);
     expect(boardSource).not.toContain("fetch(");
     expect(boardSource).not.toContain("localStorage");
@@ -44,7 +44,9 @@ describe("StaffOrderBoard presentation characterization", () => {
     expect(presentationSource.match(/t\("staff\.selection\.updated", \{ count: undoBatch\.itemCount \}\)/g)).toHaveLength(1);
     expect(presentationSource).toContain('account.role === "KITCHEN" && viewMode === "SUMMARY"');
     expect(presentationSource).toContain('viewMode === "TABLES"');
-    expect(presentationSource).toContain("orders.map((order) => <StaffOrderTicket");
+    expect(presentationSource).toContain("(printingPage ? props.orders : visibleOrders).map((order) => <StaffOrderTicket");
+    expect(presentationSource).toContain("mobileSummaryOnly={!printingPage}");
+    expect(presentationSource).toContain("onFocusOrder={focusOrder}");
   });
 
   it("retains mobile toolbar and ticket layouts plus accessibility contracts", () => {
@@ -60,8 +62,9 @@ describe("StaffOrderBoard presentation characterization", () => {
     expect(presentationSource).toContain('data-testid="staff-function-order-group"');
     expect(presentationSource).toContain("min-w-0 overflow-x-clip overflow-y-visible");
     expect(presentationSource).toContain('data-testid="staff-function-device-group"');
-    expect(presentationSource).toContain('<PwaControls showWakeLock showQualityLabel={false} />');
-    expect(presentationSource).toContain("sm:flex-row sm:items-center sm:justify-between");
+    expect(presentationSource).toContain('<PwaControls showQualityLabel={false} />');
+    expect(presentationSource).toContain('<PwaWakeControl />');
+    expect(presentationSource).toContain('data-testid="staff-common-controls"');
     expect(presentationSource).toContain('aria-label={t("staff.view.kitchenMode")}');
     expect(presentationSource).toContain('aria-label={t("staff.view.orderMode")}');
     expect(presentationSource).toContain("aria-expanded={expanded}");

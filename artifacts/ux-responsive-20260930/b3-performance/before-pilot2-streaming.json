@@ -1,0 +1,271 @@
+{
+  "phase": "before",
+  "mode": "pilot",
+  "source": {
+    "head": "3e586386d8b916b7e68c5242bc344155e9410fd5",
+    "tree": "67caefa18c14659961dead94ea929a40716dbe6b",
+    "productSourceClean": true,
+    "worktreeDirty": false,
+    "workingTreePatchSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "buildId": "ZRPD1C0hp87hIxeN-6rwI",
+    "builtAt": "2026-09-30T14:01:44.696Z",
+    "runtimeWorktreeDirty": false,
+    "runtimeWorkingTreePatchSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "originalSourceCommit": "a0c635bc8177abd953fd7381d85fbbaf22cf1fe1",
+  "startedAt": "2026-09-30T14:03:56.306Z",
+  "measurementSha256": "50ab61eb9553d4f9ae5329e51ee8bc87f168d499ebdd407f1f55de5cbdbd7a54",
+  "environment": {
+    "origin": "http://127.0.0.1:3026",
+    "database": "127.0.0.1:56822/postgres",
+    "primaryApi": "http://127.0.0.1:56821",
+    "platform": "win32",
+    "arch": "x64",
+    "cpus": "12th Gen Intel(R) Core(TM) i7-12650H",
+    "node": "v24.18.0",
+    "browser": "149.0.7827.55"
+  },
+  "semantics": {
+    "cold": "New Chromium context and page with authenticated storage copied in memory; empty browser HTTP cache. Server/OS remain warm.",
+    "warm": "One context/page/identity for all repeated full navigations; one unmeasured priming interaction. No identity rotation or cache clearing.",
+    "timing": "Before page.goto until genuine readonly interaction and observable state assertion complete. Includes normal navigation/load/actionability.",
+    "pacing": "Serial, one fixed synthetic visitor IP; wait actual Retry-After (or 61s) on 429. No rate bucket changes.",
+    "clocks": "Wall clock not changed; fixed explicit report date 2026-09-30; order age and report refreshed timestamp naturally advance, retained timestamps quantify this.",
+    "vitals": "Chromium PerformanceObserver LCP last entry before first input; CLS maximum session window (1s gap/5s cap); INP max duration per interaction, worst interaction for these <50-interaction rounds. EventTiming below 16ms is left-censored, never called 0. Local lab, not RUM.",
+    "privacy": "No cookies, password, response bodies or QR tokens persisted."
+  },
+  "freeze": [
+    {
+      "at": "2026-09-30T14:03:56.426Z",
+      "orderDigest": "10b7242ec9d9fb274e5cd38e78fcb937089a6c35e72e5601df0d01410301d255",
+      "fullDatasetDigest": "0e6c590475502b69070d0a00da43c2bf08ca911441f705f9e86dacc3abf6c447",
+      "settings": {
+        "kdsModuleEnabled": true,
+        "printModuleEnabled": false,
+        "paymentModuleEnabled": true,
+        "enabledLocales": [
+          "zh-TW",
+          "en",
+          "ja",
+          "ko",
+          "vi",
+          "th"
+        ],
+        "kdsWarningMinutes": 5,
+        "kdsCriticalMinutes": 10,
+        "kdsDefaultView": "ORDER"
+      },
+      "flags": [
+        {
+          "id": "87af29f6-10da-4aaf-8358-a164e0ae4072",
+          "flag": {
+            "code": "MODULE_HQ_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "bfb35eab-064d-42de-b33b-e1f219ff7ce5",
+          "flag": {
+            "code": "MODULE_GROWTH_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "84272135-7596-41c4-8767-d65b38537fbc",
+          "flag": {
+            "code": "MODULE_SUPPLY_LITE_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "a0feb80c-e992-4d83-bb42-fd7e761d52e8",
+          "flag": {
+            "code": "MODULE_PUBLIC_API_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "a1a9f2d3-ead5-4d7a-9388-15cefcc40da5",
+          "flag": {
+            "code": "MODULE_EVENT_GROWTH_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "07948fe5-db85-436c-9ff2-f904441af278",
+          "flag": {
+            "code": "MODULE_ADVANCED_ANALYTICS_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "6f7ad6b5-3757-4332-9960-ec00438f70c0",
+          "flag": {
+            "code": "DUAL_ORDER_INTAKE_ENABLED"
+          },
+          "scopeType": "GLOBAL",
+          "organizationId": null,
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": "2026-10-01T00:20:50.494Z"
+        }
+      ],
+      "surroundings": {
+        "orders": [
+          {
+            "_count": 4,
+            "status": "WAITING_CONFIRMATION"
+          },
+          {
+            "_count": 157,
+            "status": "CONFIRMED"
+          },
+          {
+            "_count": 4,
+            "status": "READY"
+          },
+          {
+            "_count": 20,
+            "status": "COMPLETED"
+          },
+          {
+            "_count": 46,
+            "status": "EXPIRED"
+          }
+        ],
+        "products": 214,
+        "tasks": [
+          {
+            "_count": 14,
+            "status": "COMPLETED"
+          },
+          {
+            "_count": 122,
+            "status": "PENDING"
+          },
+          {
+            "_count": 10,
+            "status": "CANCELLED"
+          }
+        ]
+      },
+      "runtimeContractSha256": "28d68479b0a2a61ad8ea65b773175693744385651caa7a0415fab6a358676389"
+    }
+  ],
+  "routes": {
+    "QR": {
+      "width": 390,
+      "route": "/q/[frozen main QR]",
+      "role": "anonymous",
+      "cold": {
+        "samples": [
+          720.6
+        ],
+        "attempts": [
+          {
+            "at": "2026-09-30T14:04:01.346Z",
+            "index": 1,
+            "ms": 720.6,
+            "valid": true,
+            "responses": []
+          }
+        ],
+        "priming": null,
+        "summary": {
+          "n": 1,
+          "median": 720.6,
+          "p95": 720.6,
+          "min": 720.6,
+          "max": 720.6
+        },
+        "errorRate": 0
+      },
+      "warm": {
+        "samples": [
+          537.5
+        ],
+        "attempts": [
+          {
+            "at": "2026-09-30T14:04:03.540Z",
+            "index": 1,
+            "ms": 537.5,
+            "valid": true,
+            "responses": []
+          }
+        ],
+        "priming": {
+          "at": "2026-09-30T14:04:03.540Z",
+          "errors": []
+        },
+        "summary": {
+          "n": 1,
+          "median": 537.5,
+          "p95": 537.5,
+          "min": 537.5,
+          "max": 537.5
+        },
+        "errorRate": 0
+      }
+    },
+    "Staff": {
+      "width": 1024,
+      "route": "/staff/aming-chicken",
+      "role": "STAFF",
+      "cold": {
+        "samples": [],
+        "attempts": [
+          {
+            "at": "2026-09-30T14:04:04.171Z",
+            "index": 1,
+            "valid": false,
+            "error": "expect(locator).toBeEnabled() failed\n\nLocator: getByTestId('staff-pickup-code-lookup')\nExpected: enabled\nError: strict mode violation: getByTestId('staff-pickup-code-lookup') resolved to 2 elements:\n    1) <button type=\"button\" title=\"輸入取餐碼\" data-testid=\"staff-pickup-code-lookup\" class=\"inline-grid h-11 w-11 shrink-0 place-items-center rounded-md md:order-4 border border-stone-300 bg-white text-stone-700\">…</button> aka getByRole('button', { name: '輸入取餐碼' })\n    2) <button disabled type=\"button\" title=\"輸入取餐碼\" data-testid=\"staff-pickup-code-lookup\" class=\"inline-grid h-11 w-11 shrink-0 place-items-center rounded-md md:order-4 border border-stone-300 bg-white text-stone-700\">…</button> aka locator('nav').filter({ hasText: '訂單提醒連線中員工定位打卡店員點餐輸入取餐碼桌位平面圖現金交班產能與等候時間 · 83～88 分鐘 · 785% · 公開接單中產能與等候時間83～88' }).getByTestId('staff-pickup-code-lookup')\n\nCall log:\n  - Expect \"to.be.enabled\" with timeout 5000ms\n  - waiting for getByTestId('staff-pickup-code-lookup')\n    - locator resolved to <button disabled type=\"button\" title=\"輸入取餐碼\" data-testid=\"staff-pickup-code-lookup\" class=\"inline-grid h-11 w-11 shrink-0 place-items-center rounded-md md:order-4 border border-stone-300 bg-white text-stone-7",
+            "responses": []
+          }
+        ],
+        "priming": null,
+        "summary": {
+          "n": 0,
+          "median": null,
+          "p95": null,
+          "min": null,
+          "max": null
+        },
+        "errorRate": 1
+      }
+    }
+  },
+  "api": {},
+  "vitals": {},
+  "diagnostics": []
+}

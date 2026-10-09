@@ -1,0 +1,12 @@
+import {it,expect} from 'vitest';
+import {assertRuntimeRates,rateKey} from './runtime-rate-overlay-v1.mjs';
+const start='2026-10-02T00:00:00.000Z',end='2026-10-02T00:00:01.000Z';
+const original=Array.from({length:47},(_,i)=>({key:String(i),scope:'old',count:1,expires_at:'2026-10-01T00:00:00.000Z',updated_at:'2026-09-30T00:00:00.000Z'}));
+const rule={scope:'mobile-api',identifier:'owned-profile',windowMs:300000,expectedCurrentWindowCalls:2};rule.key=rateKey(rule.scope,rule.identifier);
+const current=[{key:rule.key,scope:rule.scope,count:2,updated_at:end,expires_at:'2026-10-02T00:05:00.000Z'}];
+const input=()=>({original:structuredClone(original),current:structuredClone(current),startedAt:start,completedAt:end,allowed:[rule],processProof:{appPid:123,commandSha256:'a'.repeat(64),calls:[{requestId:'actual-receipt-required',status:200,completedAt:end,rateLimitExecuted:true}]}});
+it('accepts only naturally expired originals and exact owned current-window counters',()=>expect(assertRuntimeRates(input()).removed).toHaveLength(47));
+it('rejects a missing process/call receipt',()=>{const data=input();delete data.processProof;expect(()=>assertRuntimeRates(data)).toThrow();});
+it('rejects an unexpired original disappearing',()=>{const data=input();data.original[0].expires_at='2026-10-02T00:00:00.001Z';expect(()=>assertRuntimeRates(data)).toThrow('UNEXPIRED_OLD_RATE_REMOVED');});
+it('rejects mutation even when an old bucket was expired',()=>{const data=input();data.current.push({...data.original[0],count:2});expect(()=>assertRuntimeRates(data)).toThrow('OLD_RATE_MUTATION');});
+it('rejects an unknown new key and incorrect counts',()=>{const data=input();data.current[0].key='unknown';expect(()=>assertRuntimeRates(data)).toThrow('UNOWNED_RATE_KEY');const wrong=input();wrong.current[0].count=3;expect(()=>assertRuntimeRates(wrong)).toThrow('RATE_COUNTER_MISMATCH');});

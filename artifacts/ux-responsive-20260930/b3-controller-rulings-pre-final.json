@@ -1,0 +1,157 @@
+[
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-order-workflows/progress.md",
+    "line": 28,
+    "text": "Ruling: Use a new native managed worktree despite already being inside a linked worktree; the old candidate has unrelated dirty work and historical artifacts. Cost is one isolated checkout/dependency install; benefit is preserving all concurrent work and the 3023 manual QA environment."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-order-workflows/progress.md",
+    "line": 29,
+    "text": "Ruling: Task headings normalized to Task N for SDD extraction; no requirement changed. A and B use separate plan-scoped ledgers."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-order-workflows/progress.md",
+    "line": 30,
+    "text": "Ruling: Controller records provider read-only baseline independently while A1 owns local environment writes; no product implementation begins before baseline is recorded."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-order-workflows/progress.md",
+    "line": 38,
+    "text": "Ruling: A1 guard tests use repository Vitest with npx vitest run scripts/responsive-qa-target.test.mjs instead of node --test. Current Vitest includes scripts/*.test.mjs; node:test-only files fail collection (shared QA 2026-09-28 incident). Exact cases unchanged, no exclusion. Cost if wrong: adjust runner integration, not weaken guard assertions."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-order-workflows/progress.md",
+    "line": 44,
+    "text": "Ruling: Fresh lab migrations must be copied byte-for-byte from current HEAD Git blobs, not Windows checkout CRLF. A1 diagnosed exact multiline SQL anchor mismatch and existing docs/FUNCTIONAL_RELEASE_20260908.md documents this bootstrap requirement. No migration is changed or skipped. Cost if wrong: isolated lab must be rebuilt/reconciled; original 3023/55722 remains untouched."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-order-workflows/progress.md",
+    "line": 55,
+    "text": "Ruling: A1 preserves valid raw baseline metrics and immutable source now; warm QR 30 valid samples, authenticated Staff API 30 valid samples, and fixed100+ paired comparison remain REQUIRED under B3. Burst warm QR hit429 and APIRequestContext did not carry secure cookies; invalid samples cannot be p95. B3 will stop its own3026, verify clean committed state, temporarily build/run immutable A1 commit with the same owned fixed dataset/flags, then restore final branch and compare after. No reset, no3023 change, no limit/security relaxation. Why: original product baseline is reproducible from Git, so metric methodology repair need not block unrelated UI implementation. Cost if wrong: two additional builds and reconciliation before any performance claim; comparison stays incomplete until both valid runs exist."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-order-workflows/progress.md",
+    "line": 79,
+    "text": "Ruling: Fix the browser-reproduced QR customization focus-return defect in A2 by narrowly adding qr-order-menu.tsx ownership, instead of carrying a failing required consumer check into A3. Why: same A2 close/focus contract, Staff search and all-functions already pass; A3 already owns this file later and will consume the reviewed correction. Cost if wrong: revert/rework the small lifecycle change and rerun focused QR/POS browser tests; no business or backend change."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-order-workflows/progress.md",
+    "line": 81,
+    "text": "Ruling: Refine A2 QR focus ownership to existing qr-order-flow-controller.ts focusConfiguredProduct after diagnosis showed it explicitly focuses the product article. Remove competing view-level restoration; do not solve competing focus owners with timing guesses. Why: this keeps one existing focus authority and preserves QR controller/business semantics. Cost if wrong: revise the small target selection and rerun close/Escape regressions. Implementer reports close/Escape1/1PASS at13965b5 production build, tsc/lintPASS; final six cases and docs pending."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-order-workflows/progress.md",
+    "line": 104,
+    "text": "Ruling: Allow one cleanup of exact owned ephemeral rate-limit buckets in responsive DB56822 after ownership/prefix checks; preserve invalid samples and record sanitized counts. Do not alter limits, configs, customer/order data, shared55722, or broad buckets. Why: prior runs accumulated synthetic visitor attempts in this dedicated lab; resetting only test throttling state enables valid regression. If own suite again hits limits, use legitimate synthetic visitor isolation or Retry-After windows instead of repeated resets. Cost if wrong: rerun affected rate recovery cases from retained raw evidence; no performance or readiness claim based on cleared invalid samples."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-order-workflows/progress.md",
+    "line": 138,
+    "text": "Ruling: A4 verifies QR-right-pickup in an explicit capability-on presentation fixture, while real browser checks every authorized demo toolbar action and labels runtime QR NOT_RUN because LINE_PLATFORM is disabled in this newlab. Do not enable real LINE or borrow credentials solely for layout. Why: alignment is a presentation contract; runtime authorization remains unchanged and finalmatrix retains gap. Cost if wrong: capability-enabled integrated browser QA is still needed before claiming that deployed QRtoolbar flow works."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-order-workflows/progress.md",
+    "line": 167,
+    "text": "Ruling: A6 may narrowly adapt fixture ownership/cleanup in exact mandated catalog and multi-stall suites, beyond targetguard text, to per-run ownedIDs/users/orgs/slugs andcreatedsessions/buckets. Neverdeleteallratelimits/allorgsessions/unrelatedQR or priorfixedslugdata. Why: actuallegacysuitesperformbroadcleanup conflicting withpreservation; safeharness is prerequisite torequiredrealDBregression. Costifwrong: reworkfixtureisolation andrerunaffectedcases; product/backendauthorityunchanged. Unknownownedcleanup isleftuntouchedandnarrowcase reported, not wholeplanstall."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-order-workflows/progress.md",
+    "line": 172,
+    "text": "Ruling: A6 may adapt the three mandated pgTAP SQL tests to uniqueownedfixtures and exactallowed/denied-ID assertions, and install reviewedcommittedtestGitblobs into verifiedownedlabtests so standardtestdb runsactualtests. NeverweakenRLSto>=count ordeleteglobalorders/schema. Why: legacytestfixturesconflictwithpopulatedisolatedlab/LINEFK; testownershipisnecessary forrequiredDBQA. Costifwrong: revisefixtures/assertionsandre-runall3DBsuites, productionmigration/authorityunchanged."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-order-workflows/progress.md",
+    "line": 195,
+    "text": "Ruling: Allow ONE controlled reload of exactownedresponsiveEdgeFunctionsruntime using existingintended edge-local.env/originalverificationconfig, afterownershipreadback/privateenvpreservation, thenexactpairedregression. No secretrotation, JWT/CORSrelaxation, endpointaddition orotherlabrestart. Why: A1oldCLIexitedwhileworkerpersisted; runtimeeffectiveenvmaybestale andthissafeauthorizedlabrecoveryremainstoexclude. Costifwrong: briefisolatedEdgeinterruption andnewownedfixtures; preservefailedresults andreturntoblockedcaseifunchanged."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-order-workflows/progress.md",
+    "line": 202,
+    "text": "Ruling: Split oversized A6 into sequential A6.1 existing-suite/guard/fixture/phone-fix batch and A6.2 new recovery/same-instance switch batch, each with independent review. A6.1 keeps original BASE 88c7bbb and task-6-report.md; task-6a-brief.md defines partition. A6.2 uses a fresh implementer after A6.1 review, and A6 overall stays incomplete until both are reviewed. Why: long fixture/runtime diagnosis consumed the first context while all six new recovery cases remained; fresh bounded ownership avoids omissions and repeated exploration. Cost if wrong: one extra task review and handoff, no reduction of acceptance coverage or release gates."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-order-workflows/progress.md",
+    "line": 215,
+    "text": "Ruling: Q04 asserts the existing real400 + PRODUCT_UNAVAILABLE sold-out contract, not the plan's assumed422. Keep actual desktop PATCH200/DBisSoldOut, phone recoverable alert, valid line/note editable and zero orders. Original downloaded spec135 requires rejection/recovery;138 requires422 coverage independently, not specifically for sold-out. Keep separate explicit422 recovery evidence (identify current A3 case and B3 rerun or add focused case). No backend change. Why: actual Edge public-order-errors defaults PRODUCT_UNAVAILABLE to400, while422 covers validation codes; changing backend solely for a plan expectation violates preserved authority. Cost if wrong: revisit contract and this exact test if API changes, and no full coverage claim until separate422 recovery is proven."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-order-workflows/progress.md",
+    "line": 218,
+    "text": "Ruling: Q03 cash recovery may use at most one automatic same-payload/original-key replay of existing POST, then preserve explicit unknown-result state/original identity if still unresolved, never present a fresh pay action or invent cash payment-attempt lookup. Verified source staff-order-create101–113 first looks up stall/source/key/actor before prepare/checkout and returns existing/idempotent:true. This is original submission lookup/recovery through existing endpoint, not a new lookup-only API; verify server201 PAID/lost -> replay200 same order/payment and no payment/usage growth, then print-only retry. Why: authoritative spec118/136 requires unknown-first-query and no duplicate payment, while167 preserves payment authority; existing idempotent readback provides that without a new backend. Cost if wrong: one additional local replay request exposes an incorrect assumed contract; halt completion claim and rework recovery against actual authority, never hide duplicate counts or extend to external payments."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-order-workflows/progress.md",
+    "line": 222,
+    "text": "Ruling: Fix only responsive harness env initialization order so owned .env.local loads before baseline defaults; preserve baseline/other labs and private values, no Deno/secret/auth changes. Add focused import-order regression and verify actual subprocess configuration, Q02 bidirectional read, affected functional/KDS and final six-file slice. Why: actual process-value booleans now establish the wrong precedence, enabling a bounded correct repair within test scope. Cost if wrong: affected runtime QA must be rerun and no cross-flow completion claim; keep previous404 failures as real historical evidence rather than relabel them."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-management-verification/progress.md",
+    "line": 18,
+    "text": "Ruling: Physical devices, hardware print/cash drawer, real LINE/Pay and human timing require genuine evidence; unavailable capabilities stay NOT_RUN while all independent local work continues."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-management-verification/progress.md",
+    "line": 23,
+    "text": "Ruling: A1 preserves valid raw baseline metrics and immutable source now; warm QR 30 valid samples, authenticated Staff API 30 valid samples, and fixed100+ paired comparison remain REQUIRED under B3. Burst warm QR hit429 and APIRequestContext did not carry secure cookies; invalid samples cannot be p95. B3 will stop its own3026, verify clean committed state, temporarily build/run immutable A1 commit with the same owned fixed dataset/flags, then restore final branch and compare after. No reset, no3023 change, no limit/security relaxation. Why: original product baseline is reproducible from Git, so metric methodology repair need not block unrelated UI implementation. Cost if wrong: two additional builds and reconciliation before any performance claim; comparison stays incomplete until both valid runs exist."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-management-verification/progress.md",
+    "line": 25,
+    "text": "Ruling: Split oversized B3 into sequential B3.1 accessibility/route acceptance and proven UI fixes, B3.2 immutable-before/final-after performance measurements, and B3.3 final combined QA/documentation/manual-entry lifecycle. Each sub-batch has a fresh implementer and independent task review; B3 stays incomplete until all three and the whole-branch review finish. Preserve every original task-3 requirement, including actual browser zoom, fixed100+ paired measurements and explicit unavailable physical/human evidence. Why: A6 demonstrated that a broad mixed runtime/fixture/product task consumed context and initially missed explicit matrix rows; bounded ownership makes omissions visible without pausing the approved work. Cost if wrong: two extra handoffs/reviews and source-equivalence bookkeeping; no reduction of acceptance criteria or new release authorization."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-management-verification/progress.md",
+    "line": 30,
+    "text": "Ruling: B3.2 must use an exported immutable A1 source archive and separate build output, with verified exact tracked-tree equality and honest snapshot/original provenance, instead of temporarily detaching the active worktree. This supersedes the prior A1 checkout method because the source spec section2 explicitly says not to checkout an old SHA; the current branch and every existing service checkout remain unchanged. Cost if wrong: extra archive/dependency disk and provenance setup; invalid equality blocks performance claims, not unrelated work."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-management-verification/progress.md",
+    "line": 32,
+    "text": "Ruling: Extend B1 to report-navigation.tsx for a real reproduced Apply loss of selected authorized stallId, with URL/report/export regression and unchanged no-selection default. Why: preserving report scope is an explicit B1 requirement and actual filter component owns the form; leaving it for B3 would ship a known task gap. Cost if wrong: revert the narrow filter edit and rerun report scope cases; no backend/RBAC changes permitted."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-management-verification/progress.md",
+    "line": 36,
+    "text": "Ruling: Adapt only the required legacy merchant navigation test to independently verified authorized fixture workspace composition, preserving full navigation/back/scope/overflow assertions and single-workspace coverage. Why: retained responsive fixtures legitimately add active workspaces, so its hardcoded absent-switcher assertion is no longer this lab precondition; required executable regression must not be left failed or product behavior weakened. Cost if wrong: incorrect fixture derivation could mask a header regression; independent review must inspect expected count/identity and all later assertions. Never remove other demo stalls."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-management-verification/progress.md",
+    "line": 42,
+    "text": "Ruling: Clarify B1 employee MANAGE_STALL不足 as lacking permission under current staticroles, not a new per-user grant scenario. Preserve existingproduct MANAGE_PRODUCTS403 and add narrowly required MANAGE_STALL-route403 with actual autherror/audit/unchangeddata. Why: reviewer withdrew semantic misread, but namedpermission boundary is cheaply verifiable without changing authority. Cost if wrong: one extra focused test/build and report correction; never invent or weaken roles. Fix1 dispatched originalimplementer, FIX_BASEb03ce5e; Minor expectednavset deferred."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-management-verification/progress.md",
+    "line": 49,
+    "text": "Ruling: Interpret B2 auditAfterDenied equality as no successful business-action audit/targetdata change, while preserving/asserting existing security DENIED audit. Why: unchanged securityguard records refusal by contract; total-row equality would demand suppressing audit and contradict source spec's preserved authority. Cost if wrong: refine exact action/entity filters and rerun scoped negative; never alter authorization/audit implementation."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-management-verification/progress.md",
+    "line": 56,
+    "text": "Ruling: B2 conditional sensitive-read/export step-up cases are NOT_APPLICABLE to the three affected existing flows, which have no such control/call (applications list/detail/PATCH, plan catalog reason+CSRF POST, e-invoice readonly). Preserve existingauthority, no newsecuritycontrol or unrelatedroute invented. Why: brief explicitly conditions on existingoperations; roottext200% form+confirmbutton/nativeconfirmcopy/dismiss+unchangedPlanVersion is covered, actualbrowser/nativezoom geometry remains B3. Cost if wrong: inspect namedexistingcontrol and add boundednegative/allowauditcase, not silently call broaderAdminstepupPASS."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-management-verification/progress.md",
+    "line": 90,
+    "text": "Ruling: B3.2 may classify only exactoptional attendance GET409 with verified ATTENDANCE_DISABLED/POLICY_INCOMPLETE machinecode and unchangedfeaturestate as expectedoptionalresponse, retaining everyoccurrence/console and initialinvalidpilot separately. Coreinteraction andselectedAPI success remain independentlyasserted;401/429/5xx andallother409 stayinvalid. Why: strictall-network2xx pilot rejected a successfulStaffinteraction for an existingdisabledoptionalmodule contract, notresponsiveperformance. Costifwrong: affectedpairedsamples must be invalidated/repeated; neverchangeapp,flags,data,limits or suppress telemetry to obtainvalidsamples."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-management-verification/progress.md",
+    "line": 114,
+    "text": "Ruling: B3.3 may archive only20exactownedignored/untracked executable probes from this managementSDD directory into newcontained sibling b3-sdd-executable-archive-20261001 after trackedrunner/reference dependency checks, preserving filename/hash/pathmapping and allreports/briefs/json. Any actuallyrequired reproducible QA helper must first be narrowlypromoted/linted in trackedQA scripts with exactcallsiteupdates; no broadESLintignore or sourceerror suppression. Why: literalrequirednpmrunlint includes transientGitignoredSDDexecutables (41errors) and finalscratchcleanup would otherwise break reproducibility. Costifwrong: restoreexacthashedfiles/paths and rerunaffectedharness+lint; no productauthority change or otherplan/filemove."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-management-verification/progress.md",
+    "line": 125,
+    "text": "Ruling: B3.3 should isolate whole-stall module-off QA in positivelyowned dedicatedteststall/org, preserving legitimatebackendcancellation. PreserveALL_STALLS assignment semantics butisolate/restoreonlyexactownedassignmentdiff withpriorvalues; add producer-to-consumer unaffectedfixture assertions. RestoreonlyexactfrozenB3 taskIDs/fields with actualbeforeevidence, recordrestoration separately, neverblindglobalreset/delete/seedproductloss. Why: realsharedstateproducer invalidateslaternative/KDS/localeconsumers; independentgreen rerunsalone cannotproveisolation. Costifwrong: reworkfixtureownership/cleanup andrerunproducer-consumer sequence orfullsuite; no productauthoritychange or broadercompletionclaim."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-management-verification/progress.md",
+    "line": 136,
+    "text": "Ruling: B3.3 #62 may read only the precisely identified current test session/request's same-stall ORDER_IP bucket and actual store limit in owned56822, then wait naturally until its expiresAt before continuing the original UI order. Why: readonly historical evidence ties16:39:45 ORDER_SUBMIT RATE_LIMITED to sixthsameIPorder in16:35–16:40window; actual limit5/300s whiledevice/QR/session/behaviorcounts1. Edge response has noRetry-After. No bucket/identity/limit changes, fakeheaders, ipHash output or genericretry; ambiguousidentityfailsclosed. RecordactualwaitandfinalAPI/DBresult, excludewaitfromperformancesamples, requirefinalorderedcombinedrun. Costifwrong: invalidateaffectedQA andcorrectbucketmatching/pacing, neverrelaxproductguard orcount429asPASS."
+  },
+  {
+    "path": ".superpowers/sdd/2026-09-30-responsive-management-verification/progress.md",
+    "line": 143,
+    "text": "Ruling: Keep the preexisting Edge100-product cap unchanged in this responsive scope, repair #37 with a dedicated small owned store and real session/product/cart assertions, and expose the larger-catalog limitation for final judgment. Why: mainlab256assignments exceeded existinglimit andsort_order>=0 disallowed the proposednegativeordering workaround; changingother255rows orbackend would breach preserveddata/authorityscope. Removeblind75sreloads, keepvalidrealpickupslot, exactcleanup. Costifwrong: revisefixture/affectedE2E andaddresscatalogcontract asanexplicitfollow-up; no claimthat >100publiccatalog orcapitselfisfixed."
+  }
+]

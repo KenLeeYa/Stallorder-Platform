@@ -257,7 +257,7 @@ export async function requestPublicOrder(
   options.signal?.throwIfAborted();
   const deviceId = typeof input.deviceId === "string" ? input.deviceId : "";
   const serializedBody = JSON.stringify(input);
-  if (shouldUseDevelopmentCircuitB()) {
+  if (shouldUseDevelopmentCircuitB() || (typeof window !== "undefined" && window.location.pathname?.startsWith("/mini/"))) {
     return requestCircuitB(
       operation,
       input,
@@ -304,6 +304,7 @@ export async function requestPublicOrder(
     options.signal?.throwIfAborted();
     if (!fallback) {
       breaker.recordSuccess();
+      if (operation === "create-public-order" && primaryResponse.ok) await exchangeGuestClaimProofAfterOrder(primaryResponse,input,fetchImpl);
       return primaryResponse;
     }
 
@@ -351,6 +352,21 @@ export async function requestPublicOrder(
       now,
       options.signal,
     );
+  }
+}
+
+async function exchangeGuestClaimProofAfterOrder(response: Response, input: Record<string,unknown>, fetchImpl: typeof fetch) {
+  if (typeof window === "undefined" || window.location.pathname?.startsWith("/mini/")
+    || typeof input.orderSessionToken!=="string" || input.orderSessionToken.length<40
+    || typeof input.deviceId!=="string" || !UUID_PATTERN.test(input.deviceId)) return;
+  try {
+    const result=await response.clone().json() as {trackingToken?:unknown};
+    if(typeof result.trackingToken!=="string" || !/^sto_[A-Za-z0-9_-]{43}$/.test(result.trackingToken))return;
+    await fetchImpl("/api/public/orders/claim-proof",{method:"POST",credentials:"same-origin",cache:"no-store",
+      headers:{"content-type":"application/json","x-stallorder-protocol-version":PUBLIC_ORDER_PROTOCOL_VERSION},
+      body:JSON.stringify({orderSessionToken:input.orderSessionToken,trackingToken:result.trackingToken,deviceId:input.deviceId}),signal:AbortSignal.timeout(1500)});
+  }catch{
+    // A committed order remains successful when optional membership proof is unavailable.
   }
 }
 
@@ -434,7 +450,7 @@ async function requestCircuitB(
     : await fetchImpl(
       operation === "create-order-session"
         ? "/api/public/order-session"
-        : "/api/public/orders",
+        : typeof window !== "undefined" && window.location.pathname?.startsWith("/mini/") ? "/api/mini/orders" : "/api/public/orders",
       {
         method: "POST",
         headers: {

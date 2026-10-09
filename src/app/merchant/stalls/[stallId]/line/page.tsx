@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MessageCircle } from "lucide-react";
 import { ContextualBackButton } from "@/components/contextual-back-button";
@@ -6,6 +7,7 @@ import { hasPermission } from "@/lib/rbac";
 import { getRequestMerchantMessages } from "@/lib/messages/merchant-server";
 import { requireWorkspacePage } from "@/lib/workspace";
 import { getLineIntegrationManagerData } from "@/server/notifications/line-integration-service";
+import { EntitlementError } from "@/server/billing/entitlement-service";
 
 type PageProps = { params: Promise<{ stallId: string }> };
 
@@ -18,7 +20,13 @@ export default async function LineIntegrationPage({ params }: PageProps) {
   if (!workspace || !stall) notFound();
   const roles = [...new Set([...workspace.roles, ...stall.roles])];
   if (!roles.some((role) => hasPermission(role, "MANAGE_LINE_INTEGRATION"))) notFound();
-  const data = await getLineIntegrationManagerData(workspace.id, stallId);
+  let data;
+  try {
+    data = await getLineIntegrationManagerData(workspace.id, stallId);
+  } catch (error) {
+    if (error instanceof EntitlementError) notFound();
+    throw error;
+  }
   const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "http://localhost:3000";
 
   return (
@@ -29,6 +37,7 @@ export default async function LineIntegrationPage({ params }: PageProps) {
         <h1 className="mt-1 flex items-center gap-3 text-3xl font-semibold"><MessageCircle className="h-7 w-7 text-emerald-700" />{m("LINE 訂單通知")}</h1>
         <p className="mt-2 text-sm text-stone-600">{stall.name}</p>
       </header>
+      {process.env.LINE_PLATFORM_ENABLED === "true" && <Link href={`/merchant/${stall.slug}/notifications`} className="mt-5 inline-flex min-h-11 items-center rounded-lg border px-4 font-semibold">攤點通平台通知紀錄與安全重試</Link>}
       <div className="py-7"><LineIntegrationManager stallId={stallId} appUrl={appUrl} initialData={data} /></div>
     </main>
   );

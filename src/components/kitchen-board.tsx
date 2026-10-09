@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import type { CancellationReason, UserRole } from "@prisma/client";
 import {
   CheckCheck,
@@ -33,6 +33,8 @@ import {
   type KitchenTaskState,
 } from "@/lib/kitchen-board-contract";
 import { reconcileKitchenOrderAlerts } from "@/lib/kitchen-order-alerts";
+import { browserKitchenBoardLiveEnvironment, startKitchenBoardLiveLifecycle, type KitchenBoardConnection } from "@/components/kitchen-board-live";
+import { LiveResourceRetryError, type LiveResourceController } from "@/lib/use-live-resource";
 import type { WorkModeDestination } from "@/lib/work-mode";
 
 type BoardData = {
@@ -72,16 +74,27 @@ type CancellationErrors = {
   request?: string;
 };
 
-export function KitchenBoard({ stall, canManage, workModeDestinations, initialData, role }: Props) {
+class KitchenBoardAuthorizationError extends Error {}
+
+export function KitchenBoard(props: Props) {
+  return <KitchenBoardSession key={`${props.stall.organizationId}:${props.stall.id}:${props.stall.slug}:${props.role}`} {...props} />;
+}
+
+function KitchenBoardSession({ stall, canManage, workModeDestinations, initialData, role }: Props) {
   const { locale, t } = useOperationsLocale();
   const knownOrderIdsRef = useRef(new Set(initialData.alertOrderIds));
   const alertsEnabledRef = useRef(false);
   const [data, setData] = useState(initialData);
+  const liveRef = useRef<LiveResourceController | null>(null);
+  const authorizedRef = useRef(true);
+  const [authorized, setAuthorized] = useState(true);
+  const mutationDeniedRef = useRef(false);
+  const [mutationDenied, setMutationDenied] = useState(false);
   const [mode, setMode] = useState<KitchenBoardMode>(initialData.settings.defaultView);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(() => preferredKitchenOrderId(initialData.tasks));
   const [stationId, setStationId] = useState(initialData.stations[0]?.id ?? "");
   const [now, setNow] = useState(() => Date.parse(initialData.serverNow));
-  const [connection, setConnection] = useState<"CONNECTING" | "CONNECTED" | "FALLBACK">("CONNECTING");
+  const [connection, setConnection] = useState<KitchenBoardConnection>("CONNECTING");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [alertsEnabled, setAlertsEnabled] = useState(false);
@@ -101,51 +114,89 @@ export function KitchenBoard({ stall, canManage, workModeDestinations, initialDa
     setMessage(t("kitchen.board.newOrders", { count }));
   }, [t]);
 
-  const refresh = useCallback(async (silent = false) => {
-    if (!silent) setBusyId("refresh");
-    try {
-      const response = await fetch(`/api/stalls/${stall.slug}/kitchen/board`, { cache: "no-store" });
-      const payload: BoardData & { error?: string; code?: string } = await response.json();
-      if (!response.ok) throw new Error(payload.code
+  const loadBoard = useEffectEvent(async (signal: AbortSignal): Promise<BoardData> => {
+    const response = await fetch(`/api/stalls/${stall.slug}/kitchen/board`, { cache: "no-store", signal });
+    if (response.status === 401 || response.status === 403 || response.status === 404) throw new KitchenBoardAuthorizationError(t("kitchen.board.accessRevoked"));
+    const payload = await response.json().catch(() => null) as (BoardData & { code?: string; retryAfterSeconds?: number }) | null;
+    if (response.status === 429) {
+      const seconds = Number(payload?.retryAfterSeconds ?? response.headers.get("retry-after"));
+      throw new LiveResourceRetryError(t("kitchen.board.reloadFailed"), Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds * 1_000) : 1_000);
+    }
+    if (!response.ok || !payload || !Array.isArray(payload.tasks) || !Array.isArray(payload.alertOrderIds)) {
+      throw new Error(payload?.code
         ? t(getOperationsErrorMessageKey(payload.code, "kitchen.board.reloadFailed"))
         : t("kitchen.board.reloadFailed"));
-      const newOrderCount = reconcileKitchenOrderAlerts(
-        knownOrderIdsRef.current,
-        payload.alertOrderIds,
-      );
-      setData(payload);
-      setNow(Date.parse(payload.serverNow));
-      setMessage("");
-      if (newOrderCount > 0) notifyNewOrders(newOrderCount);
-    } catch (error) {
-      if (!silent) setMessage(error instanceof Error ? error.message : t("kitchen.board.reloadFailed"));
-    } finally {
-      if (!silent) setBusyId(null);
     }
-  }, [notifyNewOrders, stall.slug, t]);
+    return payload;
+  });
+
+  const applyBoard = useEffectEvent((payload: BoardData) => {
+    const recovered = !authorizedRef.current;
+    authorizedRef.current = !mutationDeniedRef.current;
+    setAuthorized(!mutationDeniedRef.current);
+    const newOrderCount = recovered ? 0 : reconcileKitchenOrderAlerts(knownOrderIdsRef.current, payload.alertOrderIds);
+    if (recovered) {
+      knownOrderIdsRef.current = new Set(payload.alertOrderIds);
+      setStationId(payload.stations[0]?.id ?? "");
+      setSelectedOrderId(preferredKitchenOrderId(payload.tasks));
+    }
+    setData(payload);
+    setNow(Date.parse(payload.serverNow));
+    setMessage("");
+    if (newOrderCount > 0) notifyNewOrders(newOrderCount);
+  });
+
+  function revokeBoardAccess() {
+    authorizedRef.current = false;
+    setAuthorized(false);
+    setData((current) => ({ ...current, stations: [], tasks: [], futureReservations: [], alertOrderIds: [] }));
+    knownOrderIdsRef.current.clear();
+    setStationId("");
+    setSelectedOrderId(null);
+    setPendingCancellation(null);
+    setCancellationErrors({});
+  }
+
+  const handleBoardError = useEffectEvent((error: unknown) => {
+    if (error instanceof KitchenBoardAuthorizationError) {
+      mutationDeniedRef.current = true;
+      setMutationDenied(true);
+      revokeBoardAccess();
+    }
+    setMessage(error instanceof Error ? error.message : t("kitchen.board.reloadFailed"));
+  });
+
+  const refresh = useCallback(async (silent = false) => {
+    if (!silent) setBusyId("refresh");
+    try { await liveRef.current?.refresh(); }
+    finally { if (!silent) setBusyId(null); }
+  }, []);
 
   useEffect(() => {
-    const enabled = window.localStorage.getItem("stallorder_kitchen_order_alerts") === "enabled";
+    let enabled = false;
+    try { enabled = window.localStorage.getItem("stallorder_kitchen_order_alerts") === "enabled"; } catch { /* Use the in-memory preference when storage is blocked. */ }
     alertsEnabledRef.current = enabled;
-    const preferenceTimer = window.setTimeout(() => setAlertsEnabled(enabled), 0);
+    const preferenceTimer = window.setTimeout(() => setAlertsEnabled(alertsEnabledRef.current), 0);
     return () => window.clearTimeout(preferenceTimer);
   }, []);
 
   useEffect(() => {
     const clock = window.setInterval(() => setNow((current) => current + 1_000), 1_000);
-    const fallback = window.setInterval(() => void refresh(true), 12_000);
-    const stream = new EventSource(`/api/stalls/${stall.slug}/kitchen/stream`);
-    const connected = () => setConnection("CONNECTED");
-    const changed = () => void refresh(true);
-    stream.addEventListener("ready", connected);
-    stream.addEventListener("kitchen", changed);
-    stream.onerror = () => setConnection("FALLBACK");
+    const controller = startKitchenBoardLiveLifecycle({
+      stallSlug: stall.slug,
+      environment: browserKitchenBoardLiveEnvironment(),
+      load: loadBoard,
+      onData: applyBoard,
+      onError: handleBoardError,
+      onConnectionChange: setConnection,
+    });
+    liveRef.current = controller;
     return () => {
       window.clearInterval(clock);
-      window.clearInterval(fallback);
-      stream.close();
+      controller.stop();
+      if (liveRef.current === controller) liveRef.current = null;
     };
-  }, [refresh, stall.slug]);
+  }, [stall.slug]);
 
   useEffect(() => {
     if (!pendingCancellationOrderId) return;
@@ -159,6 +210,7 @@ export function KitchenBoard({ stall, canManage, workModeDestinations, initialDa
   }, [pendingCancellationOrderId]);
 
   async function mutate(body: Record<string, unknown>, busyKey: string) {
+    if (!authorizedRef.current) return false;
     setBusyId(busyKey);
     setMessage("");
     try {
@@ -167,6 +219,18 @@ export function KitchenBoard({ stall, canManage, workModeDestinations, initialDa
         headers: csrfHeaders(),
         body: JSON.stringify(body),
       });
+      if ([401, 403, 404].includes(response.status)) {
+        // A denied write invalidates any older snapshot immediately. A readable
+        // board alone cannot establish that this page still has write permission.
+        if (response.status !== 404) {
+          mutationDeniedRef.current = true;
+          setMutationDenied(true);
+        }
+        revokeBoardAccess();
+        setMessage(t("kitchen.board.accessRevoked"));
+        await refresh(true);
+        return false;
+      }
       const payload = await response.json() as { error?: string; code?: string };
       if (!response.ok) throw new Error(payload.code
         ? t(getOperationsErrorMessageKey(payload.code, "kitchen.board.operationFailed"))
@@ -185,12 +249,12 @@ export function KitchenBoard({ stall, canManage, workModeDestinations, initialDa
     const next = !alertsEnabledRef.current;
     alertsEnabledRef.current = next;
     setAlertsEnabled(next);
-    window.localStorage.setItem("stallorder_kitchen_order_alerts", next ? "enabled" : "disabled");
+    try { window.localStorage.setItem("stallorder_kitchen_order_alerts", next ? "enabled" : "disabled"); } catch { /* Keep sound controls usable without persistence. */ }
     if (next) playNotificationTone();
   }
 
   function openCancellation(orderId: string, orderNo: string) {
-    if (busyId !== null) return;
+    if (busyId !== null || !authorizedRef.current) return;
     if (document.activeElement instanceof HTMLElement) cancellationTriggerRef.current = document.activeElement;
     setMessage("");
     setCancellationErrors({});
@@ -218,7 +282,7 @@ export function KitchenBoard({ stall, canManage, workModeDestinations, initialDa
   }
 
   async function confirmCancellation() {
-    if (!pendingCancellation || busyId !== null || cancellationBusyRef.current) return;
+    if (!pendingCancellation || busyId !== null || cancellationBusyRef.current || !authorizedRef.current) return;
     const errors: CancellationErrors = {};
     if (pendingCancellation.reason === "OTHER" && !pendingCancellation.detail.trim()) {
       errors.detail = t("kitchen.cancel.detailRequired");
@@ -249,6 +313,18 @@ export function KitchenBoard({ stall, canManage, workModeDestinations, initialDa
           cancellationDetail: pendingCancellation.detail.trim() || null,
         }),
       });
+      if ([401, 403, 404].includes(response.status)) {
+        // A denied write invalidates any older snapshot immediately. A readable
+        // board alone cannot establish that this page still has write permission.
+        if (response.status !== 404) {
+          mutationDeniedRef.current = true;
+          setMutationDenied(true);
+        }
+        revokeBoardAccess();
+        setMessage(t("kitchen.board.accessRevoked"));
+        await refresh(true);
+        return;
+      }
       const payload = await response.json() as { error?: string; code?: string };
       if (!response.ok) throw new Error(payload.code
         ? t(getOperationsErrorMessageKey(payload.code, "kitchen.cancel.failed"))
@@ -278,11 +354,15 @@ export function KitchenBoard({ stall, canManage, workModeDestinations, initialDa
   const canCancelOrder = ["PLATFORM_ADMIN", "ORGANIZATION_OWNER", "ORGANIZATION_ADMIN", "STALL_MANAGER"].includes(role);
   return (
     <>
+      {mutationDenied ? <div role="alert" className="border border-amber-400 bg-amber-50 p-4 text-amber-950">
+        <p>{t("kitchen.board.accessRevoked")}</p>
+        <a className="mt-2 inline-flex min-h-12 items-center rounded-md border px-4 font-semibold" href={`/kitchen?stall=${encodeURIComponent(stall.slug)}`}>{t("kitchen.board.reloadPermissions")}</a>
+      </div> : null}
       <KitchenNavigation
         active="BOARD"
         stall={stall}
-        canManage={canManage}
-        workModeDestinations={workModeDestinations}
+        canManage={canManage && authorized}
+        workModeDestinations={authorized ? workModeDestinations : []}
         boardControls={{
           mode,
           onModeChange: setMode,
@@ -349,8 +429,8 @@ export function KitchenBoard({ stall, canManage, workModeDestinations, initialDa
         warningMinutes={data.settings.warningMinutes}
         criticalMinutes={data.settings.criticalMinutes}
         timeZone={data.settings.timeZone}
-        busyId={busyId}
-        canCancelOrder={canCancelOrder}
+        busyId={authorized ? busyId : "unauthorized"}
+        canCancelOrder={canCancelOrder && authorized}
         onTask={(taskId, nextStatus) => mutate({ operation: "UPDATE_TASK", taskId, status: nextStatus }, taskId)}
         onComplete={(orderId) => mutate({ operation: "COMPLETE_ORDER", orderId }, orderId)}
         onCancel={openCancellation}
@@ -478,7 +558,7 @@ function KitchenOrderWorkspace({ orders, selectedOrderId, onSelectOrder, now, wa
         </div>
         <div className="p-4">
           <ul data-testid="kitchen-order-item-list" className="divide-y divide-stone-100">
-            {selectedOrder.tasks.map((task) => <li key={task.id}><TaskRow task={task} busy={busyId === task.id} locked={selectedOrder.status === "READY"} onTask={onTask} /></li>)}
+            {selectedOrder.tasks.map((task) => <li key={task.id}><TaskRow task={task} busy={busyId === "unauthorized" || busyId === task.id} locked={selectedOrder.status === "READY"} onTask={onTask} /></li>)}
           </ul>
           {selectedOrder.note ? <div className="mt-3 flex gap-2 rounded-md bg-amber-50 p-3 text-sm text-amber-900"><MessageSquareText className="mt-0.5 h-4 w-4 shrink-0" /><span>{selectedOrder.externalProvider ? t("kitchen.order.platformNote") : ""}{selectedOrder.note}</span></div> : null}
         </div>
@@ -496,7 +576,7 @@ function KitchenOrderWorkspace({ orders, selectedOrderId, onSelectOrder, now, wa
           {selectedWait.effectiveFulfillmentAt ? <p className="rounded-md border border-teal-200 bg-white px-3 py-2 text-sm font-medium text-teal-800">{t("kitchen.reservation.time", { time: formatKitchenDateTime(locale, selectedWait.effectiveFulfillmentAt, timeZone) })}</p> : null}
           {selectedOrder.externalOrderNumber ? <p className="rounded-md bg-white px-3 py-2 text-sm text-stone-700">{t("kitchen.order.platformNo", { number: selectedOrder.externalOrderNumber })}</p> : null}
           {selectedOrder.externalProvider ? <p className="rounded-md bg-white px-3 py-2 text-sm text-stone-700">{selectedOrder.riderPickupAt ? t("kitchen.order.riderPickedUp", { time: formatKitchenTime(locale, selectedOrder.riderPickupAt, timeZone) }) : t("kitchen.order.awaitRider")}</p> : null}
-          {selectedOrder.tasks.some((task) => task.status !== "COMPLETED") ? <button type="button" disabled={busyId !== null} onClick={() => void onComplete(selectedOrder.id)} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white disabled:opacity-50"><CheckCheck className="h-5 w-5" />{t("kitchen.order.complete")}</button> : <p className="rounded-md bg-emerald-50 px-3 py-3 text-center text-sm font-semibold text-emerald-800"><PackageCheck className="mr-2 inline h-4 w-4" />{t("kitchen.status.ready")}</p>}
+          {selectedOrder.tasks.some((task) => task.status !== "COMPLETED") ? <button type="button" disabled={busyId !== null} onClick={() => void onComplete(selectedOrder.id)} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-teal-800 px-4 text-sm font-semibold text-white disabled:opacity-50"><CheckCheck className="h-5 w-5" />{t("kitchen.order.complete")}</button> : <p className="rounded-md bg-emerald-50 px-3 py-3 text-center text-sm font-semibold text-emerald-800"><PackageCheck className="mr-2 inline h-4 w-4" />{t("kitchen.status.ready")}</p>}
         </div>
         {canCancelOrder ? <div className="sticky bottom-0 border-t border-stone-200 bg-stone-50/95 p-4 backdrop-blur"><button type="button" disabled={busyId !== null} onClick={() => onCancel(selectedOrder.id, selectedOrder.orderNo)} className="min-h-11 w-full rounded-md border border-red-300 bg-white px-4 text-sm font-semibold text-red-700 disabled:opacity-50">{t("common.cancel")}</button></div> : null}
       </aside>

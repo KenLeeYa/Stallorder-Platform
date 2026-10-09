@@ -1,5 +1,6 @@
 import "server-only";
 import { isOrderStockError } from "@/lib/order-stock-error";
+import { isProductSoldOut } from "@/lib/product-availability";
 
 import { Prisma, type PrismaClient, type ProductKind, type UserRole } from "@prisma/client";
 import { calculateCapacitySnapshot } from "@/lib/capacity";
@@ -17,10 +18,40 @@ import { createOpaqueToken, hashToken } from "@/lib/security";
 
 type OrderDataClient = Prisma.TransactionClient | PrismaClient;
 
+type ExistingBundleItem = {
+  productId: string | null;
+  quantity: number;
+  createdAt?: Date;
+  noteOptions: Array<{ noteOptionId: string | null; groupName: string; optionName: string }>;
+};
+
+function existingBundleConfigurationKey(item: ExistingBundleItem, assignment: TrustedStaffOrderAssignment) {
+  const snapshots = item.noteOptions.filter((option) => option.noteOptionId === null && option.groupName.startsWith("套餐 · "));
+  if (snapshots.length === 0 || !item.createdAt) return null;
+  const snapshotAt = item.createdAt;
+  const choiceIds: string[] = [];
+  for (const snapshot of snapshots) {
+    const matches = assignment.product.bundleChoiceGroups.flatMap((group) => group.choices.filter((choice) => (
+      snapshot.groupName === `套餐 · ${group.name}`
+      && snapshot.optionName.replace(/ × 1$/, "") === `${choice.componentProduct.name} × ${choice.quantity}`.replace(/ × 1$/, "")
+    )).map((choice) => ({ group, choice })));
+    if (matches.length !== 1 || choiceIds.includes(matches[0].choice.id)) return null;
+    const { group, choice } = matches[0];
+    if ([assignment.product, group, choice, choice.componentProduct].some((record) => (
+      !record.createdAt || !record.updatedAt
+      || record.createdAt > snapshotAt || record.updatedAt > snapshotAt
+    ))) return null;
+    choiceIds.push(choice.id);
+  }
+  return JSON.stringify([item.productId, choiceIds.sort()]);
+}
+
 export type TrustedStaffOrderAssignment = {
   productId: string;
   priceOverride: number | null;
   product: {
+    createdAt?: Date;
+    updatedAt?: Date;
     organizationId: string;
     name: string;
     defaultPrice: number;
@@ -41,6 +72,8 @@ export type TrustedStaffOrderAssignment = {
       };
     }>;
     bundleChoiceGroups: Array<{
+      createdAt?: Date;
+      updatedAt?: Date;
       id: string;
       organizationId: string;
       bundleProductId: string;
@@ -48,6 +81,8 @@ export type TrustedStaffOrderAssignment = {
       minSelections: number;
       maxSelections: number;
       choices: Array<{
+        createdAt?: Date;
+        updatedAt?: Date;
         id: string;
         organizationId: string;
         choiceGroupId: string;
@@ -55,6 +90,8 @@ export type TrustedStaffOrderAssignment = {
         priceDelta: number;
         isEnabled: boolean;
         componentProduct: {
+          createdAt?: Date;
+          updatedAt?: Date;
           organizationId: string;
           name: string;
           kind: ProductKind;
@@ -65,6 +102,7 @@ export type TrustedStaffOrderAssignment = {
             stallId: string;
             isEnabled: boolean;
             isSoldOut: boolean;
+            soldOutUntil?: Date | null;
             availableFrom: Date | null;
             availableUntil: Date | null;
           }>;
@@ -87,6 +125,19 @@ export class StaffOrderCreateError extends Error {
     | "ORDER_CONFLICT") {
     super(code);
   }
+}
+
+// Read-only companion to the existing STAFF_POS idempotency owner. An absent row
+// is not proof that an earlier request did not commit or cannot still commit.
+export async function findStaffOrderRecovery(input: {
+  organizationId: string; stallId: string; actorProfileId: string; idempotencyKey: string;
+}) {
+  return prisma.order.findFirst({
+    where: { organizationId: input.organizationId, stallId: input.stallId,
+      source: "STAFF_POS", deviceHash: hashToken(`staff-order:${input.actorProfileId}:STAFF_POS`),
+      idempotencyKey: input.idempotencyKey },
+    select: staffOrderSelect,
+  });
 }
 
 export async function createStaffOrder(input: {
@@ -326,6 +377,7 @@ export function prepareTrustedStaffOrderItem(input: {
   now: Date;
   assignment: TrustedStaffOrderAssignment;
   requested: CreateStaffOrderInput["items"][number];
+  rejectSoldOutBundleComponents?: boolean;
 }) {
   const { organizationId, stallId, now, assignment, requested } = input;
   if (
@@ -375,6 +427,7 @@ export function prepareTrustedStaffOrderItem(input: {
           && choice.componentProduct.isActive
           && choice.componentProduct.category.isActive
           && Boolean(componentAssignment?.isEnabled)
+          && (!input.rejectSoldOutBundleComponents || (componentAssignment && !isProductSoldOut(componentAssignment)))
           && (!componentAssignment?.availableFrom || componentAssignment.availableFrom <= now)
           && (!componentAssignment?.availableUntil || componentAssignment.availableUntil > now);
       });
@@ -522,8 +575,11 @@ export async function prepareStaffOrderItems(
   organizationId: string,
   stallId: string,
   request: Pick<CreateStaffOrderInput, "items" | "customerNote">,
+  fulfillmentAt = new Date(),
+  rejectSoldOutBundleComponents = false,
+  existingBundleItems: ExistingBundleItem[] = [],
 ) {
-  const now = new Date();
+  const now = fulfillmentAt;
   const requestedProductIds = [...new Set(request.items.map((item) => item.productId))];
   const [settings, assignments] = await Promise.all([
     client.stallOrderingSettings.findUnique({
@@ -553,6 +609,8 @@ export async function prepareStaffOrderItems(
         priceOverride: true,
         product: {
           select: {
+            createdAt: true,
+            updatedAt: true,
             organizationId: true,
             name: true,
             defaultPrice: true,
@@ -561,6 +619,8 @@ export async function prepareStaffOrderItems(
             bundleChoiceGroups: {
               orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
               select: {
+                createdAt: true,
+                updatedAt: true,
                 id: true,
                 organizationId: true,
                 bundleProductId: true,
@@ -570,6 +630,8 @@ export async function prepareStaffOrderItems(
                 choices: {
                   orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
                   select: {
+                    createdAt: true,
+                    updatedAt: true,
                     id: true,
                     organizationId: true,
                     choiceGroupId: true,
@@ -578,6 +640,8 @@ export async function prepareStaffOrderItems(
                     isEnabled: true,
                     componentProduct: {
                       select: {
+                        createdAt: true,
+                        updatedAt: true,
                         organizationId: true,
                         name: true,
                         kind: true,
@@ -590,6 +654,7 @@ export async function prepareStaffOrderItems(
                             stallId: true,
                             isEnabled: true,
                             isSoldOut: true,
+                            soldOutUntil: true,
                             availableFrom: true,
                             availableUntil: true,
                           },
@@ -634,19 +699,39 @@ export async function prepareStaffOrderItems(
   }
 
   const assignmentsByProduct = new Map(assignments.map((assignment) => [assignment.productId, assignment]));
+  const retainedBundleQuantities = new Map<string, number>();
+  for (const item of existingBundleItems) {
+    const assignment = item.productId ? assignmentsByProduct.get(item.productId) : null;
+    if (!assignment || assignment.product.kind !== "BUNDLE") continue;
+    const key = existingBundleConfigurationKey(item, assignment);
+    if (!key) continue;
+    retainedBundleQuantities.set(key, (retainedBundleQuantities.get(key) ?? 0) + item.quantity);
+  }
+  let addsBundleFulfillment = false;
   const items = request.items.map((requested) => {
     const assignment = assignmentsByProduct.get(requested.productId);
     if (!assignment) throw new StaffOrderCreateError("PRODUCT_UNAVAILABLE");
-    return prepareTrustedStaffOrderItem({
+    const prepared = prepareTrustedStaffOrderItem({
       organizationId,
       stallId,
       now,
       assignment,
       requested,
     });
+    if (rejectSoldOutBundleComponents && assignment.product.kind === "BUNDLE") {
+      const key = JSON.stringify([requested.productId, [...requested.bundleChoiceIds].sort()]);
+      const retainedQuantity = retainedBundleQuantities.get(key) ?? 0;
+      if (requested.quantity > retainedQuantity) {
+        addsBundleFulfillment = true;
+        prepareTrustedStaffOrderItem({ organizationId, stallId, now, assignment, requested, rejectSoldOutBundleComponents: true });
+      }
+      retainedBundleQuantities.set(key, Math.max(0, retainedQuantity - requested.quantity));
+    }
+    return prepared;
   });
 
   return {
+    addsBundleFulfillment,
     settings,
     subtotal: items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0),
     discountEligibleSubtotal: items.reduce((sum, item) => (

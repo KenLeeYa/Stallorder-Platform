@@ -1,0 +1,87 @@
+{
+  "observedAt": "2026-09-13T07:36:42.414Z",
+  "rawScanExitCode": 1,
+  "rawScanPreserved": true,
+  "status": "REVIEWED_NO_CONFIRMED_CREDENTIAL",
+  "falsePositives": 11,
+  "findings": [
+    {
+      "file": ".next/dev/server/vendor-chunks/jose.js",
+      "line": 70,
+      "classification": "FALSE_POSITIVE_FORMAT_MARKER_ONLY",
+      "evidence": "jose PKCS8 input validation indexOf argument closes immediately; no key bytes",
+      "fileSha256": "2676afe5173376081ff4ff54cad2e8a4f05d24a6b6eea37d68ff040c9ba86237"
+    },
+    {
+      "file": ".next/dev/server/vendor-chunks/jose.js",
+      "line": 330,
+      "classification": "FALSE_POSITIVE_FORMAT_MARKER_ONLY",
+      "evidence": "jose PKCS8 input validation indexOf argument closes immediately; no key bytes",
+      "fileSha256": "2676afe5173376081ff4ff54cad2e8a4f05d24a6b6eea37d68ff040c9ba86237"
+    },
+    {
+      "file": ".next/server/chunks/node_modules_jose_dist_webapi_jwks_remote_15uivci.js",
+      "line": 1,
+      "classification": "FALSE_POSITIVE_FORMAT_MARKER_ONLY",
+      "evidence": "jose PKCS8 input validation indexOf argument closes immediately; no key bytes",
+      "fileSha256": "272719b0ff05197b70de8d3bfd73f24d2616d6b7a0858d6e8f8eab203933dd90"
+    },
+    {
+      "file": ".next/server/chunks/node_modules_jose_dist_webapi_jwks_remote_15uivci.js.map",
+      "line": 1,
+      "classification": "FALSE_POSITIVE_FORMAT_MARKER_ONLY",
+      "evidence": "jose PKCS8 input validation indexOf argument closes immediately; no key bytes",
+      "fileSha256": "2982566522052429a85af79475007d3d430732c0de971f984d4795c1ee3eb18e"
+    },
+    {
+      "file": ".next/server/chunks/ssr/src_server_auth_oauth_0uw1_cx._.js.map",
+      "line": 1,
+      "classification": "FALSE_POSITIVE_FORMAT_MARKER_ONLY",
+      "evidence": "jose PKCS8 input validation indexOf argument closes immediately; no key bytes",
+      "fileSha256": "ac468568cfccde93b5bade2bc55693dbd045754bb24252b5a83b52886f774c88"
+    },
+    {
+      "file": ".next/server/chunks/ssr/src_server_auth_oauth_20eyslf._.js.map",
+      "line": 1,
+      "classification": "FALSE_POSITIVE_FORMAT_MARKER_ONLY",
+      "evidence": "jose PKCS8 input validation indexOf argument closes immediately; no key bytes",
+      "fileSha256": "ac468568cfccde93b5bade2bc55693dbd045754bb24252b5a83b52886f774c88"
+    },
+    {
+      "file": ".next/server/chunks/ssr/_17eblx9._.js",
+      "line": 2,
+      "classification": "FALSE_POSITIVE_FORMAT_MARKER_ONLY",
+      "evidence": "jose PKCS8 input validation indexOf argument closes immediately; no key bytes",
+      "fileSha256": "e106e6f1b0215e28b10cabec3f8bb85764b8ea9a9e173e0a2ce406ba21da31b6"
+    },
+    {
+      "file": ".next/server/chunks/ssr/_17eblx9._.js.map",
+      "line": 1,
+      "classification": "FALSE_POSITIVE_FORMAT_MARKER_ONLY",
+      "evidence": "jose PKCS8 input validation indexOf argument closes immediately; no key bytes",
+      "fileSha256": "2692808fe2051107f8ff05b5cd41ca10f27ca3e94e4a282f2e5f62bdf9270008"
+    },
+    {
+      "file": ".next/server/chunks/[root-of-the-server]__0gqyn5_._.js.map",
+      "line": 1,
+      "classification": "FALSE_POSITIVE_FORMAT_MARKER_ONLY",
+      "evidence": "jose PKCS8 input validation indexOf argument closes immediately; no key bytes",
+      "fileSha256": "1cde0694c28b2339ca331ddff833cbb841a1583c957a42e9d0f3f8a6cb13e0cb"
+    },
+    {
+      "file": ".next/server/chunks/_1sqpzr0._.js",
+      "line": 19,
+      "classification": "FALSE_POSITIVE_FORMAT_MARKER_ONLY",
+      "evidence": "jose PKCS8 input validation indexOf argument closes immediately; no key bytes",
+      "fileSha256": "d4c8865471f12cfd8d3c22c4b70c75ea53bcf6d307cd0d039317c1b0ed8cb8c8"
+    },
+    {
+      "file": ".next/server/chunks/_1sqpzr0._.js.map",
+      "line": 1,
+      "classification": "FALSE_POSITIVE_FORMAT_MARKER_ONLY",
+      "evidence": "jose PKCS8 input validation indexOf argument closes immediately; no key bytes",
+      "fileSha256": "0a2fcdd0f0af25c28cf0169c49fc1fe77f78ac883b0f8c579d83a927d4404668"
+    }
+  ],
+  "limits": "Not a proof of no secrets or PII. Provider logs, arbitrary tokens, runtime values and historical Git objects need independent review."
+}

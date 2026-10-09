@@ -1,7 +1,8 @@
 import { spawn, execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { loadEnvFile } from "node:process";
+import { parseEnv } from "node:util";
 import { resolve } from "node:path";
 import {
   buildLocalQaEnvironment,
@@ -18,17 +19,19 @@ const head = execFileSync("git", ["rev-parse", "--short=12", "HEAD"], {
 }).trim();
 const port = parseLocalQaPort(process.argv.slice(2));
 
-for (const fileName of [
-  ".env.local",
-  ".env",
-  "supabase/functions/e2e-runtime.defaults",
-]) {
+for (const fileName of [".env.local", ".env"]) {
   const path = resolve(root, fileName);
   if (existsSync(path)) loadEnvFile(path);
 }
+// The shared Edge fixture also contains LAN origins. Only import its synthetic
+// test secrets; configured destinations still pass through the fail-closed guard.
+const defaults = parseEnv(readFileSync(resolve(root, "supabase/functions/e2e-runtime.defaults"), "utf8"));
+for (const key of ["ABUSE_HASH_SECRET", "TOKEN_DERIVATION_SECRET", "TURNSTILE_SECRET_KEY", "TURNSTILE_ALLOW_TEST_KEYS"]) {
+  process.env[key] ??= defaults[key];
+}
 
 await assertPortAvailable(port);
-const environment = buildLocalQaEnvironment(port, process.env);
+const environment = buildLocalQaEnvironment(port, process.env, { envDirectory: root });
 const origin = `http://127.0.0.1:${port}`;
 const nextCli = resolve(root, "node_modules", "next", "dist", "bin", "next");
 if (!existsSync(nextCli)) throw new Error("LOCAL_QA_DEPENDENCIES_MISSING");
@@ -39,7 +42,7 @@ console.log(`HEAD ${head}`);
 console.log(`ORIGIN ${origin}`);
 console.log("GUARDS development + loopback database + fixed test accounts");
 
-const child = spawn(process.execPath, [nextCli, "dev", "--webpack", "-p", String(port)], {
+const child = spawn(process.execPath, [nextCli, "dev", "--webpack", "--hostname", "127.0.0.1", "-p", String(port)], {
   cwd: root,
   env: environment,
   stdio: "inherit",

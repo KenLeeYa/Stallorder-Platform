@@ -1,4 +1,6 @@
 import "server-only";
+import { bindPlatformOrderOwner, type PlatformOrderContext } from "@/server/line-platform/member-service";
+import { prisma as platformOrderDatabase } from "@/lib/prisma";
 import { isProductSoldOut } from "@/lib/product-availability";
 
 import { randomUUID } from "node:crypto";
@@ -45,7 +47,7 @@ import {
   buildPublicOrderResumeResponse,
   buildPublicOrderSessionResponse,
   publicOrderItemsToRpc,
-  publicOrderNeedsPickupCode,
+  publicOrderNeedsPickupCodeWrite,
   publicOrderSessionAbuseBehavior,
   publicOrderSubmissionAbuseBehavior,
   resolveStoredPickupCode,
@@ -146,7 +148,7 @@ async function persistPickupCode(
   pickupCode: string,
   timing: Timing,
 ) {
-  if (!publicOrderNeedsPickupCode(order)) return;
+  if (!publicOrderNeedsPickupCodeWrite(order, pickupCode)) return;
   await timing.measureDb(() => persistPickupCodeDisplay(order.order_id, pickupCode));
 }
 
@@ -310,6 +312,7 @@ export async function createOrderThroughCircuitB(
     clientIp: string;
     requestId: string;
     timing: Timing;
+    platformContext?: PlatformOrderContext;
   },
 ) {
   await assertCircuitBEnabled(input.deviceId, context.timing);
@@ -385,6 +388,10 @@ export async function createOrderThroughCircuitB(
 
   const existing = preflight.idempotent_order;
   if (existing) {
+    if (context.platformContext) {
+      const platformContext = context.platformContext;
+      await platformOrderDatabase.$transaction(db => bindPlatformOrderOwner(db, existing.order_id, platformContext));
+    }
     if (input.orderingMode === "PREORDER") {
       await context.timing.measureDb(
         () => persistPreorderCustomerPhone(existing.order_id, input.customerPhone),
@@ -476,6 +483,7 @@ export async function createOrderThroughCircuitB(
     waitAcknowledged: input.waitAcknowledged,
     scheduledPickupAt: input.scheduledPickupAt,
     lotteryDrawId: input.lotteryDrawId,
+    platformContext: context.platformContext,
   })).catch((error: unknown) => {
     const code = error instanceof Error
       ? ["PICKUP_CODE_CAPACITY_EXCEEDED", "PRODUCT_STOCK_INSUFFICIENT"].find((value) => error.message.includes(value))

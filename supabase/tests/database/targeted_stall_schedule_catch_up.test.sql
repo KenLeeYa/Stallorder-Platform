@@ -246,7 +246,9 @@ where id in (
   'a4100000-0000-4000-8000-000000000001',
   'a4100000-0000-4000-8000-000000000002'
 );
-delete from public.audit_logs
+-- Preserve append-only evidence and compare only the global call's new events.
+create temporary table targeted_schedule_prior_audit_ids as
+select id from public.audit_logs
 where entity_id in (
   'a4300000-0000-4000-8000-000000000001',
   'a4300000-0000-4000-8000-000000000002'
@@ -300,7 +302,8 @@ where audit.entity_id in (
   'a4300000-0000-4000-8000-000000000001',
   'a4300000-0000-4000-8000-000000000002'
 )
-and audit.action like 'STALL_SCHEDULE_AUTOMATIC_%';
+and audit.action like 'STALL_SCHEDULE_AUTOMATIC_%'
+and not exists(select 1 from targeted_schedule_prior_audit_ids prior where prior.id = audit.id);
 
 select is(
   (select value from pg_temp.targeted_schedule_results where name = 'global_audits'),

@@ -36,7 +36,7 @@ export async function POST(request: Request, context: RouteContext) {
     if (!canAccessReportSchedule(schedule.stallIds, reportScheduleAccessScope(authorization))) {
       return NextResponse.json({ error: "此排程超出您可管理的攤位範圍。" }, { status: 403, headers: { "x-request-id": authorization.requestId } });
     }
-    const result = await createTestReportDelivery(scheduleId, organizationId);
+    const result = await createTestReportDelivery(scheduleId, organizationId, new Date(), authorization.requestId);
     await recordAuditEvent({
       organizationId,
       actorProfileId: authorization.principal.user.id,

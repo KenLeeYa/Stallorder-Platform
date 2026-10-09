@@ -9,43 +9,137 @@ on:
       - ready_for_review
       - closed
   workflow_dispatch:
+    inputs:
+      approve_external_preview:
+        description: Approve isolated Preview resource mutations (also requires Preview environment approval)
+        type: boolean
+        default: false
+      operation:
+        description: Validate a manual Preview or clean exact historical PR-owned resources
+        type: choice
+        options: [validate, cleanup, cleanup-manual-run, deadline-cleanup-manual-run, resume-manual-run, regression-local, verify-deployment-evidence]
+        default: validate
+      cleanup_pr_number:
+        description: Exact closed PR number for manual cleanup only
+        type: string
+        default: ""
+
+      cleanup_run_id:
+        description: Exact manual validation run ID for recovery cleanup or read-only deployment evidence verification
+        type: string
+        default: ""
 
 permissions:
   contents: read
 
 concurrency:
-  group: ephemeral-preview-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ${{ inputs.operation == 'verify-deployment-evidence' && format('deployment-evidence-{0}', inputs.cleanup_run_id) || inputs.operation == 'regression-local' && format('regression-local-{0}', github.ref) || inputs.operation == 'deadline-cleanup-manual-run' && format('deadline-preview-watch-{0}', inputs.cleanup_run_id) || contains(fromJSON('["cleanup-manual-run","resume-manual-run"]'), inputs.operation) && format('manual-preview-recovery-workflow-{0}', inputs.cleanup_run_id) || format('ephemeral-preview-{0}', github.event.pull_request.number || github.ref) }}
+  cancel-in-progress: ${{ !contains(fromJSON('["cleanup-manual-run","deadline-cleanup-manual-run","resume-manual-run","verify-deployment-evidence"]'), inputs.operation) }}
 
 jobs:
+  deployment-evidence:
+    # Other operations must not create a skipped required Vercel check.
+    name: ${{ github.event_name == 'workflow_dispatch' && inputs.operation == 'verify-deployment-evidence' && 'Vercel' || 'deployment-evidence-not-requested' }}
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'verify-deployment-evidence'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    environment:
+      name: Preview
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb
+        with:
+          version: 2.109.1
+      - name: Require the authorized read-only verification request
+        env:
+          VALIDATION_RUN_ID: ${{ inputs.cleanup_run_id }}
+          APPROVE_EXTERNAL_PREVIEW: ${{ inputs.approve_external_preview }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = 'KenLeeYa/Stallorder-Platform'
+          [[ "$GITHUB_REF_NAME" = 'codex/integrated-production-20261002' || "$GITHUB_REF_NAME" = 'staging' ]]
+          test "$APPROVE_EXTERNAL_PREVIEW" = 'false'
+          [[ "$VALIDATION_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]]
+      - name: Download original exact-run deployment and cleanup evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VALIDATION_RUN_ID: ${{ inputs.cleanup_run_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p .deployment-proof
+          for name in "manual-preview-final-$VALIDATION_RUN_ID" "pr366-browser-qa-$VALIDATION_RUN_ID"; do
+            gh run download "$VALIDATION_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$name" --dir ".deployment-proof/$name"
+          done
+      - name: Verify repository-owned deployment gate with fresh provider reads
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          VALIDATION_RUN_ID: ${{ inputs.cleanup_run_id }}
+        run: node scripts/verify-pr366-deployment-evidence.mjs "$VALIDATION_RUN_ID" .deployment-proof .deployment-proof/result.json
+      - name: Preserve the sanitized repository-owned gate receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pr366-deployment-evidence-${{ github.run_id }}
+          path: .deployment-proof/result.json
+          if-no-files-found: warn
+  regression-local:
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'regression-local' && inputs.approve_external_preview == false && github.ref_name == 'codex/integrated-production-20261002'
+    uses: ./.github/workflows/ci.yml
+    with:
+      regression_only: true
   validate:
     if: >-
-      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'workflow_dispatch' &&
+      inputs.approve_external_preview == true &&
+      inputs.operation == 'validate' &&
       (
-        github.event.action != 'closed' &&
-        github.event.pull_request.head.repo.full_name == github.repository
+        !(
+          github.event.pull_request.number == 365 &&
+          github.event.pull_request.head.ref == 'codex/line-platform-oa-v2-20260927' &&
+          contains(github.event.pull_request.labels.*.name, 'line-preview-live')
+        )
       )
     runs-on: ubuntu-latest
     timeout-minutes: 50
+    permissions:
+      contents: read
+      actions: read
     environment:
       name: Preview
     env:
       DO_NOT_TRACK: "1"
       SUPABASE_PARENT_PROJECT_REF: ${{ vars.SUPABASE_PARENT_PROJECT_REF }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
       PREVIEW_BRANCH_NAME: ${{ github.event_name == 'pull_request' && format('pr-{0}-oauth-delivery', github.event.pull_request.number) || format('manual-{0}', github.run_id) }}
       PREVIEW_RESOURCE_KEY: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('manual-{0}', github.run_id) }}
       PREVIEW_GIT_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+      PREVIEW_APPROVED_DEADLINE_UTC: "2026-10-10T03:00:00Z"
       NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
       ALLOW_DEMO_SEED: "false"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
           cache: npm
 
-      - uses: supabase/setup-cli@v1
+      - name: Verify actual Preview required-reviewers protection
+        id: preview-approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/awesome-optimization/preview-approval.mjs
+
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1 branch
         with:
           version: 2.109.1
 
@@ -54,6 +148,8 @@ jobs:
         run: |
           for name in \
             AUDIT_IP_HASH_SECRET \
+            ABUSE_HASH_SECRET \
+            TOKEN_DERIVATION_SECRET \
             SESSION_FINGERPRINT_HASH_SECRET \
             OAUTH_STATE_SECRET \
             DELIVERY_MOCK_WEBHOOK_SECRET \
@@ -97,6 +193,80 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate optional Vercel bypass header before paid resource creation
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+          PREVIEW_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          if [ "$PREVIEW_GIT_BRANCH" = "codex/integrated-production-20261002" ]; then
+            node scripts/preview-harness-preflight.mjs settings
+          fi
+          if [ -n "${VERCEL_TOKEN:-}" ] \
+            && [ -n "${VERCEL_ORG_ID:-}" ] \
+            && [ -n "${VERCEL_PROJECT_ID:-}" ]; then
+            node --input-type=module -e '
+              import { normalizePreviewBypassSecret } from "./scripts/qa-pr366-preview-ui.mjs";
+              const secret = normalizePreviewBypassSecret(process.env.PREVIEW_BYPASS_SECRET);
+              if (secret) console.log(`::add-mask::${secret}`);
+              if (process.env.PREVIEW_GIT_BRANCH === "codex/integrated-production-20261002" && !secret) throw Error("PREVIEW_BYPASS_HEADER_REQUIRED");
+            '
+          fi
+
+      - name: Prepare PR366 browser and verify unchanged Primary before paid resource creation
+        if: github.event_name == 'workflow_dispatch' && env.PREVIEW_GIT_BRANCH == 'codex/integrated-production-20261002'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          npx playwright install --with-deps chromium
+          mkdir -p .preview-receipt
+          node -e 'require("node:fs").writeFileSync(".preview-receipt/expected-primary.json", JSON.stringify({deploymentId:"dpl_Cx8GfP12KuFHcCgtnZ7SXxzt4AYZ",sha:"5cc15c6a6189cfd56e127676bc5228e9ffd2ff56"}), {flag:"wx"})'
+          node scripts/qa-pr366-preview-binding.mjs capture-baseline .preview-receipt/expected-primary.json .preview-receipt/primary-baseline.json
+          for path in login staff/login; do
+            test "$(curl --silent --show-error --max-time 20 --output /dev/null --write-out '%{http_code}' "https://app.qidaigo.com/$path")" = "200"
+          done
+
+      - name: Record manual Preview owner and approved deadline before resource creation
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: node scripts/manual-preview-cleanup.mjs capture
+
+      - name: Upload initial manual Preview recovery receipt
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: manual-preview-initial-${{ github.run_id }}
+          path: .preview-receipt/manual-resources.json
+          if-no-files-found: error
+
+      - name: Require independent approved-deadline cleanup watcher before paid resource creation
+        if: github.event_name == 'workflow_dispatch' && env.PREVIEW_GIT_BRANCH == 'codex/integrated-production-20261002'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          name="manual-preview-watch-ready-$GITHUB_RUN_ID"
+          watcher_id=""
+          for attempt in $(seq 1 12); do
+            artifacts="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$name&per_page=100")"
+            watcher_id="$(jq -r --arg name "$name" '
+              [.artifacts[] | select(.name == $name and .expired == false)] |
+              if length == 1 then .[0].workflow_run.id else empty end
+            ' <<<"$artifacts")"
+            if [ -n "$watcher_id" ]; then break; fi
+            sleep 10
+          done
+          test -n "$watcher_id" || { echo "::error::PREVIEW_DEADLINE_WATCHER_MISSING"; exit 1; }
+          watcher="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$watcher_id")"
+          jq -e --argjson source "$GITHUB_RUN_ID" --arg sha "$GITHUB_SHA" --arg branch "$PREVIEW_GIT_BRANCH" '
+            .id != $source and .event == "workflow_dispatch" and .status == "in_progress" and
+            .head_sha == $sha and .head_branch == $branch and
+            .path == ".github/workflows/ephemeral-preview.yml"
+          ' <<<"$watcher" >/dev/null || { echo "::error::PREVIEW_DEADLINE_WATCHER_INVALID"; exit 1; }
+
       - name: Create or reuse data-less Preview Branch
         id: preview
         env:
@@ -112,10 +282,11 @@ jobs:
           )"
 
           if [ -z "$branch_ref" ]; then
+            node --input-type=module -e "import { approvedExpiry } from './scripts/manual-preview-cleanup.mjs'; approvedExpiry(process.env, new Date());"
             supabase branches create "$PREVIEW_BRANCH_NAME" \
               --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
               --region ap-southeast-1 \
-              --size nano \
+              --size micro \
               --git-branch "$PREVIEW_GIT_BRANCH" \
               --log-level error >/dev/null
           fi
@@ -171,6 +342,20 @@ jobs:
           esac
           echo "branch_ref=$branch_ref" >> "$GITHUB_OUTPUT"
 
+      - name: Capture exact manual Preview Branch for recovery
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: node scripts/manual-preview-cleanup.mjs capture
+
+      - name: Upload manual Preview Branch identity receipt
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: manual-preview-branch-${{ github.run_id }}
+          path: .preview-receipt/manual-resources.json
+          if-no-files-found: error
+
       - name: Load and mask Preview Branch configuration
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -184,13 +369,14 @@ jobs:
           raw_transaction_url="$(jq -r '.POSTGRES_URL' <<<"$config")"
           supabase_url="$(jq -r '.SUPABASE_URL' <<<"$config")"
           anon_key="$(jq -r '.SUPABASE_ANON_KEY' <<<"$config")"
+          service_role_key="$(jq -r '.SUPABASE_SERVICE_ROLE_KEY // empty' <<<"$config")"
           session_url="${raw_transaction_url/:6543\//:5432\/}"
           case "$raw_transaction_url" in
             *\?*) transaction_url="${raw_transaction_url}&pgbouncer=true" ;;
             *) transaction_url="${raw_transaction_url}?pgbouncer=true" ;;
           esac
 
-          for value in "$raw_transaction_url" "$transaction_url" "$session_url" "$supabase_url" "$anon_key"; do
+          for value in "$raw_transaction_url" "$transaction_url" "$session_url" "$supabase_url" "$anon_key" "$service_role_key"; do
             test -n "$value" && test "$value" != "null" || {
               echo "::error::Preview Branch configuration is incomplete."
               exit 1
@@ -203,6 +389,9 @@ jobs:
             echo "DIRECT_URL=$session_url"
             echo "EPHEMERAL_DATABASE_URL=$session_url"
             echo "NEXT_PUBLIC_SUPABASE_URL=$supabase_url"
+            echo "PRIMARY_SUPABASE_URL=$supabase_url"
+            echo "SUPABASE_SECRET_KEY=$service_role_key"
+            echo "PRIMARY_SUPABASE_SECRET_KEY=$service_role_key"
             echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$anon_key"
             echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$anon_key"
             echo "NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL=$supabase_url/functions/v1"
@@ -295,6 +484,31 @@ jobs:
             --db-url "$EPHEMERAL_DATABASE_URL" \
             --file supabase/fixtures/delivery_mock_preview.sql \
             --log-level error
+
+      - name: Configure PR366 synthetic public ordering in the owned child only
+        if: github.ref_name == 'codex/integrated-production-20261002'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          project_ref="${{ steps.preview.outputs.branch_ref }}"
+          test -n "$project_ref" && test "$project_ref" != "$SUPABASE_PARENT_PROJECT_REF"
+          test "$project_ref" != "daeqwtpaxcebmtwxqdkj"
+          secret_file="$(mktemp)"
+          chmod 600 "$secret_file"
+          trap 'rm -f "$secret_file"' EXIT
+          node --input-type=module - "$secret_file" <<'NODE'
+          import { writeFileSync } from 'node:fs';
+          writeFileSync(process.argv[2], [
+            `ABUSE_HASH_SECRET=${process.env.ABUSE_HASH_SECRET}`,
+            `TOKEN_DERIVATION_SECRET=${process.env.TOKEN_DERIVATION_SECRET}`,
+            'APP_ENV=test',
+            'TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA',
+            'TURNSTILE_ALLOW_TEST_KEYS=true',
+          ].join('\n') + '\n', { mode: 0o600 });
+          NODE
+          supabase secrets set --project-ref "$project_ref" --env-file "$secret_file" > /dev/null
 
       - name: Deploy Edge Functions to isolated branch
         env:
@@ -409,8 +623,18 @@ jobs:
           }
 
           line_env_args=()
+          if [ "$PREVIEW_GIT_BRANCH" = "codex/integrated-production-20261002" ]; then
+            for entry in "APP_ENV=test" "COMPLIANCE_ENABLED=false" "COMPLIANCE_DELETION_DRY_RUN=true" "LINE_PLATFORM_ENABLED=false" "LINE_PAY_OPERATIONAL_STATUS=MAINTENANCE" "PAYMENT_LINE_PAY_MERCHANT_ID=" "PAYMENT_LINE_PAY_CHANNEL_SECRET=" "ABUSE_HASH_SECRET=$ABUSE_HASH_SECRET" "TOKEN_DERIVATION_SECRET=$TOKEN_DERIVATION_SECRET" "TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA" "TURNSTILE_ALLOW_TEST_KEYS=true"; do
+              line_env_args+=(--build-env "$entry" --env "$entry")
+            done
+          fi
+          if [ "$PREVIEW_GIT_BRANCH" = "codex/line-platform-oa-v2-20260927" ]; then
+            for entry in "OPENAI_API_KEY=" "AZURE_TRANSLATOR_KEY=" "OPENAI_TRANSLATION_ENABLED=false" "CATALOG_TRANSLATION_ENABLED=false" "LINE_PLATFORM_ENABLED=false"; do
+              line_env_args+=(--build-env "$entry" --env "$entry")
+            done
+          fi
           if [ "${{ steps.line-preview.outputs.enabled }}" = "true" ]; then
-            line_env_args=(
+            line_env_args+=(
               --build-env "OAUTH_LINE_PREVIEW_LIVE=true"
               --build-env "LINE_CHANNEL_ID=$LINE_PREVIEW_CHANNEL_ID"
               --build-env "LINE_CHANNEL_SECRET=$LINE_PREVIEW_CHANNEL_SECRET"
@@ -434,6 +658,9 @@ jobs:
               --meta "githubCommitRef=$PREVIEW_GIT_BRANCH" \
               --build-env "DATABASE_URL=$DATABASE_URL" \
               --build-env "DIRECT_URL=$DIRECT_URL" \
+              --build-env "PRIMARY_SUPABASE_URL=$PRIMARY_SUPABASE_URL" \
+              --build-env "SUPABASE_SECRET_KEY=$SUPABASE_SECRET_KEY" \
+              --build-env "PRIMARY_SUPABASE_SECRET_KEY=$PRIMARY_SUPABASE_SECRET_KEY" \
               --build-env "NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL" \
               --build-env "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" \
               --build-env "NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL=$NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL" \
@@ -453,6 +680,9 @@ jobs:
               --build-env "PRODUCTION_ENVIRONMENT_APPROVED=false" \
               --env "DATABASE_URL=$DATABASE_URL" \
               --env "DIRECT_URL=$DIRECT_URL" \
+              --env "PRIMARY_SUPABASE_URL=$PRIMARY_SUPABASE_URL" \
+              --env "SUPABASE_SECRET_KEY=$SUPABASE_SECRET_KEY" \
+              --env "PRIMARY_SUPABASE_SECRET_KEY=$PRIMARY_SUPABASE_SECRET_KEY" \
               --env "NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL" \
               --env "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" \
               --env "NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL=$NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL" \
@@ -576,6 +806,109 @@ jobs:
           echo "deployment_id=$deployment_id" >> "$GITHUB_OUTPUT"
           echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
 
+      - name: Verify captured Preview deployment coordinates
+        if: steps.vercel-preview.outputs.deployment_id != ''
+        env:
+          CAPTURED_DEPLOYMENT_ID: ${{ steps.vercel-preview.outputs.deployment_id }}
+          CAPTURED_DEPLOYMENT_URL: ${{ steps.vercel-preview.outputs.url }}
+        run: |
+          node -e 'process.stdout.write(JSON.stringify({id:process.env.CAPTURED_DEPLOYMENT_ID,url:process.env.CAPTURED_DEPLOYMENT_URL}))' | node scripts/preview-harness-preflight.mjs deployment
+
+      - name: Capture exact manual Vercel deployment for recovery
+        if: github.event_name == 'workflow_dispatch' && steps.vercel-auth.outputs.enabled == 'true'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: node scripts/manual-preview-cleanup.mjs capture
+
+      - name: Upload paired manual Preview deployment receipt
+        if: github.event_name == 'workflow_dispatch' && steps.vercel-auth.outputs.enabled == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: manual-preview-paired-${{ github.run_id }}
+          path: .preview-receipt/manual-resources.json
+          if-no-files-found: error
+
+      - name: Capture fresh PR366 paired target and run browser QA before cleanup
+        if: github.event_name == 'workflow_dispatch' && env.PREVIEW_GIT_BRANCH == 'codex/integrated-production-20261002' && steps.vercel-auth.outputs.enabled == 'true'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          PR366_CHILD_REF: ${{ steps.preview.outputs.branch_ref }}
+          PR366_DEPLOYMENT_ID: ${{ steps.vercel-preview.outputs.deployment_id }}
+          PR366_CHILD_DATABASE_URL: ${{ env.DATABASE_URL }}
+          PREVIEW_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          PR366_CHILD_DATABASE_URL="$(node -e 'try { const u = new URL(process.env.PR366_CHILD_DATABASE_URL); u.searchParams.set("sslmode", "require"); process.stdout.write(u.href); } catch { process.stderr.write("PR366_DATABASE_URL_INVALID"); process.exit(1); }')"
+          export PR366_CHILD_DATABASE_URL
+          PR366_PRIVATE_FIXTURE_DIR="$(mktemp -d)"
+          chmod 700 "$PR366_PRIVATE_FIXTURE_DIR"
+          export PR366_PRIVATE_FIXTURE_DIR
+          trap 'rm -rf "$PR366_PRIVATE_FIXTURE_DIR"' EXIT
+          node -e 'require("node:fs").writeFileSync(".preview-receipt/ui-selection.json", JSON.stringify({childRef:process.env.PR366_CHILD_REF,deploymentId:process.env.PR366_DEPLOYMENT_ID}), {flag:"wx"})'
+          node scripts/qa-pr366-preview-binding.mjs capture-binding .preview-receipt/manual-resources.json .preview-receipt/ui-selection.json .preview-receipt/primary-baseline.json .preview-receipt/ui-binding.json
+          node scripts/set-pr366-preview-public-secrets.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-public-secret-configuration.json
+          node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui catalog-descriptor
+          for operation in enable-supply dense-schedule dense-workforce dense-supply synthetic-invoices inbox inbox-membership; do
+            node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui "$operation"
+          done
+          node -e 'const fs = require("node:fs"); const p = ".preview-receipt/ui-binding.json"; const b = JSON.parse(fs.readFileSync(p,"utf8")); const load = name => JSON.parse(fs.readFileSync(`.preview-receipt/pr366-ui/fixture-${name}.json`,"utf8")); b.fixtures = {catalogProduct:load("catalog-descriptor"),schedule:load("dense-schedule"),workforce:load("dense-workforce"),supply:load("dense-supply"),invoices:load("synthetic-invoices"),inbox:load("inbox"),membership:load("inbox-membership")}; b.fixtureActions = {prepareDenseExpenses:true}; fs.writeFileSync(p,JSON.stringify(b,null,2));'
+          for operation in prepare-ordering prepare-pos-product; do
+            node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui "$operation"
+          done
+          node scripts/qa-pr366-preview-ui-supervised.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui prepare-cash-shift
+          node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui pos-descriptor
+          node -e 'const fs=require("node:fs"); const p=".preview-receipt/ui-binding.json"; const b=JSON.parse(fs.readFileSync(p,"utf8")); b.fixtures.pos=JSON.parse(fs.readFileSync(".preview-receipt/pr366-ui/fixture-pos-descriptor.json","utf8")); fs.writeFileSync(p,JSON.stringify(b,null,2));'
+          node scripts/qa-pr366-preview-ui-supervised.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui
+          node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui inbox-readback .preview-receipt/pr366-ui/fixture-inbox.json
+          node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui inbox-membership-readback .preview-receipt/pr366-ui/inbox-membership-revoked.json
+          for operation in enable-circuit-b public-qr open-hours; do
+            node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui "$operation"
+          done
+          refresh_binding() {
+            node scripts/qa-pr366-preview-binding.mjs capture-binding .preview-receipt/manual-resources.json .preview-receipt/ui-selection.json .preview-receipt/primary-baseline.json ".preview-receipt/ui-binding-$1.json"
+            node -e 'const fs=require("node:fs"); const p=".preview-receipt/ui-binding.json"; const old=JSON.parse(fs.readFileSync(p,"utf8")); const fresh=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); fresh.fixtures=old.fixtures; fresh.fixtureActions=old.fixtureActions; fresh.fixtures.hours=JSON.parse(fs.readFileSync(process.argv[2],"utf8")); fs.writeFileSync(p,JSON.stringify(fresh,null,2));' ".preview-receipt/ui-binding-$1.json" ".preview-receipt/pr366-ui/fixture-$1-hours.json"
+          }
+          refresh_binding open
+          node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui midnight-rollback
+          node scripts/qa-pr366-preview-ui-supervised.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui hours-open
+          node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui closed-hours
+          refresh_binding closed
+          node scripts/qa-pr366-preview-ui-supervised.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui hours-closed
+          node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui verify-rejected-orders .preview-receipt/pr366-ui/ui-hours-closed.json
+          node -e 'const fs=require("node:fs"); const load=phase=>JSON.parse(fs.readFileSync(`.preview-receipt/pr366-ui/fixture-${phase}-hours.json`,"utf8")); const open=load("open"),closed=load("closed"); if(JSON.stringify(open.after)!==JSON.stringify(closed.before)) throw Error("HOURS_PHASE_CHAIN_CHANGED"); fs.writeFileSync(".preview-receipt/pr366-ui/fixture-original-hours.json",JSON.stringify({...closed,before:open.before}),{flag:"wx"});'
+          node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui restore-hours .preview-receipt/pr366-ui/fixture-original-hours.json
+          node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui overnight-hours
+          refresh_binding overnight
+          node scripts/qa-pr366-preview-ui-supervised.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui hours-overnight
+          node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui cutoff-hours
+          refresh_binding cutoff
+          node scripts/qa-pr366-preview-ui-supervised.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui hours-cutoff
+          node -e 'const fs=require("node:fs"); const load=phase=>JSON.parse(fs.readFileSync(`.preview-receipt/pr366-ui/fixture-${phase}-hours.json`,"utf8")); const overnight=load("overnight"),cutoff=load("cutoff"); if(JSON.stringify(overnight.after)!==JSON.stringify(cutoff.before)) throw Error("HOURS_PHASE_CHAIN_CHANGED"); fs.writeFileSync(".preview-receipt/pr366-ui/fixture-calendar-original-hours.json",JSON.stringify({...cutoff,before:overnight.before}),{flag:"wx"});'
+          node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui restore-hours .preview-receipt/pr366-ui/fixture-calendar-original-hours.json
+          for operation in ordering supply; do
+            fixture_operation="enable-$operation"
+            if [ "$operation" = ordering ]; then fixture_operation=prepare-ordering; fi
+            node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui "restore-$operation" ".preview-receipt/pr366-ui/fixture-$fixture_operation.json"
+          done
+          node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui prepare-preorder
+          node scripts/qa-pr366-preview-binding.mjs capture-binding .preview-receipt/manual-resources.json .preview-receipt/ui-selection.json .preview-receipt/primary-baseline.json .preview-receipt/ui-binding-preorder.json
+          node -e 'const fs=require("node:fs"); const p=".preview-receipt/ui-binding.json"; const old=JSON.parse(fs.readFileSync(p,"utf8")); const fresh=JSON.parse(fs.readFileSync(".preview-receipt/ui-binding-preorder.json","utf8")); fresh.fixtures={...old.fixtures,preorder:JSON.parse(fs.readFileSync(".preview-receipt/pr366-ui/fixture-prepare-preorder.json","utf8"))}; fs.writeFileSync(p,JSON.stringify(fresh,null,2));'
+          node scripts/qa-pr366-preview-ui-supervised.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui hours-preorder
+          node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui restore-preorder .preview-receipt/pr366-ui/fixture-prepare-preorder.json
+          node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui restore-circuit-b .preview-receipt/pr366-ui/fixture-enable-circuit-b.json
+
+      - name: Preserve PR366 baseline and actual browser evidence
+        if: always() && steps.preview-approval.outcome == 'success' && github.event_name == 'workflow_dispatch' && env.PREVIEW_GIT_BRANCH == 'codex/integrated-production-20261002'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pr366-browser-qa-${{ github.run_id }}
+          path: |
+            .preview-receipt/primary-baseline.json
+            .preview-receipt/ui-binding.json
+            .preview-receipt/pr366-ui/
+          if-no-files-found: warn
+
       - name: Run matching Preview read-only smoke
         if: steps.vercel-auth.outputs.enabled == 'true'
         env:
@@ -586,7 +919,7 @@ jobs:
         run: npm run production:smoke
 
       - name: Run isolated catalog translation glossary smoke
-        if: steps.vercel-auth.outputs.enabled == 'true' && steps.vercel-preview.outputs.translation_enabled == 'true'
+        if: steps.vercel-auth.outputs.enabled == 'true' && steps.vercel-preview.outputs.translation_enabled == 'true' && env.PREVIEW_GIT_BRANCH != 'codex/line-platform-oa-v2-20260927'
         env:
           CATALOG_TRANSLATION_SYNTHETIC_BASE_URL: ${{ steps.vercel-preview.outputs.url }}
           CATALOG_TRANSLATION_SYNTHETIC_CONFIRMATION: EPHEMERAL_PREVIEW_ONLY
@@ -602,7 +935,7 @@ jobs:
         run: npm run preview:delivery-smoke
 
       - name: Clean reusable Preview-only fixture state
-        if: always() && env.EPHEMERAL_DATABASE_URL != ''
+        if: always() && steps.preview-approval.outcome == 'success' && env.EPHEMERAL_DATABASE_URL != ''
         run: |
           supabase db query \
             --db-url "$EPHEMERAL_DATABASE_URL" \
@@ -621,47 +954,69 @@ jobs:
             --file supabase/fixtures/line_live_preview.sql \
             --log-level error
 
-      - name: Remove manual Vercel Preview
-        if: always() && github.event_name == 'workflow_dispatch' && steps.vercel-preview.outputs.deployment_id != ''
+      - name: Clean exact manual Preview resources and verify absence
+        if: always() && steps.preview-approval.outcome == 'success' && github.event_name == 'workflow_dispatch'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: |
-          npx --yes vercel@58.3.0 remove \
-            "${{ steps.vercel-preview.outputs.deployment_id }}" \
-            --yes \
-            --token "$VERCEL_TOKEN" || true
-
-      - name: Remove manual Preview Branch
-        if: always() && github.event_name == 'workflow_dispatch'
-        env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: |
-          supabase branches delete "$PREVIEW_BRANCH_NAME" \
-            --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
-            --yes \
-            --log-level error || true
+        run: node scripts/manual-preview-cleanup.mjs cleanup
+
+      - name: Upload final manual Preview cleanup or recovery receipt
+        if: always() && steps.preview-approval.outcome == 'success' && github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: manual-preview-final-${{ github.run_id }}
+          path: .preview-receipt/manual-resources.json
+          if-no-files-found: warn
 
   cleanup:
     if: >-
-      github.event_name == 'pull_request' &&
-      github.event.action == 'closed' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      github.event_name == 'workflow_dispatch' &&
+      inputs.approve_external_preview == true &&
+      inputs.operation == 'cleanup' &&
+      inputs.cleanup_pr_number != ''
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
     environment:
       name: Preview
     env:
       DO_NOT_TRACK: "1"
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_PARENT_PROJECT_REF: ${{ vars.SUPABASE_PARENT_PROJECT_REF }}
-      PREVIEW_BRANCH_NAME: pr-${{ github.event.pull_request.number }}-oauth-delivery
-      PREVIEW_RESOURCE_KEY: pr-${{ github.event.pull_request.number }}
+      PREVIEW_BRANCH_NAME: pr-${{ inputs.cleanup_pr_number }}-oauth-delivery
+      PREVIEW_RESOURCE_KEY: pr-${{ inputs.cleanup_pr_number }}
     steps:
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Validate exact cleanup owner
+        env:
+          CLEANUP_PR_NUMBER: ${{ inputs.cleanup_pr_number }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [[ "$CLEANUP_PR_NUMBER" =~ ^[1-9][0-9]{0,6}$ ]] || exit 1
+          test "$PREVIEW_RESOURCE_KEY" = "pr-$CLEANUP_PR_NUMBER" || exit 1
+          test "$PREVIEW_BRANCH_NAME" = "pr-$CLEANUP_PR_NUMBER-oauth-delivery" || exit 1
+          pull_request="$(curl --fail --silent --show-error --max-time 30 \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/pulls/$CLEANUP_PR_NUMBER")"
+          jq -e --arg repository "$GITHUB_REPOSITORY" --argjson number "$CLEANUP_PR_NUMBER" \
+            '.state == "closed" and .number == $number and .head.repo.full_name == $repository' \
+            <<<"$pull_request" >/dev/null || exit 1
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
 
-      - uses: supabase/setup-cli@v1
+      - name: Verify actual Preview required-reviewers protection
+        id: preview-approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/awesome-optimization/preview-approval.mjs
+
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1 branch
         with:
           version: 2.109.1
 
@@ -730,3 +1085,250 @@ jobs:
             --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
             --yes \
             --log-level error || true
+
+
+  deadline-cleanup-manual-run:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.approve_external_preview == true &&
+      inputs.operation == 'deadline-cleanup-manual-run' &&
+      inputs.cleanup_run_id != '' &&
+      github.ref_name == 'codex/integrated-production-20261002'
+    runs-on: ubuntu-latest
+    timeout-minutes: 210
+    permissions:
+      contents: read
+      actions: read
+    environment:
+      name: Preview
+    env:
+      CLEANUP_RUN_ID: ${{ inputs.cleanup_run_id }}
+      GH_TOKEN: ${{ github.token }}
+      PREVIEW_EXPECTED_HEAD_SHA: ${{ github.sha }}
+      PREVIEW_EXPECTED_GIT_BRANCH: ${{ github.ref_name }}
+      PREVIEW_GIT_BRANCH: ${{ github.ref_name }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PARENT_PROJECT_REF: ${{ vars.SUPABASE_PARENT_PROJECT_REF }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+      - name: Verify actual Preview required-reviewers protection
+        id: preview-approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/awesome-optimization/preview-approval.mjs
+      - name: Bind watcher to exact PR366 manual validation run
+        id: watch-ready
+        shell: bash
+        run: |
+          [[ "$CLEANUP_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]] || exit 1
+          test -n "$SUPABASE_ACCESS_TOKEN" && test -n "$VERCEL_TOKEN"
+          mkdir -p .manual-watch
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CLEANUP_RUN_ID" > .manual-watch/source-run.json
+          jq -e --arg id "$CLEANUP_RUN_ID" --arg repo "$GITHUB_REPOSITORY" --arg sha "$GITHUB_SHA" --arg branch "$PREVIEW_GIT_BRANCH" '
+            (.id | tostring) == $id and .repository.full_name == $repo and
+            .event == "workflow_dispatch" and .status != "completed" and
+            .path == ".github/workflows/ephemeral-preview.yml" and
+            .head_sha == $sha and .head_branch == $branch
+          ' .manual-watch/source-run.json >/dev/null
+          jq -n --arg source "$CLEANUP_RUN_ID" --arg watcher "$GITHUB_RUN_ID" --arg sha "$GITHUB_SHA" \
+            '{sourceRunId:$source,watcherRunId:$watcher,headSha:$sha,status:"READY"}' > .manual-watch/ready.json
+      - name: Publish independent watcher readiness before paid resource creation
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: manual-preview-watch-ready-${{ inputs.cleanup_run_id }}
+          path: .manual-watch/ready.json
+          if-no-files-found: error
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1 branch
+        with:
+          version: 2.109.1
+      - name: Wait for exact receipt and approved expiration
+        shell: bash
+        run: |
+          name="manual-preview-initial-$CLEANUP_RUN_ID"
+          found=""
+          for attempt in $(seq 1 120); do
+            count="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CLEANUP_RUN_ID/artifacts" \
+              --jq ".artifacts | map(select(.name == \"$name\" and .expired == false)) | length")"
+            if [ "$count" = 1 ]; then found=true; break; fi
+            test "$count" = 0 || exit 1
+            sleep 10
+          done
+          test "$found" = true || { echo "::error::PREVIEW_INITIAL_RECEIPT_MISSING"; exit 1; }
+          mkdir -p .manual-watch/initial
+          gh run download "$CLEANUP_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$name" --dir .manual-watch/initial
+          cleanup_start_ms="$(node scripts/manual-preview-deadline-watch.mjs .manual-watch/initial/manual-resources.json)"
+          while [ "$(date -u +%s%3N)" -lt "$cleanup_start_ms" ]; do sleep 20; done
+      - name: Recover exact original manual run ownership for deadline cleanup
+        id: deadline-recovery
+        if: always() && steps.preview-approval.outcome == 'success' && steps.watch-ready.outcome == 'success'
+        shell: bash
+        run: |
+          mkdir -p .manual-recovery
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CLEANUP_RUN_ID" > .manual-recovery/source-run.json
+          gh run download "$CLEANUP_RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern "manual-preview-*-$CLEANUP_RUN_ID" --dir .manual-recovery
+          node scripts/manual-preview-recovery.mjs .manual-recovery/source-run.json .manual-recovery
+      - name: Independently clean and read back only the original manual run resources
+        if: always() && steps.preview-approval.outcome == 'success' && steps.watch-ready.outcome == 'success' && steps.deadline-recovery.outcome == 'success'
+        run: node scripts/manual-preview-cleanup.mjs cleanup
+      - name: Preserve independent deadline cleanup evidence
+        if: always() && steps.preview-approval.outcome == 'success' && steps.watch-ready.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: manual-preview-watch-final-${{ inputs.cleanup_run_id }}-${{ github.run_id }}
+          path: .preview-receipt/manual-resources.json
+          if-no-files-found: warn
+
+  cleanup-manual-run:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.approve_external_preview == true &&
+      inputs.operation == 'cleanup-manual-run' &&
+      inputs.cleanup_run_id != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: manual-preview-recovery-${{ inputs.cleanup_run_id }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      actions: read
+    environment:
+      name: Preview
+    env:
+      CLEANUP_RUN_ID: ${{ inputs.cleanup_run_id }}
+      GH_TOKEN: ${{ github.token }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PARENT_PROJECT_REF: ${{ vars.SUPABASE_PARENT_PROJECT_REF }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+      - name: Verify actual Preview required-reviewers protection
+        id: preview-approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/awesome-optimization/preview-approval.mjs
+      - name: Diagnose public configuration shape for failed pre-creation run
+        if: inputs.cleanup_run_id == '37735318177'
+        run: node scripts/qa-pr366-preview-binding.mjs diagnose-public-config
+      - name: Read exact completed source run and its recovery artifacts
+        shell: bash
+        run: |
+          [[ "$CLEANUP_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]] || exit 1
+          test -n "$SUPABASE_ACCESS_TOKEN" && test -n "$VERCEL_TOKEN"
+          mkdir -p .manual-recovery
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CLEANUP_RUN_ID" > .manual-recovery/source-run.json
+          jq -e --arg id "$CLEANUP_RUN_ID" --arg repo "$GITHUB_REPOSITORY" '
+            (.id | tostring) == $id and .repository.full_name == $repo and
+            .event == "workflow_dispatch" and .status == "completed" and
+            .path == ".github/workflows/ephemeral-preview.yml"
+          ' .manual-recovery/source-run.json >/dev/null
+          gh run download "$CLEANUP_RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern "manual-preview-*-$CLEANUP_RUN_ID" --dir .manual-recovery
+          node scripts/manual-preview-recovery.mjs .manual-recovery/source-run.json .manual-recovery
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1 branch
+        with:
+          version: 2.109.1
+      - name: Clean and read back only the verified original manual run resources
+        run: node scripts/manual-preview-cleanup.mjs cleanup
+      - name: Preserve exact recovery cleanup or failure receipt
+        if: always() && steps.preview-approval.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: manual-preview-recovery-${{ inputs.cleanup_run_id }}-${{ github.run_id }}
+          path: .preview-receipt/manual-resources.json
+          if-no-files-found: warn
+
+  resume-manual-run:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.approve_external_preview == true &&
+      inputs.operation == 'resume-manual-run' &&
+      inputs.cleanup_run_id == '37103994917' &&
+      github.ref_name == 'codex/integrated-production-20261002'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    concurrency:
+      group: manual-preview-recovery-${{ inputs.cleanup_run_id }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      actions: read
+    environment:
+      name: Preview
+    env:
+      CLEANUP_RUN_ID: ${{ inputs.cleanup_run_id }}
+      GH_TOKEN: ${{ github.token }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PARENT_PROJECT_REF: ${{ vars.SUPABASE_PARENT_PROJECT_REF }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      PREVIEW_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+          cache: npm
+      - name: Verify actual Preview required-reviewers protection
+        id: preview-approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/awesome-optimization/preview-approval.mjs
+      - name: Recover exact original completed run receipt without extending expiry
+        run: |
+          mkdir -p .manual-recovery
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CLEANUP_RUN_ID" > .manual-recovery/source-run.json
+          gh run download "$CLEANUP_RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern "manual-preview-*-$CLEANUP_RUN_ID" --dir .manual-recovery
+          gh run download "$CLEANUP_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "pr366-browser-qa-$CLEANUP_RUN_ID" --dir .manual-recovery/browser
+          node scripts/manual-preview-recovery.mjs .manual-recovery/source-run.json .manual-recovery
+          cp .manual-recovery/browser/primary-baseline.json .preview-receipt/primary-baseline.json
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb
+        with:
+          version: 2.109.1
+      - name: Capture and verify the existing original resource pair
+        run: node scripts/manual-preview-cleanup.mjs capture
+      - name: Preserve exact recovered ownership
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: manual-preview-resume-owned-${{ github.run_id }}
+          path: .preview-receipt/manual-resources.json
+          if-no-files-found: error
+      - run: npm ci
+      - run: npm run prisma:generate
+      - run: npx playwright install --with-deps chromium
+      - name: Verify runtime equivalence and test the original paired Preview
+        run: bash scripts/qa-pr366-preview-resume.sh
+      - name: Preserve actual resumed browser and database evidence
+        if: always() && steps.preview-approval.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pr366-resumed-browser-qa-${{ github.run_id }}
+          path: |
+            .preview-receipt/primary-baseline.json
+            .preview-receipt/runtime-equivalence.json
+            .preview-receipt/ui-binding.json
+            .preview-receipt/pr366-ui/
+          if-no-files-found: warn
+      - name: Clean the original exact pair and verify absence
+        if: always() && steps.preview-approval.outcome == 'success'
+        run: node scripts/manual-preview-cleanup.mjs cleanup
+      - name: Preserve exact resumed cleanup receipt
+        if: always() && steps.preview-approval.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: manual-preview-resume-final-${{ github.run_id }}
+          path: .preview-receipt/manual-resources.json
+          if-no-files-found: warn

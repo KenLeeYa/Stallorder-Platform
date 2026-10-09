@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { lineWebhookManagementSettingsSchema } from "./line-webhook-management-contract";
 
 export const lineNotificationTemplateCodes = [
   "ORDER_CONFIRMED",
@@ -23,6 +24,7 @@ export const lineIntegrationSecretsSchema = z.object({
 export const lineRecipientSecretSchema = z.object({
   providerUserId: z.string().min(1).max(100),
   trackingToken: z.string().min(40).max(200),
+  providerId: z.string().regex(/^\d{1,30}$/).optional(),
 }).strict();
 
 export const lineLinkEphemeralSecretSchema = z.object({
@@ -38,6 +40,7 @@ export const lineIntegrationSettingsSchema = z.object({
   notifyConfirmed: z.boolean().default(true),
   notifyReady: z.boolean().default(true),
   notifyCancelled: z.boolean().default(true),
+  webhookManagement: lineWebhookManagementSettingsSchema.optional(),
 }).strict();
 
 export const lineIntegrationCommandSchema = z.discriminatedUnion("operation", [

@@ -4,6 +4,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { PrismaClient } from "@prisma/client";
 import { applyDrOperatorUpdate, buildDrOperatorUpdatePlan, validateDrOperatorUpdatePlan } from "./lib/dr-operator-update.mjs";
+import { fetchDrProvider, withReservedDrEvidence, writeDrEvidence, writeDrFailureEvidence } from "./lib/dr-operator-io.mjs";
 import {
   DR_OPERATOR_ENTRY,
   assertVercelDeploymentProjectIsolation,
@@ -57,7 +58,8 @@ try {
     if (currentPlan.planDigest !== approvedPlan.planDigest) {
       fail("DR_ENTRY_PROVIDER_STATE_CHANGED_AFTER_PLAN");
     }
-    const evidence = await (updateExisting ? updateEntry(approvedPlan) : applyEntry(approvedPlan));
+    const evidence = await withReservedDrEvidence(process.env.DR_OPERATOR_EVIDENCE_PATH?.trim(),
+      handle => updateExisting ? updateEntry(approvedPlan, handle) : applyEntry(approvedPlan, handle));
     console.log(JSON.stringify(evidence, null, 2));
   } else {
     console.log(JSON.stringify(await createPlan(), null, 2));
@@ -140,7 +142,7 @@ async function probeUpdateDeployment(url, projectId, runtime) {
   return body;
 }
 
-async function updateEntry(plan) {
+async function updateEntry(plan, evidenceHandle) {
   const projectId = plan.target.projectId;
   const assertPrimary = () => assertPrimaryStateUnchanged(plan);
   const policyPath = `/accounts/${cloudflareAccountId}/access/apps/${plan.before.access.id}/policies/${plan.before.access.policyId}`;
@@ -188,11 +190,13 @@ async function updateEntry(plan) {
     });
     const evidence = { ...result, operation: plan.operation, planDigest: plan.planDigest, source: plan.source,
       targetProjectId: projectId, humanDashboardVerification: "PENDING_BROWSER_CHECK", completedAt: new Date().toISOString() };
-    await writeEvidence(evidence);
+    await writeEvidence(evidence, evidenceHandle);
     return evidence;
   } catch (error) {
-    await writeEvidence({ completed: false, operation: plan.operation, planDigest: plan.planDigest,
-      reasonCode: error instanceof Error ? error.message : "DR_UPDATE_FAILED", failedAt: new Date().toISOString() });
+    await writeDrFailureEvidence(evidenceHandle, {
+      completed: false, operation: plan.operation, planDigest: plan.planDigest,
+      reasonCode: error instanceof Error ? error.message : "DR_UPDATE_FAILED", failedAt: new Date().toISOString(),
+    }, error);
     throw error;
   }
 }
@@ -320,7 +324,7 @@ async function readPrimaryHealthStatus() {
   }
 }
 
-async function applyEntry(plan) {
+async function applyEntry(plan, evidenceHandle) {
   let targetProjectId = null;
   let drDnsRecordId = null;
   let accessApplicationId = null;
@@ -463,7 +467,7 @@ async function applyEntry(plan) {
       legacyStagingRetired: finalState.legacyStagingRetired,
       completedAt: new Date().toISOString(),
     };
-    await writeEvidence(evidence);
+    await writeEvidence(evidence, evidenceHandle);
     return evidence;
   } catch (error) {
     accessApplicationId ??= error?.accessApplicationId ?? null;
@@ -474,7 +478,7 @@ async function applyEntry(plan) {
       accessApplicationId,
       qaServiceTokenId,
     }).catch(() => ({ completed: false }));
-    await writeEvidence({
+    await writeDrFailureEvidence(evidenceHandle, {
       schemaVersion: 1,
       operation: plan.operation,
       planDigest: plan.planDigest,
@@ -491,11 +495,11 @@ async function applyEntry(plan) {
       probeServer: error?.probeServer ?? null,
       rollbackCompleted: rollbackResult.completed === true,
       failedAt: new Date().toISOString(),
-    }).catch(() => {});
+    }, error);
     if (rollbackResult.completed !== true) {
       throw new Error("DR_ENTRY_APPLY_FAILED_ROLLBACK_INCOMPLETE");
     }
-    throw new Error(error instanceof Error ? error.message : "DR_ENTRY_APPLY_FAILED");
+    throw error instanceof Error ? error : new Error("DR_ENTRY_APPLY_FAILED");
   }
 }
 
@@ -724,6 +728,10 @@ async function deployDrRuntime(plan, accessResources, targetProjectId, probeCred
     NEXT_PUBLIC_GOOGLE_LOGIN_ENABLED: "false",
     ALLOW_DEMO_SEED: "false",
     LOCAL_QA_DISABLE_LOGIN_RATE_LIMIT: "false",
+    LINE_PLATFORM_ENABLED: "false",
+    LINE_PLATFORM_NOTIFICATIONS_ENABLED: "false",
+    COMPLIANCE_ENABLED: "false",
+    COMPLIANCE_DELETION_DRY_RUN: "true",
   };
   const runtimeOnly = {
     DR_OPERATOR_PROBE_SECRET: probeCredential,
@@ -1332,7 +1340,7 @@ async function linkProject(projectId) {
 }
 
 async function readCloudflareAccessState() {
-  const response = await fetch(
+  const response = await fetchDrProvider(
     `https://api.cloudflare.com/client/v4/accounts/${cloudflareAccountId}/access/apps?per_page=1000`,
     { headers: cloudflareHeaders(), signal: AbortSignal.timeout(30_000) },
   );
@@ -1419,7 +1427,7 @@ async function providerRequest(
   unwrapResult = false,
   failureStage = `${provider}_REQUEST`,
 ) {
-  const response = await fetch(url, { ...init, signal: AbortSignal.timeout(30_000) });
+  const response = await fetchDrProvider(url, init);
   const payload = await response.json().catch(() => null);
   if (!response.ok || (unwrapResult && payload?.success !== true)) {
     const error = new Error(`${provider}_API_${response.status}`);
@@ -1458,14 +1466,8 @@ async function git(...commandArgs) {
   return result.stdout.trim();
 }
 
-async function writeEvidence(evidence) {
-  const evidencePath = process.env.DR_OPERATOR_EVIDENCE_PATH?.trim();
-  if (!evidencePath) return;
-  await mkdir(path.dirname(evidencePath), { recursive: true });
-  await writeFile(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`, {
-    encoding: "utf8",
-    mode: 0o600,
-  });
+async function writeEvidence(evidence, evidenceHandle) {
+  await writeDrEvidence(evidenceHandle, evidence);
 }
 
 function safeDomain(domain) {

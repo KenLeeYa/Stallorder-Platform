@@ -1,4 +1,5 @@
 import type { AppLocale } from "@/lib/app-locale";
+import { catalogAvailabilityMessages } from "./catalog-availability";
 import { createMessageCatalog, type MessageValues } from "@/lib/message-catalog";
 
 type MerchantMessageRow = Record<AppLocale, string>;
@@ -29,6 +30,34 @@ const merchantDescriptionOverrides = {
 } as const satisfies Record<string, MerchantMessageRow>;
 
 const merchantMessageRows = {
+  "返回商品清單": {"zh-TW": "返回商品清單", "en": "Back to product list", "ja": "商品一覧に戻る", "ko": "상품 목록으로 돌아가기", "vi": "Quay lại danh sách sản phẩm", "th": "กลับไปยังรายการสินค้า"},
+  "載入完整商品管理…": {"zh-TW": "載入完整商品管理…", "en": "Loading complete catalog…", "ja": "商品管理を読み込み中…", "ko": "전체 상품 관리 불러오는 중…", "vi": "Đang tải toàn bộ danh mục…", "th": "กำลังโหลดการจัดการสินค้าทั้งหมด…"},
+  "搜尋商品": {"zh-TW": "搜尋商品", "en": "Search products", "ja": "商品を検索", "ko": "상품 검색", "vi": "Tìm sản phẩm", "th": "ค้นหาสินค้า"},
+  "目錄順序": {"zh-TW": "目錄順序", "en": "Catalog order", "ja": "カタログ順", "ko": "목록 순서", "vi": "Thứ tự danh mục", "th": "ลำดับแค็ตตาล็อก"},
+  "名稱遞增": {"zh-TW": "名稱遞增", "en": "Name ascending", "ja": "名前の昇順", "ko": "이름 오름차순", "vi": "Tên tăng dần", "th": "ชื่อจากน้อยไปมาก"},
+  "名稱遞減": {"zh-TW": "名稱遞減", "en": "Name descending", "ja": "名前の降順", "ko": "이름 내림차순", "vi": "Tên giảm dần", "th": "ชื่อจากมากไปน้อย"},
+  "完整管理／新增商品": {"zh-TW": "完整管理／新增商品", "en": "Complete catalog / Add product", "ja": "全商品管理／商品追加", "ko": "전체 관리 / 상품 추가", "vi": "Quản lý toàn bộ / Thêm sản phẩm", "th": "จัดการทั้งหมด / เพิ่มสินค้า"},
+  "載入商品…": {"zh-TW": "載入商品…", "en": "Loading products…", "ja": "商品を読み込み中…", "ko": "상품 불러오는 중…", "vi": "Đang tải sản phẩm…", "th": "กำลังโหลดสินค้า…"},
+  "共 {count} 項商品": {"zh-TW": "共 {count} 項商品", "en": "{count} products", "ja": "商品 {count} 件", "ko": "상품 {count}개", "vi": "{count} sản phẩm", "th": "สินค้า {count} รายการ"},
+  " · 更新中…": {"zh-TW": " · 更新中…", "en": " · Updating…", "ja": " · 更新中…", "ko": " · 업데이트 중…", "vi": " · Đang cập nhật…", "th": " · กำลังอัปเดต…"},
+  "授權組織商品清單": {"zh-TW": "授權組織商品清單", "en": "Authorized organization products", "ja": "権限のある組織の商品一覧", "ko": "권한이 있는 조직의 상품 목록", "vi": "Sản phẩm của tổ chức được cấp quyền", "th": "รายการสินค้าขององค์กรที่ได้รับสิทธิ์"},
+  "沒有符合條件的商品。": {"zh-TW": "沒有符合條件的商品。", "en": "No matching products.", "ja": "条件に一致する商品はありません。", "ko": "조건에 맞는 상품이 없습니다.", "vi": "Không có sản phẩm phù hợp.", "th": "ไม่พบสินค้าที่ตรงเงื่อนไข"},
+  "每頁商品數": {"zh-TW": "每頁商品數", "en": "Products per page", "ja": "1ページの商品数", "ko": "페이지당 상품 수", "vi": "Số sản phẩm mỗi trang", "th": "จำนวนสินค้าต่อหน้า"},
+  "目前離線；顯示的資料可能已過期。": {"zh-TW": "目前離線；顯示的資料可能已過期。", "en": "Offline; displayed data may be outdated.", "ja": "オフラインです。表示データは古い可能性があります。", "ko": "오프라인입니다. 표시된 데이터가 오래되었을 수 있습니다.", "vi": "Đang ngoại tuyến; dữ liệu hiển thị có thể đã cũ.", "th": "ออฟไลน์ ข้อมูลที่แสดงอาจไม่เป็นปัจจุบัน"},
+  "最後讀取：{time}": {"zh-TW": "最後讀取：{time}", "en": "Last read: {time}", "ja": "最終取得：{time}", "ko": "마지막 조회: {time}", "vi": "Đọc lần cuối: {time}", "th": "อ่านล่าสุด: {time}"},
+  "尚未讀取資料。": {"zh-TW": "尚未讀取資料。", "en": "No data read yet.", "ja": "まだデータを取得していません。", "ko": "아직 데이터를 조회하지 않았습니다.", "vi": "Chưa đọc dữ liệu.", "th": "ยังไม่ได้อ่านข้อมูล"},
+  "請等待 {seconds} 秒。": {"zh-TW": "請等待 {seconds} 秒。", "en": "Please wait {seconds} seconds.", "ja": "{seconds} 秒お待ちください。", "ko": "{seconds}초 기다려 주세요.", "vi": "Vui lòng đợi {seconds} giây.", "th": "โปรดรอ {seconds} วินาที"},
+  "讀取失敗，請重新整理。": {"zh-TW": "讀取失敗，請重新整理。", "en": "Read failed. Please refresh.", "ja": "取得に失敗しました。更新してください。", "ko": "조회에 실패했습니다. 새로고침해 주세요.", "vi": "Đọc thất bại. Vui lòng làm mới.", "th": "อ่านไม่สำเร็จ โปรดรีเฟรช"},
+  "無法連線，請稍後重試。": {"zh-TW": "無法連線，請稍後重試。", "en": "Unable to connect. Try again later.", "ja": "接続できません。後でもう一度お試しください。", "ko": "연결할 수 없습니다. 나중에 다시 시도하세요.", "vi": "Không thể kết nối. Vui lòng thử lại sau.", "th": "เชื่อมต่อไม่ได้ โปรดลองอีกครั้งภายหลัง"},
+  "資料格式不符，請重新整理。": {"zh-TW": "資料格式不符，請重新整理。", "en": "Unexpected data format. Please refresh.", "ja": "データ形式が異なります。更新してください。", "ko": "데이터 형식이 올바르지 않습니다. 새로고침해 주세요.", "vi": "Định dạng dữ liệu không phù hợp. Vui lòng làm mới.", "th": "รูปแบบข้อมูลไม่ถูกต้อง โปรดรีเฟรช"},
+  "讀取暫時受限。": {"zh-TW": "讀取暫時受限。", "en": "Reads are temporarily limited.", "ja": "取得が一時的に制限されています。", "ko": "조회가 일시적으로 제한되었습니다.", "vi": "Việc đọc tạm thời bị giới hạn.", "th": "การอ่านถูกจำกัดชั่วคราว"},
+  "權限或登入狀態已變更。請重新整理後繼續。": {"zh-TW": "權限或登入狀態已變更。請重新整理後繼續。", "en": "Access or sign-in state changed. Refresh to continue.", "ja": "権限またはログイン状態が変わりました。更新して続行してください。", "ko": "권한 또는 로그인 상태가 변경되었습니다. 계속하려면 새로고침하세요.", "vi": "Quyền hoặc trạng thái đăng nhập đã thay đổi. Làm mới để tiếp tục.", "th": "สิทธิ์หรือสถานะเข้าสู่ระบบเปลี่ยนแล้ว โปรดรีเฟรชเพื่อดำเนินการต่อ"},
+  "價格": {"zh-TW": "價格", "en": "Price", "ja": "価格", "ko": "가격", "vi": "Giá", "th": "ราคา"},
+  "清除篩選": {"zh-TW": "清除篩選", "en": "Clear filters", "ja": "絞り込み解除", "ko": "필터 초기화", "vi": "Xóa bộ lọc", "th": "ล้างตัวกรอง"},
+  "上一頁": {"zh-TW": "上一頁", "en": "Previous", "ja": "前へ", "ko": "이전", "vi": "Trước", "th": "ก่อนหน้า"},
+  "下一頁": {"zh-TW": "下一頁", "en": "Next", "ja": "次へ", "ko": "다음", "vi": "Sau", "th": "ถัดไป"},
+  "重試": {"zh-TW": "重試", "en": "Retry", "ja": "再試行", "ko": "다시 시도", "vi": "Thử lại", "th": "ลองอีกครั้ง"},
+  ...catalogAvailabilityMessages,
   "線上 Menu 公告": { "zh-TW": "線上 Menu 公告", en: "Online menu announcement", ja: "オンラインメニューのお知らせ", ko: "온라인 메뉴 공지", vi: "Thông báo thực đơn trực tuyến", th: "ประกาศเมนูออนไลน์" },
   "官方帳號": { "zh-TW": "官方帳號", en: "Official account", ja: "公式アカウント", ko: "공식 계정", vi: "Tài khoản chính thức", th: "บัญชีทางการ" },
   "通知設定": { "zh-TW": "通知設定", en: "Notification settings", ja: "通知設定", ko: "알림 설정", vi: "Cài đặt thông báo", th: "ตั้งค่าการแจ้งเตือน" },

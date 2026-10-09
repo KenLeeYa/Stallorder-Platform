@@ -138,18 +138,19 @@ export async function POST(request: Request) {
     );
   }
 
+  const body = await readJson(request, requestId);
+  const parsed = body.error ? null : merchantApplicationCommandSchema.safeParse(body.data);
+  const command = parsed?.success ? parsed.data : null;
+  const isDraft = command?.intent === "SAVE_DRAFT";
   const baseLimit = await checkRateLimit({
-    scope: "merchant-application-api",
+    scope: !command ? "merchant-application-invalid-api" : isDraft ? "merchant-application-draft-api" : "merchant-application-api",
     identifier: principal.user.id,
-    limit: 60,
+    limit: isDraft ? 600 : 60,
     windowMs: 60 * 60_000,
   });
   if (!baseLimit.allowed) return rateLimitResponse(baseLimit.retryAfterSeconds, requestId);
-
-  const body = await readJson(request, requestId);
   if (body.error) return body.error;
-  const parsed = merchantApplicationCommandSchema.safeParse(body.data);
-  if (!parsed.success) {
+  if (parsed && !parsed.success) {
     const fieldErrors = getMerchantApplicationFieldErrors(parsed.error);
     const invalidFields = Object.keys(fieldErrors)
       .map((field) => merchantApplicationFieldLabels[field as keyof typeof merchantApplicationFieldLabels]);
@@ -164,7 +165,8 @@ export async function POST(request: Request) {
     );
   }
 
-  if (parsed.data.intent === "SUBMIT") {
+  if (!command) throw new Error("Invalid parsed application command");
+  if (command.intent === "SUBMIT") {
     const emailHash = hashApplicationIdentifier("email", profileEmail);
     const [profileLimit, emailLimit, ipHourLimit, ipDayLimit, sessionLimit] = await Promise.all([
       checkRateLimit({
@@ -222,22 +224,26 @@ export async function POST(request: Request) {
     sessionId: principal.sessionId,
   };
   try {
-    const application = parsed.data.intent === "SAVE_DRAFT"
+    const application = command.intent === "SAVE_DRAFT"
       ? await saveMerchantApplicationDraft({
           identity,
-          currentStep: parsed.data.currentStep,
-          data: parsed.data.data,
+          currentStep: command.currentStep,
+          applicationId: command.applicationId,
+          expectedDraftVersion: command.expectedDraftVersion,
+          data: command.data,
           audit: { requestId, ipHash },
         })
-      : parsed.data.intent === "SUBMIT"
+      : command.intent === "SUBMIT"
         ? await submitMerchantApplication({
             identity,
-            data: parsed.data.data,
+            applicationId: command.applicationId,
+            expectedDraftVersion: command.expectedDraftVersion,
+            data: command.data,
             audit: { requestId, ipHash },
           })
         : await withdrawMerchantApplication({
             identity,
-            applicationId: parsed.data.applicationId,
+            applicationId: command.applicationId,
             audit: { requestId, ipHash },
           });
     return NextResponse.json(
@@ -246,7 +252,7 @@ export async function POST(request: Request) {
         next: application.status === "DRAFT" ? "/onboarding" : "/onboarding/status",
       },
       {
-        status: parsed.data.intent === "SUBMIT" ? 201 : 200,
+        status: command.intent === "SUBMIT" ? 201 : 200,
         headers: { "cache-control": "no-store", "x-request-id": requestId },
       },
     );
@@ -278,13 +284,14 @@ function merchantApplicationErrorResponse(error: unknown, requestId: string) {
       APPLICATION_PENDING: { status: 409, error: "已有申請正在審核。", next: "/onboarding/status" },
       APPLICATION_NOT_EDITABLE: { status: 409, error: "目前狀態不可修改申請。" },
       APPLICATION_NOT_FOUND: { status: 404, error: "找不到申請。" },
+      DRAFT_VERSION_CONFLICT: { status: 409, error: "草稿已在另一個視窗更新，請先比較並載入最新草稿。" },
       APPLICATION_SOURCE_BLOCKED: { status: 403, error: "此申請來源目前無法送出，請聯絡平台管理員。" },
       REAPPLICATION_NOT_ALLOWED: { status: 403, error: "目前無法重新申請，請聯絡平台管理員。" },
       PLAN_NOT_AVAILABLE: { status: 409, error: "所選方案目前無法申請，請重新整理。" },
       MERCHANT_APPLICATION_TRANSITION_INVALID: { status: 409, error: "申請狀態已變更，請重新整理。" },
     };
     const detail = messages[error.code];
-    return NextResponse.json(detail, { status: detail.status, headers: { "x-request-id": requestId } });
+    return NextResponse.json({ ...detail, code: error.code, requestId, ...(error.code === "DRAFT_VERSION_CONFLICT" ? { message: detail.error, currentDraftVersion: error.currentDraftVersion } : {}) }, { status: detail.status, headers: { "x-request-id": requestId, "cache-control": "no-store" } });
   }
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
     return NextResponse.json(

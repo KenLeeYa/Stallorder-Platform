@@ -1,0 +1,37 @@
+{
+  "at": "2026-09-30T14:58:27.6881168Z",
+  "initialVerification": "EPERM reading private original: recursive inheritance removal left child files without an explicit ACE",
+  "repair": "grant current identity FullControl recursively; grant OI/CI FullControl on root for future child inheritance",
+  "rows": [
+    {
+      "path": "C:\\Users\\KY\\.codex\\worktrees\\responsive-cross-device\\b3-performance-private-raw-20260930",
+      "owner": "MSI\\KY",
+      "access": "MSI\\KY Allow  FullControl",
+      "protected": true
+    },
+    {
+      "path": "C:\\Users\\KY\\.codex\\worktrees\\responsive-cross-device\\b3-performance-private-raw-20260930\\before-1790780073390",
+      "owner": "MSI\\KY",
+      "access": "MSI\\KY Allow  FullControl",
+      "protected": true
+    },
+    {
+      "path": "C:\\Users\\KY\\.codex\\worktrees\\responsive-cross-device\\b3-performance-private-raw-20260930\\goals-before-public-key-redaction.json",
+      "owner": "MSI\\KY",
+      "access": "MSI\\KY Allow  FullControl",
+      "protected": true
+    },
+    {
+      "path": "C:\\Users\\KY\\.codex\\worktrees\\responsive-cross-device\\b3-performance-private-raw-20260930\\goals-original-registration.json",
+      "owner": "MSI\\KY",
+      "access": "MSI\\KY Allow  FullControl",
+      "protected": true
+    },
+    {
+      "path": "C:\\Users\\KY\\.codex\\worktrees\\responsive-cross-device\\b3-performance-private-raw-20260930\\before-1790780073390\\before-full.json",
+      "owner": "MSI\\KY",
+      "access": "MSI\\KY Allow  FullControl",
+      "protected": true
+    }
+  ]
+}

@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import {
   dismissStaffStartReminder,
   openSharedCatalogProductActions,
+  openSharedCatalogManagement,
 } from "./local-navigation";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
@@ -64,10 +65,27 @@ test("商家可建立套餐、選擇群組與一般商品選項", async ({ page 
   const bundleName = `套餐 QA ${Date.now()}`;
   const choiceGroupName = "主餐任選";
   const unavailableComponentName = `未分派套餐元件 QA ${Date.now()}`;
+  const database = new URL(process.env.DATABASE_URL ?? "");
+  if (!["postgres:", "postgresql:"].includes(database.protocol)
+    || !["localhost", "127.0.0.1"].includes(database.hostname)
+    || !/^\d+$/.test(database.port) || Number(database.port) < 1024 || Number(database.port) > 65535
+    || database.pathname !== "/postgres") throw new Error("LOCAL_BUNDLE_QA_ONLY");
+  const originalOrganization = await prisma.organization.findUniqueOrThrow({
+    where: { id: organizationId }, select: { operatingMode: true, updatedAt: true },
+  });
+  let modeUpdatedAt: Date | null = null;
+  if (originalOrganization.operatingMode !== "MULTI_STALL") {
+    expect((await prisma.organization.updateMany({
+      where: { id: organizationId, operatingMode: originalOrganization.operatingMode, updatedAt: originalOrganization.updatedAt },
+      data: { operatingMode: "MULTI_STALL" },
+    })).count).toBe(1);
+    modeUpdatedAt = (await prisma.organization.findUniqueOrThrow({ where: { id: organizationId }, select: { updatedAt: true } })).updatedAt;
+  }
+  try {
 
   await login(page);
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
-
+  await openSharedCatalogManagement(page);
   const catalog = page.getByRole("region", { name: "商品批次管理", exact: true });
   await expect(catalog).toBeVisible();
   await catalog.getByRole("searchbox", { name: "搜尋管理商品" }).fill("香酥雞排");
@@ -83,7 +101,7 @@ test("商家可建立套餐、選擇群組與一般商品選項", async ({ page 
   await componentEditor.getByLabel("預設售價").fill("30");
   await expect(
     componentEditor.getByRole("checkbox", { name: "阿明鹽酥雞", exact: true }),
-  ).toHaveCount(0);
+  ).toHaveCount(1);
   await componentEditor
     .getByRole("button", { name: "儲存", exact: true })
     .click();
@@ -97,6 +115,7 @@ test("商家可建立套餐、選擇群組與一般商品選項", async ({ page 
     where: { productId: unavailableComponent.id },
   });
   await page.reload();
+  await openSharedCatalogManagement(page);
 
   await page.getByRole("button", { name: "新增套餐", exact: true }).click();
   const productEditor = page.getByRole("dialog", { name: "新增套餐" });
@@ -104,8 +123,13 @@ test("商家可建立套餐、選擇群組與一般商品選項", async ({ page 
   await expect(productEditor.getByLabel("商品類型")).toHaveValue("BUNDLE");
   await expect(
     productEditor.getByRole("checkbox", { name: "阿明鹽酥雞", exact: true }),
-  ).toHaveCount(0);
+  ).toHaveCount(1);
   await productEditor.getByLabel("套餐組合價").fill("180");
+  // Use explicit multi-store assignment regardless of retained test-owned stalls.
+  const bundleAssignment = productEditor.getByRole("checkbox", { name: "阿明鹽酥雞", exact: true });
+  await expect(bundleAssignment).toHaveCount(1);
+  await bundleAssignment.check();
+  await expect(bundleAssignment).toBeChecked();
   await productEditor
     .getByRole("button", { name: "儲存", exact: true })
     .click();
@@ -235,6 +259,14 @@ test("商家可建立套餐、選擇群組與一般商品選項", async ({ page 
   page.once("dialog", (dialog) => dialog.accept());
   await selectCatalogProductAction(page, unavailableComponentName, "刪除商品");
   await acknowledgeSuccessFeedback(page, "商品已刪除，歷史訂單快照已保留。");
+  } finally {
+    if (modeUpdatedAt) {
+      expect((await prisma.organization.updateMany({
+        where: { id: organizationId, operatingMode: "MULTI_STALL", updatedAt: modeUpdatedAt },
+        data: { operatingMode: originalOrganization.operatingMode },
+      })).count).toBe(1);
+    }
+  }
 });
 
 test("手機版套餐操作列與商品編輯器不超出畫面", async ({ page }) => {
@@ -258,7 +290,7 @@ test("手機版套餐操作列與商品編輯器不超出畫面", async ({ page 
   await page.setViewportSize({ width: 375, height: 812 });
   await login(page);
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
-
+  await openSharedCatalogManagement(page);
   await page.getByTestId("open-catalog-navigator").filter({ visible: true }).click();
   const catalogNavigator = page.getByTestId("catalog-navigator-dialog");
   await catalogNavigator.getByPlaceholder("搜尋所有商品").fill(bundleName);

@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { WorkspaceFunctionNavigation, type WorkspaceFunction } from "@/components/workspace-function-navigation";
 import {
   Activity,
+  MessageCircle,
   BadgeDollarSign,
   ChartNoAxesCombined,
   ClipboardList,
@@ -45,14 +46,26 @@ const items: ReadonlyArray<AdminNavigationItem> = [
   { href: "/admin/e-invoice", label: "Electronic invoice integrations", icon: ReceiptText },
 ];
 
-export function AdminBillingHeader({ displayName, moduleVisibility = { delivery: false, payments: false } }: {
+export function AdminBillingHeader({ displayName, moduleVisibility = { delivery: false, payments: false }, linePlatformEnabled = false }: {
   displayName: string;
+  linePlatformEnabled?: boolean;
   moduleVisibility?: { delivery: boolean; payments: boolean };
 }) {
-  const { m } = useAdminLocale();
-  const pathname = usePathname();
+  const { m, locale } = useAdminLocale();
+  const navigation: WorkspaceFunction[] = items.filter(item => !item.module || moduleVisibility[item.module]).map(item => ({
+    ...item, label: m(item.label),
+    primary: ["/admin/billing", "/admin/health", "/admin/merchant-applications", "/admin/subscriptions"].includes(item.href),
+    group: ["/admin/health", "/admin/usage"].includes(item.href) ? "operations"
+      : ["/admin/merchant-applications", "/admin/merchant-business-types"].includes(item.href) ? "merchants"
+      : item.href === "/admin/login-methods" ? "audit"
+      : item.href.includes("integrations") || item.href === "/admin/e-invoice" ? "settings" : "finance",
+  }));
+
+  if (linePlatformEnabled) navigation.push({ href: "/admin/line-platform", label: m("Platform LINE notifications"), icon: MessageCircle, group: "operations" });
+  navigation.push({ href: "/admin/feedback", label: "產品回饋", icon: MessageCircle, group: "operations" });
 
   return (
+    <>
     <header className="sticky top-0 z-30 overflow-x-hidden border-b border-stone-200 bg-white/95 backdrop-blur">
       <div className="mx-auto max-w-7xl px-4 py-3 md:px-8">
         <div className="flex min-w-0 items-center gap-2">
@@ -63,30 +76,12 @@ export function AdminBillingHeader({ displayName, moduleVisibility = { delivery:
           <ThemeToggle />
           <LogoutButton />
         </div>
-        <nav
-          aria-label={m("Platform administration navigation")}
-          className="mt-2 flex min-w-0 max-w-full gap-1 overflow-x-auto pb-0.5"
-        >
-          {items.filter((item) => !item.module || moduleVisibility[item.module]).map((item) => {
-            const Icon = item.icon;
-            const label = m(item.label);
-            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                title={label}
-                aria-label={label}
-                aria-current={isActive ? "page" : undefined}
-                className={`inline-flex h-11 w-11 shrink-0 items-center justify-center gap-2 rounded-md text-sm font-semibold transition-colors md:w-auto md:px-3 ${isActive ? "bg-teal-50 text-teal-900" : "text-stone-700 hover:bg-stone-100"}`}
-              >
-                <Icon aria-hidden="true" className="h-5 w-5 text-teal-700 md:h-4 md:w-4" />
-                <span className="sr-only md:not-sr-only md:inline">{label}</span>
-              </Link>
-            );
-          })}
-        </nav>
+        <div className="mt-2 xl:hidden"><WorkspaceFunctionNavigation items={navigation} locale={locale} label={m("Platform administration navigation")} testId="admin-function-navigation" /></div>
       </div>
     </header>
+    <aside className="fixed bottom-0 left-0 top-[4.5rem] z-20 hidden w-60 overflow-y-auto border-r border-stone-200 bg-white p-4 xl:block">
+      <WorkspaceFunctionNavigation items={navigation} locale={locale} label={m("Platform administration navigation")} testId="admin-function-sidebar" sidebar />
+    </aside>
+    </>
   );
 }

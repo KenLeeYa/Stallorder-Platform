@@ -1,19 +1,31 @@
 "use client";
 
 import { StaffOrderEditProductPicker, type ConfiguredEditProduct } from "@/components/staff-order-edit-product-picker";
+import { LinePlatformPickupPanel } from "@/components/line-platform-pickup-panel";
+import { NotificationUnreadStatus } from "@/components/notification-inbox";
+import { inboxScopeParams } from "@/lib/notification-inbox-contract";
 import type { OrderItemStatus, OrderStatus, UserRole } from "@prisma/client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useClientReady } from "./use-client-ready";
+import { useStaffQueuePreferences } from "./staff-queue-preferences";
+import { flushSync } from "react-dom";
+import { getStaffQueue, filterStaffQueue, staffQueueSource, STAFF_QUEUE_FILTERS, STAFF_QUEUE_SOURCES, type StaffQueueFilter, type StaffQueueSource } from "./staff-order-queue";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   CheckCheck,
+  Bell,
   CheckCircle2,
   ChefHat,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ChevronUp,
   Clock3,
   KeyRound,
   ListChecks,
+  Table2,
+  LayoutGrid,
   LoaderCircle,
   MapPinned,
   Minus,
@@ -34,10 +46,12 @@ import {
   WifiOff,
   X,
 } from "lucide-react";
+import { workspaceNavigationMessage } from "@/lib/messages/workspace-navigation";
 import { useOperationsLocale } from "@/components/operations-locale";
 import { LogoutButton } from "@/components/logout-button";
-import { MobileSeniorActionMenu } from "@/components/mobile-senior-action-menu";
-import { PwaControls } from "@/components/pwa-controls";
+import { ExperienceDialog } from "@/components/experience-dialog";
+import { isPublicStaffAmendment } from "@/lib/staff-order-edit-eligibility";
+import { PwaControls, PwaWakeControl } from "@/components/pwa-controls";
 import { StaffPushControls } from "@/components/staff-push-controls";
 import { CompletedOrdersPanel } from "@/components/completed-orders-panel";
 import { StaffAutoPrintAgent, type StaffAutoPrintState } from "@/components/staff-auto-print-agent";
@@ -173,8 +187,10 @@ type Actions = {
 };
 
 export type StaffOrderBoardPresentationProps = {
+  notificationIdentity?: string;
+  queueRedesignEnabled?: boolean;
   stall: Stall;
-  account: { displayName: string; role: UserRole };
+  account: { displayName: string; role: UserRole; profileId: string };
   modules: StaffOrderPosSnapshot["modules"];
   paymentOptions: StaffOrderPosSnapshot["paymentOptions"];
   discountOptions: StaffOrderPosSnapshot["discountOptions"];
@@ -239,6 +255,7 @@ export type StaffOrderBoardPresentationProps = {
 
 export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationProps) {
   const { locale, t } = useOperationsLocale();
+  const clientReady = useClientReady();
   const [printerState, setPrinterState] = useState<StaffAutoPrintState | null>(null);
   const {
     stall,
@@ -253,11 +270,14 @@ export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationPr
   const fullViewportBoard = account.role !== "KITCHEN" && viewMode === "TICKETS";
 
   return (
-    <main className={`mx-auto min-h-screen w-full px-4 py-3 ${fullViewportBoard ? "md:px-3" : "max-w-[1600px] md:px-6 md:py-5 xl:px-8"}`}>
+    <main inert={!clientReady} aria-busy={!clientReady} className={`mx-auto min-h-screen w-full px-4 py-3 ${fullViewportBoard ? "md:px-3" : "max-w-[1600px] md:px-6 md:py-5 xl:px-8"}`}>
       <div data-testid="staff-primary-workspace" className={fullViewportBoard ? "md:flex md:h-[calc(100dvh-1.5rem)] md:min-h-0 md:flex-col" : undefined}>
       <StaffOrderBoardToolbar
+        notificationIdentity={props.notificationIdentity}
+        queueRedesignEnabled={props.queueRedesignEnabled}
         stall={stall}
         account={account}
+        orders={props.orders}
         modules={props.modules}
         orderCatalog={props.orderCatalog}
         capacity={props.capacity}
@@ -305,6 +325,7 @@ export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationPr
         />
       ) : (
         <StaffTicketList
+          queueRedesignEnabled={props.queueRedesignEnabled}
           fullViewport={fullViewportBoard}
           orders={filteredOrders}
           currency={stall.currency}
@@ -348,6 +369,8 @@ export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationPr
           locale={locale}
           t={t}
           onToggle={actions.onToggleFutureOrders}
+          editableOrderIds={props.orderEditor.editableOrderIds}
+          onOpenOrderEditor={actions.onOpenOrderEditor}
         />
       ) : null}
       {viewMode === "TICKETS" ? (
@@ -388,6 +411,9 @@ export function StaffOrderBoardPresentation(props: StaffOrderBoardPresentationPr
 
 type StaffOrderBoardToolbarProps = Pick<
   StaffOrderBoardPresentationProps,
+  | "orders"
+  | "notificationIdentity"
+  | "queueRedesignEnabled"
   | "stall"
   | "account"
   | "modules"
@@ -418,8 +444,10 @@ type StaffOrderBoardToolbarProps = Pick<
 };
 
 function StaffOrderBoardToolbar({
+  notificationIdentity,
   stall,
   account,
+  orders,
   modules,
   orderCatalog,
   capacity,
@@ -436,6 +464,11 @@ function StaffOrderBoardToolbar({
   t,
   actions,
 }: StaffOrderBoardToolbarProps) {
+  const { locale } = useOperationsLocale();
+  const clientReady = useClientReady();
+  const [toolsExpanded, setToolsExpanded] = useState(false);
+  const compactTools = !toolsExpanded;
+  const [searchOpen, setSearchOpen] = useState(false);
   const role = account.role;
   const printerConnected = printerState?.status === "READY" || printerState?.status === "CONNECTED_NO_RULE";
   const printerNeedsAttention = printerState && !["READY", "CHECKING"].includes(printerState.status);
@@ -457,16 +490,17 @@ function StaffOrderBoardToolbar({
     }));
   return (
     <>
-      <header data-testid="staff-sticky-header" className="sticky top-0 z-50 -mx-4 min-w-0 overflow-x-clip overflow-y-visible border-b border-stone-200 bg-white px-4 pb-1 shadow-sm print:static print:border-0 print:bg-transparent print:px-0 print:shadow-none sm:mx-0 sm:px-0">
-        <div className="flex min-h-11 min-w-0 flex-wrap items-center justify-between gap-2 py-1 print:hidden min-[360px]:flex-nowrap sm:gap-4">
-          <div className="min-w-0 flex-1 basis-32">
+      <header data-testid="staff-sticky-header" data-compact-tools={compactTools || undefined} className="sticky top-0 z-50 -mx-4 min-w-0 overflow-x-clip overflow-y-visible border-b border-stone-200 bg-white px-4 pb-1 shadow-sm print:static print:border-0 print:bg-transparent print:px-0 print:shadow-none sm:mx-0 sm:px-0">
+        <div data-testid="staff-toolbar-identity" className="min-h-14 min-w-0 py-1 pr-60 md:min-h-0 md:pr-0 print:hidden">
+          <div className="min-w-0">
             <h1 className="truncate text-sm font-semibold sm:text-base">{stall.name}</h1>
             <p className="truncate text-xs font-medium text-teal-800">{account.displayName} · {roleLabel(role, t)}</p>
           </div>
         </div>
-        <MobileSeniorActionMenu label={t("staff.functions")}>
-          <nav aria-label={t("staff.functions")} data-testid="staff-function-grid" data-persist-horizontal-scroll="staff-function-grid" className="flex min-h-[3.75rem] w-full min-w-0 scroll-pr-4 items-center gap-2 overflow-x-auto overscroll-x-contain py-2 pr-4 print:hidden sm:pr-0 [&>*]:shrink-0 [&_button]:box-border [&_a]:box-border [&_svg]:h-5 [&_svg]:w-5">
-        <div data-testid="staff-function-identity-group" className="flex items-center gap-2 border-r border-stone-200 pr-2">
+        <div className="flex min-w-0 items-center gap-1">
+          <nav id="staff-function-navigation" aria-label={t("staff.functions")} data-testid="staff-function-grid" data-persist-horizontal-scroll="staff-function-grid" className="flex min-h-12 flex-1 min-w-0 scroll-pr-4 items-center gap-2 overflow-x-auto overscroll-x-contain py-1 pr-4 print:hidden sm:pr-0 [&>*]:shrink-0 [&_button]:box-border [&_a]:box-border [&_svg]:h-5 [&_svg]:w-5">
+        <div data-testid="staff-common-controls" className="absolute right-4 top-1 flex items-center gap-1 md:contents [&_button]:h-11 [&_button]:w-11 [&_svg]:h-5 [&_svg]:w-5">
+          <div className="md:order-1">
           {switcherVisibility.showWorkMode ? <WorkModeSwitcher
             destinations={workModeDestinations}
             currentMode="STAFF"
@@ -474,6 +508,20 @@ function StaffOrderBoardToolbar({
             stallId={stall.id}
             offlineGuardStallId={stall.id}
           /> : null}
+          </div>
+          <div className="md:order-[15]"><button type="button" role="switch" disabled={!clientReady} aria-checked={alertsEnabled} aria-label={alertsEnabled ? t("staff.action.notificationsOn") : t("staff.action.notificationsOff")} onClick={actions.onToggleAlerts} title={alertsEnabled ? t("staff.action.notificationsDisable") : t("staff.action.notificationsEnable")} className={`${staffFunctionTileClass} border ${alertsEnabled ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600"}`}>{alertsEnabled ? <Volume2 className={staffFunctionIconClass} /> : <VolumeX className={staffFunctionIconClass} />}<span aria-hidden="true" className="sr-only">{t("staff.action.notifications")}</span></button></div>
+          <div className="md:order-[12]"><PwaWakeControl /></div>
+          {modules.print && hasPermission(role, "MANAGE_PRINT_QUEUE") ? <Link
+            href={`/staff/${stall.slug}/print`}
+            title={`${t("staff.action.printQueue")}：${printerState?.detail || t("print.agent.checking")}`}
+            aria-describedby={printerState ? `staff-printer-status-${stall.slug}` : undefined}
+            data-printer-status={printerState?.status ?? "CHECKING"}
+            className={`${staffFunctionTileClass} md:order-6 relative border ${printerConnected ? "border-teal-700 bg-teal-50 text-teal-800" : printerNeedsAttention ? "border-amber-400 bg-amber-50 text-amber-900" : "border-stone-300 bg-white text-stone-700"}`}
+          ><Printer className={staffFunctionIconClass} />{printerNeedsAttention ? <span aria-hidden="true" className="absolute right-1 top-1 h-2 w-2 rounded-full bg-amber-600" /> : null}<span className="sr-only">{t("staff.action.printQueue")}</span></Link> : null}
+
+          <div className="md:order-[13]"><LiveConnectionBadge state={liveConnection} t={t} /></div>
+        </div>
+        <div data-testid="staff-function-identity-group" className="md:order-2 flex items-center gap-2 border-r border-stone-200 pr-2">
           {switcherVisibility.showStall ? <WorkspaceSwitcher
             kind="STALL"
             destinations={stallDestinations}
@@ -489,46 +537,52 @@ function StaffOrderBoardToolbar({
             className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}
           ><Clock3 className={staffFunctionIconClass} /><span className="sr-only">員工定位打卡</span></Link> : null}
         </div>
-        <div data-testid="staff-function-order-group" className="flex items-center gap-2 border-r border-stone-200 pr-2">
-          {orderCatalog && hasPermission(role, "CREATE_ORDERS") ? <button type="button" title={t("staff.action.createOrder")} disabled={posConfigurationLoading} onClick={() => void actions.onOpenComposer()} className={`${staffFunctionTileClass} bg-teal-800 text-white disabled:cursor-wait disabled:opacity-60`}><ShoppingCart className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.createOrder")}</span></button> : null}
-          {hasPermission(role, "CHECKOUT_ORDERS") ? <button type="button" data-testid="staff-pickup-code-lookup" title={t("staff.action.pickupLookup")} onClick={actions.onOpenPickupLookup} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><KeyRound className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.pickupLookup")}</span></button> : null}
-          {modules.dineIn ? <Link href={`/staff/${stall.slug}/floor`} title={t("staff.action.floor")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><MapPinned className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.floor")}</span></Link> : null}
-          {modules.print && hasPermission(role, "MANAGE_PRINT_QUEUE") ? <Link
-            href={`/staff/${stall.slug}/print`}
-            title={`${t("staff.action.printQueue")}：${printerState?.detail || t("print.agent.checking")}`}
-            aria-describedby={printerState ? `staff-printer-status-${stall.slug}` : undefined}
-            data-printer-status={printerState?.status ?? "CHECKING"}
-            className={`${staffFunctionTileClass} relative border ${printerConnected ? "border-teal-700 bg-teal-50 text-teal-800" : printerNeedsAttention ? "border-amber-400 bg-amber-50 text-amber-900" : "border-stone-300 bg-white text-stone-700"}`}
-          ><Printer className={staffFunctionIconClass} />{printerNeedsAttention ? <span aria-hidden="true" className="absolute right-1 top-1 h-2 w-2 rounded-full bg-amber-600" /> : null}<span className="sr-only">{t("staff.action.printQueue")}</span></Link> : null}
-          {hasPermission(role, "MANAGE_CASH_SHIFT") ? <Link href={`/staff/${stall.slug}/cash`} title={t("staff.action.cashShift")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><WalletCards className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.cashShift")}</span></Link> : null}
-          {capacity ? <StaffCapacityControl stallSlug={stall.slug} initialData={capacity} compact /> : null}
+        <div data-testid="staff-function-order-group" className="md:contents flex items-center gap-2 border-r border-stone-200 pr-2">
+          {orderCatalog && hasPermission(role, "CREATE_ORDERS") ? <button type="button" title={t("staff.action.createOrder")} disabled={!clientReady || posConfigurationLoading} onClick={() => void actions.onOpenComposer()} className={`${staffFunctionTileClass} md:order-3 bg-teal-800 text-white disabled:cursor-wait disabled:opacity-60`}><ShoppingCart className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.createOrder")}</span></button> : null}
+          {hasPermission(role, "CHECKOUT_ORDERS") ? <button type="button" data-testid="staff-pickup-code-lookup" disabled={!clientReady} title={t("staff.action.pickupLookup")} onClick={actions.onOpenPickupLookup} className={`${staffFunctionTileClass} md:order-4 border border-stone-300 bg-white text-stone-700`}><KeyRound className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.pickupLookup")}</span></button> : null}
+          {notificationIdentity && hasPermission(role, "VIEW_ORDERS") ? <Link href={`/notifications?${inboxScopeParams({ kind: "STALL", stallSlug: stall.slug })}`} aria-label="通知中心" title="通知中心" className={`${staffFunctionTileClass} relative md:order-[14] border border-stone-300 bg-white text-stone-700`}><Bell className={staffFunctionIconClass} aria-hidden="true" /><NotificationUnreadStatus scope={{ kind: "STALL", stallSlug: stall.slug }} identity={notificationIdentity} /></Link> : null}
+          {hasPermission(role, "CHECKOUT_ORDERS") ? <LinePlatformPickupPanel stallSlug={stall.slug} orders={orders} onCompleted={actions.onRefresh} /> : null}
+          {modules.dineIn ? <Link href={`/staff/${stall.slug}/floor`} title={t("staff.action.floor")} className={`${staffFunctionTileClass} md:order-5 border border-stone-300 bg-white text-stone-700`}><MapPinned className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.floor")}</span></Link> : null}
+          {hasPermission(role, "MANAGE_CASH_SHIFT") ? <Link data-secondary-tool="true" href={`/staff/${stall.slug}/cash`} title={t("staff.action.cashShift")} className={`${staffFunctionTileClass} md:order-7 border border-stone-300 bg-white text-stone-700`}><WalletCards className={staffFunctionIconClass} /><span className="sr-only">{t("staff.action.cashShift")}</span></Link> : null}
+          {capacity ? <div data-testid="staff-capacity-tool" data-secondary-tool="true" className="md:order-8"><StaffCapacityControl stallSlug={stall.slug} initialData={capacity} compact /></div> : null}
+          <button type="button" data-testid="staff-search-open" title={t("staff.search.label")} aria-label={t("staff.search.label")} aria-haspopup="dialog" onClick={() => setSearchOpen(true)} className={`${staffFunctionTileClass} md:order-9 border ${query ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-700"}`}><Search className={staffFunctionIconClass} /></button>
         </div>
-        <div data-testid="staff-function-status-group" className="flex items-center gap-2 border-r border-stone-200 pr-2 [&_button]:h-11 [&_button]:w-11 [&_label]:h-11 [&_label]:min-h-11 [&_label]:w-11 [&_span[title]]:h-11 [&_span[title]]:w-11 [&_span[title]]:justify-center [&_span[title]]:rounded-md [&_span[title]]:border [&_span[title]]:border-stone-300 [&_span[title]]:px-0">
+        <div data-testid="staff-function-status-group" className="md:order-10 flex items-center gap-2 border-r border-stone-200 pr-2 [&_button]:h-11 [&_button]:w-11 [&_label]:h-11 [&_label]:min-h-11 [&_label]:w-11 [&_select]:h-11 [&_select]:w-11 [&_span[title]]:h-11 [&_span[title]]:w-11 [&_span[title]]:justify-center [&_span[title]]:rounded-md [&_span[title]]:border [&_span[title]]:border-stone-300 [&_span[title]]:px-0">
           <div data-testid="staff-pwa-controls" className="shrink-0">
-            <PwaControls showWakeLock showQualityLabel={false} />
+            <PwaControls showQualityLabel={false} />
           </div>
-          <LiveConnectionBadge state={liveConnection} t={t} />
         </div>
-        <div data-testid="staff-function-device-group" className="flex items-center gap-2">
-          <StaffPushControls stallSlug={stall.slug} />
-          <button type="button" role="switch" aria-checked={alertsEnabled} aria-label={alertsEnabled ? t("staff.action.notificationsOn") : t("staff.action.notificationsOff")} onClick={actions.onToggleAlerts} title={alertsEnabled ? t("staff.action.notificationsDisable") : t("staff.action.notificationsEnable")} className={`${staffFunctionTileClass} border ${alertsEnabled ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600"}`}>{alertsEnabled ? <Volume2 className={staffFunctionIconClass} /> : <VolumeX className={staffFunctionIconClass} />}<span aria-hidden="true" className="sr-only">{t("staff.action.notifications")}</span></button>
-          <div data-testid="staff-function-offline" className={`${staffFunctionTileClass} relative overflow-visible text-stone-700 [&>div]:h-11 [&>div]:w-11 [&>div>button:first-child]:h-11 [&>div>button:first-child]:w-11 [&>div>button:first-child]:border [&>div>button:first-child]:border-stone-300 [&>div>button:first-child>svg]:h-5 [&>div>button:first-child>svg]:w-5`}><OfflineBootstrapControl stallId={stall.id} stallSlug={stall.slug} appVersion={appVersion} /><span className="sr-only">{t("staff.action.offlineDevice")}</span></div>
-          <button type="button" onClick={actions.onRefresh} title={t("common.refresh")} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700`}><RefreshCw className={`${staffFunctionIconClass} ${isRefreshing ? "animate-spin" : ""}`} /><span className="sr-only">{t("common.refresh")}</span></button>
-          <div data-testid="staff-function-logout" className={`${staffFunctionTileClass} overflow-visible text-stone-700 [&>button]:h-11 [&>button]:w-11 [&>button]:border [&>button]:border-stone-300 [&>button>svg]:h-5 [&>button>svg]:w-5`}><LogoutButton offlineStallId={stall.id} /><span className="sr-only">{t("staff.action.logout")}</span></div>
+        <div data-testid="staff-function-device-group" className="md:contents flex items-center gap-2">
+          <div data-testid="staff-push-controls" data-extra-tool="true" className="md:order-[14]"><StaffPushControls stallSlug={stall.slug} /></div>
+
+          <div data-testid="staff-function-offline" className={`${staffFunctionTileClass} md:order-[16] relative overflow-visible text-stone-700 [&>div]:h-11 [&>div]:w-11 [&>div>button:first-child]:h-11 [&>div>button:first-child]:w-11 [&>div>button:first-child]:border [&>div>button:first-child]:border-stone-300 [&>div>button:first-child>svg]:h-5 [&>div>button:first-child>svg]:w-5`}><OfflineBootstrapControl stallId={stall.id} stallSlug={stall.slug} appVersion={appVersion} /><span className="sr-only">{t("staff.action.offlineDevice")}</span></div>
+          <button type="button" data-secondary-tool="true" disabled={!clientReady} onClick={actions.onRefresh} title={t("common.refresh")} className={`${staffFunctionTileClass} md:order-[17] border border-stone-300 bg-white text-stone-700`}><RefreshCw className={`${staffFunctionIconClass} ${isRefreshing ? "animate-spin" : ""}`} /><span className="sr-only">{t("common.refresh")}</span></button>
+          <div data-testid="staff-function-logout" className={`${staffFunctionTileClass} md:order-[18] overflow-visible text-stone-700 [&>button]:h-11 [&>button]:w-11 [&>button]:border [&>button]:border-stone-300 [&>button>svg]:h-5 [&>button>svg]:w-5`}><LogoutButton offlineStallId={stall.id} /><span className="sr-only">{t("staff.action.logout")}</span></div>
         </div>
+          <div data-secondary-tool="true" className="shrink-0 md:order-[19]">
+        {modules.kds && role === "KITCHEN" ? (
+          <div className="inline-grid grid-cols-2 rounded-md border border-stone-300 bg-white p-1" aria-label={t("staff.view.kitchenMode")}><button type="button" aria-pressed={viewMode === "TICKETS"} onClick={() => actions.onViewModeChange("TICKETS")} className={`min-h-11 rounded px-3 text-xs font-semibold ${viewMode === "TICKETS" ? "bg-stone-900 text-white" : "text-stone-600"}`} title={t("staff.view.ticket")} aria-label={t("staff.view.ticket")}><ListChecks className="h-5 w-5" /></button><button type="button" aria-pressed={viewMode === "SUMMARY"} onClick={() => actions.onViewModeChange("SUMMARY")} className={`min-h-11 rounded px-3 text-xs font-semibold ${viewMode === "SUMMARY" ? "bg-stone-900 text-white" : "text-stone-600"}`} title={t("staff.view.itemSummary")} aria-label={t("staff.view.itemSummary")}><ChefHat className="h-5 w-5" /></button></div>
+        ) : modules.kds && modules.dineIn ? (
+          <div className="inline-grid grid-cols-2 rounded-md border border-stone-300 bg-white p-1" aria-label={t("staff.view.orderMode")}><button type="button" aria-pressed={viewMode === "TICKETS"} onClick={() => actions.onViewModeChange("TICKETS")} className={`min-h-11 rounded px-3 text-xs font-semibold ${viewMode === "TICKETS" ? "bg-stone-900 text-white" : "text-stone-600"}`} title={t("staff.view.individual")} aria-label={t("staff.view.individual")}><ListChecks className="h-5 w-5" /></button><button type="button" aria-pressed={viewMode === "TABLES"} onClick={() => actions.onViewModeChange("TABLES")} className={`min-h-11 rounded px-3 text-xs font-semibold ${viewMode === "TABLES" ? "bg-stone-900 text-white" : "text-stone-600"}`} title={t("staff.view.combineTable")} aria-label={t("staff.view.combineTable")}><Table2 className="h-5 w-5" /></button></div>
+        ) : null}
+          </div>
           </nav>
-        </MobileSeniorActionMenu>
+          <button type="button" data-testid="staff-tools-toggle" disabled={!clientReady} title={workspaceNavigationMessage(locale, "all")} aria-label={workspaceNavigationMessage(locale, "all")} aria-expanded={toolsExpanded} aria-controls="staff-function-navigation" onClick={() => setToolsExpanded(!toolsExpanded)} className={`${staffFunctionTileClass} border border-stone-300 bg-white text-stone-700 md:hidden print:hidden`}>
+            {toolsExpanded ? <ChevronUp className={staffFunctionIconClass} /> : <LayoutGrid className={staffFunctionIconClass} />}
+          </button>
+        </div>
       </header>
       <OfflineQueueStatus stallId={stall.id} stallSlug={stall.slug} onSynchronized={actions.onSynchronized} />
       {message ? <p role="status" className="mt-4 text-sm text-stone-700 print:hidden">{message}</p> : null}
-      <div className="mt-4 flex flex-col gap-2 sm:mt-5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 print:hidden">
-        <label className="relative block w-full sm:max-w-sm"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-stone-400" /><span className="sr-only">{t("staff.search.label")}</span><input type="search" value={query} maxLength={120} onChange={(event) => actions.onQueryChange(event.target.value)} placeholder={t("staff.search.shortPlaceholder")} className="h-11 w-full rounded-md border border-stone-300 bg-white pl-9 pr-3 text-sm" /></label>
-        {modules.kds && role === "KITCHEN" ? (
-          <div className="inline-grid grid-cols-2 rounded-md border border-stone-300 bg-white p-1" aria-label={t("staff.view.kitchenMode")}><button type="button" aria-pressed={viewMode === "TICKETS"} onClick={() => actions.onViewModeChange("TICKETS")} className={`h-8 rounded px-3 text-xs font-semibold ${viewMode === "TICKETS" ? "bg-stone-900 text-white" : "text-stone-600"}`}>{t("staff.view.ticket")}</button><button type="button" aria-pressed={viewMode === "SUMMARY"} onClick={() => actions.onViewModeChange("SUMMARY")} className={`h-8 rounded px-3 text-xs font-semibold ${viewMode === "SUMMARY" ? "bg-stone-900 text-white" : "text-stone-600"}`}>{t("staff.view.itemSummary")}</button></div>
-        ) : modules.kds && modules.dineIn ? (
-          <div className="inline-grid grid-cols-2 rounded-md border border-stone-300 bg-white p-1" aria-label={t("staff.view.orderMode")}><button type="button" aria-pressed={viewMode === "TICKETS"} onClick={() => actions.onViewModeChange("TICKETS")} className={`h-8 rounded px-3 text-xs font-semibold ${viewMode === "TICKETS" ? "bg-stone-900 text-white" : "text-stone-600"}`}>{t("staff.view.individual")}</button><button type="button" aria-pressed={viewMode === "TABLES"} onClick={() => actions.onViewModeChange("TABLES")} className={`h-8 rounded px-3 text-xs font-semibold ${viewMode === "TABLES" ? "bg-stone-900 text-white" : "text-stone-600"}`}>{t("staff.view.combineTable")}</button></div>
-        ) : null}
-      </div>
+      <ExperienceDialog open={searchOpen} onClose={() => setSearchOpen(false)} title={t("staff.search.label")} closeLabel={t("common.close")}>
+        <label className="block text-sm font-semibold">{t("staff.search.shortPlaceholder")}
+          <input type="search" value={query} maxLength={120} placeholder={t("staff.search.shortPlaceholder")} aria-label={t("staff.search.label")} onChange={(event) => actions.onQueryChange(event.target.value)} className="mt-2 h-11 w-full min-w-0 rounded-md border border-stone-300 bg-white px-3 text-base" />
+        </label>
+        <div className="mt-4 flex justify-end gap-2">
+          <button type="button" onClick={() => actions.onQueryChange("")} className="min-h-11 rounded-md border border-stone-300 px-4">{t("staff.search.clear")}</button>
+          <button type="button" onClick={() => setSearchOpen(false)} className="min-h-11 rounded-md bg-teal-800 px-4 text-white">{t("common.confirm")}</button>
+        </div>
+      </ExperienceDialog>
     </>
   );
 }
@@ -603,6 +657,7 @@ type StaffTicketListProps = Pick<
   | "expandedOrderIds"
 > & {
   fullViewport?: boolean;
+  queueRedesignEnabled?: boolean;
   orders: StaffOrderDto[];
   currency: string;
   role: UserRole;
@@ -629,25 +684,137 @@ type StaffTicketListProps = Pick<
 };
 
 function StaffTicketList(props: StaffTicketListProps) {
+  const [{ filter, source, recentOnly }, updatePreferences] = useStaffQueuePreferences(props.stall.id, props.role);
+  const setFilter = (value: StaffQueueFilter) => updatePreferences({ filter: value });
+  const setSource = (value: StaffQueueSource) => updatePreferences({ source: value });
+  const setRecentOnly = (value: boolean) => updatePreferences({ recentOnly: value });
+  const [page, setPage] = useState(1);
+  const [printingPage, setPrintingPage] = useState(false);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
+  useEffect(() => {
+    const before = () => flushSync(() => setPrintingPage(true));
+    const after = () => setPrintingPage(false);
+    window.addEventListener("beforeprint", before);
+    window.addEventListener("afterprint", after);
+    return () => { window.removeEventListener("beforeprint", before); window.removeEventListener("afterprint", after); };
+  }, []);
+  const sourceLabels = { ALL: "print.rule.allSources", QR_MENU: "print.rule.source.qr", STAFF_POS: "print.rule.source.staff", LINE_DELIVERY: "print.rule.source.line", OFFLINE_POS: "print.rule.source.offline" } as const;
+  const queue = getStaffQueue(filterStaffQueue(props.orders, source, recentOnly, new Date(props.now)), filter, page);
+  if (page !== queue.page) setPage(queue.page);
+  const visibleOrders = props.queueRedesignEnabled ? queue.orders : props.orders;
   const [selectedOrderId, setSelectedOrderId] = useState(props.orders[0]?.id ?? null);
-  const selectedOrder = props.orders.find((order) => order.id === selectedOrderId) ?? props.orders[0] ?? null;
+  const [focusedOrderId, setFocusedOrderId] = useState<string | null>(null);
+  const selectedOrder = visibleOrders.find((order) => order.id === selectedOrderId) ?? visibleOrders[0] ?? null;
+  const focusedOrder = props.orders.find((order) => order.id === focusedOrderId) ?? null;
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 768px)");
+    const closeOnDesktop = () => { if (desktop.matches) setFocusedOrderId(null); };
+    desktop.addEventListener("change", closeOnDesktop);
+    return () => desktop.removeEventListener("change", closeOnDesktop);
+  }, []);
+  useEffect(() => {
+    if (!focusedOrderId || focusedOrder) return;
+    const frame = window.requestAnimationFrame(() => {
+      setFocusedOrderId(current => current === focusedOrderId ? null : current);
+      const fallback = Array.from(document.querySelectorAll<HTMLElement>(
+        '#main-content [data-testid="staff-order-mobile-list"] article button, #main-content [data-testid="staff-queue-toggle"], #main-content [data-testid="staff-search-open"]',
+      )).find((element) => element.getClientRects().length > 0);
+      fallback?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusedOrderId, focusedOrder]);
+
+  function focusOrder(orderId: string) {
+    setSelectedOrderId(orderId);
+    setFocusedOrderId(orderId);
+  }
 
   return <section className={`mt-6 print:block ${props.fullViewport ? "md:mt-3 md:flex md:min-h-0 md:flex-1 md:flex-col" : ""}`}>
-    <div className="print:hidden"><h2 className="text-lg font-semibold">{props.t("staff.today.title")}</h2><p className="mt-1 text-sm text-stone-600">{props.t("staff.today.description")}</p></div>
-    <div className="mt-4 grid gap-4 md:hidden print:block" data-testid="staff-order-mobile-list">
-      {props.orders.map((order) => <StaffOrderTicket key={order.id} {...props} order={order} />)}
+    {props.queueRedesignEnabled ? <><div data-testid="staff-queue-toolbar" className="grid shrink-0 items-center gap-2 md:grid-cols-[minmax(0,1fr)_auto_auto] print:hidden">
+      <button type="button" data-testid="staff-queue-toggle" aria-expanded={filtersExpanded} aria-controls="staff-queue-filter-options staff-queue-source-options" aria-label={props.t("staff.queue.filters")} onClick={() => setFiltersExpanded(!filtersExpanded)} className="flex min-h-11 w-full items-center justify-between gap-2 rounded-lg border border-stone-300 bg-white px-3 py-2 text-left text-sm md:hidden">
+        <span className="min-w-0"><strong>{props.t(`staff.queue.${filter}`)} · {queue.total}</strong><span className="ml-2 text-stone-600">{props.t(sourceLabels[source])}{recentOnly ? ` · ${props.t("staff.queue.recent")}` : ""}</span></span>
+        {filtersExpanded ? <ChevronUp className="h-5 w-5 shrink-0" /> : <ChevronDown className="h-5 w-5 shrink-0" />}
+      </button>
+      <div id="staff-queue-filter-options" className={`${filtersExpanded ? "flex" : "hidden"} min-w-0 flex-wrap md:flex md:flex-nowrap md:overflow-x-auto items-center gap-2 print:hidden`} role="group" aria-label={props.t("staff.queue.filters")} data-testid="staff-queue-filters">
+      {STAFF_QUEUE_FILTERS.filter((key) => key !== "PRINT_ATTENTION" || props.printEnabled).map((key) => <button type="button" key={key} aria-pressed={filter === key} onClick={() => { setFilter(key); setPage(1); }} className="inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border border-stone-300 bg-white px-3 text-sm font-semibold aria-pressed:border-teal-800 aria-pressed:bg-teal-50 aria-pressed:text-teal-900">
+        {props.t(`staff.queue.${key}`)}<span className="rounded-full bg-stone-100 px-2 text-xs tabular-nums">{queue.counts[key]}</span>
+      </button>)}
     </div>
+    <div id="staff-queue-source-options" data-testid="staff-queue-source" className={`${filtersExpanded ? "flex" : "hidden"} shrink-0 flex-wrap gap-2 md:flex md:justify-end md:flex-nowrap print:hidden`}>
+      <label className="flex items-center gap-2 text-sm"><span className="sr-only">{props.t("print.rule.sources")}</span><select className="min-h-11 min-w-0 rounded-lg border border-stone-300 bg-white px-2" value={source} onChange={(event) => { setSource(event.target.value as StaffQueueSource); setPage(1); }}>{STAFF_QUEUE_SOURCES.map((value) => <option key={value} value={value}>{props.t(sourceLabels[value])}</option>)}</select></label>
+      <button type="button" aria-pressed={recentOnly} className="min-h-11 rounded-lg border border-stone-300 px-3 text-sm aria-pressed:underline" onClick={() => { setRecentOnly(!recentOnly); setPage(1); }}>{props.t("staff.queue.recent")}</button>
+    </div>
+    <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 md:flex-nowrap md:justify-end print:hidden" data-testid="staff-queue-pagination">
+      <p role="status" aria-live="polite" className="text-sm text-stone-600 md:whitespace-nowrap">{props.t("staff.queue.page", { page: queue.page, pages: queue.totalPages, count: queue.total })}</p>
+      <div className="flex gap-2"><button type="button" disabled={queue.page === 1} onClick={() => setPage(queue.page - 1)} className="min-h-11 rounded-lg border border-stone-300 px-3 text-sm disabled:opacity-40" title={props.t("staff.queue.previous")} aria-label={props.t("staff.queue.previous")}><ChevronLeft className="h-5 w-5" /></button><button type="button" disabled={queue.page === queue.totalPages} onClick={() => setPage(queue.page + 1)} className="min-h-11 rounded-lg border border-stone-300 px-3 text-sm disabled:opacity-40" title={props.t("staff.queue.next")} aria-label={props.t("staff.queue.next")}><ChevronRight className="h-5 w-5" /></button></div>
+    </div>
+    </div>
+    {queue.total === 0 && props.orders.length > 0 ? <p role="status" className="mt-4 rounded-lg border border-dashed border-stone-300 p-6 text-sm text-stone-600">{props.t("staff.queue.empty")}</p> : null}</> : null}
+    <div className="mt-4 grid gap-4 md:hidden print:block" data-testid="staff-order-mobile-list">
+      {(printingPage ? props.orders : visibleOrders).map((order) => <StaffOrderTicket key={order.id} {...props} order={order} mobileSummaryOnly={!printingPage} onFocusOrder={focusOrder} />)}
+    </div>
+    <ExperienceDialog open={Boolean(focusedOrder)} onClose={() => setFocusedOrderId(null)} title={focusedOrder ? props.t("staff.order.number", { number: focusedOrder.orderNo }) : ""} closeLabel={props.t("common.close")} size="workspace">
+      {focusedOrder ? <div data-testid="staff-order-mobile-detail" className="grid gap-3">
+        <div data-testid="staff-mobile-detail-summary" className="flex flex-wrap gap-2 text-sm font-semibold text-stone-700">
+          <span>{focusedOrder.customerName}</span>
+          {focusedOrder.isTest ? <span className="rounded bg-amber-100 px-2 py-0.5 text-amber-900">{props.t("staff.order.test")}</span> : null}
+          <span>{staffQueueSource(focusedOrder) ? props.t(sourceLabels[staffQueueSource(focusedOrder)!]) : workspaceNavigationMessage(props.locale, "otherSource")}</span>
+          <span>{contextualOrderStatusLabel(focusedOrder, props.t)}</span>
+          <span>{paymentStatusLabel(focusedOrder.paymentStatus, props.t)}</span>
+          <span>{formatMoney(focusedOrder.total, props.currency, props.locale)}</span>
+        </div>
+        <StaffOrderTicket
+          {...props}
+          order={focusedOrder}
+          desktopWorkspace
+          mobileWorkspace
+          actions={{
+            ...props.actions,
+            onCheckoutCustomerPresent: (order) => {
+              setFocusedOrderId(null);
+              return props.actions.onCheckoutCustomerPresent(order);
+            },
+            onOpenCheckout: (orders) => {
+              setFocusedOrderId(null);
+              return props.actions.onOpenCheckout(orders);
+            },
+            onOpenOrderEditor: (order) => {
+              setFocusedOrderId(null);
+              props.actions.onOpenOrderEditor(order);
+            },
+          }}
+          cancellation={{
+            ...props.cancellation,
+            open: (order) => {
+              setFocusedOrderId(null);
+              props.cancellation.open(order);
+            },
+          }}
+          timeProposal={{
+            ...props.timeProposal,
+            open: (order) => {
+              setFocusedOrderId(null);
+              props.timeProposal.open(order);
+            },
+          }}
+        />
+      </div> : null}
+    </ExperienceDialog>
     {selectedOrder ? <div data-testid="staff-order-master-detail" className={`mt-4 hidden min-w-0 gap-3 md:grid md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.25fr)_minmax(0,0.85fr)] xl:gap-4 print:hidden ${props.fullViewport ? "md:min-h-0 md:flex-1" : "min-h-[32rem] md:h-[calc(100dvh-14rem)]"}`}>
       <nav aria-label={props.t("staff.today.title")} className="min-h-0 min-w-0 overflow-y-auto overscroll-contain rounded-xl border border-stone-200 bg-stone-50 p-2" data-testid="staff-order-list-pane">
         <div className="grid min-w-0 grid-cols-1 gap-2">
-          {props.orders.map((order) => {
+          {visibleOrders.map((order) => {
             const selected = order.id === selectedOrder.id;
             const timing = props.orderProductionTimings.get(order.id);
             return <button key={order.id} type="button" aria-current={selected ? "true" : undefined} onClick={() => setSelectedOrderId(order.id)} className={`min-h-24 w-full min-w-0 whitespace-normal rounded-lg border p-3 text-left [overflow-wrap:anywhere] ${selected ? "border-teal-700 bg-teal-50 ring-2 ring-teal-200" : "border-stone-200 bg-white hover:border-stone-400"}`}>
               <span className="flex flex-wrap items-start justify-between gap-2"><span className="min-w-0"><strong className="block text-sm">{props.t("staff.order.number", { number: order.orderNo })}</strong>{order.isTest ? <span className="mt-1 inline-flex rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">{props.t("staff.order.test")}</span> : null}</span><span className="max-w-full rounded bg-white px-2 py-0.5 text-xs font-semibold text-teal-800">{contextualOrderStatusLabel(order, props.t)}</span></span>
               <span className="mt-2 block text-sm font-semibold">{order.customerName}</span>
+              {props.queueRedesignEnabled ? <>
+                <span className="mt-1 block text-xs font-semibold text-teal-800">{staffQueueSource(order) ? props.t(sourceLabels[staffQueueSource(order)!]) : workspaceNavigationMessage(props.locale, "otherSource")}</span>
+              </> : null}
               <span className="mt-1 block text-xs text-stone-600">{orderTimingSummary(order, timing, props.now, props.stall.timezone, props.locale, props.t)}</span>
               <span className="mt-2 block text-xs font-semibold text-stone-800">{props.t("common.portions", { count: order.items.reduce((sum, item) => sum + item.quantity, 0) })} · {formatMoney(order.total, props.currency, props.locale)}</span>
+              {props.queueRedesignEnabled ? <span className="mt-2 flex flex-wrap gap-1 text-xs"><span className={`rounded px-2 py-1 ${order.paymentStatus === "UNPAID" ? "bg-amber-50 text-amber-900" : "bg-stone-100 text-stone-700"}`}>{paymentStatusLabel(order.paymentStatus, props.t)}</span>{props.printEnabled && (order.primaryPrintStatus === "FAILED" || order.primaryPrintStatus === "CANCELLED") ? <span className="rounded bg-red-50 px-2 py-1 text-red-800">{props.t("staff.queue.PRINT_ATTENTION")}</span> : null}</span> : null}
             </button>;
           })}
         </div>
@@ -660,6 +827,9 @@ function StaffTicketList(props: StaffTicketListProps) {
 type StaffOrderTicketProps = StaffTicketListProps & {
   order: StaffOrderDto;
   desktopWorkspace?: boolean;
+  mobileWorkspace?: boolean;
+  mobileSummaryOnly?: boolean;
+  onFocusOrder?: (orderId: string) => void;
 };
 
 type StaffSelectedOrderWorkspaceProps = StaffOrderTicketProps & {
@@ -697,6 +867,7 @@ function StaffSelectedOrderWorkspace({
   qrPrepaymentEligible,
   qrCompletionEligible,
   customerPresentCheckoutEligible,
+  mobileWorkspace = false,
 }: StaffSelectedOrderWorkspaceProps) {
   const itemCount = order.items.reduce((sum, item) => sum + item.quantity, 0);
   const statusActions = staffStatusOptions
@@ -705,24 +876,24 @@ function StaffSelectedOrderWorkspace({
     .filter((option) => order.source !== "OFFLINE_POS" || option.value === "CANCELLED");
   const regularStatusActions = statusActions.filter((option) => option.value !== "CANCELLED");
   const cancelStatusAction = statusActions.find((option) => option.value === "CANCELLED");
-  const primaryActionClass = "inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-teal-800 px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50";
+  const primaryActionClass = "inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-teal-800 px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50";
   const secondaryActionClass = "inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-800 hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50";
 
   return <>
-    <section aria-labelledby={`staff-order-items-title-${order.id}`} className="min-h-0 min-w-0 overflow-y-auto overscroll-contain rounded-xl border border-stone-200 bg-white [overflow-wrap:anywhere]" data-testid="staff-order-items-pane">
+    <section aria-labelledby={`staff-order-items-title-${order.id}`} className={`${mobileWorkspace ? "overflow-visible" : "min-h-0 overflow-y-auto overscroll-contain"} min-w-0 rounded-xl border border-stone-200 bg-white [overflow-wrap:anywhere]`} data-testid="staff-order-items-pane">
       <div className="sticky top-0 z-10 border-b border-stone-200 bg-white/95 px-4 py-3 backdrop-blur">
         <div className="flex items-center justify-between gap-3">
           <h2 id={`staff-order-items-title-${order.id}`} className="text-base font-bold">{t("staff.order.items")}</h2>
           <span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-semibold text-stone-700">{t("common.portions", { count: itemCount })}</span>
         </div>
-        {kdsEnabled && order.status !== "WAITING_CONFIRMATION" ? <div className="mt-3 flex flex-wrap gap-2 print:hidden">{order.items.some((item) => item.status === "PENDING") && !fulfillmentTimeNeedsResponse(order.fulfillmentTimeState) && canTransitionOrderItem("PENDING", "PREPARING", role) ? <button type="button" disabled={updatingItemsOrderId === order.id || updatingItemId !== null} onClick={() => void actions.onUpdateAllItemStatuses(order.id, "PREPARING")} className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md bg-amber-700 px-3 text-xs font-semibold text-white disabled:opacity-50"><Play className="h-4 w-4" />{t("staff.order.allStart", { count: order.items.filter((item) => item.status === "PENDING").length })}</button> : null}{order.items.some((item) => item.status === "PREPARING") && canTransitionOrderItem("PREPARING", "READY", role) ? <button type="button" disabled={updatingItemsOrderId === order.id || updatingItemId !== null} onClick={() => void actions.onUpdateAllItemStatuses(order.id, "READY")} className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><CheckCheck className="h-4 w-4" />{t("staff.order.allReady", { count: order.items.filter((item) => item.status === "PREPARING").length })}</button> : null}{order.items.some((item) => item.status === "READY") && canTransitionOrderItem("READY", "SERVED", role) ? <button type="button" disabled={updatingItemsOrderId === order.id || updatingItemId !== null} onClick={() => void actions.onUpdateAllItemStatuses(order.id, "SERVED")} className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md bg-emerald-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><PackageCheck className="h-4 w-4" />{t(order.fulfillmentType === "DINE_IN" ? "staff.order.allServed" : order.fulfillmentType === "DELIVERY" ? "staff.order.allDelivered" : "staff.order.allPickedUp", { count: order.items.filter((item) => item.status === "READY").length })}</button> : null}</div> : null}
+        {kdsEnabled && order.status !== "WAITING_CONFIRMATION" ? <div className="mt-3 flex flex-wrap gap-2 print:hidden">{order.items.some((item) => item.status === "PENDING") && !fulfillmentTimeNeedsResponse(order.fulfillmentTimeState) && canTransitionOrderItem("PENDING", "PREPARING", role) ? <button type="button" disabled={updatingItemsOrderId === order.id || updatingItemId !== null} onClick={() => void actions.onUpdateAllItemStatuses(order.id, "PREPARING")} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md bg-amber-700 px-3 text-xs font-semibold text-white disabled:opacity-50"><Play className="h-4 w-4" />{t("staff.order.allStart", { count: order.items.filter((item) => item.status === "PENDING").length })}</button> : null}{order.items.some((item) => item.status === "PREPARING") && canTransitionOrderItem("PREPARING", "READY", role) ? <button type="button" disabled={updatingItemsOrderId === order.id || updatingItemId !== null} onClick={() => void actions.onUpdateAllItemStatuses(order.id, "READY")} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md bg-teal-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><CheckCheck className="h-4 w-4" />{t("staff.order.allReady", { count: order.items.filter((item) => item.status === "PREPARING").length })}</button> : null}{order.items.some((item) => item.status === "READY") && canTransitionOrderItem("READY", "SERVED", role) ? <button type="button" disabled={updatingItemsOrderId === order.id || updatingItemId !== null} onClick={() => void actions.onUpdateAllItemStatuses(order.id, "SERVED")} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md bg-emerald-800 px-3 text-xs font-semibold text-white disabled:opacity-50"><PackageCheck className="h-4 w-4" />{t(order.fulfillmentType === "DINE_IN" ? "staff.order.allServed" : order.fulfillmentType === "DELIVERY" ? "staff.order.allDelivered" : "staff.order.allPickedUp", { count: order.items.filter((item) => item.status === "READY").length })}</button> : null}</div> : null}
       </div>
       <div className="p-4">
         <ul className="divide-y divide-stone-200" data-testid="staff-order-item-list">{order.items.map((item) => { const selectable = kdsEnabled && order.source !== "OFFLINE_POS" && canSelectItem(item.status, order.status, role) && !(item.status === "PENDING" && fulfillmentTimeNeedsResponse(order.fulfillmentTimeState)); return <li key={item.id} className={`grid gap-3 py-4 ${selectable ? "grid-cols-[auto_minmax(0,1fr)] print:grid-cols-1" : ""}`}>{selectable ? <label className="ordering-checkbox-target grid place-items-center self-start print:hidden"><input type="checkbox" aria-label={t("staff.order.selectItem", { order: order.orderNo, item: item.name })} checked={selectedItemIds.has(item.id)} onChange={(event) => actions.onToggleSelectedItem(item.id, event.target.checked)} className="ordering-checkbox" /></label> : null}<div className="min-w-0"><div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1"><span className="min-w-0 flex-1 basis-24 break-words font-semibold">{item.quantity} × {item.name}</span><span className="shrink-0 font-semibold">{formatMoney(item.unitPrice * item.quantity, currency, locale)}</span></div>{item.noteOptions.length > 0 ? <p className="mt-1 text-xs leading-5 text-teal-800">{formatStaffNoteOptions(locale, item.noteOptions, currency, true)}</p> : null}{item.note ? <p className="mt-1 text-xs leading-5 text-stone-600">{t("staff.order.note", { note: item.note })}</p> : null}{kdsEnabled ? <span className={`mt-2 inline-flex rounded px-2 py-0.5 text-xs font-semibold ${item.status === "SERVED" ? "bg-emerald-50 text-emerald-800" : item.status === "READY" ? "bg-blue-50 text-blue-800" : item.status === "PREPARING" ? "bg-amber-50 text-amber-800" : "bg-stone-100 text-stone-600"}`}>{orderItemStatusLabel(item.status, t)}</span> : null}</div>{kdsEnabled && order.source !== "OFFLINE_POS" && item.status !== "SERVED" && order.status !== "WAITING_CONFIRMATION" && !(item.status === "PENDING" && fulfillmentTimeNeedsResponse(order.fulfillmentTimeState)) ? <div className="col-span-full flex justify-end"><ItemStatusButton itemStatus={item.status} role={role} busy={updatingItemId === item.id || updatingItemsOrderId === order.id} t={t} onUpdate={(status) => void actions.onUpdateItemStatus(order.id, item.id, status)} /></div> : null}</li>; })}</ul>
       </div>
     </section>
 
-    <aside aria-labelledby={`staff-order-actions-title-${order.id}`} className="min-h-0 min-w-0 overflow-y-auto overscroll-contain rounded-xl border border-stone-200 bg-stone-50 [overflow-wrap:anywhere]" data-testid="staff-order-actions-pane">
+    <aside aria-labelledby={`staff-order-actions-title-${order.id}`} className={`${mobileWorkspace ? "overflow-visible" : "min-h-0 overflow-y-auto overscroll-contain"} min-w-0 rounded-xl border border-stone-200 bg-stone-50 [overflow-wrap:anywhere]`} data-testid="staff-order-actions-pane">
       <div className="sticky top-0 z-10 border-b border-stone-200 bg-stone-50/95 px-4 py-3 backdrop-blur">
         <h2 id={`staff-order-actions-title-${order.id}`} className="text-base font-bold">{t("staff.order.actions")}</h2>
         <div className="mt-2 flex items-end justify-between gap-3"><div>{order.discountAmount > 0 ? <p className="text-xs text-stone-500">{t("staff.order.originalPrice", { amount: formatMoney(order.subtotal, currency, locale) })} · {order.discountLabel}</p> : null}<strong className="text-xl">{formatMoney(order.total, currency, locale)}</strong></div><span className="text-xs font-semibold text-stone-600">{paymentStatusLabel(order.paymentStatus, t)}</span></div>
@@ -752,7 +923,7 @@ function StaffSelectedOrderWorkspace({
 }
 
 function StaffOrderTicket(props: StaffOrderTicketProps) {
-  const { order, currency, role, printEnabled, kdsEnabled, now, selectedItemIds, updatingOrderId, updatingItemId, updatingItemsOrderId, cancellation, timeProposal, actions, stall, locale, t, orderProductionTimings, reminderOrderIds, expandedOrderIds, editableOrderIds, desktopWorkspace = false } = props;
+  const { order, currency, role, printEnabled, kdsEnabled, now, selectedItemIds, updatingOrderId, updatingItemId, updatingItemsOrderId, cancellation, timeProposal, actions, stall, locale, t, orderProductionTimings, reminderOrderIds, expandedOrderIds, editableOrderIds, desktopWorkspace = false, mobileSummaryOnly = false, onFocusOrder } = props;
   const timing = orderProductionTimings.get(order.id);
   const expanded = expandedOrderIds.has(order.id);
   const waitingForPrintCompletion = !kdsEnabled
@@ -813,14 +984,23 @@ function StaffOrderTicket(props: StaffOrderTicketProps) {
     qrCompletionEligible={qrCompletionEligible}
     customerPresentCheckoutEligible={customerPresentCheckoutEligible}
   />;
+  if (mobileSummaryOnly) return <article className={`rounded-lg border p-4 ${orderAgeClasses(order, timing, now)}`}>
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0"><strong className="block break-all text-sm">{t("staff.order.number", { number: order.orderNo })}</strong>{order.isTest ? <span className="mt-1 inline-flex rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">{t("staff.order.test")}</span> : null}<p className="mt-1 font-semibold">{order.customerName}</p></div>
+      <span className="rounded-md bg-teal-50 px-2 py-1 text-xs font-semibold text-teal-800">{contextualOrderStatusLabel(order, t)}</span>
+    </div>
+    <p className="mt-2 text-base text-stone-600">{orderTimingSummary(order, timing, now, stall.timezone, locale, t)}</p>
+    <p className="mt-2 text-base">{t("common.portions", { count: order.items.reduce((sum, item) => sum + item.quantity, 0) })} · <strong>{formatMoney(order.total, currency, locale)}</strong> · {paymentStatusLabel(order.paymentStatus, t)}</p>
+    <button type="button" onClick={() => onFocusOrder?.(order.id)} className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md border border-teal-700 bg-white px-3 text-sm font-semibold text-teal-800">{t("staff.order.viewDetails")}</button>
+  </article>;
   return (
     <article className={`rounded-lg border p-4 ${reminderOrderIds.has(order.id) ? "animate-pulse border-amber-500 ring-2 ring-amber-300" : orderAgeClasses(order, timing, now)}`}>
       {reminderOrderIds.has(order.id) ? <p className="mb-3 rounded-md bg-amber-100 px-3 py-2 text-xs font-bold text-amber-950">{t("staff.preorder.reminderBadge")}</p> : null}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-stone-500"><span>{t("staff.order.number", { number: order.orderNo })}</span>{order.isTest ? <span className="rounded bg-amber-100 px-2 py-0.5 text-amber-900">{t("staff.order.test")}</span> : null}{order.source === "OFFLINE_POS" ? <span className="rounded bg-blue-100 px-2 py-0.5 text-blue-900">{t("staff.order.localPending")}</span> : null}</div>
+          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-stone-600"><span>{t("staff.order.number", { number: order.orderNo })}</span>{order.isTest ? <span className="rounded bg-amber-100 px-2 py-0.5 text-amber-900">{t("staff.order.test")}</span> : null}{order.source === "OFFLINE_POS" ? <span className="rounded bg-blue-100 px-2 py-0.5 text-blue-900">{t("staff.order.localPending")}</span> : null}</div>
           <h2 className="mt-1 font-semibold">{order.customerName}</h2>
-          <p className="mt-1 text-sm text-stone-500">{orderTimingSummary(order, timing, now, stall.timezone, locale, t)}</p>
+          <p className="mt-1 text-sm text-stone-600">{orderTimingSummary(order, timing, now, stall.timezone, locale, t)}</p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
           <span className="rounded-md bg-teal-50 px-2 py-1 text-xs font-semibold text-teal-800">{contextualOrderStatusLabel(order, t)}</span>
@@ -871,6 +1051,8 @@ function StaffFutureOrders({
   locale,
   t,
   onToggle,
+  editableOrderIds,
+  onOpenOrderEditor,
 }: {
   orders: StaffOrderDto[];
   expanded: boolean;
@@ -881,6 +1063,8 @@ function StaffFutureOrders({
   locale: AppLocale;
   t: OperationsTranslator;
   onToggle: () => void;
+  editableOrderIds: ReadonlySet<string>;
+  onOpenOrderEditor: Actions["onOpenOrderEditor"];
 }) {
   if (orders.length === 0) return null;
   return (
@@ -915,6 +1099,7 @@ function StaffFutureOrders({
                 {order.note ? <p className="mt-3 rounded bg-amber-50 p-2 text-sm text-amber-900">{t("staff.order.orderNote", { note: order.note })}</p> : null}
                 <div className="mt-3 flex items-center justify-between"><strong>{formatMoney(order.total, stall.currency, locale)}</strong><span className="text-sm text-stone-600">{paymentStatusLabel(order.paymentStatus, t)}</span></div>
                 <p className="mt-3 text-xs font-medium text-sky-800">{t("staff.future.noProductionAction")}</p>
+                {editableOrderIds.has(order.id) ? <button type="button" onClick={() => onOpenOrderEditor(order)} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-md border border-stone-300 px-3 text-sm font-semibold"><Pencil className="h-4 w-4" />{t("staff.order.edit")}</button> : null}
               </article>
             );
           })}
@@ -928,11 +1113,10 @@ function StaffPosComposerAndDialogs({ stall, account, modules, paymentOptions, d
   const pickupCheckoutOrder = pickupCheckoutOrderId
     ? orders.find((order) => order.id === pickupCheckoutOrderId) ?? null
     : null;
-  const publicAmendment = orderEditor.editingOrder?.source === "QR_MENU"
-    && orderEditor.editingOrder.fulfillmentType === "TAKEOUT";
+  const publicAmendment = Boolean(orderEditor.editingOrder && isPublicStaffAmendment(orderEditor.editingOrder));
   return (
     <>
-      {composerOpen && orderCatalog ? <StaffOrderComposer stall={stall} catalog={orderCatalog} account={account} modules={modules} paymentOptions={paymentOptions} discountOptions={discountOptions} onCreated={actions.onCreated} onClose={actions.onCloseComposer} /> : null}
+      {composerOpen && orderCatalog ? <StaffOrderComposer key={`${stall.organizationId}:${stall.id}:${account.profileId}`} stall={stall} catalog={orderCatalog} account={account} modules={modules} paymentOptions={paymentOptions} discountOptions={discountOptions} onCreated={actions.onCreated} onClose={actions.onCloseComposer} /> : null}
       {orderEditor.editingOrder && orderCatalog ? (
         <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/45 p-4 print:hidden">
           <section role="dialog" aria-modal="true" aria-labelledby="order-edit-title" className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto overscroll-contain rounded-lg bg-white p-5 shadow-xl">

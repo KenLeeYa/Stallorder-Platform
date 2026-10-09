@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { hash } from "bcryptjs";
@@ -11,10 +11,11 @@ assertLocalDatabase();
 
 const prisma = new PrismaClient();
 const password = "MerchantSetup!2026";
-const applicantEmail = "merchant.application.e2e@stallorder.test";
-const adminEmail = "merchant.application.admin.e2e@stallorder.test";
+const runSuffix = randomUUID().slice(0, 8);
+const applicantEmail = `merchant.application.${runSuffix}@stallorder.test`;
+const adminEmail = `merchant.application.admin.${runSuffix}@stallorder.test`;
 const applicantAuthUserId = randomUUID();
-const requestedSlug = "merchant-application-e2e";
+const requestedSlug = `merchant-application-e2e-${runSuffix}`;
 const demoOrganizationId = "11111111-1111-4111-8111-111111111111";
 let applicationId = "";
 let organizationId = "";
@@ -88,8 +89,18 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
   });
 
   test.afterAll(async () => {
+    const ownedAuditRows = await prisma.auditLog.findMany({ where: { OR: [{ organization: { email: applicantEmail } }, { actor: { email: { in: [applicantEmail, adminEmail] } } }] }, orderBy: { id: "asc" } });
+    const retainedAuditIds = ownedAuditRows.map(row => row.id);
+    const retainedAuditEvidence = auditFingerprint(ownedAuditRows);
+    try {
     await cleanup();
-    await prisma.$disconnect();
+    } finally {
+      try {
+        expect(auditFingerprint(await prisma.auditLog.findMany({ where: { id: { in: retainedAuditIds } }, orderBy: { id: "asc" } }))).toEqual(retainedAuditEvidence);
+      } finally {
+        await prisma.$disconnect();
+      }
+    }
   });
 
   test("申請不建商家；核准後維持 CLOSED/PAUSED，完成測試訂單才開放", async ({ page }) => {
@@ -303,13 +314,14 @@ async function cleanup() {
     await prisma.stallMembership.deleteMany({ where: { organizationId: organization.id } });
     await prisma.organizationMembership.deleteMany({ where: { organizationId: organization.id } });
     await prisma.usageEvent.deleteMany({ where: { organizationId: organization.id } });
-    await prisma.organization.delete({ where: { id: organization.id } });
+    await prisma.organization.deleteMany({ where: { id: organization.id, auditLogs: { none: {} }, stalls: { none: { auditLogs: { some: {} } } } } });
   }
   await prisma.merchantApplication.deleteMany({ where: { applicantEmail } });
-  await prisma.profile.deleteMany({ where: { id: { in: profileIds } } });
+  await prisma.profile.deleteMany({ where: { auditLogs: { none: {} }, id: { in: profileIds } } });
   await prisma.$executeRaw`
     delete from auth.users
-    where id = ${applicantAuthUserId}::uuid or email = ${applicantEmail}
+    where (id = ${applicantAuthUserId}::uuid or email = ${applicantEmail})
+      and not exists (select 1 from public.profiles where auth_user_id = auth.users.id)
   `;
 }
 
@@ -334,4 +346,9 @@ function loadLocalEnv() {
     const value = match[2].trim();
     process.env[match[1]] = value.startsWith('"') && value.endsWith('"') ? value.slice(1, -1) : value;
   }
+}
+
+// Compare fingerprints only; failed assertions never disclose audit payloads.
+function auditFingerprint(rows: unknown[]) {
+  return { count: rows.length, hash: createHash("sha256").update(JSON.stringify(rows)).digest("hex") };
 }

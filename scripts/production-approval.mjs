@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { lstat, mkdir, readFile, writeFile } from "node:fs/promises";
+import { lstat, mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import {
   createProductionApprovalReceipt,
@@ -7,6 +7,7 @@ import {
   validateProductionApprovalReceipt,
   validateProductionOperationEvidence,
 } from "./lib/production-approval.mjs";
+import { readCheckedFile } from "./lib/checked-file-read.mjs";
 
 const [command] = process.argv.slice(2);
 
@@ -64,7 +65,11 @@ async function verifyEvidence() {
   if (!stats?.isFile() || stats.size > 64 * 1_024) {
     throw new Error("OPERATION_EVIDENCE_FILE_INVALID");
   }
-  const evidence = JSON.parse(await readFile(evidencePath, "utf8"));
+  let bytes;
+  try { bytes = readCheckedFile(evidencePath, { expected: stats, maxBytes: 64 * 1_024 }); }
+  catch { throw new Error("OPERATION_EVIDENCE_FILE_INVALID"); }
+  if (!bytes) throw new Error("OPERATION_EVIDENCE_FILE_INVALID");
+  const evidence = JSON.parse(bytes.toString("utf8"));
   const result = validateProductionOperationEvidence({
     evidence,
     expected: {
@@ -124,7 +129,11 @@ async function verifyReceipt() {
   if (!stats?.isFile() || stats.size > 64 * 1_024) {
     throw new Error("PLAN_RECEIPT_FILE_INVALID");
   }
-  const receipt = JSON.parse(await readFile(receiptPath, "utf8"));
+  let bytes;
+  try { bytes = readCheckedFile(receiptPath, { expected: stats, maxBytes: 64 * 1_024 }); }
+  catch { throw new Error("PLAN_RECEIPT_FILE_INVALID"); }
+  if (!bytes) throw new Error("PLAN_RECEIPT_FILE_INVALID");
+  const receipt = JSON.parse(bytes.toString("utf8"));
   const { treeSha, stagingTreeSha } = gitTrees();
   const runMetadata = await githubRun(context.repository, planRunId);
   const result = validateProductionApprovalReceipt({

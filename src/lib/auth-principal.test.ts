@@ -19,7 +19,7 @@ vi.mock("@/lib/prisma", () => ({
   prisma: { authSession: mocks.authSession },
 }));
 
-import { getPagePrincipal, getRequestPrincipal, SESSION_COOKIE } from "@/lib/auth";
+import { getPagePrincipal, getRequestPrincipal, getMobileRequestPrincipal, SESSION_COOKIE } from "@/lib/auth";
 import { SESSION_DEVICE_COOKIE } from "@/lib/security";
 import { AUTH_SESSION_ABSOLUTE_MAX_AGE_MS } from "@/lib/session-lifetime";
 
@@ -31,6 +31,7 @@ function sessionFixture() {
   return {
     id: "33333333-3333-4333-8333-333333333333",
     deviceId: DEVICE_ID,
+    clientKind: "WEB",
     rotationFamilyId: "44444444-4444-4444-8444-444444444444",
     issuedAt: new Date(now - 24 * 60 * 60_000),
     expiresAt: new Date(now + 24 * 60 * 60_000),
@@ -77,6 +78,16 @@ describe("request principal session boundaries", () => {
     mocks.authSession.updateMany.mockResolvedValue({ count: 1 });
   });
 
+  it("keeps Native and Web audiences separate and rejects mixed credentials", async () => {
+    const request = new Request("https://example.test/api/mobile/v1/bootstrap", {headers:{authorization:"Bearer "+"s".repeat(43),"x-stallorder-device-id":DEVICE_ID}});
+    await expect(getMobileRequestPrincipal(request)).resolves.toBeNull();
+    mocks.authSession.findUnique.mockResolvedValue({...sessionFixture(),clientKind:"NATIVE"});
+    await expect(getMobileRequestPrincipal(request)).resolves.toMatchObject({sessionId:sessionFixture().id});
+    await expect(getRequestPrincipal(requestWithCookies(DEVICE_ID))).resolves.toBeNull();
+    request.headers.set("cookie", SESSION_COOKIE+"="+"s".repeat(43));
+    await expect(getMobileRequestPrincipal(request)).resolves.toBeNull();
+    await expect(getRequestPrincipal(request)).resolves.toBeNull();
+  });
   it("accepts an API session only when the installed-device cookie matches", async () => {
     const principal = await getRequestPrincipal(requestWithCookies(DEVICE_ID));
 

@@ -1,0 +1,5900 @@
+{
+  "phase": "before",
+  "mode": "full",
+  "source": {
+    "head": "3e586386d8b916b7e68c5242bc344155e9410fd5",
+    "tree": "67caefa18c14659961dead94ea929a40716dbe6b",
+    "productSourceClean": true,
+    "worktreeDirty": false,
+    "workingTreePatchSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "buildId": "ZRPD1C0hp87hIxeN-6rwI",
+    "builtAt": "2026-09-30T14:01:44.696Z",
+    "runtimeWorktreeDirty": false,
+    "runtimeWorkingTreePatchSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "originalSourceCommit": "a0c635bc8177abd953fd7381d85fbbaf22cf1fe1",
+  "startedAt": "2026-09-30T14:16:52.410Z",
+  "measurementSha256": "728a2c8913a78df472923fb41d325d5dba04e0a9ca73d723199b50ba35a4a86c",
+  "statisticsSha256": "7f07ca8c6b8d9aa039c58f8ed89979b441fb5212cf81a2d7dd7bb63e1ce3d02f",
+  "environment": {
+    "origin": "http://127.0.0.1:3026",
+    "database": "127.0.0.1:56822/postgres",
+    "primaryApi": "http://127.0.0.1:56821",
+    "platform": "win32",
+    "arch": "x64",
+    "cpus": "12th Gen Intel(R) Core(TM) i7-12650H",
+    "node": "v24.18.0",
+    "browser": "149.0.7827.55"
+  },
+  "semantics": {
+    "cold": "New Chromium context and page with authenticated storage copied in memory; empty browser HTTP cache. Server/OS remain warm.",
+    "warm": "One context/page/identity for all repeated full navigations; one unmeasured priming interaction. No identity rotation or cache clearing.",
+    "timing": "Before page.goto until genuine readonly interaction and observable state assertion complete. Includes normal navigation/load/actionability.",
+    "pacing": "Serial, one fixed synthetic visitor IP. Staff/KDS navigate about:blank and wait1s outside timing for normal SSE teardown (profile concurrency2, leaseTTL60s). On429 wait actual Retry-After+1s, minimum QR configured window+1 or other61s. No rate bucket changes.",
+    "clocks": "Wall clock not changed; fixed explicit report date 2026-09-30; order age and report refreshed timestamp naturally advance, retained timestamps quantify this.",
+    "vitals": "Chromium PerformanceObserver LCP last entry before first input; CLS maximum session window (1s gap/5s cap); INP max duration per interaction, worst interaction for these <50-interaction rounds. EventTiming below 16ms is left-censored, never called 0. Local lab, not RUM.",
+    "privacy": "No cookies, password, response bodies or QR tokens persisted."
+  },
+  "freeze": [
+    {
+      "at": "2026-09-30T14:16:52.535Z",
+      "orderDigest": "10b7242ec9d9fb274e5cd38e78fcb937089a6c35e72e5601df0d01410301d255",
+      "fullDatasetDigest": "0e6c590475502b69070d0a00da43c2bf08ca911441f705f9e86dacc3abf6c447",
+      "settings": {
+        "kdsModuleEnabled": true,
+        "printModuleEnabled": false,
+        "paymentModuleEnabled": true,
+        "enabledLocales": [
+          "zh-TW",
+          "en",
+          "ja",
+          "ko",
+          "vi",
+          "th"
+        ],
+        "kdsWarningMinutes": 5,
+        "kdsCriticalMinutes": 10,
+        "kdsDefaultView": "ORDER"
+      },
+      "flags": [
+        {
+          "id": "87af29f6-10da-4aaf-8358-a164e0ae4072",
+          "flag": {
+            "code": "MODULE_HQ_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "bfb35eab-064d-42de-b33b-e1f219ff7ce5",
+          "flag": {
+            "code": "MODULE_GROWTH_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "84272135-7596-41c4-8767-d65b38537fbc",
+          "flag": {
+            "code": "MODULE_SUPPLY_LITE_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "a0feb80c-e992-4d83-bb42-fd7e761d52e8",
+          "flag": {
+            "code": "MODULE_PUBLIC_API_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "a1a9f2d3-ead5-4d7a-9388-15cefcc40da5",
+          "flag": {
+            "code": "MODULE_EVENT_GROWTH_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "07948fe5-db85-436c-9ff2-f904441af278",
+          "flag": {
+            "code": "MODULE_ADVANCED_ANALYTICS_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "6f7ad6b5-3757-4332-9960-ec00438f70c0",
+          "flag": {
+            "code": "DUAL_ORDER_INTAKE_ENABLED"
+          },
+          "scopeType": "GLOBAL",
+          "organizationId": null,
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": "2026-10-01T00:20:50.494Z"
+        }
+      ],
+      "surroundings": {
+        "orders": [
+          {
+            "_count": 4,
+            "status": "WAITING_CONFIRMATION"
+          },
+          {
+            "_count": 157,
+            "status": "CONFIRMED"
+          },
+          {
+            "_count": 4,
+            "status": "READY"
+          },
+          {
+            "_count": 20,
+            "status": "COMPLETED"
+          },
+          {
+            "_count": 46,
+            "status": "EXPIRED"
+          }
+        ],
+        "products": 214,
+        "tasks": [
+          {
+            "_count": 14,
+            "status": "COMPLETED"
+          },
+          {
+            "_count": 122,
+            "status": "PENDING"
+          },
+          {
+            "_count": 10,
+            "status": "CANCELLED"
+          }
+        ]
+      },
+      "runtimeContractSha256": "28d68479b0a2a61ad8ea65b773175693744385651caa7a0415fab6a358676389"
+    },
+    {
+      "at": "2026-09-30T14:52:13.466Z",
+      "orderDigest": "10b7242ec9d9fb274e5cd38e78fcb937089a6c35e72e5601df0d01410301d255",
+      "fullDatasetDigest": "0e6c590475502b69070d0a00da43c2bf08ca911441f705f9e86dacc3abf6c447",
+      "settings": {
+        "kdsModuleEnabled": true,
+        "printModuleEnabled": false,
+        "paymentModuleEnabled": true,
+        "enabledLocales": [
+          "zh-TW",
+          "en",
+          "ja",
+          "ko",
+          "vi",
+          "th"
+        ],
+        "kdsWarningMinutes": 5,
+        "kdsCriticalMinutes": 10,
+        "kdsDefaultView": "ORDER"
+      },
+      "flags": [
+        {
+          "id": "87af29f6-10da-4aaf-8358-a164e0ae4072",
+          "flag": {
+            "code": "MODULE_HQ_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "bfb35eab-064d-42de-b33b-e1f219ff7ce5",
+          "flag": {
+            "code": "MODULE_GROWTH_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "84272135-7596-41c4-8767-d65b38537fbc",
+          "flag": {
+            "code": "MODULE_SUPPLY_LITE_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "a0feb80c-e992-4d83-bb42-fd7e761d52e8",
+          "flag": {
+            "code": "MODULE_PUBLIC_API_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "a1a9f2d3-ead5-4d7a-9388-15cefcc40da5",
+          "flag": {
+            "code": "MODULE_EVENT_GROWTH_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "07948fe5-db85-436c-9ff2-f904441af278",
+          "flag": {
+            "code": "MODULE_ADVANCED_ANALYTICS_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "6f7ad6b5-3757-4332-9960-ec00438f70c0",
+          "flag": {
+            "code": "DUAL_ORDER_INTAKE_ENABLED"
+          },
+          "scopeType": "GLOBAL",
+          "organizationId": null,
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": "2026-10-01T00:20:50.494Z"
+        }
+      ],
+      "surroundings": {
+        "orders": [
+          {
+            "_count": 4,
+            "status": "WAITING_CONFIRMATION"
+          },
+          {
+            "_count": 157,
+            "status": "CONFIRMED"
+          },
+          {
+            "_count": 4,
+            "status": "READY"
+          },
+          {
+            "_count": 20,
+            "status": "COMPLETED"
+          },
+          {
+            "_count": 46,
+            "status": "EXPIRED"
+          }
+        ],
+        "products": 214,
+        "tasks": [
+          {
+            "_count": 14,
+            "status": "COMPLETED"
+          },
+          {
+            "_count": 122,
+            "status": "PENDING"
+          },
+          {
+            "_count": 10,
+            "status": "CANCELLED"
+          }
+        ]
+      },
+      "runtimeContractSha256": "28d68479b0a2a61ad8ea65b773175693744385651caa7a0415fab6a358676389"
+    }
+  ],
+  "routes": {
+    "QR": {
+      "width": 390,
+      "route": "/q/[frozen main QR]",
+      "role": "anonymous",
+      "cold": {
+        "samples": [
+          1343.6,
+          1418,
+          1319.9,
+          1781.3,
+          1309,
+          1324.9,
+          1271.5,
+          1305.8,
+          559,
+          1333.6,
+          1319,
+          1320.6,
+          1317.4,
+          1332.9,
+          1346.5,
+          1309.6,
+          1361.3,
+          1374.7,
+          1298.1,
+          1339.6,
+          1303.2,
+          542.8,
+          1303.8,
+          542.8,
+          1302.5,
+          1303.4,
+          1323.4,
+          1291.8,
+          1291.9,
+          1298.2
+        ],
+        "attempts": [
+          {
+            "at": "2026-09-30T14:16:56.671Z",
+            "index": 1,
+            "ms": 1343.6,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:16:58.106Z",
+            "index": 2,
+            "ms": 1418,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:16:59.614Z",
+            "index": 3,
+            "ms": 1319.9,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:17:01.036Z",
+            "index": 4,
+            "ms": 1781.3,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:17:02.908Z",
+            "index": 5,
+            "ms": 1309,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:17:04.307Z",
+            "index": 6,
+            "ms": 1324.9,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:17:05.711Z",
+            "index": 7,
+            "ms": 1271.5,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:17:07.061Z",
+            "index": 8,
+            "ms": 1305.8,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:17:08.457Z",
+            "index": 9,
+            "ms": 559,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:17:09.089Z",
+            "index": 10,
+            "ms": 1333.6,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:17:10.511Z",
+            "index": 11,
+            "ms": 1319,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:17:11.911Z",
+            "index": 12,
+            "ms": 1320.6,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:17:13.314Z",
+            "index": 13,
+            "ms": 1317.4,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:17:14.717Z",
+            "index": 14,
+            "ms": 1332.9,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:17:16.136Z",
+            "index": 15,
+            "ms": 1346.5,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:17:17.573Z",
+            "index": 16,
+            "ms": 1309.6,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:17:18.964Z",
+            "index": 17,
+            "ms": 1361.3,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:17:20.441Z",
+            "index": 18,
+            "ms": 1374.7,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:17:21.899Z",
+            "index": 19,
+            "ms": 1298.1,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:17:23.298Z",
+            "index": 20,
+            "valid": false,
+            "error": "locator.click: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('article').filter({ has: getByRole('heading', { name: 'B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables', exact: true }) }).getByTestId('qr-open-product-configurator')\u001b[22m\n\u001b[2m    - locator resolved to <button disabled type=\"button\" data-testid=\"qr-open-product-configurator\" class=\"inline-flex min-h-14 min-w-32 items-center justify-center rounded-lg border-2 border-teal-700 bg-teal-50 px-4 text-sm font-bold text-teal-900 disabled:opacity-40\">選擇規格</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not enabled\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m    - element is not stable\u001b[22m\n\u001b[2m  2 × retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m      - waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not enabled\u001b[22m\n\u001b[2m  37 × retrying click action\u001b[22m\n\u001b[2m       - waiting 500ms\u001b[22m\n\u001b[2m       - waiting for element to be visible, enabled and stable\u001b[2",
+            "responses": [
+              {
+                "status": 429,
+                "path": "/functions/v1/create-order-session",
+                "retryAfter": null
+              },
+              {
+                "status": 429,
+                "path": "/functions/v1/create-order-session",
+                "retryAfter": null
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:22:46.215Z",
+            "index": 21,
+            "ms": 1339.6,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:22:47.650Z",
+            "index": 22,
+            "ms": 1303.2,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:22:49.046Z",
+            "index": 23,
+            "ms": 542.8,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:22:49.679Z",
+            "index": 24,
+            "ms": 1303.8,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:22:51.074Z",
+            "index": 25,
+            "ms": 542.8,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:22:51.716Z",
+            "index": 26,
+            "ms": 1302.5,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:22:53.102Z",
+            "index": 27,
+            "ms": 1303.4,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:22:54.497Z",
+            "index": 28,
+            "ms": 1323.4,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:22:55.908Z",
+            "index": 29,
+            "ms": 1291.8,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:22:57.295Z",
+            "index": 30,
+            "ms": 1291.9,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:22:58.684Z",
+            "index": 31,
+            "ms": 1298.2,
+            "valid": true,
+            "responses": []
+          }
+        ],
+        "priming": null,
+        "summary": {
+          "n": 30,
+          "median": 1313.5,
+          "p95": 1418,
+          "min": 542.8,
+          "max": 1781.3
+        },
+        "errorRate": 0.03225806451612903
+      },
+      "warm": {
+        "samples": [
+          740.2,
+          469,
+          521.6,
+          489.1,
+          499.5,
+          498.3,
+          498.5,
+          499.1,
+          515.4,
+          461.3,
+          495.7,
+          508.5,
+          506.3,
+          479.4,
+          517.4,
+          498,
+          621,
+          614.3,
+          627.6,
+          761.5,
+          649.4,
+          777.7,
+          616.2,
+          528.5,
+          604.6,
+          575.7,
+          490.6,
+          518.5,
+          517.2,
+          511.2
+        ],
+        "attempts": [
+          {
+            "at": "2026-09-30T14:23:01.372Z",
+            "index": 1,
+            "ms": 740.2,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:23:02.113Z",
+            "index": 2,
+            "ms": 469,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:23:02.584Z",
+            "index": 3,
+            "ms": 521.6,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:23:03.108Z",
+            "index": 4,
+            "ms": 489.1,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:23:03.598Z",
+            "index": 5,
+            "ms": 499.5,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:23:04.099Z",
+            "index": 6,
+            "ms": 498.3,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:23:04.599Z",
+            "index": 7,
+            "ms": 498.5,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:23:05.100Z",
+            "index": 8,
+            "valid": false,
+            "error": "locator.click: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('article').filter({ has: getByRole('heading', { name: 'B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables', exact: true }) }).getByTestId('qr-open-product-configurator')\u001b[22m\n\u001b[2m    - locator resolved to <button disabled type=\"button\" data-testid=\"qr-open-product-configurator\" class=\"inline-flex min-h-14 min-w-32 items-center justify-center rounded-lg border-2 border-teal-700 bg-teal-50 px-4 text-sm font-bold text-teal-900 disabled:opacity-40\">選擇規格</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not enabled\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not enabled\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    38 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m       - element is not enabled\u001b[22m\n\u001b[2m     - retrying click action\u001b[22m\n\u001b[2m       - waiting 500ms\u001b[22m\n",
+            "responses": [
+              {
+                "status": 429,
+                "path": "/functions/v1/create-order-session",
+                "retryAfter": null
+              },
+              {
+                "status": 429,
+                "path": "/functions/v1/create-order-session",
+                "retryAfter": null
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:28:26.190Z",
+            "index": 9,
+            "ms": 499.1,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:28:26.691Z",
+            "index": 10,
+            "ms": 515.4,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:28:27.209Z",
+            "index": 11,
+            "ms": 461.3,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:28:27.672Z",
+            "index": 12,
+            "ms": 495.7,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:28:28.170Z",
+            "index": 13,
+            "ms": 508.5,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:28:28.680Z",
+            "index": 14,
+            "ms": 506.3,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:28:29.188Z",
+            "index": 15,
+            "ms": 479.4,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:28:29.669Z",
+            "index": 16,
+            "ms": 517.4,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:28:30.189Z",
+            "index": 17,
+            "ms": 498,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:28:30.688Z",
+            "index": 18,
+            "valid": false,
+            "error": "locator.click: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('article').filter({ has: getByRole('heading', { name: 'B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables', exact: true }) }).getByTestId('qr-open-product-configurator')\u001b[22m\n\u001b[2m    - locator resolved to <button disabled type=\"button\" data-testid=\"qr-open-product-configurator\" class=\"inline-flex min-h-14 min-w-32 items-center justify-center rounded-lg border-2 border-teal-700 bg-teal-50 px-4 text-sm font-bold text-teal-900 disabled:opacity-40\">選擇規格</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not enabled\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not enabled\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    38 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m       - element is not enabled\u001b[22m\n\u001b[2m     - retrying click action\u001b[22m\n\u001b[2m       - waiting 500ms\u001b[22m\n",
+            "responses": [
+              {
+                "status": 429,
+                "path": "/functions/v1/create-order-session",
+                "retryAfter": null
+              },
+              {
+                "status": 429,
+                "path": "/functions/v1/create-order-session",
+                "retryAfter": null
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:33:51.777Z",
+            "index": 19,
+            "ms": 621,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:33:52.401Z",
+            "index": 20,
+            "ms": 614.3,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:33:53.019Z",
+            "index": 21,
+            "ms": 627.6,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:33:53.651Z",
+            "index": 22,
+            "ms": 761.5,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:33:54.416Z",
+            "index": 23,
+            "ms": 649.4,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:33:55.068Z",
+            "index": 24,
+            "ms": 777.7,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:33:55.848Z",
+            "index": 25,
+            "ms": 616.2,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:33:56.467Z",
+            "index": 26,
+            "ms": 528.5,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:33:56.999Z",
+            "index": 27,
+            "ms": 604.6,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:33:57.606Z",
+            "index": 28,
+            "valid": false,
+            "error": "locator.click: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('article').filter({ has: getByRole('heading', { name: 'B3 超長名稱香酥雞排搭配香草與季節蔬菜 Long configuration with seasonal vegetables', exact: true }) }).getByTestId('qr-open-product-configurator')\u001b[22m\n\u001b[2m    - locator resolved to <button disabled type=\"button\" data-testid=\"qr-open-product-configurator\" class=\"inline-flex min-h-14 min-w-32 items-center justify-center rounded-lg border-2 border-teal-700 bg-teal-50 px-4 text-sm font-bold text-teal-900 disabled:opacity-40\">選擇規格</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not enabled\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is not enabled\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    36 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m       - element is not enabled\u001b[22m\n\u001b[2m     - retrying click action\u001b[22m\n\u001b[2m       - waiting 500ms\u001b[22m\n",
+            "responses": [
+              {
+                "status": 429,
+                "path": "/functions/v1/create-order-session",
+                "retryAfter": null
+              },
+              {
+                "status": 429,
+                "path": "/functions/v1/create-order-session",
+                "retryAfter": null
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:39:18.854Z",
+            "index": 29,
+            "ms": 575.7,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:39:19.433Z",
+            "index": 30,
+            "ms": 490.6,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:39:19.925Z",
+            "index": 31,
+            "ms": 518.5,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:39:20.445Z",
+            "index": 32,
+            "ms": 517.2,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:39:20.965Z",
+            "index": 33,
+            "ms": 511.2,
+            "valid": true,
+            "responses": []
+          }
+        ],
+        "priming": {
+          "at": "2026-09-30T14:23:01.371Z",
+          "errors": []
+        },
+        "summary": {
+          "n": 30,
+          "median": 516.3,
+          "p95": 761.5,
+          "min": 461.3,
+          "max": 777.7
+        },
+        "errorRate": 0.09090909090909091
+      }
+    },
+    "Staff": {
+      "width": 1024,
+      "route": "/staff/aming-chicken",
+      "role": "STAFF",
+      "cold": {
+        "samples": [
+          1058.3,
+          956.9,
+          1075.9,
+          881.4,
+          889.3,
+          1019.2,
+          942.4,
+          996.4,
+          978.3,
+          1099.2,
+          1138.9,
+          1163.3,
+          1096.8,
+          1042.6,
+          971.6,
+          985.9,
+          996.5,
+          1026.1,
+          1068.3,
+          965.9,
+          936.5,
+          1157.9,
+          1056.4,
+          949.3,
+          1208,
+          1295,
+          1099.3,
+          1057.1,
+          964.6,
+          1033.2
+        ],
+        "attempts": [
+          {
+            "at": "2026-09-30T14:39:23.269Z",
+            "index": 1,
+            "ms": 1058.3,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:39:25.431Z",
+            "index": 2,
+            "ms": 956.9,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:39:27.497Z",
+            "index": 3,
+            "ms": 1075.9,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:39:29.673Z",
+            "index": 4,
+            "ms": 881.4,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:39:31.667Z",
+            "index": 5,
+            "ms": 889.3,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:39:33.673Z",
+            "index": 6,
+            "ms": 1019.2,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:39:35.795Z",
+            "index": 7,
+            "ms": 942.4,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:39:37.875Z",
+            "index": 8,
+            "ms": 996.4,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:39:39.993Z",
+            "index": 9,
+            "ms": 978.3,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:39:42.072Z",
+            "index": 10,
+            "ms": 1099.2,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:39:44.278Z",
+            "index": 11,
+            "ms": 1138.9,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:39:46.542Z",
+            "index": 12,
+            "ms": 1163.3,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:39:48.825Z",
+            "index": 13,
+            "ms": 1096.8,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:39:51.030Z",
+            "index": 14,
+            "ms": 1042.6,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:39:53.198Z",
+            "index": 15,
+            "ms": 971.6,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:39:55.285Z",
+            "index": 16,
+            "ms": 985.9,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:39:57.384Z",
+            "index": 17,
+            "ms": 996.5,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:39:59.499Z",
+            "index": 18,
+            "ms": 1026.1,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:40:01.787Z",
+            "index": 19,
+            "ms": 1068.3,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:40:03.972Z",
+            "index": 20,
+            "ms": 965.9,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:40:06.034Z",
+            "index": 21,
+            "ms": 936.5,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:40:08.089Z",
+            "index": 22,
+            "ms": 1157.9,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:40:10.355Z",
+            "index": 23,
+            "ms": 1056.4,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:40:12.541Z",
+            "index": 24,
+            "ms": 949.3,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:40:14.604Z",
+            "index": 25,
+            "ms": 1208,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:40:16.927Z",
+            "index": 26,
+            "ms": 1295,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:40:19.404Z",
+            "index": 27,
+            "ms": 1099.3,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:40:21.652Z",
+            "index": 28,
+            "ms": 1057.1,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:40:23.805Z",
+            "index": 29,
+            "ms": 964.6,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:40:25.891Z",
+            "index": 30,
+            "ms": 1033.2,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          }
+        ],
+        "priming": null,
+        "summary": {
+          "n": 30,
+          "median": 1029.65,
+          "p95": 1208,
+          "min": 881.4,
+          "max": 1295
+        },
+        "errorRate": 0
+      },
+      "warm": {
+        "samples": [
+          976,
+          777.1,
+          829.8,
+          949.6,
+          770.5,
+          939.1,
+          813.6,
+          956.7,
+          986.2,
+          780.5,
+          806.6,
+          1036.9,
+          952.9,
+          1231.8,
+          971.5,
+          1014.9,
+          1142.5,
+          946.9,
+          884.9,
+          827.5,
+          790.8,
+          849,
+          790.6,
+          820.6,
+          806.3,
+          951.6,
+          1019.1,
+          1014.5,
+          871.1,
+          882.7
+        ],
+        "attempts": [
+          {
+            "at": "2026-09-30T14:40:30.380Z",
+            "index": 1,
+            "ms": 976,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:40:32.375Z",
+            "index": 2,
+            "ms": 777.1,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:40:34.172Z",
+            "index": 3,
+            "ms": 829.8,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:40:36.019Z",
+            "index": 4,
+            "ms": 949.6,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:40:37.989Z",
+            "index": 5,
+            "ms": 770.5,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:40:39.779Z",
+            "index": 6,
+            "ms": 939.1,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:40:41.740Z",
+            "index": 7,
+            "ms": 813.6,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:40:43.579Z",
+            "index": 8,
+            "ms": 956.7,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:40:45.550Z",
+            "index": 9,
+            "ms": 986.2,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:40:47.554Z",
+            "index": 10,
+            "ms": 780.5,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:40:49.360Z",
+            "index": 11,
+            "ms": 806.6,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:40:51.181Z",
+            "index": 12,
+            "ms": 1036.9,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:40:53.235Z",
+            "index": 13,
+            "ms": 952.9,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:40:55.201Z",
+            "index": 14,
+            "ms": 1231.8,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:40:57.447Z",
+            "index": 15,
+            "ms": 971.5,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:40:59.438Z",
+            "index": 16,
+            "ms": 1014.9,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:41:01.476Z",
+            "index": 17,
+            "ms": 1142.5,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:41:03.639Z",
+            "index": 18,
+            "ms": 946.9,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:41:05.600Z",
+            "index": 19,
+            "ms": 884.9,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:41:07.504Z",
+            "index": 20,
+            "ms": 918.8,
+            "valid": false,
+            "error": "expect(received).toEqual(expected) // deep equality\n\n- Expected  -  1\n+ Received  + 27\n\n- Array []\n+ Array [\n+   Object {\n+     \"path\": \"/api/stalls/aming-chicken/cash-shifts\",\n+     \"retryAfter\": \"196\",\n+     \"status\": 429,\n+   },\n+   Object {\n+     \"path\": \"/api/stalls/aming-chicken/attendance\",\n+     \"retryAfter\": \"196\",\n+     \"status\": 429,\n+   },\n+   Object {\n+     \"path\": \"/api/line-platform/pickup/aming-chicken/capability\",\n+     \"retryAfter\": \"196\",\n+     \"status\": 429,\n+   },\n+   Object {\n+     \"path\": \"/api/stalls/aming-chicken/orders\",\n+     \"retryAfter\": \"196\",\n+     \"status\": 429,\n+   },\n+   Object {\n+     \"path\": \"/api/stalls/aming-chicken/orders/stream\",\n+     \"retryAfter\": \"196\",\n+     \"status\": 429,\n+   },\n+ ]",
+            "responses": [
+              {
+                "status": 429,
+                "path": "/api/stalls/aming-chicken/cash-shifts",
+                "retryAfter": "196"
+              },
+              {
+                "status": 429,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": "196"
+              },
+              {
+                "status": 429,
+                "path": "/api/line-platform/pickup/aming-chicken/capability",
+                "retryAfter": "196"
+              },
+              {
+                "status": 429,
+                "path": "/api/stalls/aming-chicken/orders",
+                "retryAfter": "196"
+              },
+              {
+                "status": 429,
+                "path": "/api/stalls/aming-chicken/orders/stream",
+                "retryAfter": "196"
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:44:26.449Z",
+            "index": 21,
+            "ms": 827.5,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:44:28.304Z",
+            "index": 22,
+            "ms": 790.8,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:44:30.112Z",
+            "index": 23,
+            "ms": 849,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:44:31.985Z",
+            "index": 24,
+            "ms": 790.6,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:44:33.789Z",
+            "index": 25,
+            "ms": 820.6,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:44:35.622Z",
+            "index": 26,
+            "ms": 806.3,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:44:37.445Z",
+            "index": 27,
+            "ms": 951.6,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:44:39.412Z",
+            "index": 28,
+            "ms": 1019.1,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:44:41.446Z",
+            "index": 29,
+            "ms": 1014.5,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:44:43.472Z",
+            "index": 30,
+            "ms": 871.1,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:44:45.360Z",
+            "index": 31,
+            "ms": 882.7,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          }
+        ],
+        "priming": {
+          "at": "2026-09-30T14:40:29.365Z",
+          "errors": [
+            {
+              "status": 409,
+              "path": "/api/stalls/aming-chicken/attendance",
+              "retryAfter": null,
+              "preflightCode": "ATTENDANCE_DISABLED",
+              "expectedOptionalModuleResponse": true
+            }
+          ]
+        },
+        "summary": {
+          "n": 30,
+          "median": 912,
+          "p95": 1142.5,
+          "min": 770.5,
+          "max": 1231.8
+        },
+        "errorRate": 0.03225806451612903
+      }
+    },
+    "KDS": {
+      "width": 1024,
+      "route": "/kitchen?stall=aming-chicken",
+      "role": "KDS",
+      "cold": {
+        "samples": [
+          331.4,
+          306.3,
+          309.3,
+          350.8,
+          316.4,
+          317.8,
+          310.7,
+          321.8,
+          332.1,
+          334.6,
+          597.5,
+          623.9,
+          295,
+          299.6,
+          282.9,
+          300.7,
+          282.1,
+          346.6,
+          340.6,
+          265,
+          284.7,
+          289.7,
+          278.8,
+          284.7,
+          285,
+          311.9,
+          266,
+          277.6,
+          421.1,
+          273.2
+        ],
+        "attempts": [
+          {
+            "at": "2026-09-30T14:44:47.365Z",
+            "index": 1,
+            "ms": 331.4,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:44:48.832Z",
+            "index": 2,
+            "ms": 306.3,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:44:50.283Z",
+            "index": 3,
+            "ms": 309.3,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:44:51.708Z",
+            "index": 4,
+            "ms": 350.8,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:44:53.166Z",
+            "index": 5,
+            "ms": 316.4,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:44:54.631Z",
+            "index": 6,
+            "ms": 317.8,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:44:56.066Z",
+            "index": 7,
+            "ms": 310.7,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:44:57.511Z",
+            "index": 8,
+            "ms": 321.8,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:44:58.979Z",
+            "index": 9,
+            "ms": 332.1,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:45:00.421Z",
+            "index": 10,
+            "ms": 334.6,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:45:02.007Z",
+            "index": 11,
+            "ms": 683.6,
+            "valid": false,
+            "error": "expect(received).toEqual(expected) // deep equality\n\n- Expected  - 1\n+ Received  + 7\n\n- Array []\n+ Array [\n+   Object {\n+     \"path\": \"/api/stalls/aming-chicken/kitchen/stream\",\n+     \"retryAfter\": \"50\",\n+     \"status\": 429,\n+   },\n+ ]",
+            "responses": [
+              {
+                "status": 429,
+                "path": "/api/stalls/aming-chicken/kitchen/stream",
+                "retryAfter": "50"
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:46:04.817Z",
+            "index": 12,
+            "ms": 597.5,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:46:06.525Z",
+            "index": 13,
+            "ms": 623.9,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:46:08.241Z",
+            "index": 14,
+            "ms": 628.4,
+            "valid": false,
+            "error": "expect(received).toEqual(expected) // deep equality\n\n- Expected  - 1\n+ Received  + 7\n\n- Array []\n+ Array [\n+   Object {\n+     \"path\": \"/api/stalls/aming-chicken/kitchen/stream\",\n+     \"retryAfter\": \"59\",\n+     \"status\": 429,\n+   },\n+ ]",
+            "responses": [
+              {
+                "status": 429,
+                "path": "/api/stalls/aming-chicken/kitchen/stream",
+                "retryAfter": "59"
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:47:10.946Z",
+            "index": 15,
+            "ms": 295,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:47:12.330Z",
+            "index": 16,
+            "ms": 299.6,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:47:13.726Z",
+            "index": 17,
+            "ms": 282.9,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:47:15.096Z",
+            "index": 18,
+            "ms": 300.7,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:47:16.520Z",
+            "index": 19,
+            "ms": 282.1,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:47:17.908Z",
+            "index": 20,
+            "ms": 346.6,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:47:19.363Z",
+            "index": 21,
+            "ms": 340.6,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:47:20.807Z",
+            "index": 22,
+            "ms": 265,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:47:22.166Z",
+            "index": 23,
+            "ms": 284.7,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:47:23.540Z",
+            "index": 24,
+            "ms": 289.7,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:47:24.905Z",
+            "index": 25,
+            "ms": 278.8,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:47:26.259Z",
+            "index": 26,
+            "ms": 284.7,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:47:27.638Z",
+            "index": 27,
+            "ms": 299.9,
+            "valid": false,
+            "error": "expect(received).toEqual(expected) // deep equality\n\n- Expected  - 1\n+ Received  + 7\n\n- Array []\n+ Array [\n+   Object {\n+     \"path\": \"/api/stalls/aming-chicken/kitchen/stream\",\n+     \"retryAfter\": \"56\",\n+     \"status\": 429,\n+   },\n+ ]",
+            "responses": [
+              {
+                "status": 429,
+                "path": "/api/stalls/aming-chicken/kitchen/stream",
+                "retryAfter": "56"
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:48:30.040Z",
+            "index": 28,
+            "ms": 285,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:48:31.421Z",
+            "index": 29,
+            "ms": 311.9,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:48:32.856Z",
+            "index": 30,
+            "ms": 266,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:48:34.194Z",
+            "index": 31,
+            "ms": 277.6,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:48:35.557Z",
+            "index": 32,
+            "ms": 421.1,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:48:37.076Z",
+            "index": 33,
+            "ms": 273.2,
+            "valid": true,
+            "responses": []
+          }
+        ],
+        "priming": null,
+        "summary": {
+          "n": 30,
+          "median": 307.8,
+          "p95": 597.5,
+          "min": 265,
+          "max": 623.9
+        },
+        "errorRate": 0.09090909090909091
+      },
+      "warm": {
+        "samples": [
+          299.2,
+          258.6,
+          261.2,
+          291.7,
+          267.9,
+          624.3,
+          599.5,
+          622.4,
+          282.8,
+          271.2,
+          597.2,
+          281.6,
+          287.6,
+          285.1,
+          331.7,
+          260.3,
+          272.9,
+          288.8,
+          270.8,
+          321.9,
+          327,
+          275.1,
+          277.8,
+          289.7,
+          260.7,
+          302.2,
+          315.4,
+          274.6,
+          278.7,
+          282.1
+        ],
+        "attempts": [
+          {
+            "at": "2026-09-30T14:48:39.745Z",
+            "index": 1,
+            "ms": 299.2,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:48:41.067Z",
+            "index": 2,
+            "ms": 258.6,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:48:42.351Z",
+            "index": 3,
+            "ms": 261.2,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:48:43.635Z",
+            "index": 4,
+            "ms": 291.7,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:48:44.948Z",
+            "index": 5,
+            "ms": 267.9,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:48:46.227Z",
+            "index": 6,
+            "ms": 254.5,
+            "valid": false,
+            "error": "expect(received).toEqual(expected) // deep equality\n\n- Expected  - 1\n+ Received  + 7\n\n- Array []\n+ Array [\n+   Object {\n+     \"path\": \"/api/stalls/aming-chicken/kitchen/stream\",\n+     \"retryAfter\": \"58\",\n+     \"status\": 429,\n+   },\n+ ]",
+            "responses": [
+              {
+                "status": 429,
+                "path": "/api/stalls/aming-chicken/kitchen/stream",
+                "retryAfter": "58"
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:49:48.518Z",
+            "index": 7,
+            "ms": 624.3,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:49:50.162Z",
+            "index": 8,
+            "ms": 599.5,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:49:51.785Z",
+            "index": 9,
+            "ms": 622.4,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:49:53.422Z",
+            "index": 10,
+            "ms": 282.8,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:49:54.729Z",
+            "index": 11,
+            "ms": 271.2,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:49:56.023Z",
+            "index": 12,
+            "ms": 597.2,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:49:57.642Z",
+            "index": 13,
+            "ms": 281.6,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:49:58.942Z",
+            "index": 14,
+            "ms": 287.6,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:50:00.259Z",
+            "index": 15,
+            "ms": 285.1,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:50:01.557Z",
+            "index": 16,
+            "ms": 331.7,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:50:02.919Z",
+            "index": 17,
+            "ms": 260.3,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:50:04.200Z",
+            "index": 18,
+            "ms": 272.9,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:50:05.500Z",
+            "index": 19,
+            "ms": 288.8,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:50:06.811Z",
+            "index": 20,
+            "ms": 270.8,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:50:08.101Z",
+            "index": 21,
+            "ms": 321.9,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:50:09.444Z",
+            "index": 22,
+            "ms": 355.2,
+            "valid": false,
+            "error": "expect(received).toEqual(expected) // deep equality\n\n- Expected  - 1\n+ Received  + 7\n\n- Array []\n+ Array [\n+   Object {\n+     \"path\": \"/api/stalls/aming-chicken/kitchen/stream\",\n+     \"retryAfter\": \"59\",\n+     \"status\": 429,\n+   },\n+ ]",
+            "responses": [
+              {
+                "status": 429,
+                "path": "/api/stalls/aming-chicken/kitchen/stream",
+                "retryAfter": "59"
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:51:11.839Z",
+            "index": 23,
+            "ms": 327,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:13.189Z",
+            "index": 24,
+            "ms": 275.1,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:14.482Z",
+            "index": 25,
+            "ms": 277.8,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:15.785Z",
+            "index": 26,
+            "ms": 289.7,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:17.095Z",
+            "index": 27,
+            "ms": 260.7,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:18.371Z",
+            "index": 28,
+            "ms": 302.2,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:19.694Z",
+            "index": 29,
+            "ms": 315.4,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:21.038Z",
+            "index": 30,
+            "ms": 274.6,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:22.326Z",
+            "index": 31,
+            "ms": 278.7,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:23.620Z",
+            "index": 32,
+            "ms": 282.1,
+            "valid": true,
+            "responses": []
+          }
+        ],
+        "priming": {
+          "at": "2026-09-30T14:48:38.734Z",
+          "errors": []
+        },
+        "summary": {
+          "n": 30,
+          "median": 283.95000000000005,
+          "p95": 622.4,
+          "min": 258.6,
+          "max": 624.3
+        },
+        "errorRate": 0.0625
+      }
+    },
+    "Report": {
+      "width": 390,
+      "route": "/merchant/reports/overview?organizationId=11111111-1111-4111-8111-111111111111&stallId=22222222-2222-4222-8222-222222222222&dateFrom=2026-09-30&dateTo=2026-09-30",
+      "role": "OWNER",
+      "cold": {
+        "samples": [
+          291.8,
+          277,
+          305,
+          286.9,
+          289.2,
+          286.1,
+          291.4,
+          340.7,
+          301,
+          299.9,
+          324,
+          330,
+          312.2,
+          293.4,
+          283.1,
+          291.2,
+          339.3,
+          282.8,
+          294.9,
+          282.1,
+          277.2,
+          270.9,
+          290.6,
+          285.3,
+          284.7,
+          295.8,
+          286.5,
+          274.4,
+          268.8,
+          300.8
+        ],
+        "attempts": [
+          {
+            "at": "2026-09-30T14:51:25.122Z",
+            "index": 1,
+            "ms": 291.8,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:25.536Z",
+            "index": 2,
+            "ms": 277,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:25.939Z",
+            "index": 3,
+            "ms": 305,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:26.361Z",
+            "index": 4,
+            "ms": 286.9,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:26.773Z",
+            "index": 5,
+            "ms": 289.2,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:27.178Z",
+            "index": 6,
+            "ms": 286.1,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:27.587Z",
+            "index": 7,
+            "ms": 291.4,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:28.002Z",
+            "index": 8,
+            "ms": 340.7,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:28.478Z",
+            "index": 9,
+            "ms": 301,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:28.894Z",
+            "index": 10,
+            "ms": 299.9,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:29.312Z",
+            "index": 11,
+            "ms": 324,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:29.788Z",
+            "index": 12,
+            "ms": 330,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:30.250Z",
+            "index": 13,
+            "ms": 312.2,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:30.703Z",
+            "index": 14,
+            "ms": 293.4,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:31.113Z",
+            "index": 15,
+            "ms": 283.1,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:31.521Z",
+            "index": 16,
+            "ms": 291.2,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:31.960Z",
+            "index": 17,
+            "ms": 339.3,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:32.431Z",
+            "index": 18,
+            "ms": 282.8,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:32.834Z",
+            "index": 19,
+            "ms": 294.9,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:33.248Z",
+            "index": 20,
+            "ms": 282.1,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:33.650Z",
+            "index": 21,
+            "ms": 277.2,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:34.043Z",
+            "index": 22,
+            "ms": 270.9,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:34.437Z",
+            "index": 23,
+            "ms": 290.6,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:34.845Z",
+            "index": 24,
+            "ms": 285.3,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:35.244Z",
+            "index": 25,
+            "ms": 284.7,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:35.649Z",
+            "index": 26,
+            "ms": 295.8,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:36.064Z",
+            "index": 27,
+            "ms": 286.5,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:36.471Z",
+            "index": 28,
+            "ms": 274.4,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:36.858Z",
+            "index": 29,
+            "ms": 268.8,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:37.246Z",
+            "index": 30,
+            "ms": 300.8,
+            "valid": true,
+            "responses": []
+          }
+        ],
+        "priming": null,
+        "summary": {
+          "n": 30,
+          "median": 290.9,
+          "p95": 339.3,
+          "min": 268.8,
+          "max": 340.7
+        },
+        "errorRate": 0
+      },
+      "warm": {
+        "samples": [
+          181.7,
+          183.2,
+          146.6,
+          181.7,
+          164.2,
+          159.8,
+          136.3,
+          146.4,
+          151.5,
+          169.8,
+          159.5,
+          168.1,
+          163.8,
+          145.5,
+          182.9,
+          144.6,
+          132.6,
+          156.8,
+          441,
+          145.9,
+          153,
+          147.9,
+          190.9,
+          173.1,
+          165.2,
+          149.8,
+          144.6,
+          177.9,
+          150.3,
+          133.1
+        ],
+        "attempts": [
+          {
+            "at": "2026-09-30T14:51:37.964Z",
+            "index": 1,
+            "ms": 181.7,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:38.148Z",
+            "index": 2,
+            "ms": 183.2,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:38.333Z",
+            "index": 3,
+            "ms": 146.6,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:38.481Z",
+            "index": 4,
+            "ms": 181.7,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:38.665Z",
+            "index": 5,
+            "ms": 164.2,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:38.830Z",
+            "index": 6,
+            "ms": 159.8,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:38.992Z",
+            "index": 7,
+            "ms": 136.3,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:39.129Z",
+            "index": 8,
+            "ms": 146.4,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:39.277Z",
+            "index": 9,
+            "ms": 151.5,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:39.430Z",
+            "index": 10,
+            "ms": 169.8,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:39.602Z",
+            "index": 11,
+            "ms": 159.5,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:39.763Z",
+            "index": 12,
+            "ms": 168.1,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:39.933Z",
+            "index": 13,
+            "ms": 163.8,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:40.099Z",
+            "index": 14,
+            "ms": 145.5,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:40.246Z",
+            "index": 15,
+            "ms": 182.9,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:40.431Z",
+            "index": 16,
+            "ms": 144.6,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:40.577Z",
+            "index": 17,
+            "ms": 132.6,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:40.711Z",
+            "index": 18,
+            "ms": 156.8,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:40.870Z",
+            "index": 19,
+            "ms": 441,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:41.312Z",
+            "index": 20,
+            "ms": 145.9,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:41.460Z",
+            "index": 21,
+            "ms": 153,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:41.614Z",
+            "index": 22,
+            "ms": 147.9,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:41.763Z",
+            "index": 23,
+            "ms": 190.9,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:41.956Z",
+            "index": 24,
+            "ms": 173.1,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:42.131Z",
+            "index": 25,
+            "ms": 165.2,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:42.297Z",
+            "index": 26,
+            "ms": 149.8,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:42.449Z",
+            "index": 27,
+            "ms": 144.6,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:42.595Z",
+            "index": 28,
+            "ms": 177.9,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:42.775Z",
+            "index": 29,
+            "ms": 150.3,
+            "valid": true,
+            "responses": []
+          },
+          {
+            "at": "2026-09-30T14:51:42.927Z",
+            "index": 30,
+            "ms": 133.1,
+            "valid": true,
+            "responses": []
+          }
+        ],
+        "priming": {
+          "at": "2026-09-30T14:51:37.964Z",
+          "errors": []
+        },
+        "summary": {
+          "n": 30,
+          "median": 158.15,
+          "p95": 190.9,
+          "min": 132.6,
+          "max": 441
+        },
+        "errorRate": 0
+      }
+    }
+  },
+  "api": {
+    "Staff": {
+      "endpoint": "/api/stalls/aming-chicken/orders",
+      "role": "Staff",
+      "attempts": [
+        {
+          "ms": 76.8,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        },
+        {
+          "ms": 63.5,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        },
+        {
+          "ms": 34.3,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        },
+        {
+          "ms": 44.2,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        },
+        {
+          "ms": 99.3,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        },
+        {
+          "ms": 42.6,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        },
+        {
+          "ms": 37.6,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        },
+        {
+          "ms": 34.5,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        },
+        {
+          "ms": 43.8,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        },
+        {
+          "ms": 39.7,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        },
+        {
+          "ms": 38.2,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        },
+        {
+          "ms": 36.3,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        },
+        {
+          "ms": 31.9,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        },
+        {
+          "ms": 36.9,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        },
+        {
+          "ms": 36.2,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        },
+        {
+          "ms": 31.9,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        },
+        {
+          "ms": 31.5,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        },
+        {
+          "ms": 32,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        },
+        {
+          "ms": 34.8,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        },
+        {
+          "ms": 32.9,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        },
+        {
+          "ms": 36.8,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        },
+        {
+          "ms": 38.4,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        },
+        {
+          "ms": 33.8,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        },
+        {
+          "ms": 36.3,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        },
+        {
+          "ms": 36.3,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        },
+        {
+          "ms": 34.3,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        },
+        {
+          "ms": 37.9,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        },
+        {
+          "ms": 38.2,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        },
+        {
+          "ms": 40.3,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        },
+        {
+          "ms": 59.3,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 165
+        }
+      ],
+      "samples": [
+        76.8,
+        63.5,
+        34.3,
+        44.2,
+        99.3,
+        42.6,
+        37.6,
+        34.5,
+        43.8,
+        39.7,
+        38.2,
+        36.3,
+        31.9,
+        36.9,
+        36.2,
+        31.9,
+        31.5,
+        32,
+        34.8,
+        32.9,
+        36.8,
+        38.4,
+        33.8,
+        36.3,
+        36.3,
+        34.3,
+        37.9,
+        38.2,
+        40.3,
+        59.3
+      ],
+      "summary": {
+        "n": 30,
+        "median": 36.849999999999994,
+        "p95": 76.8,
+        "min": 31.5,
+        "max": 99.3
+      },
+      "errorRate": 0
+    },
+    "KDS": {
+      "endpoint": "/api/stalls/aming-chicken/kitchen/board",
+      "role": "KDS",
+      "attempts": [
+        {
+          "ms": 89.1,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        },
+        {
+          "ms": 67.4,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        },
+        {
+          "ms": 73.1,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        },
+        {
+          "ms": 70.8,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        },
+        {
+          "ms": 80.1,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        },
+        {
+          "ms": 66,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        },
+        {
+          "ms": 61.9,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        },
+        {
+          "ms": 61.2,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        },
+        {
+          "ms": 63.9,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        },
+        {
+          "ms": 75.1,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        },
+        {
+          "ms": 67.9,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        },
+        {
+          "ms": 66.7,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        },
+        {
+          "ms": 59.8,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        },
+        {
+          "ms": 71.9,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        },
+        {
+          "ms": 71.4,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        },
+        {
+          "ms": 61.7,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        },
+        {
+          "ms": 61.5,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        },
+        {
+          "ms": 69.9,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        },
+        {
+          "ms": 62.6,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        },
+        {
+          "ms": 60,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        },
+        {
+          "ms": 109.1,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        },
+        {
+          "ms": 71.9,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        },
+        {
+          "ms": 67.5,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        },
+        {
+          "ms": 65.3,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        },
+        {
+          "ms": 54.9,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        },
+        {
+          "ms": 73.9,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        },
+        {
+          "ms": 52.8,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        },
+        {
+          "ms": 71.6,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        },
+        {
+          "ms": 63.9,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        },
+        {
+          "ms": 77.8,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": 126
+        }
+      ],
+      "samples": [
+        89.1,
+        67.4,
+        73.1,
+        70.8,
+        80.1,
+        66,
+        61.9,
+        61.2,
+        63.9,
+        75.1,
+        67.9,
+        66.7,
+        59.8,
+        71.9,
+        71.4,
+        61.7,
+        61.5,
+        69.9,
+        62.6,
+        60,
+        109.1,
+        71.9,
+        67.5,
+        65.3,
+        54.9,
+        73.9,
+        52.8,
+        71.6,
+        63.9,
+        77.8
+      ],
+      "summary": {
+        "n": 30,
+        "median": 67.45,
+        "p95": 89.1,
+        "min": 52.8,
+        "max": 109.1
+      },
+      "errorRate": 0
+    },
+    "Report": {
+      "endpoint": "/api/availability/config",
+      "role": "Report",
+      "attempts": [
+        {
+          "ms": 19.4,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        },
+        {
+          "ms": 5.5,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        },
+        {
+          "ms": 4.1,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        },
+        {
+          "ms": 8.3,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        },
+        {
+          "ms": 12.2,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        },
+        {
+          "ms": 4.2,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        },
+        {
+          "ms": 6,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        },
+        {
+          "ms": 6.1,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        },
+        {
+          "ms": 3.1,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        },
+        {
+          "ms": 3,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        },
+        {
+          "ms": 3.5,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        },
+        {
+          "ms": 3.9,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        },
+        {
+          "ms": 3.7,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        },
+        {
+          "ms": 3.5,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        },
+        {
+          "ms": 3.4,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        },
+        {
+          "ms": 2.9,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        },
+        {
+          "ms": 3.3,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        },
+        {
+          "ms": 3.5,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        },
+        {
+          "ms": 3.5,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        },
+        {
+          "ms": 3,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        },
+        {
+          "ms": 2.9,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        },
+        {
+          "ms": 2.6,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        },
+        {
+          "ms": 3.1,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        },
+        {
+          "ms": 3.5,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        },
+        {
+          "ms": 3,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        },
+        {
+          "ms": 2.6,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        },
+        {
+          "ms": 2.6,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        },
+        {
+          "ms": 2.6,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        },
+        {
+          "ms": 2.7,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        },
+        {
+          "ms": 2.5,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null,
+          "bodyContractVerified": true,
+          "rowCount": null
+        }
+      ],
+      "samples": [
+        19.4,
+        5.5,
+        4.1,
+        8.3,
+        12.2,
+        4.2,
+        6,
+        6.1,
+        3.1,
+        3,
+        3.5,
+        3.9,
+        3.7,
+        3.5,
+        3.4,
+        2.9,
+        3.3,
+        3.5,
+        3.5,
+        3,
+        2.9,
+        2.6,
+        3.1,
+        3.5,
+        3,
+        2.6,
+        2.6,
+        2.6,
+        2.7,
+        2.5
+      ],
+      "summary": {
+        "n": 30,
+        "median": 3.45,
+        "p95": 12.2,
+        "min": 2.5,
+        "max": 19.4
+      },
+      "errorRate": 0
+    }
+  },
+  "vitals": {
+    "QR": [
+      {
+        "round": 1,
+        "at": "2026-09-30T14:51:49.569Z",
+        "responses": [],
+        "lcp": 220,
+        "cls": 0,
+        "events": [
+          {
+            "id": 1912,
+            "duration": 56,
+            "name": "pointerdown"
+          },
+          {
+            "id": 1912,
+            "duration": 56,
+            "name": "pointerup"
+          },
+          {
+            "id": 1912,
+            "duration": 56,
+            "name": "click"
+          },
+          {
+            "id": 1919,
+            "duration": 16,
+            "name": "pointerdown"
+          },
+          {
+            "id": 1919,
+            "duration": 16,
+            "name": "pointerup"
+          },
+          {
+            "id": 1919,
+            "duration": 16,
+            "name": "click"
+          }
+        ],
+        "shifts": [],
+        "firstInput": 1154.6000000238419,
+        "inp": 56,
+        "interactionsRecorded": 2,
+        "inpCensoring": null
+      },
+      {
+        "round": 2,
+        "at": "2026-09-30T14:51:51.485Z",
+        "responses": [],
+        "lcp": 232,
+        "cls": 0,
+        "events": [
+          {
+            "id": 259,
+            "duration": 56,
+            "name": "pointerdown"
+          },
+          {
+            "id": 259,
+            "duration": 56,
+            "name": "pointerup"
+          },
+          {
+            "id": 259,
+            "duration": 56,
+            "name": "click"
+          },
+          {
+            "id": 266,
+            "duration": 16,
+            "name": "pointerdown"
+          },
+          {
+            "id": 266,
+            "duration": 16,
+            "name": "pointerup"
+          },
+          {
+            "id": 266,
+            "duration": 16,
+            "name": "click"
+          }
+        ],
+        "shifts": [],
+        "firstInput": 1215.4000000953674,
+        "inp": 56,
+        "interactionsRecorded": 2,
+        "inpCensoring": null
+      },
+      {
+        "round": 3,
+        "at": "2026-09-30T14:51:53.382Z",
+        "responses": [],
+        "lcp": 196,
+        "cls": 0,
+        "events": [
+          {
+            "id": 1013,
+            "duration": 56,
+            "name": "pointerdown"
+          },
+          {
+            "id": 1013,
+            "duration": 56,
+            "name": "pointerup"
+          },
+          {
+            "id": 1013,
+            "duration": 56,
+            "name": "click"
+          },
+          {
+            "id": 1020,
+            "duration": 16,
+            "name": "pointerdown"
+          },
+          {
+            "id": 1020,
+            "duration": 16,
+            "name": "pointerup"
+          },
+          {
+            "id": 1020,
+            "duration": 16,
+            "name": "click"
+          }
+        ],
+        "shifts": [],
+        "firstInput": 1213.6000000238419,
+        "inp": 56,
+        "interactionsRecorded": 2,
+        "inpCensoring": null
+      },
+      {
+        "round": 4,
+        "at": "2026-09-30T14:51:55.320Z",
+        "responses": [],
+        "lcp": 220,
+        "cls": 0,
+        "events": [
+          {
+            "id": 6213,
+            "duration": 56,
+            "name": "pointerdown"
+          },
+          {
+            "id": 6213,
+            "duration": 56,
+            "name": "pointerup"
+          },
+          {
+            "id": 6213,
+            "duration": 56,
+            "name": "click"
+          },
+          {
+            "id": 6220,
+            "duration": 16,
+            "name": "pointerdown"
+          },
+          {
+            "id": 6220,
+            "duration": 16,
+            "name": "pointerup"
+          },
+          {
+            "id": 6220,
+            "duration": 16,
+            "name": "click"
+          }
+        ],
+        "shifts": [],
+        "firstInput": 1204.8999999761581,
+        "inp": 56,
+        "interactionsRecorded": 2,
+        "inpCensoring": null
+      },
+      {
+        "round": 5,
+        "at": "2026-09-30T14:51:56.465Z",
+        "responses": [],
+        "lcp": 172,
+        "cls": 0,
+        "events": [
+          {
+            "id": 8561,
+            "duration": 56,
+            "name": "pointerdown"
+          },
+          {
+            "id": 8561,
+            "duration": 56,
+            "name": "pointerup"
+          },
+          {
+            "id": 8561,
+            "duration": 56,
+            "name": "click"
+          },
+          {
+            "id": 8568,
+            "duration": 16,
+            "name": "pointerdown"
+          },
+          {
+            "id": 8568,
+            "duration": 16,
+            "name": "pointerup"
+          },
+          {
+            "id": 8568,
+            "duration": 16,
+            "name": "click"
+          }
+        ],
+        "shifts": [],
+        "firstInput": 399.8000000715256,
+        "inp": 56,
+        "interactionsRecorded": 2,
+        "inpCensoring": null
+      }
+    ],
+    "Staff": [
+      {
+        "round": 1,
+        "at": "2026-09-30T14:51:57.918Z",
+        "responses": [
+          {
+            "status": 409,
+            "path": "/api/stalls/aming-chicken/attendance",
+            "retryAfter": null,
+            "preflightCode": "ATTENDANCE_DISABLED",
+            "expectedOptionalModuleResponse": true
+          }
+        ],
+        "lcp": 648,
+        "cls": 0,
+        "events": [
+          {
+            "id": 1531,
+            "duration": 24,
+            "name": "pointerdown"
+          },
+          {
+            "id": 1531,
+            "duration": 24,
+            "name": "pointerup"
+          },
+          {
+            "id": 1531,
+            "duration": 24,
+            "name": "click"
+          },
+          {
+            "id": 1538,
+            "duration": 16,
+            "name": "pointerdown"
+          },
+          {
+            "id": 1538,
+            "duration": 16,
+            "name": "pointerup"
+          },
+          {
+            "id": 1538,
+            "duration": 16,
+            "name": "click"
+          }
+        ],
+        "shifts": [],
+        "firstInput": 743.5,
+        "inp": 24,
+        "interactionsRecorded": 2,
+        "inpCensoring": null
+      },
+      {
+        "round": 2,
+        "at": "2026-09-30T14:51:59.421Z",
+        "responses": [
+          {
+            "status": 409,
+            "path": "/api/stalls/aming-chicken/attendance",
+            "retryAfter": null,
+            "preflightCode": "ATTENDANCE_DISABLED",
+            "expectedOptionalModuleResponse": true
+          }
+        ],
+        "lcp": 656,
+        "cls": 0,
+        "events": [
+          {
+            "id": 8914,
+            "duration": 24,
+            "name": "pointerdown"
+          },
+          {
+            "id": 8914,
+            "duration": 24,
+            "name": "pointerup"
+          },
+          {
+            "id": 8914,
+            "duration": 24,
+            "name": "click"
+          },
+          {
+            "id": 8921,
+            "duration": 24,
+            "name": "pointerdown"
+          },
+          {
+            "id": 8921,
+            "duration": 24,
+            "name": "pointerup"
+          },
+          {
+            "id": 8921,
+            "duration": 24,
+            "name": "click"
+          }
+        ],
+        "shifts": [],
+        "firstInput": 834.6999999284744,
+        "inp": 24,
+        "interactionsRecorded": 2,
+        "inpCensoring": null
+      },
+      {
+        "round": 3,
+        "at": "2026-09-30T14:52:01.051Z",
+        "responses": [
+          {
+            "status": 409,
+            "path": "/api/stalls/aming-chicken/attendance",
+            "retryAfter": null,
+            "preflightCode": "ATTENDANCE_DISABLED",
+            "expectedOptionalModuleResponse": true
+          }
+        ],
+        "lcp": 772,
+        "cls": 0,
+        "events": [
+          {
+            "id": 5053,
+            "duration": 24,
+            "name": "pointerdown"
+          },
+          {
+            "id": 5053,
+            "duration": 24,
+            "name": "pointerup"
+          },
+          {
+            "id": 5053,
+            "duration": 24,
+            "name": "click"
+          },
+          {
+            "id": 5060,
+            "duration": 24,
+            "name": "pointerdown"
+          },
+          {
+            "id": 5060,
+            "duration": 24,
+            "name": "pointerup"
+          },
+          {
+            "id": 5060,
+            "duration": 24,
+            "name": "click"
+          }
+        ],
+        "shifts": [],
+        "firstInput": 960.6999999284744,
+        "inp": 24,
+        "interactionsRecorded": 2,
+        "inpCensoring": null
+      },
+      {
+        "round": 4,
+        "at": "2026-09-30T14:52:02.741Z",
+        "responses": [
+          {
+            "status": 409,
+            "path": "/api/stalls/aming-chicken/attendance",
+            "retryAfter": null,
+            "preflightCode": "ATTENDANCE_DISABLED",
+            "expectedOptionalModuleResponse": true
+          }
+        ],
+        "lcp": 724,
+        "cls": 0,
+        "events": [
+          {
+            "id": 3935,
+            "duration": 64,
+            "name": "pointerdown"
+          },
+          {
+            "id": 3935,
+            "duration": 64,
+            "name": "pointerup"
+          },
+          {
+            "id": 3935,
+            "duration": 64,
+            "name": "click"
+          },
+          {
+            "id": 3942,
+            "duration": 16,
+            "name": "pointerdown"
+          },
+          {
+            "id": 3942,
+            "duration": 16,
+            "name": "pointerup"
+          },
+          {
+            "id": 3942,
+            "duration": 16,
+            "name": "click"
+          }
+        ],
+        "shifts": [],
+        "firstInput": 982.6000000238419,
+        "inp": 64,
+        "interactionsRecorded": 2,
+        "inpCensoring": null
+      },
+      {
+        "round": 5,
+        "at": "2026-09-30T14:52:04.257Z",
+        "responses": [
+          {
+            "status": 409,
+            "path": "/api/stalls/aming-chicken/attendance",
+            "retryAfter": null,
+            "preflightCode": "ATTENDANCE_DISABLED",
+            "expectedOptionalModuleResponse": true
+          }
+        ],
+        "lcp": 284,
+        "cls": 0.0008854844835069445,
+        "events": [
+          {
+            "id": 810,
+            "duration": 24,
+            "name": "pointerdown"
+          },
+          {
+            "id": 810,
+            "duration": 24,
+            "name": "pointerup"
+          },
+          {
+            "id": 810,
+            "duration": 24,
+            "name": "click"
+          },
+          {
+            "id": 817,
+            "duration": 16,
+            "name": "pointerdown"
+          },
+          {
+            "id": 817,
+            "duration": 16,
+            "name": "pointerup"
+          },
+          {
+            "id": 817,
+            "duration": 16,
+            "name": "click"
+          }
+        ],
+        "shifts": [
+          {
+            "start": 618.1000000238419,
+            "value": 0.0008854844835069445
+          }
+        ],
+        "firstInput": 786.2999999523163,
+        "inp": 24,
+        "interactionsRecorded": 2,
+        "inpCensoring": null
+      }
+    ],
+    "KDS": [
+      {
+        "round": 1,
+        "at": "2026-09-30T14:52:05.182Z",
+        "responses": [],
+        "lcp": 256,
+        "cls": 0,
+        "events": [
+          {
+            "id": 7902,
+            "duration": 24,
+            "name": "pointerdown"
+          },
+          {
+            "id": 7902,
+            "duration": 24,
+            "name": "pointerup"
+          },
+          {
+            "id": 7902,
+            "duration": 24,
+            "name": "click"
+          }
+        ],
+        "shifts": [],
+        "firstInput": 267.7000000476837,
+        "inp": 24,
+        "interactionsRecorded": 1,
+        "inpCensoring": null
+      },
+      {
+        "round": 2,
+        "at": "2026-09-30T14:52:06.031Z",
+        "responses": [],
+        "lcp": 192,
+        "cls": 0.0004923502604166667,
+        "events": [
+          {
+            "id": 8224,
+            "duration": 24,
+            "name": "pointerdown"
+          },
+          {
+            "id": 8224,
+            "duration": 24,
+            "name": "pointerup"
+          },
+          {
+            "id": 8224,
+            "duration": 24,
+            "name": "click"
+          }
+        ],
+        "shifts": [
+          {
+            "start": 236.89999997615814,
+            "value": 0.0004923502604166667
+          }
+        ],
+        "firstInput": 245.39999997615814,
+        "inp": 24,
+        "interactionsRecorded": 1,
+        "inpCensoring": null
+      },
+      {
+        "round": 3,
+        "at": "2026-09-30T14:52:06.890Z",
+        "responses": [],
+        "lcp": 168,
+        "cls": 0.0004923502604166667,
+        "events": [
+          {
+            "id": 6514,
+            "duration": 24,
+            "name": "pointerdown"
+          },
+          {
+            "id": 6514,
+            "duration": 24,
+            "name": "pointerup"
+          },
+          {
+            "id": 6514,
+            "duration": 24,
+            "name": "click"
+          }
+        ],
+        "shifts": [
+          {
+            "start": 242.39999997615814,
+            "value": 0.0004923502604166667
+          }
+        ],
+        "firstInput": 251.39999997615814,
+        "inp": 24,
+        "interactionsRecorded": 1,
+        "inpCensoring": null
+      },
+      {
+        "round": 4,
+        "at": "2026-09-30T14:52:07.746Z",
+        "responses": [],
+        "lcp": 168,
+        "cls": 0.0004923502604166667,
+        "events": [
+          {
+            "id": 6175,
+            "duration": 24,
+            "name": "pointerdown"
+          },
+          {
+            "id": 6175,
+            "duration": 24,
+            "name": "pointerup"
+          },
+          {
+            "id": 6175,
+            "duration": 24,
+            "name": "click"
+          }
+        ],
+        "shifts": [
+          {
+            "start": 244.5,
+            "value": 0.0004923502604166667
+          }
+        ],
+        "firstInput": 252.70000004768372,
+        "inp": 24,
+        "interactionsRecorded": 1,
+        "inpCensoring": null
+      },
+      {
+        "round": 5,
+        "at": "2026-09-30T14:52:08.585Z",
+        "responses": [],
+        "lcp": 172,
+        "cls": 0.0004923502604166667,
+        "events": [
+          {
+            "id": 7102,
+            "duration": 24,
+            "name": "pointerdown"
+          },
+          {
+            "id": 7102,
+            "duration": 24,
+            "name": "pointerup"
+          },
+          {
+            "id": 7102,
+            "duration": 24,
+            "name": "click"
+          }
+        ],
+        "shifts": [
+          {
+            "start": 231.89999997615814,
+            "value": 0.0004923502604166667
+          }
+        ],
+        "firstInput": 240,
+        "inp": 24,
+        "interactionsRecorded": 1,
+        "inpCensoring": null
+      }
+    ],
+    "Report": [
+      {
+        "round": 1,
+        "at": "2026-09-30T14:52:09.559Z",
+        "responses": [],
+        "lcp": 184,
+        "cls": 0,
+        "events": [
+          {
+            "id": 3785,
+            "duration": 16,
+            "name": "pointerdown"
+          },
+          {
+            "id": 3785,
+            "duration": 16,
+            "name": "pointerup"
+          },
+          {
+            "id": 3785,
+            "duration": 16,
+            "name": "click"
+          },
+          {
+            "id": 3792,
+            "duration": 16,
+            "name": "pointerdown"
+          },
+          {
+            "id": 3792,
+            "duration": 16,
+            "name": "pointerup"
+          },
+          {
+            "id": 3792,
+            "duration": 16,
+            "name": "click"
+          }
+        ],
+        "shifts": [],
+        "firstInput": 254.70000004768372,
+        "inp": 16,
+        "interactionsRecorded": 2,
+        "inpCensoring": null
+      },
+      {
+        "round": 2,
+        "at": "2026-09-30T14:52:10.572Z",
+        "responses": [],
+        "lcp": 208,
+        "cls": 0,
+        "events": [
+          {
+            "id": 582,
+            "duration": 16,
+            "name": "pointerdown"
+          },
+          {
+            "id": 582,
+            "duration": 16,
+            "name": "pointerup"
+          },
+          {
+            "id": 582,
+            "duration": 16,
+            "name": "click"
+          },
+          {
+            "id": 589,
+            "duration": 16,
+            "name": "pointerdown"
+          },
+          {
+            "id": 589,
+            "duration": 16,
+            "name": "pointerup"
+          },
+          {
+            "id": 589,
+            "duration": 16,
+            "name": "click"
+          }
+        ],
+        "shifts": [],
+        "firstInput": 302.40000009536743,
+        "inp": 16,
+        "interactionsRecorded": 2,
+        "inpCensoring": null
+      },
+      {
+        "round": 3,
+        "at": "2026-09-30T14:52:11.506Z",
+        "responses": [],
+        "lcp": 184,
+        "cls": 0,
+        "events": [
+          {
+            "id": 5657,
+            "duration": 16,
+            "name": "pointerdown"
+          },
+          {
+            "id": 5657,
+            "duration": 16,
+            "name": "pointerup"
+          },
+          {
+            "id": 5657,
+            "duration": 16,
+            "name": "click"
+          }
+        ],
+        "shifts": [],
+        "firstInput": 252.30000007152557,
+        "inp": 16,
+        "interactionsRecorded": 1,
+        "inpCensoring": null
+      },
+      {
+        "round": 4,
+        "at": "2026-09-30T14:52:12.477Z",
+        "responses": [],
+        "lcp": 176,
+        "cls": 0,
+        "events": [
+          {
+            "id": 1187,
+            "duration": 16,
+            "name": "pointerdown"
+          },
+          {
+            "id": 1187,
+            "duration": 16,
+            "name": "pointerup"
+          },
+          {
+            "id": 1187,
+            "duration": 16,
+            "name": "click"
+          },
+          {
+            "id": 1194,
+            "duration": 16,
+            "name": "pointerdown"
+          },
+          {
+            "id": 1194,
+            "duration": 16,
+            "name": "pointerup"
+          },
+          {
+            "id": 1194,
+            "duration": 16,
+            "name": "click"
+          }
+        ],
+        "shifts": [],
+        "firstInput": 263.39999997615814,
+        "inp": 16,
+        "interactionsRecorded": 2,
+        "inpCensoring": null
+      },
+      {
+        "round": 5,
+        "at": "2026-09-30T14:52:13.395Z",
+        "responses": [],
+        "lcp": 164,
+        "cls": 0,
+        "events": [
+          {
+            "id": 1998,
+            "duration": 16,
+            "name": "pointerdown"
+          },
+          {
+            "id": 1998,
+            "duration": 16,
+            "name": "pointerup"
+          },
+          {
+            "id": 1998,
+            "duration": 16,
+            "name": "click"
+          },
+          {
+            "id": 2005,
+            "duration": 16,
+            "name": "pointerdown"
+          },
+          {
+            "id": 2005,
+            "duration": 16,
+            "name": "pointerup"
+          },
+          {
+            "id": 2005,
+            "duration": 16,
+            "name": "click"
+          }
+        ],
+        "shifts": [],
+        "firstInput": 236.5,
+        "inp": 16,
+        "interactionsRecorded": 2,
+        "inpCensoring": null
+      }
+    ]
+  },
+  "diagnostics": [
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "QR/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Connecting to 'ws://127.0.0.1:56821/realtime/v1/websocket?apikey=[REDACTED_NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY]&vsn=2.0.0' violates the following Content Security Policy directive: \"connect-src 'self' http://127.0.0.1:56821 http://127.0.0.1:56821 https://challenges.cloudflare.com\". The action has been blocked."
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "KDS/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "KDS/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "KDS/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "KDS/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "KDS/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "KDS/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "KDS/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "KDS/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "KDS/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "KDS/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/vitals",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/vitals",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/vitals",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/vitals",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/vitals",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    }
+  ],
+  "optionalAttendancePreflight": {
+    "status": 409,
+    "code": "ATTENDANCE_DISABLED"
+  },
+  "status": "MEASURED",
+  "finishedAt": "2026-09-30T14:52:15.329Z"
+}

@@ -1,0 +1,54 @@
+
+> stallorder-platform@0.1.0 build
+> prisma generate && next build
+
+warn The configuration property `package.json#prisma` is deprecated and will be removed in Prisma 7. Please migrate to a Prisma config file (e.g., `prisma.config.ts`).
+For more information, see: https://pris.ly/prisma-config
+
+Prisma schema loaded from prisma\schema.prisma
+┌─────────────────────────────────────────────────────────┐
+│  Update available 6.19.3 -> 8.0.0-rc.19                 │
+│                                                         │
+│  This is a major update - please follow the guide at    │
+│  https://pris.ly/d/major-version-upgrade                │
+│                                                         │
+│  Run the following to update                            │
+│    npm i --save-dev prisma@latest                       │
+│    npm i @prisma/client@latest                          │
+└─────────────────────────────────────────────────────────┘
+
+✔ Generated Prisma Client (v6.19.3) to .\node_modules\@prisma\client in 3.40s
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+Tip: Need your database queries to be 1000x faster? Accelerate offers you that and more: https://pris.ly/tip-2-accelerate
+
+▲ Next.js 16.3.4 (Turbopack)
+- Environments: .env.local
+✓ Running next.config.ts took 887ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 65s
+  Running TypeScript ...
+
+<--- Last few GCs --->
+
+[54428:000002473CEEA000]   161758 ms: Scavenge (interleaved) 4086.2 (4100.2) -> 4083.7 (4109.0) MB, pooled: 0 MB, 43.05 / 0.00 ms  (average mu = 0.284, current mu = 0.243) allocation failure; 
+[54428:000002473CEEA000]   165099 ms: Mark-Compact (reduce) 4091.2 (4109.2) -> 4085.4 (4096.5) MB, pooled: 0 MB, 2201.15 / 0.00 ms  (+ 751.0 ms in 116 steps since start of marking, biggest step 20.4 ms, walltime since start of marking 3061 ms) (average mu
+FATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - JavaScript heap out of memory
+----- Native stack trace -----
+
+ 1: 00007FF74A5B3D9F node::OnFatalError+1343
+ 2: 00007FF7491FDCB7 v8::Function::NewInstance+423
+ 3: 00007FF748FFE4F7 uv_udp_get_send_queue_count+54423
+ 4: 00007FF749002204 uv_udp_get_send_queue_count+70052
+ 5: 00007FF74901116C v8::internal::StrongRootAllocatorBase::deallocate_impl+16604
+ 6: 00007FF7490109AB v8::internal::StrongRootAllocatorBase::deallocate_impl+14619
+ 7: 00007FF74A8E24AD node::AsyncResource::CallbackScope::CallbackScope+2184429
+ 8: 00007FF748FFBFC0 uv_udp_get_send_queue_count+44896
+ 9: 00007FF74901681A X509_STORE_set_cleanup+5098
+10: 00007FF749022CB6 uv_timer_set_repeat+20694
+11: 00007FF748BF3907 v8::CodeEvent::GetFunctionName+131959
+12: 00000247755375FA 
+Failed to type check.
+

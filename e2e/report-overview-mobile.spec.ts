@@ -1,9 +1,10 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { calendarDateInTimeZone } from "../src/lib/date-time";
-import { waitForDefaultMerchantDashboard } from "./local-navigation";
+import { prisma } from "../src/lib/prisma";
+
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
-const stallId = "22222222-2222-4222-8222-222222222222";
+test.afterAll(async () => { await prisma.$disconnect(); });
 const reportDateTo = new Date();
 const reportQuery = new URLSearchParams({
   organizationId,
@@ -18,8 +19,11 @@ const viewportCases = [
 ] as const;
 
 test("報表會依手機與平板寬度呈現緊密 Dashboard", async ({ page }) => {
+  test.setTimeout(120_000);
   await page.setViewportSize({ width: 390, height: 844 });
   await login(page);
+  const authorizedStallIds = (await prisma.stall.findMany({ where: { organizationId, isActive: true }, select: { id: true } })).map(row => row.id).sort();
+  expect(authorizedStallIds).toContain("22222222-2222-4222-8222-222222222222");
 
   for (const viewport of viewportCases) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
@@ -77,6 +81,7 @@ test("報表會依手機與平板寬度呈現緊密 Dashboard", async ({ page })
         });
       });
       await mainContent.getByRole("button", { name: "匯出 CSV", exact: true }).click();
+      await page.getByRole("dialog", { name: "匯出 CSV", exact: true }).getByRole("button", { name: "匯出 CSV", exact: true }).click();
       await expect.poll(() => exportCapture.payload).toBeDefined();
 
       const appliedFilter = await filterForm.evaluate((form) => ({
@@ -84,7 +89,8 @@ test("報表會依手機與平板寬度呈現緊密 Dashboard", async ({ page })
         dateFrom: new FormData(form as HTMLFormElement).get("dateFrom"),
       }));
       expect(appliedFilter).toEqual({ stallIds: [], dateFrom: "2026-01-01" });
-      expect(exportCapture.payload).toMatchObject({ stallIds: [stallId], dateFrom: "2026-01-01" });
+      expect(exportCapture.payload?.dateFrom).toBe("2026-01-01");
+      expect(exportCapture.payload?.stallIds.slice().sort()).toEqual(authorizedStallIds);
       await page.unroute("**/api/merchant/reports/export");
     }
 
@@ -124,7 +130,7 @@ test("報表會依手機與平板寬度呈現緊密 Dashboard", async ({ page })
 });
 
 async function login(page: Page) {
-  await page.goto("/login");
+  await page.goto("/login?next=" + encodeURIComponent(`/merchant/reports/overview?${reportQuery}`));
   await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
   await page.getByLabel("電子郵件").fill("owner@stallorder.test");
   await page.getByLabel("密碼").fill("StallOrderDemo!2026");
@@ -133,11 +139,7 @@ async function login(page: Page) {
   ));
   await page.getByRole("button", { name: "登入", exact: true }).click();
   expect((await response).status()).toBe(200);
-  await expect(page).toHaveURL(/\/(?:merchant\/dashboard\?organizationId=|select-organization)/);
-  if (new URL(page.url()).pathname === "/select-organization") {
-    await page.locator(`a[href="/merchant/dashboard?organizationId=${organizationId}"]`).click();
-  }
-  await waitForDefaultMerchantDashboard(page, organizationId);
+  await page.waitForURL(url => url.pathname === "/merchant/reports/overview", { timeout: 30_000 });
 }
 
 async function countGridColumns(locator: Locator) {

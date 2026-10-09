@@ -1,0 +1,59 @@
+import {test,expect} from 'vitest';
+import {captureBinding,capturePrimaryBaseline,capturePublicBackendConfigFingerprint,databaseProof,publicBackendConfigShape} from './qa-pr366-preview-binding.mjs';
+test('configuration diagnosis contains only shape booleans and counts, never provider values',()=>{
+ const config={envs:[{key:'NEXT_PUBLIC_SUPABASE_URL',id:'private-id',type:'sensitive',target:['production'],updatedAt:123,value:'private-value'}]};
+ const shape=publicBackendConfigShape(config);
+ expect(shape.productionPublicRowCount).toBe(1);expect(shape.rows[0].valueNonEmptyString).toBe(true);
+ for(const value of Object.values(shape.rows[0]))expect(typeof value).toBe('boolean');
+ expect(JSON.stringify(shape)).not.toMatch(/private-id|private-value|sensitive|123/);
+ delete config.envs[0].value;config.envs[0].updatedAt='123';
+ expect(publicBackendConfigShape(config).rows[0]).toMatchObject({valuePresent:false,updatedAtFiniteNumber:false});
+ expect(publicBackendConfigShape({})).toMatchObject({envsArray:false,productionPublicRowCount:0});
+});
+function syntheticDatabaseUrl(pooler) {
+  const url = new URL('postgresql://aws-0.pooler.supabase.com/postgres');
+  url.username = 'postgres.child'; url.password = 'synthetic'; url.port = '6543';
+  url.searchParams.set('sslmode', 'require');
+  if (pooler) url.searchParams.set('pgbouncer', 'true');
+  return url.href;
+}
+test('explicit sensitive redaction mode is stable but never equals opaque value evidence',async()=>{
+ const config={envs:[{key:'NEXT_PUBLIC_SUPABASE_URL',id:'id',type:'sensitive',target:['production'],updatedAt:123,value:''}]};
+ const api=async()=>config;const redacted=await capturePublicBackendConfigFingerprint(api);
+ expect(redacted).toMatch(/^sensitive-redacted-v1:[a-f0-9]{64}$/);expect(await capturePublicBackendConfigFingerprint(api)).toBe(redacted);
+ config.envs[0].value='opaque';expect(await capturePublicBackendConfigFingerprint(api)).not.toBe(redacted);
+ config.envs[0].value='';config.envs[0].type='encrypted';await expect(capturePublicBackendConfigFingerprint(api)).rejects.toThrow('PUBLIC_CONFIG_INVALID');
+});
+test.each(['id','type','target','updatedAt'])('redacted fingerprint changes with provider record metadata %s',async key=>{
+ const row={key:'NEXT_PUBLIC_SUPABASE_URL',id:'id',type:'sensitive',target:['production'],updatedAt:123,value:''};const api=async()=>({envs:[row]});
+ const before=await capturePublicBackendConfigFingerprint(api);
+ if(key==='id')row.id='other';if(key==='target')row.target.push('preview');if(key==='updatedAt')row.updatedAt++;
+ if(key==='type'){row.type='encrypted';await expect(capturePublicBackendConfigFingerprint(api)).rejects.toThrow('PUBLIC_CONFIG_INVALID');}else expect(await capturePublicBackendConfigFingerprint(api)).not.toBe(before);
+});
+test.each([undefined,null])('redacted mode rejects missing or null values %s',async value=>{
+ const row={key:'NEXT_PUBLIC_SUPABASE_URL',id:'id',type:'sensitive',target:['production'],updatedAt:123,value};
+ await expect(capturePublicBackendConfigFingerprint(async()=>({envs:[row]}))).rejects.toThrow('PUBLIC_CONFIG_INVALID');
+});
+const team='team_MMfsiG94K9Zy3e6w7Ccc9xY4',project='prj_uoG4FNJIgnF1LdKRiXnfRaieXnUP',parent='eyuctbnlvnbnivwasvqr';
+const now=new Date('2026-10-03T01:00:00Z'),sha='a'.repeat(40),tree='b'.repeat(40);
+function fixture(){const receipt={parent,team,project,gitBranch:'codex/integrated-production-20261002',resourceKey:'manual-123',branchName:'manual-123',status:'CAPTURED',expiresAt:'2026-10-03T05:00:00Z',branches:[{id:'child',name:'manual-123'}],deployments:[{id:'dpl_preview',target:'preview'}]};const selection={childRef:'child',deploymentId:'dpl_preview'};const baseline={projectId:project,deploymentId:'dpl_primary',aliases:['app.qidaigo.com']};const child={name:'manual-123',project_ref:'child',with_data:false,git_branch:receipt.gitBranch};const records={
+ [`/v9/projects/${project}?teamId=${team}`]:{id:project,accountId:team,targets:{production:{id:'dpl_primary'}}},
+ [`/v9/projects/${project}/env?teamId=${team}`]:{envs:[{id:'public-url',key:'NEXT_PUBLIC_SUPABASE_URL',type:'sensitive',target:['production'],updatedAt:123,value:'synthetic-encrypted-public-value'}]},
+ [`/v13/deployments/dpl_preview?teamId=${team}`]:{id:'dpl_preview',projectId:project,readyState:'READY',target:null,url:'owned.vercel.app',meta:{stallorderPreviewResource:'manual-123',githubCommitRef:receipt.gitBranch,githubCommitSha:sha}},
+ [`/v13/deployments/dpl_primary?teamId=${team}`]:{id:'dpl_primary',projectId:project,target:'production',readyState:'READY',meta:{githubCommitSha:sha}},
+ [`/v2/deployments/dpl_preview/aliases?teamId=${team}`]:{aliases:[{alias:'owned.vercel.app'}]},
+ [`/v2/deployments/dpl_primary/aliases?teamId=${team}`]:{aliases:[{alias:'app.qidaigo.com'}]}};const calls=[];const api=async path=>{calls.push(path);return records[path];};const adapters={api,source:()=>({sha,tree}),branches:ref=>{expect(ref).toBe(parent);return [child];}};return{receipt,selection,baseline,child,records,api,adapters,calls,run:()=>captureBinding(receipt,selection,baseline,adapters,now)};}
+test('captures actual scoped parent provenance without inventing a raw parent field',async()=>{const f=fixture();const b=await f.run();expect(b.readback.child).not.toHaveProperty('parent_project_ref');expect(b.readback.childScope).toEqual({provider:'supabase-cli',operation:'branches list',parentProjectRef:parent});expect(b.readback.deployment).toMatchObject({teamId:team,rawTarget:null,target:'preview'});expect(b).toMatchObject({sha,tree,origin:'https://owned.vercel.app'});});
+test('captures full raw Primary aliases before creation',async()=>{const f=fixture();expect(await capturePrimaryBaseline({deploymentId:'dpl_primary',sha},f.api,now)).toMatchObject({projectId:project,teamId:team,aliases:['app.qidaigo.com'],sha});});
+test('public configuration fingerprint is stable, changes with metadata and never exposes the value',async()=>{const f=fixture();const first=await capturePublicBackendConfigFingerprint(f.api);expect(first).toMatch(/^opaque-value-v1:[a-f0-9]{64}$/);expect(await capturePublicBackendConfigFingerprint(f.api)).toBe(first);f.records[`/v9/projects/${project}/env?teamId=${team}`].envs[0].updatedAt++;expect(await capturePublicBackendConfigFingerprint(f.api)).not.toBe(first);expect(first).not.toContain('synthetic');});
+test.each(['missing','duplicate','pagination','value','updatedAt'])('public configuration fingerprint rejects ambiguous or incomplete provider metadata %s',async mode=>{const f=fixture();const config=f.records[`/v9/projects/${project}/env?teamId=${team}`];if(mode==='missing')config.envs=[];if(mode==='duplicate')config.envs.push({...config.envs[0]});if(mode==='pagination')config.pagination={next:1};if(mode==='value')delete config.envs[0].value;if(mode==='updatedAt')delete config.envs[0].updatedAt;await expect(capturePublicBackendConfigFingerprint(f.api)).rejects.toThrow('PUBLIC_CONFIG_INVALID');});
+for(const key of ['parent','team','project','gitBranch','resourceKey','branchName','status','expiresAt'])test('rejects receipt drift '+key,async()=>{const f=fixture();f.receipt[key]='wrong';await expect(f.run()).rejects.toThrow('RECEIPT_INVALID');});
+test('rejects wrong source SHA and unknown provider project owner',async()=>{const f=fixture();f.adapters.source=()=>({sha:'c'.repeat(40),tree});await expect(f.run()).rejects.toThrow('DEPLOYMENT_DRIFT');f.adapters.source=()=>({sha,tree});f.records[`/v9/projects/${project}?teamId=${team}`].accountId='other';await expect(f.run()).rejects.toThrow('PROJECT_OWNER_DRIFT');});
+test('rejects child identity/data or duplicate scoped rows',async()=>{const f=fixture();f.child.with_data=true;await expect(f.run()).rejects.toThrow('CHILD_IDENTITY');f.child.with_data=false;f.adapters.branches=()=>[f.child,f.child];await expect(f.run()).rejects.toThrow('CHILD_IDENTITY');});
+test('rejects Production aliases/target and actual Primary drift',async()=>{const f=fixture();f.records[`/v2/deployments/dpl_preview/aliases?teamId=${team}`].aliases.push({alias:'app.qidaigo.com'});await expect(f.run()).rejects.toThrow('PRODUCTION_ALIAS');f.records[`/v2/deployments/dpl_preview/aliases?teamId=${team}`].aliases.pop();f.records[`/v9/projects/${project}?teamId=${team}`].targets.production.id='dpl_replaced';await expect(f.run()).rejects.toThrow('PRIMARY_CHANGED');});
+test('rejects incomplete alias pagination rather than guessing full set',async()=>{const f=fixture();f.records[`/v2/deployments/dpl_primary/aliases?teamId=${team}`].pagination={next:123};await expect(f.run()).rejects.toThrow('ALIASES_INVALID');});
+test('baseline capture rejects unexpected Primary SHA/state',async()=>{const f=fixture();await expect(capturePrimaryBaseline({deploymentId:'dpl_primary',sha:'c'.repeat(40)},f.api,now)).rejects.toThrow('PRIMARY_CHANGED');});
+test('fresh exact scoped branches get proves sanitized database identity',async()=>{const f=fixture();f.adapters.databaseUrl=syntheticDatabaseUrl(true);f.adapters.branchGet=(name,ref)=>{expect(name).toBe('manual-123');expect(ref).toBe(parent);return {SUPABASE_URL:'https://child.supabase.co',POSTGRES_URL:f.adapters.databaseUrl.replace('&pgbouncer=true','')};};const result=await f.run();expect(result.readback.database).toMatchObject({projectRef:'child',host:'aws-0.pooler.supabase.com',port:'6543',username:'postgres.child',operation:'branches get',parentProjectRef:parent});expect(JSON.stringify(result)).not.toContain('synthetic');expect(result.readback.database.identityFingerprint).toMatch(/^[a-f0-9]{64}$/);});
+test.each(['host','user','password','port','service','ssl'])('rejects database provider identity drift %s',key=>{const config={SUPABASE_URL:'https://child.supabase.co',POSTGRES_URL:syntheticDatabaseUrl(false)};let url=config.POSTGRES_URL;if(key==='host')url=url.replace('aws-0','aws-1');if(key==='user')url=url.replace('postgres.child','postgres.other');if(key==='password')url=url.replace('synthetic','changed');if(key==='port')url=url.replace('6543','5432');if(key==='service')config.SUPABASE_URL='https://other.supabase.co';if(key==='ssl')url=url.replace('require','disable');expect(()=>databaseProof(config,url,'child','manual-123')).toThrow('DATABASE_DRIFT');});
+
+test.each(['BUILDING','ERROR',undefined])('rejects Preview without actual READY provider observation %s',async state=>{const f=fixture();f.records[`/v13/deployments/dpl_preview?teamId=${team}`].readyState=state;await expect(f.run()).rejects.toThrow('DEPLOYMENT_DRIFT');});

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { MerchantListPageNavigation } from "@/components/merchant-list-pagination";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { buildOperationsPageMeta } from "@/lib/operations-pagination";
+import { invalidateOperationsAuthority } from "@/lib/operations-query";
 
 const SESSION_PAGE_SIZE = 5;
 
@@ -115,6 +116,7 @@ export function AccountSecurityPanel({
   }
 
   async function revokeSession(sessionId: string) {
+    if (sessions.find((session) => session.id === sessionId)?.current) invalidateOperationsAuthority();
     setPending(`session:${sessionId}`);
     setMessage("");
     const response = await fetch(`/api/auth/sessions/${sessionId}`, {
@@ -138,6 +140,7 @@ export function AccountSecurityPanel({
 
   async function logoutAll() {
     if (!window.confirm(copy.confirmLogoutAll)) return;
+    invalidateOperationsAuthority();
     setPending("logout-all");
     const response = await fetch("/api/auth/logout-all", {
       method: "POST",

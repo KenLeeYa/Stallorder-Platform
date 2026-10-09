@@ -15,6 +15,8 @@ test("product panes share the bottom edge and notes are directly usable on table
   restoreNavigation = await prepareCatalogNavigationFixture(prisma);
   await establishLocalTestSession(page, prisma, owner.id);
   await gotoLocalPath(page, "/merchant/catalog?organizationId=11111111-1111-4111-8111-111111111111");
+  await page.getByRole("button", { name: "完整管理／新增商品", exact: true }).click();
+  await expect(page.getByTestId("shared-catalog-actions")).toBeVisible();
   for (const width of [768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     const nav = page.getByRole("navigation", { name: "分類與群組", exact: true });

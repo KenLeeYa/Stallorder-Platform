@@ -1,6 +1,8 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import { hasBlockingDestructiveSql } from "./lib/destructive-sql.mjs";
+import { hasUnsafeRuntimeTestKeys } from "./lib/runtime-test-key-policy.mjs";
 
 const root = process.cwd();
 const failures = [];
@@ -108,7 +110,7 @@ const runtimeConfigurationFiles = files.filter((file) =>
 for (const file of runtimeConfigurationFiles) {
   const content = read(file);
   requireCondition(
-    !/TURNSTILE_ALLOW_TEST_KEYS\s*[:=]\s*["']?true/i.test(content),
+    !hasUnsafeRuntimeTestKeys(file, content),
     `Turnstile test keys are enabled in runtime configuration: ${file}`,
   );
   requireCondition(
@@ -153,8 +155,7 @@ for (const file of migrationFiles) {
   }
 
   const content = read(file);
-  const hasBlockingDestructiveSql = /\bdrop\s+table\b|\btruncate(?:\s+table)?\b|\balter\s+table[\s\S]{0,160}\balter\s+column[\s\S]{0,80}\btype\b/i.test(content);
-  requireCondition(!hasBlockingDestructiveSql, `Unreviewed destructive SQL detected in ${file}`);
+  requireCondition(!hasBlockingDestructiveSql(content), `Unreviewed destructive SQL detected in ${file}`);
   if (/alter\s+table\s+public\.products\s+drop\s+column\s+category\s*;/i.test(content)) {
     const copiesDataFirst = /insert\s+into\s+public\.product_categories/i.test(content)
       && /update\s+public\.products/i.test(content);

@@ -34,7 +34,11 @@ async function main() {
     const login = await api.post("/api/auth/login", { headers: { origin: appUrl }, data: { email: "owner@stallorder.test", password: "StallOrderDemo!2026" } });
     if (!login.ok()) throw new Error(`LOCAL_LOGIN_${login.status()}`);
     const cookies = (await api.storageState()).cookies;
-    const headers = { origin: appUrl, "x-csrf-token": cookies.find(row => row.name === "stallorder_csrf")?.value ?? "" };
+    const headers = {
+      origin: appUrl,
+      "x-csrf-token": cookies.find(row => row.name === "stallorder_csrf")?.value ?? "",
+      cookie: cookies.map(row => `${row.name}=${row.value}`).join("; "),
+    };
     const cases: Array<{ status: OrderStatus; dineIn?: boolean; count: number; quantity?: number; note: string }> = [
       { status: "WAITING_CONFIRMATION", count: 1, note: "單品新單，請由店員確認" },
       { status: "WAITING_CONFIRMATION", dineIn: true, count: 2, note: "內用新單，確認桌號與客製註記" },
