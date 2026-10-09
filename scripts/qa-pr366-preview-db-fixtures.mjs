@@ -512,19 +512,22 @@ export async function createDatabaseFixtures({ receipt, binding, databaseUrl, sa
       if (typeof savePrivate !== 'function') throw Error('FIXTURE_PRIVATE_RECEIPT_REQUIRED');
       const settings = await db.stallOrderingSettings.findFirst({ where, select: orderingSelect });
       if (!settings?.deliveryModuleEnabled) throw Error('FIXTURE_DELIVERY_NOT_ENABLED');
-      const rows = ['DEFAULT', 'DELIVERY'].map(mode => ({ id: randomUUID(), ...where, token: randomUUID(),
+      const versions = await db.qrCode.aggregate({ where: { ...where, diningTableId: null }, _max: { tokenVersion: true } });
+      const latestVersion = versions._max.tokenVersion ?? 0;
+      if (!Number.isInteger(latestVersion) || latestVersion < 0 || latestVersion > 2147483645) throw Error('FIXTURE_QR_VERSION_EXHAUSTED');
+      const rows = ['DEFAULT', 'DELIVERY'].map((mode, index) => ({ id: randomUUID(), ...where, token: randomUUID(), tokenVersion: latestVersion + index + 1,
         label: `${marker} ${mode}`, fulfillmentTypeContext: mode === 'DELIVERY' ? 'DELIVERY' : null,
         state: 'ACTIVE', expiresAt: new Date(receipt.expiresAt) }));
       const publicEvidence = { ...identity, kind: 'PUBLIC_QR', deliveryModuleEnabled: true, status: 'PLANNED',
         rows: rows.map((row, index) => ({ id: row.id, mode: index === 0 ? 'DEFAULT' : 'DELIVERY',
-          tokenFingerprint: createHash('sha256').update(row.token).digest('hex') })) };
+          tokenVersion: row.tokenVersion, tokenFingerprint: createHash('sha256').update(row.token).digest('hex') })) };
       const privateEvidence = { ...publicEvidence, qrs: rows.map((row, index) => ({ id: row.id,
         mode: index === 0 ? 'DEFAULT' : 'DELIVERY', qrToken: row.token })) };
       await save(publicEvidence); await savePrivate(privateEvidence); guard();
       await db.qrCode.createMany({ data: rows });
       const actual = await db.qrCode.findMany({ where: { ...where, id: { in: rows.map(row => row.id) } } });
       if (actual.length !== 2 || rows.some(row => !actual.some(found => found.id === row.id && found.token === row.token
-        && found.state === 'ACTIVE' && found.fulfillmentTypeContext === row.fulfillmentTypeContext))) throw Error('FIXTURE_QR_READBACK_FAILED');
+        && found.tokenVersion === row.tokenVersion && found.state === 'ACTIVE' && found.fulfillmentTypeContext === row.fulfillmentTypeContext))) throw Error('FIXTURE_QR_READBACK_FAILED');
       publicEvidence.status = 'READBACK_VERIFIED'; privateEvidence.status = 'READBACK_VERIFIED';
       await save(publicEvidence); await savePrivate(privateEvidence); return privateEvidence;
     },

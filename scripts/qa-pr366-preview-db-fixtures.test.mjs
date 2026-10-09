@@ -366,7 +366,16 @@ test('catalog descriptor reads unique active assigned seed product without write
 test('dedicated public QR tokens remain exclusively in private handoff receipts', async () => {
   const { db } = mockDatabase(); const publicSaves = []; const privateSaves = []; let rows;
   db.stallOrderingSettings = { findFirst: async () => ({ deliveryModuleEnabled: true }) };
-  db.qrCode = { createMany: async ({ data }) => { rows = data; }, findMany: async () => rows };
+  db.qrCode = { aggregate: async query => {
+    expect(query).toEqual({ where: { organizationId: '11111111-1111-4111-8111-111111111111',
+      stallId: '22222222-2222-4222-8222-222222222222', diningTableId: null }, _max: { tokenVersion: true } });
+    return { _max: { tokenVersion: 7 } };
+  }, createMany: async ({ data }) => {
+    // Model the deployed partial unique(stall_id, token_version) index, including existing version7.
+    const versions = [7, ...data.map(row => row.tokenVersion ?? 1)];
+    if (new Set(versions).size !== versions.length) throw Object.assign(Error('unique violation'), { code: 'P2002' });
+    rows = data;
+  }, findMany: async () => rows };
   const tool = await createDatabaseFixtures({ ...dbFixture(), now: () => now,
     save: async evidence => publicSaves.push(structuredClone(evidence)),
     savePrivate: async evidence => privateSaves.push(structuredClone(evidence)), clientFactory: async () => db });
@@ -376,6 +385,15 @@ test('dedicated public QR tokens remain exclusively in private handoff receipts'
   expect(privateSaves).toHaveLength(2);
   for (const qr of descriptor.qrs) expect(JSON.stringify(publicSaves)).not.toContain(qr.qrToken);
   expect(rows.every(row => row.expiresAt.toISOString() === dbFixture().receipt.expiresAt)).toBe(true);
+  expect(rows.map(row => row.tokenVersion)).toEqual([8, 9]);
+});
+
+test.each([2147483646, -1, 1.5])('public QR refuses invalid or exhausted version %s before writes', async tokenVersion => {
+  const { db } = mockDatabase(); const write = vi.fn();
+  db.stallOrderingSettings = { findFirst: async () => ({ deliveryModuleEnabled: true }) };
+  db.qrCode = { aggregate: async () => ({ _max: { tokenVersion } }), createMany: write };
+  const tool = await createDatabaseFixtures({ ...dbFixture(), now: () => now, save: vi.fn(), savePrivate: vi.fn(), clientFactory: async () => db });
+  await expect(tool.publicQr()).rejects.toThrow('FIXTURE_QR_VERSION_EXHAUSTED'); expect(write).not.toHaveBeenCalled();
 });
 
 test('public QR creation refuses absent private receipt destination before writes', async () => {
