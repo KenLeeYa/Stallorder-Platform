@@ -19,6 +19,8 @@ function isSeedSupplyOverride(row, flagId, ownerId, instant) {
 export function fixtureFailureCode(error) {
   if (typeof error?.code === 'string' && /^P\d{4}$/.test(error.code)) return error.code;
   if (typeof error?.message === 'string' && /^FIXTURE_[A-Z0-9_]+$/.test(error.message)) return error.message;
+  if (['PREVIEW_UI_TARGET_DENIED', 'PREVIEW_UI_READBACK_DENIED', 'PREVIEW_DATABASE_TARGET_DENIED'].includes(error?.message)) return error.message;
+  if (['PrismaClientValidationError', 'PrismaClientInitializationError', 'PrismaClientUnknownRequestError', 'PrismaClientRustPanicError'].includes(error?.name)) return error.name;
   return 'UNCLASSIFIED';
 }
 export const MIDNIGHT_CASES = [
@@ -430,14 +432,22 @@ export async function createDatabaseFixtures({ receipt, binding, databaseUrl, sa
       // Circuit B resolves a device-only context. This GLOBAL override exists solely in the verified data-less child.
       const scope = { flagId: flag.id, scopeType: 'GLOBAL', organizationId: null, stallId: null, deviceId: null };
       if ((await db.resilienceFeatureFlagOverride.findMany({ where: scope })).length) throw Error('FIXTURE_EXISTING_CIRCUIT_OVERRIDE_REQUIRES_REVIEW');
-      const row = { id: randomUUID(), ...scope, enabled: true, rolloutPercentage: 100,
+      const row = { id: randomUUID(), ...scope, enabled: true, rolloutPercentage: null,
         expiresAt: new Date(receipt.expiresAt), reason: `${marker} synthetic Circuit B QA`,
         createdByProfileId: owner.id, updatedByProfileId: owner.id };
       const evidence = { ...identity, kind: 'CIRCUIT_B', before: [], after: row, status: 'PLANNED' };
-      await save(evidence); guard(); await db.resilienceFeatureFlagOverride.create({ data: row });
-      const actual = await db.resilienceFeatureFlagOverride.findUnique({ where: { id: row.id } });
-      if (!actual || !actual.enabled || actual.flagId !== flag.id || actual.reason !== row.reason) throw Error('FIXTURE_READBACK_FAILED');
-      evidence.after = actual; evidence.status = 'READBACK_VERIFIED'; await save(evidence); return evidence;
+      evidence.stage = 'TARGET_GUARD'; await save(evidence);
+      try {
+        guard(); evidence.stage = 'CREATE'; await save(evidence);
+        await db.resilienceFeatureFlagOverride.create({ data: row });
+        evidence.stage = 'READBACK'; await save(evidence);
+        const actual = await db.resilienceFeatureFlagOverride.findUnique({ where: { id: row.id } });
+        if (!actual || !actual.enabled || actual.flagId !== flag.id || actual.reason !== row.reason) throw Error('FIXTURE_READBACK_FAILED');
+        evidence.after = actual; evidence.status = 'READBACK_VERIFIED'; await save(evidence); return evidence;
+      } catch (error) {
+        evidence.status = 'FAILED'; evidence.failureCode = fixtureFailureCode(error);
+        await save(evidence); throw error;
+      }
     },
     async restoreCircuitB(evidence) {
       guard();

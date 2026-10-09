@@ -332,8 +332,25 @@ test('fixture diagnostics expose only exact safe codes, never raw DB messages or
   const diagnosticUrl = syntheticDatabaseUrl('db.synthetic-test.invalid');
   expect(fixtureFailureCode({ code: 'P2002', message: diagnosticUrl })).toBe('P2002');
   expect(fixtureFailureCode(Error('FIXTURE_EXISTING_MODULE_OVERRIDE_REQUIRES_REVIEW'))).toBe('FIXTURE_EXISTING_MODULE_OVERRIDE_REQUIRES_REVIEW');
+  expect(fixtureFailureCode(Error('PREVIEW_UI_READBACK_DENIED'))).toBe('PREVIEW_UI_READBACK_DENIED');
+  expect(fixtureFailureCode({ name: 'PrismaClientValidationError', message: diagnosticUrl })).toBe('PrismaClientValidationError');
   for (const error of [Error(diagnosticUrl), { code: 'P2002 secret' }, Error('FIXTURE_DENIED\nsecret')])
     expect(fixtureFailureCode(error)).toBe('UNCLASSIFIED');
+});
+
+test.each(['CREATE', 'READBACK'])('Circuit B failure journals bounded %s evidence without raw diagnostics', async stage => {
+  const { db } = mockDatabase(); const saves = [];
+  const error = Object.assign(Error(syntheticDatabaseUrl('db.synthetic-test.invalid')), { name: 'PrismaClientUnknownRequestError' });
+  db.resilienceFeatureFlag = { findUnique: async () => ({ id: 'circuit-flag', isEmergency: false }) };
+  db.resilienceFeatureFlagOverride = { findMany: async () => [],
+    create: async () => { if (stage === 'CREATE') throw error; },
+    findUnique: async () => { throw error; } };
+  const tool = await createDatabaseFixtures({ ...dbFixture(), now: () => now,
+    save: async evidence => saves.push(structuredClone(evidence)), clientFactory: async () => db });
+  await expect(tool.enableCircuitB()).rejects.toBe(error);
+  expect(saves.at(-1)).toMatchObject({ kind: 'CIRCUIT_B', status: 'FAILED', stage,
+    failureCode: 'PrismaClientUnknownRequestError', childRef: 'child123' });
+  expect(JSON.stringify(saves)).not.toContain('synthetic-test.invalid');
 });
 
 test('catalog descriptor reads unique active assigned seed product without writes', async () => {
@@ -399,13 +416,18 @@ test('Circuit B override remains child-only, expires and restores only the exact
   db.resilienceFeatureFlag = { findUnique: async query => {
     expect(query.where.code).toBe('DUAL_ORDER_INTAKE_ENABLED'); return { id: 'circuit-flag', isEmergency: false };
   } };
-  db.resilienceFeatureFlagOverride = { findMany: async () => [], create: async ({ data }) => { row = { ...data, updatedAt: new Date(now) }; },
+  db.resilienceFeatureFlagOverride = { findMany: async () => [], create: async ({ data }) => {
+    // The deployed scope CHECK permits rollout percentages only for PERCENTAGE overrides.
+    if (data.scopeType === 'GLOBAL' && data.rolloutPercentage !== null) throw Error('GLOBAL_SCOPE_CHECK_VIOLATION');
+    row = { ...data, updatedAt: new Date(now) };
+  },
     findUnique: async () => row, deleteMany: async ({ where }) => {
       expect(where.scopeType).toBe('GLOBAL'); expect(where.organizationId).toBeNull();
       expect(where.updatedAt).toEqual(row.updatedAt); row = null; return { count: 1 };
     } };
   const tool = await createDatabaseFixtures({ ...dbFixture(), now: () => now, save: vi.fn(), clientFactory: async () => db });
   const evidence = await tool.enableCircuitB();
+  expect(evidence.after.scopeType).toBe('GLOBAL'); expect(evidence.after.rolloutPercentage).toBeNull();
   expect(evidence.childRef).toBe('child123'); expect(evidence.after.expiresAt.toISOString()).toBe(dbFixture().receipt.expiresAt);
   await tool.restoreCircuitB(JSON.parse(JSON.stringify(evidence))); expect(row).toBeNull();
 });
