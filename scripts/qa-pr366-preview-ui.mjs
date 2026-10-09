@@ -136,6 +136,44 @@ export function sanitizedCaseFailure(error, stage) {
     : error?.name === 'AssertionError' ? 'PREVIEW_UI_ASSERTION_FAILED' : 'PREVIEW_UI_OPERATION_FAILED' };
 }
 
+export async function verifySessionRevocation({ load, logout, readSession, dom, refresh, verifyCleared, save }) {
+  const evidence = { kind: 'SESSION_REVOCATION', status: 'RUNNING', steps: [] };
+  let stage = 'LOAD_AUTHORIZED_INBOX';
+  const record = async fields => { evidence.steps.push({ stage, ...fields }); await save(evidence); };
+  const snapshot = async () => {
+    const value = await dom();
+    const result = {};
+    for (const key of ['denialVisible', 'listVisible', 'detailVisible', 'refreshVisible']) {
+      if (typeof value[key] !== 'boolean') throw Error('PREVIEW_SESSION_DOM_EVIDENCE_INVALID');
+      result[key] = value[key];
+    }
+    return result;
+  };
+  try {
+    await load(); await record({ completed: true });
+    stage = 'LOGOUT'; const logoutStatus = await logout(); await record({ httpStatus: logoutStatus });
+    if (logoutStatus !== 200) throw Error('PREVIEW_SESSION_LOGOUT_DENIED');
+    stage = 'SESSION_READBACK'; const sessionStatus = await readSession(); await record({ httpStatus: sessionStatus });
+    if (sessionStatus !== 401) throw Error('PREVIEW_SESSION_NOT_REVOKED');
+    stage = 'MOUNTED_STATE'; const state = await snapshot(); await record(state);
+    if (!state.denialVisible) {
+      stage = 'REFRESH_MOUNTED_INBOX';
+      try { await refresh(); await record({ completed: true }); }
+      catch (error) {
+        // A background denial can remove the button between observation and click.
+        const after = await snapshot(); await record(after);
+        if (!after.denialVisible || after.listVisible || after.detailVisible) throw error;
+      }
+    }
+    stage = 'VERIFY_PRIVATE_STATE_CLEARED'; await verifyCleared();
+    const cleared = await snapshot(); await record(cleared);
+    if (!cleared.denialVisible || cleared.listVisible || cleared.detailVisible) throw Error('PREVIEW_SESSION_PRIVATE_STATE_RETAINED');
+    evidence.status = 'PASS'; await save(evidence); return evidence;
+  } catch (error) {
+    evidence.status = 'FAIL'; evidence.failure = sanitizedCaseFailure(error, stage); await save(evidence); throw error;
+  }
+}
+
 export function merchantDashboardPath(organizationId) {
   return `/merchant/dashboard?organizationId=${encodeURIComponent(organizationId)}`;
 }
@@ -956,21 +994,29 @@ export async function run(receipt, binding, outDir) {
       } finally { await shutdownPreviewContext(staffContext); }
     }); else results.push({ name: 'inbox-real-membership-revocation-with-valid-session', status: 'PENDING', reason: 'BOUND_NON_PRIMARY_MEMBERSHIP_REQUIRED' });
     await check('inbox-real-session-revocation-clears-private-state', async () => {
-      await page.goto(`${origin}/notifications?kind=ORGANIZATION&organizationId=${org}`);
-      await expect(page.getByRole('region', { name: '通知列表', exact: true })).toBeVisible();
-      const csrfToken = (await context.cookies(origin)).find(cookie => cookie.name === 'stallorder_csrf')?.value;
-      expect(csrfToken).toBeTruthy();
-      const revoked = await context.request.post(`${origin}/api/auth/logout`, { maxRedirects: 0, data: {}, headers: {
-        ...requestPolicy(origin, origin, 'POST', false, process.env.PREVIEW_BYPASS_SECRET).headers,
-        Origin: origin, 'x-csrf-token': csrfToken } });
-      expect(revoked.status()).toBe(200);
-      const me = await context.request.get(`${origin}/api/auth/me`, { maxRedirects: 0, headers: requestPolicy(origin, origin, 'GET', false, process.env.PREVIEW_BYPASS_SECRET).headers });
-      expect(me.status()).toBe(401);
-      // Keep the authorized page mounted; the actual revoked cookie/session must cause the denial.
-      await page.getByRole('button', { name: '套用篩選', exact: true }).click();
-      await expect(page.getByText('登入或權限已變更，通知內容已清除。', { exact: true })).toBeVisible();
-      await expect(page.getByRole('region', { name: '通知列表', exact: true })).toBeHidden();
-      await expect(page.getByRole('region', { name: '通知詳情', exact: true })).toBeHidden();
+      const list = page.getByRole('region', { name: '通知列表', exact: true });
+      const detail = page.getByRole('region', { name: '通知詳情', exact: true });
+      const denial = page.getByText('登入或權限已變更，通知內容已清除。', { exact: true });
+      const refresh = page.getByRole('button', { name: '套用篩選', exact: true });
+      await verifySessionRevocation({
+        load: async () => { await page.goto(`${origin}/notifications?kind=ORGANIZATION&organizationId=${org}`); await expect(list).toBeVisible(); },
+        logout: async () => {
+          const csrfToken = (await context.cookies(origin)).find(cookie => cookie.name === 'stallorder_csrf')?.value;
+          expect(csrfToken).toBeTruthy();
+          return (await context.request.post(`${origin}/api/auth/logout`, { maxRedirects: 0, data: {}, headers: {
+            ...requestPolicy(origin, origin, 'POST', false, process.env.PREVIEW_BYPASS_SECRET).headers,
+            Origin: origin, 'x-csrf-token': csrfToken } })).status();
+        },
+        readSession: async () => (await context.request.get(`${origin}/api/auth/me`, { maxRedirects: 0,
+          headers: requestPolicy(origin, origin, 'GET', false, process.env.PREVIEW_BYPASS_SECRET).headers })).status(),
+        dom: async () => ({ denialVisible: await denial.isVisible(), listVisible: await list.isVisible(),
+          detailVisible: await detail.isVisible(), refreshVisible: await refresh.isVisible() }),
+        refresh: () => refresh.click(),
+        verifyCleared: async () => { await expect(denial).toBeVisible(); await expect(list).toBeHidden(); await expect(detail).toBeHidden(); },
+        save: evidence => writeFileSync(resolve(outDir, 'ui-session-revocation.json'), JSON.stringify({
+          resourceKey: receipt.resourceKey, childRef: binding.childRef, deploymentId: binding.deploymentId,
+          sha: binding.sha, tree: binding.tree, ...evidence }, null, 2)),
+      });
     });
     await check('hosted-line-local-mock-denied', async () => {
       const response = await context.request.get(`${origin}/local-qa/line`, { maxRedirects: 0, headers:
