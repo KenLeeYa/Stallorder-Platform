@@ -1,6 +1,10 @@
 # PR366 authorized paid acceptance window — Taipei 2026-10-09
 
-## Current next single pair — Taipei 11:00–14:00
+## Current next single pair — Taipei 15:00–18:00
+
+Root disclosed this next independent pair's US$2 management target (not a provider hard cap) under the owner's standing subsequent-cost authorization. Creation is allowed only UTC2026-10-09T07:00:00Z–10:00:00Z / Taipei15:00–18:00, with latest creationUTC08:45 / Taipei16:45 and at least75 minutes remaining. Expiry is min(original createdAt + three hours, UTC10:00 / Taipei18:00); exact-owner deadline cleanup starts ten minutes before expiry (UTC09:50 / Taipei17:50 at the cutoff), completes deletion/readback by expiry, and runs immediately after success or failure. Fresh full CI and independent review for the same source, exact ownership and independent watcher readiness are prerequisites. This is one new pair, not reuse of prior resources or extension of old receipts. No automatic rebuild, additional credentials or live payments/messages. The Web risk-policy expiry UTC16:00 is unchanged.
+
+## Historical prior single pair — Taipei 11:00–14:00 (consumed and cleaned)
 
 Root disclosed this next independent pair's US$2 management target (not a provider hard cap) under the owner's standing subsequent-cost authorization. Creation is allowed only UTC2026-10-09T03:00:00Z–06:00:00Z / Taipei11:00–14:00, with latest creationUTC04:45 / Taipei12:45 and at least75 minutes remaining. Expiry is min(original createdAt + three hours, UTC06:00 / Taipei14:00); exact-owner deadline cleanup starts ten minutes before expiry (UTC05:50 / Taipei13:50 at the cutoff), completes deletion/readback by expiry, and runs immediately after success or failure. Fresh full CI and independent review for the same source, exact ownership and independent watcher readiness are prerequisites. This is one new pair, not reuse of prior resources or extension of old receipts. No automatic rebuild, additional credentials or live payments/messages. The Web risk-policy expiry UTC16:00 is unchanged.
 
