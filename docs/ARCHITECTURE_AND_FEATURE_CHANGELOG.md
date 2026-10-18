@@ -1,5 +1,13 @@
 # StallOrder Architecture and Feature Change Ledger
 
+<!-- LOCAL328_START -->
+## 2026-10-18 LOCAL328 — Implemented: branch-scoped native PostgreSQL executor
+
+Installed the reviewed synthetic workflow on the existing preparation branch, with exact push/source guards and Vercel auto-deployment disabled only for that branch. Native extension loading and FORCE RLS dump/restore require actual GitHub job receipts; installation or local tests alone do not qualify recovery or release.
+
+[Execution contract](PR366_NATIVE_RUNNER_EXECUTION.md). No Docker, paid resources, protected-rule changes, real keys/archives or Production/DR application writes. All PR366 release gates remain open pending their actual evidence.
+<!-- LOCAL328_END -->
+
 This ledger is the durable entry point for owner-approved architecture and product-function changes. It prevents a new task from relying only on chat history or rediscovering an already changed contract.
 
 ## Source-of-truth order

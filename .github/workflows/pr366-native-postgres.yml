@@ -1,0 +1,75 @@
+# Installed only on the existing preparation branch; never a release gate.
+# Public standard GitHub VM only. No secrets, protected publishing, or real backups.
+name: PR366 native PostgreSQL synthetic qualification candidate
+on:
+  push:
+    branches: [codex/primary-only-preparation]
+    paths:
+      - .github/workflows/pr366-native-postgres.yml
+      - scripts/verify-native-postgres-runner.mjs
+      - scripts/tests/native-postgres-runner.test.mjs
+      - scripts/fixtures/rls-restore/roles.sql
+      - scripts/fixtures/rls-restore/schema.sql
+      - vercel.json
+permissions: {}
+concurrency:
+  group: pr366-native-postgres-synthetic
+  cancel-in-progress: false
+jobs:
+  native-postgres:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/codex/primary-only-preparation' && github.event.deleted == false && github.event.forced == false && github.event.after == github.sha && github.repository == 'KenLeeYa/Stallorder-Platform' && github.event.repository.private == false && github.event.repository.fork == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GIT_CONFIG_NOSYSTEM: '1'
+      GIT_CONFIG_GLOBAL: /dev/null
+      GIT_TERMINAL_PROMPT: '0'
+    steps:
+      - name: Anonymous checkout of the pushed immutable source
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = push
+          test "$GITHUB_REF" = refs/heads/codex/primary-only-preparation
+          test "$GITHUB_REPOSITORY" = KenLeeYa/Stallorder-Platform
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          test "$RUNNER_OS" = Linux
+          test "$RUNNER_ARCH" = X64
+          test "$ImageOS" = ubuntu24
+          test "$(uname -m)" = x86_64
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test ! -e .git
+          git -c core.hooksPath=/dev/null init .
+          git -c credential.helper= -c core.hooksPath=/dev/null fetch --no-tags --depth=1 https://github.com/KenLeeYa/Stallorder-Platform.git "$SOURCE_SHA"
+          git -c core.hooksPath=/dev/null checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - name: Validate candidate and record source-only plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test scripts/tests/native-postgres-runner.test.mjs
+          node scripts/verify-native-postgres-runner.mjs --plan
+      - name: Install checksum-pinned official Nix in this disposable VM
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e "$HOME/.nix-profile/bin/nix"
+          test "$(df --output=avail -B1 "$RUNNER_TEMP" | tail -n1)" -ge 8589934592
+          installer="$(mktemp "$RUNNER_TEMP/pr366-nix-install.XXXXXX")"
+          trap 'rm -f -- "$installer"' EXIT
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --connect-timeout 15 --max-time 90 --max-filesize 1048576 https://releases.nixos.org/nix/nix-2.34.9/install --output "$installer"
+          printf '%s  %s\n' a03ce2e9eaf4ea1560260b9a93e311dbaf589d28fb5c9318f8d9e768ee6339d8 "$installer" | sha256sum --check --strict
+          # The verified installer checks the embedded x86_64-linux tarball SHA256:
+          # e8912e087582b3799e0e5a6b06f9d63386c54821f77ad4de3b9b748736ad364e
+          timeout --signal=TERM --kill-after=10s 180s sh "$installer" --no-daemon --no-channel-add --no-modify-profile --yes
+          test "$("$HOME/.nix-profile/bin/nix" --version)" = 'nix (Nix) 2.34.9'
+      - name: Native extension loading and synthetic FORCE RLS dump restore
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-native-postgres-runner.mjs --run
+          # The probe emits its raw JSON receipt and exits nonzero on incomplete cleanup.
+          # Nix store/profile lifecycle belongs to GitHub's disposable VM teardown.
+          # No artifact/cache upload, Docker, larger runner, source-build fallback or dispatch.
