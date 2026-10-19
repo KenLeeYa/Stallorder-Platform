@@ -2,6 +2,10 @@
 
 This ledger is the durable entry point for owner-approved architecture and product-function changes. It prevents a new task from relying only on chat history or rediscovering an already changed contract.
 
+## 2026-10-19 — PR366 release evidence preparation
+
+Implemented locally; not released: require authorized session/private-detail preconditions and ordered same-resource session-revocation evidence in the real deployment verifier; preserve sanitized failure classification. Affects only hosted QA and evidence scripts/tests. Dependency audit remains five HIGH/NON_PASS with expired unchanged exception. Fixed DR test-environment conversion is Proposed only; recovery coverage and Production DR gates remain unresolved. See [candidate, validation and recovery contract](releases/PR366_RELEASE_CONTRACT_20261019.md). No remote Apply, workflow dispatch, deployment or alias mutation. Local verification results are recorded in that contract; fresh final-source CI and full hosted acceptance remain required.
+
 ## Source-of-truth order
 
 1. Current code, migrations, configuration, and executable tests define observed behavior.

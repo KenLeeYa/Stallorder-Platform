@@ -12,6 +12,7 @@ function harness(mode, sessionStatus = 401) {
   });
   const operations = {
     load: vi.fn(async () => { expect(state.listVisible).toBe(true); }),
+    readAuthorizedSession: vi.fn(async () => 200),
     logout: vi.fn(async () => { if (mode === 'early') state = { ...cleared }; return 200; }),
     readSession: vi.fn(async () => sessionStatus),
     dom: async () => ({ ...state, sessionToken: 'must-not-be-recorded', privateText: 'must-not-be-recorded' }),
@@ -52,4 +53,18 @@ test('failed logout remains failed even when UI is already cleared', async () =>
   const { operations, saves } = harness('early'); operations.logout = async () => 403;
   await expect(verifySessionRevocation(operations)).rejects.toThrow('PREVIEW_SESSION_LOGOUT_DENIED');
   expect(saves.at(-1)).toMatchObject({ status: 'FAIL', failure: { stage: 'LOGOUT' } });
+});
+
+test('an already invalid session fails before logout', async () => {
+  const { operations, saves } = harness('early'); operations.readAuthorizedSession = async () => 401;
+  await expect(verifySessionRevocation(operations)).rejects.toThrow('PREVIEW_SESSION_PRECONDITION_FAILED');
+  expect(operations.logout).not.toHaveBeenCalled();
+  expect(saves.at(-1)).toMatchObject({ status: 'FAIL', failure: { stage: 'AUTHORIZED_SESSION_READBACK' } });
+});
+
+test.each(['listVisible', 'detailVisible'])('missing private %s fails before logout', async key => {
+  const { operations } = harness('early'); const dom = operations.dom;
+  operations.dom = async () => ({ ...await dom(), [key]: false });
+  await expect(verifySessionRevocation(operations)).rejects.toThrow('PREVIEW_SESSION_PRECONDITION_FAILED');
+  expect(operations.logout).not.toHaveBeenCalled();
 });

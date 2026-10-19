@@ -2,6 +2,8 @@
 
 This is a fail-closed sequence. A green earlier run cannot substitute for evidence on the exact released revision.
 
+For PR366, follow `docs/releases/PR366_RELEASE_CONTRACT_20261019.md`. Session revocation requires a bound ordered receipt proving authorized auth/me 200 and mounted private list/detail before logout 200, auth/me 401 and denial/private-state clearing. A summary PASS alone is insufficient. The selected reuse of DR as a fixed test environment remains Proposed until inventory, backup/restore and replacement recovery coverage are verified; test evidence never substitutes for the existing DR schema Apply gate.
+
 ## Authorization boundary
 
 - A current user request to release authorizes the normal release workflow for the specified change and environments.

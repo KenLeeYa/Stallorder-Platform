@@ -132,11 +132,12 @@ export async function shutdownPreviewBrowser(browser, options = {}) {
 
 export function sanitizedCaseFailure(error, stage) {
   return { stage, code: /^PREVIEW_(?:LOGIN|MERCHANT)_HTTP_[1-5]\d{2}$/.test(error?.message ?? '') || ['PREVIEW_LOGIN_REDIRECT_FAILED', 'PREVIEW_MERCHANT_REDIRECT_FAILED', 'PREVIEW_FIXTURE_STEP_TIMEOUT'].includes(error?.message) ? error.message
+    : ['PREVIEW_SESSION_PRECONDITION_FAILED', 'PREVIEW_SESSION_LOGOUT_DENIED', 'PREVIEW_SESSION_NOT_REVOKED', 'PREVIEW_SESSION_PRIVATE_STATE_RETAINED', 'PREVIEW_SESSION_DOM_EVIDENCE_INVALID'].includes(error?.message) ? error.message
     : error?.name === 'TimeoutError' ? 'PREVIEW_UI_TIMEOUT'
     : error?.name === 'AssertionError' ? 'PREVIEW_UI_ASSERTION_FAILED' : 'PREVIEW_UI_OPERATION_FAILED' };
 }
 
-export async function verifySessionRevocation({ load, logout, readSession, dom, refresh, verifyCleared, save }) {
+export async function verifySessionRevocation({ load, readAuthorizedSession, logout, readSession, dom, refresh, verifyCleared, save }) {
   const evidence = { kind: 'SESSION_REVOCATION', status: 'RUNNING', steps: [] };
   let stage = 'LOAD_AUTHORIZED_INBOX';
   const record = async fields => { evidence.steps.push({ stage, ...fields }); await save(evidence); };
@@ -151,6 +152,11 @@ export async function verifySessionRevocation({ load, logout, readSession, dom, 
   };
   try {
     await load(); await record({ completed: true });
+    stage = 'AUTHORIZED_SESSION_READBACK';
+    const authorizedStatus = await readAuthorizedSession(); await record({ httpStatus: authorizedStatus });
+    if (authorizedStatus !== 200) throw Error('PREVIEW_SESSION_PRECONDITION_FAILED');
+    stage = 'AUTHORIZED_PRIVATE_STATE'; const authorized = await snapshot(); await record(authorized);
+    if (authorized.denialVisible || !authorized.listVisible || !authorized.detailVisible) throw Error('PREVIEW_SESSION_PRECONDITION_FAILED');
     stage = 'LOGOUT'; const logoutStatus = await logout(); await record({ httpStatus: logoutStatus });
     if (logoutStatus !== 200) throw Error('PREVIEW_SESSION_LOGOUT_DENIED');
     stage = 'SESSION_READBACK'; const sessionStatus = await readSession(); await record({ httpStatus: sessionStatus });
@@ -999,7 +1005,15 @@ export async function run(receipt, binding, outDir) {
       const denial = page.getByText('登入或權限已變更，通知內容已清除。', { exact: true });
       const refresh = page.getByRole('button', { name: '套用篩選', exact: true });
       await verifySessionRevocation({
-        load: async () => { await page.goto(`${origin}/notifications?kind=ORGANIZATION&organizationId=${org}`); await expect(list).toBeVisible(); },
+        load: async () => {
+          const fixture = assertInboxFixture(binding.fixtures?.inbox, binding);
+          await page.goto(`${origin}/notifications?kind=ORGANIZATION&organizationId=${org}`); await expect(list).toBeVisible();
+          const notification = list.getByRole('button').filter({ hasText: fixture.title });
+          await expect(notification).toHaveCount(1); await notification.click();
+          await expect(detail.getByRole('heading', { name: fixture.title, exact: true })).toBeVisible();
+        },
+        readAuthorizedSession: async () => (await context.request.get(`${origin}/api/auth/me`, { maxRedirects: 0,
+          headers: requestPolicy(origin, origin, 'GET', false, process.env.PREVIEW_BYPASS_SECRET).headers })).status(),
         logout: async () => {
           const csrfToken = (await context.cookies(origin)).find(cookie => cookie.name === 'stallorder_csrf')?.value;
           expect(csrfToken).toBeTruthy();

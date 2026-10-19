@@ -18,6 +18,42 @@ const bound = (row,binding) => row && ['resourceKey','childRef','deploymentId','
 const sorted = rows => [...rows].sort();
 const phases = ['hours-open','hours-closed','hours-overnight','hours-cutoff','hours-preorder'];
 
+export function evidenceFailure(error) {
+ const groups = {
+  SOURCE: ['SOURCE','LINEAGE','CHECKOUT'],
+  HOSTED_VALIDATION: ['RUN','LATEST_RUN','VALIDATE_JOB','REQUIRED_STEP','NEWER_UNCLASSIFIED_RUN','JOB_PAGINATION'],
+  ARTIFACT: ['ARTIFACT_OWNER','PAGINATION','ARTIFACT_UNREADABLE'],
+  SESSION: ['SESSION_PROOF'],
+  ACCEPTANCE: ['UI','UI_CASE','UI_PHASE_PLACEHOLDER','UI_PARTIAL','PHASE','PREORDER','PHASE_CASE','DB_PROOF','DB_FACTS','MIDNIGHT'],
+  TARGET: ['CLEANUP','HISTORICAL_READY','BINDING','PRIMARY_BASELINE','PROVIDER_DRIFT','CHILD_READBACK','PROVIDER_READ'],
+  REQUEST: ['ARGUMENTS'],
+ };
+ for (const [category,codes] of Object.entries(groups)) if (codes.some(code => error?.message === `EVIDENCE_${code}`)) return {status:'FAIL',category,code:error.message};
+ return {status:'FAIL',category:'UNCLASSIFIED',code:'EVIDENCE_VERIFICATION_FAILED'};
+}
+
+export function readEvidenceFile(path) {
+ try { return JSON.parse(readFileSync(path,'utf8')); } catch { fail('ARTIFACT_UNREADABLE'); }
+}
+
+export function verifySessionEvidence(proof, binding) {
+ if (!bound(proof,binding) || proof.kind !== 'SESSION_REVOCATION' || proof.status !== 'PASS' || proof.failure || !Array.isArray(proof.steps)) fail('SESSION_PROOF');
+ const required = [
+  ['LOAD_AUTHORIZED_INBOX', row => row.completed === true],
+  ['AUTHORIZED_SESSION_READBACK', row => row.httpStatus === 200],
+  ['AUTHORIZED_PRIVATE_STATE', row => row.denialVisible === false && row.listVisible === true && row.detailVisible === true],
+  ['LOGOUT', row => row.httpStatus === 200], ['SESSION_READBACK', row => row.httpStatus === 401],
+  ['MOUNTED_STATE', row => ['denialVisible','listVisible','detailVisible','refreshVisible'].every(key => typeof row[key] === 'boolean')],
+  ['VERIFY_PRIVATE_STATE_CLEARED', row => row.denialVisible === true && row.listVisible === false && row.detailVisible === false],
+ ];
+ let previous = -1;
+ for (const [stage, valid] of required) {
+  const rows = proof.steps.filter(row => row.stage === stage), index = proof.steps.findIndex(row => row.stage === stage);
+  if (rows.length !== 1 || index <= previous || !valid(rows[0])) fail('SESSION_PROOF');
+  previous = index;
+ }
+}
+
 export function verifySourceLineage(candidate, run, lineage) {
  if (candidate.repository !== SCOPE.repository || !/^[a-f0-9]{40}$/.test(candidate.sha ?? '') || !/^[a-f0-9]{40}$/.test(candidate.tree ?? '')) fail('SOURCE');
  if (candidate.branch === SCOPE.branch) {
@@ -53,6 +89,7 @@ export function verifyDeploymentEvidence({ candidate, run, latestRun, jobs, arti
  const ui = files['ui-results.json'];
  if (!bound(ui,binding) || ui.complete !== false || !Array.isArray(ui.results) || new Set(ui.results.map(row => row.name)).size !== ui.results.length) fail('UI');
  for (const name of REQUIRED_UI) if (!ui.results.some(row => row.name === name && row.status === 'PASS')) fail('UI_CASE');
+ verifySessionEvidence(files['ui-session-revocation.json'],binding);
  const resolutions = {'public-hours-negative-http-phases':'SEPARATE_HOURS_PHASE_AND_DB_RECEIPTS_REQUIRED','midnight-deployed-db-calendar-boundaries':'SEPARATE_MIDNIGHT_ROLLBACK_DB_RECEIPT_REQUIRED'};
  for (const [name,reason] of Object.entries(resolutions)) if (!ui.results.some(row => row.name === name && row.status === 'PENDING' && row.reason === reason)) fail('UI_PHASE_PLACEHOLDER');
  for (const row of ui.results) {
@@ -105,7 +142,7 @@ async function main() {
   const response = await fetch(`${host}${path}`,{headers:{Authorization:`Bearer ${token}`,Accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(30000)});
   if (allow404 && response.status === 404) return null;
   if (!response.ok) fail('PROVIDER_READ');
-  return response.json();
+  try { return await response.json(); } catch { fail('PROVIDER_READ'); }
  };
  const gh = path => get('https://api.github.com',`/repos/${SCOPE.repository}${path}`,process.env.GH_TOKEN);
  const run = await gh(`/actions/runs/${id}`);
@@ -120,14 +157,19 @@ async function main() {
  const artifacts = await gh(`/actions/runs/${id}/artifacts?per_page=100`);
  if (jobs.total_count > 100 || artifacts.total_count > 100) fail('PAGINATION');
  const browser = resolve(dir,`pr366-browser-qa-${id}`);
- const read = path => JSON.parse(readFileSync(path,'utf8'));
+ const read = readEvidenceFile;
  const binding = read(resolve(browser,'ui-binding.json')), baseline=read(resolve(browser,'primary-baseline.json'));
  const cleanup = read(resolve(dir,`manual-preview-final-${id}`,'manual-resources.json'));
- const names = ['ui-results.json',...phases.map(phase=>`ui-${phase}.json`),'fixture-inbox-readback.json','fixture-inbox-membership-readback.json','fixture-verify-rejected-orders.json','fixture-midnight-rollback.json'];
+ const names = ['ui-results.json','ui-session-revocation.json',...phases.map(phase=>`ui-${phase}.json`),'fixture-inbox-readback.json','fixture-inbox-membership-readback.json','fixture-verify-rejected-orders.json','fixture-midnight-rollback.json'];
  const files = Object.fromEntries(names.map(name => [name,read(resolve(browser,'pr366-ui',name))]));
  const provider = await captureProviderReadback(binding,baseline,{api:(path,allow404)=>get('https://api.vercel.com',path,process.env.VERCEL_TOKEN,allow404),branches:parent=>JSON.parse(execFileSync('supabase',['branches','list','--project-ref',parent,'--output','json','--log-level','error'],{encoding:'utf8',stdio:['ignore','pipe','pipe'],timeout:30000}))});
  const result=verifyDeploymentEvidence({candidate,run,latestRun,jobs:jobs.jobs,artifacts:artifacts.artifacts,binding,baseline,cleanup,files,provider,lineage});
  writeFileSync(output,JSON.stringify(result,null,2)+'\n',{flag:'wx'});
  console.log('EVIDENCE_VERIFIED');
 }
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) main().catch(error=>{ console.error(/^EVIDENCE_[A-Z_]+$/.test(error.message)?error.message:'EVIDENCE_VERIFICATION_FAILED');process.exitCode=1; });
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) main().catch(error=>{
+ const failure=evidenceFailure(error);
+ // Preserve only an allowlisted failure; never replace an existing successful receipt.
+ if (process.argv.length === 5) try { writeFileSync(process.argv[4],JSON.stringify(failure,null,2)+'\n',{flag:'wx'}); } catch { /* Original verification still fails. */ }
+ console.error(failure.code);process.exitCode=1;
+});

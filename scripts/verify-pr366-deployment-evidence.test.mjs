@@ -1,6 +1,11 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { SCOPE, REQUIRED_UI, verifyDeploymentEvidence, captureProviderReadback, selectLatestValidationRun } from './verify-pr366-deployment-evidence.mjs';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { SCOPE, REQUIRED_UI, verifyDeploymentEvidence, captureProviderReadback, selectLatestValidationRun, evidenceFailure, readEvidenceFile } from './verify-pr366-deployment-evidence.mjs';
 function fixture() {
  const sha='a'.repeat(40), tree='b'.repeat(40), resourceKey='manual-37714174760', childRef='abcdefghijklmnopqrst', deploymentId='dpl_preview';
  const baseline={projectId:SCOPE.project,teamId:SCOPE.team,deploymentId:'dpl_primary',sha:'c'.repeat(40),aliases:['app.qidaigo.com'],provider:'VERCEL_TEAM_SCOPED_GET',publicBackendConfigFingerprint:'opaque-value-v1:'+'f'.repeat(64)};
@@ -12,6 +17,12 @@ function fixture() {
  const ui={...identity,complete:false,results:REQUIRED_UI.map(name=>({name,status:'PASS'}))};
  ui.results.push({name:'public-hours-negative-http-phases',status:'PENDING',reason:'SEPARATE_HOURS_PHASE_AND_DB_RECEIPTS_REQUIRED'},{name:'midnight-deployed-db-calendar-boundaries',status:'PENDING',reason:'SEPARATE_MIDNIGHT_ROLLBACK_DB_RECEIPT_REQUIRED'},{name:'live-http-clock-midnight-transition',status:'NOT_RUN',reason:'EXPLICIT_DB_CLOCK_PROOF_DOES_NOT_CLAIM_LIVE_HTTP_TRANSITION'});
  const files={'ui-results.json':ui};
+ files['ui-session-revocation.json']={...identity,kind:'SESSION_REVOCATION',status:'PASS',steps:[
+  {stage:'LOAD_AUTHORIZED_INBOX',completed:true}, {stage:'AUTHORIZED_SESSION_READBACK',httpStatus:200},
+  {stage:'AUTHORIZED_PRIVATE_STATE',denialVisible:false,listVisible:true,detailVisible:true,refreshVisible:true},
+  {stage:'LOGOUT',httpStatus:200}, {stage:'SESSION_READBACK',httpStatus:401},
+  {stage:'MOUNTED_STATE',denialVisible:true,listVisible:false,detailVisible:false,refreshVisible:false},
+  {stage:'VERIFY_PRIVATE_STATE_CLEARED',denialVisible:true,listVisible:false,detailVisible:false,refreshVisible:false}]};
  // Match each actual harness writer shape; cutoff has no quantity-edit proof.
  for(const phase of ['hours-open','hours-closed','hours-overnight','hours-cutoff']) files[`ui-${phase}.json`]={...identity,phase,status:'PASS',complete:false,turnstile:'OFFICIAL_TEST_KEY_ONLY',pending:['EXACT_MIDNIGHT_BOUNDARY_FUTURE_PREORDER_DEVICE_UI'],orderIds:['one','two'],results:['DEFAULT','DELIVERY'].map(mode=>{
   const rejectedCreateOrderId=mode==='DEFAULT'?'rejected-one':'rejected-two';
@@ -30,6 +41,37 @@ function fixture() {
  const provider={publicBackendConfigFingerprint:baseline.publicBackendConfigFingerprint,deploymentStatus:404,childAbsent:true,parent:SCOPE.parent,project:SCOPE.project,team:SCOPE.team,primary:{projectId:baseline.projectId,teamId:baseline.teamId,deploymentId:baseline.deploymentId,sha:baseline.sha,aliases:[...baseline.aliases].sort()}};
  return {candidate:{repository:SCOPE.repository,branch:SCOPE.branch,sha:binding.sha,tree:binding.tree},run,latestRun:{...run},jobs,artifacts,binding,baseline,cleanup,files,provider};
 }
+
+test('failure classification retains only allowlisted codes and no provider diagnostics',()=>{
+ assert.deepEqual(evidenceFailure(Error('EVIDENCE_SESSION_PROOF')),{status:'FAIL',category:'SESSION',code:'EVIDENCE_SESSION_PROOF'});
+ assert.equal(evidenceFailure(Object.assign(Error('private path'),{code:'ENOENT'})).category,'UNCLASSIFIED');
+ assert.equal(evidenceFailure(new SyntaxError('provider private body')).category,'UNCLASSIFIED');
+ assert.equal(evidenceFailure(Error('EVIDENCE_SECRET_TOKEN_PRIVATE')).code,'EVIDENCE_VERIFICATION_FAILED');
+ assert(!JSON.stringify(evidenceFailure(Error('provider token=private'))).includes('private'));
+});
+
+test('artifact read errors are explicitly classified without leaking bytes or paths',()=>{
+ const dir=mkdtempSync(join(tmpdir(),'pr366-artifact-')), path=join(dir,'missing.json');
+ try {
+  assert.throws(()=>readEvidenceFile(path),/EVIDENCE_ARTIFACT_UNREADABLE/);
+  writeFileSync(path,'private malformed JSON');
+  try { readEvidenceFile(path); assert.fail('must reject'); } catch (error) {
+   assert.deepEqual(evidenceFailure(error),{status:'FAIL',category:'ARTIFACT',code:'EVIDENCE_ARTIFACT_UNREADABLE'});
+  }
+ } finally { rmSync(dir,{recursive:true,force:true}); }
+});
+
+test('actual CLI preserves a sanitized failure and never overwrites an existing receipt',()=>{
+ const dir=mkdtempSync(join(tmpdir(),'pr366-evidence-')), output=join(dir,'result.json');
+ try {
+  const env={...process.env,GH_TOKEN:'',VERCEL_TOKEN:'',SUPABASE_ACCESS_TOKEN:''};
+  const args=[fileURLToPath(new URL('./verify-pr366-deployment-evidence.mjs',import.meta.url)),'123',dir,output];
+  const run=()=>spawnSync(process.execPath,args,{env,encoding:'utf8',timeout:10000,windowsHide:true});
+  const first=run(); assert.equal(first.status,1);
+  assert.deepEqual(JSON.parse(readFileSync(output,'utf8')),{status:'FAIL',category:'REQUEST',code:'EVIDENCE_ARGUMENTS'});
+  writeFileSync(output,'existing receipt'); assert.equal(run().status,1); assert.equal(readFileSync(output,'utf8'),'existing receipt');
+ } finally { rmSync(dir,{recursive:true,force:true}); }
+});
 test('synthetic complete fixture resolves separately bound phases without claiming current READY or live midnight',()=>{
  const result=verifyDeploymentEvidence(fixture()); assert.equal(result.status,'VERIFIED');assert.equal(result.currentDeployment,'ABSENT_404');assert.deepEqual(result.excludedScope,['live-http-clock-midnight-transition']);
 });
@@ -40,6 +82,17 @@ test('redacted evidence claims metadata only and rejects an evidence-mode downgr
  f.baseline.publicBackendConfigFingerprint=f.provider.publicBackendConfigFingerprint;f.provider.publicBackendConfigFingerprint='sensitive-redacted-v1:'+ 'f'.repeat(64);assert.throws(()=>verifyDeploymentEvidence(f),/PROVIDER_DRIFT/);
 });
 for(const [name,mutate] of [
+ ['missing session receipt',f=>delete f.files['ui-session-revocation.json']],
+ ['wrong session receipt owner',f=>f.files['ui-session-revocation.json'].sha='f'.repeat(40)],
+ ['failed session precondition',f=>f.files['ui-session-revocation.json'].steps[1].httpStatus=401],
+ ['failed logout hidden by UI PASS',f=>f.files['ui-session-revocation.json'].steps[3].httpStatus=403],
+ ['valid session hidden by UI PASS',f=>f.files['ui-session-revocation.json'].steps[4].httpStatus=200],
+ ['retained private detail',f=>f.files['ui-session-revocation.json'].steps.at(-1).detailVisible=true],
+ ['reordered session steps',f=>f.files['ui-session-revocation.json'].steps.reverse()],
+ ['missing initial private detail',f=>f.files['ui-session-revocation.json'].steps[2].detailVisible=false],
+ ['duplicate logout',f=>f.files['ui-session-revocation.json'].steps.splice(4,0,{stage:'LOGOUT',httpStatus:200})],
+ ['missing final denial',f=>f.files['ui-session-revocation.json'].steps.at(-1).denialVisible=false],
+ ['failed session receipt',f=>f.files['ui-session-revocation.json'].status='FAIL'],
  ['failed hosted run',f=>f.run.conclusion='failure'],['wrong SHA',f=>f.candidate.sha='d'.repeat(40)],['wrong tree',f=>f.candidate.tree='a'.repeat(40)],
  ['historical READY missing',f=>delete f.binding.readback.readyState],['historical READY failed',f=>f.binding.readback.readyState='ERROR'],['foreign repo',f=>f.run.repository.full_name='attacker/repo'],['foreign artifact',f=>f.artifacts[0].workflow_run.id=99],['rerun ambiguity',f=>f.run.run_attempt=2],
  ['newer failed same-head validation',f=>{f.latestRun.id++;f.latestRun.conclusion='failure';}],['missing required UI',f=>f.files['ui-results.json'].results.shift()],
