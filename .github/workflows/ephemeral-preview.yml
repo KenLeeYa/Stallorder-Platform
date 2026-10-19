@@ -17,7 +17,7 @@ on:
       operation:
         description: Validate a manual Preview or clean exact historical PR-owned resources
         type: choice
-        options: [validate, cleanup, cleanup-manual-run, deadline-cleanup-manual-run, resume-manual-run, regression-local, verify-deployment-evidence]
+        options: [validate, cleanup, cleanup-manual-run, deadline-cleanup-manual-run, resume-manual-run, regression-local, verify-deployment-evidence, web-scope-proof]
         default: validate
       cleanup_pr_number:
         description: Exact closed PR number for manual cleanup only
@@ -33,7 +33,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ inputs.operation == 'verify-deployment-evidence' && format('deployment-evidence-{0}', inputs.cleanup_run_id) || inputs.operation == 'regression-local' && format('regression-local-{0}', github.ref) || inputs.operation == 'deadline-cleanup-manual-run' && format('deadline-preview-watch-{0}', inputs.cleanup_run_id) || contains(fromJSON('["cleanup-manual-run","resume-manual-run"]'), inputs.operation) && format('manual-preview-recovery-workflow-{0}', inputs.cleanup_run_id) || format('ephemeral-preview-{0}', github.event.pull_request.number || github.ref) }}
+  group: ${{ inputs.operation == 'web-scope-proof' && format('web-scope-proof-{0}', github.ref) || inputs.operation == 'verify-deployment-evidence' && format('deployment-evidence-{0}', inputs.cleanup_run_id) || inputs.operation == 'regression-local' && format('regression-local-{0}', github.ref) || inputs.operation == 'deadline-cleanup-manual-run' && format('deadline-preview-watch-{0}', inputs.cleanup_run_id) || contains(fromJSON('["cleanup-manual-run","resume-manual-run"]'), inputs.operation) && format('manual-preview-recovery-workflow-{0}', inputs.cleanup_run_id) || format('ephemeral-preview-{0}', github.event.pull_request.number || github.ref) }}
   cancel-in-progress: ${{ !contains(fromJSON('["cleanup-manual-run","deadline-cleanup-manual-run","resume-manual-run","verify-deployment-evidence"]'), inputs.operation) }}
 
 jobs:
@@ -90,6 +90,9 @@ jobs:
           name: pr366-deployment-evidence-${{ github.run_id }}
           path: .deployment-proof/result.json
           if-no-files-found: warn
+  web-scope-proof:
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'web-scope-proof' && inputs.approve_external_preview == false && github.ref_name == 'codex/integrated-production-20261002'
+    uses: ./.github/workflows/web-install-scope.yml
   regression-local:
     if: github.event_name == 'workflow_dispatch' && inputs.operation == 'regression-local' && inputs.approve_external_preview == false && github.ref_name == 'codex/integrated-production-20261002'
     uses: ./.github/workflows/ci.yml

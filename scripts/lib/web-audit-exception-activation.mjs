@@ -6,6 +6,17 @@ import {execFileSync} from 'node:child_process';
 const digest=value=>createHash('sha256').update(value).digest('hex');
 const reject=code=>{throw new Error('WEB_EXCEPTION_'+code);};
 const fingerprint=value=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);
+export function readCandidateContext(env){
+ if(env.GITHUB_REPOSITORY!=='KenLeeYa/Stallorder-Platform'||!/^[a-f0-9]{40}$/.test(env.GITHUB_SHA??''))reject('CANDIDATE_CONTEXT');
+ if(env.GITHUB_EVENT_NAME==='pull_request'){
+  let event;try{event=JSON.parse(readFileSync(env.GITHUB_EVENT_PATH,'utf8'));}catch{reject('CANDIDATE_CONTEXT');}
+  const head=event.pull_request?.head;
+  if(event.number!==366||head?.ref!=='codex/integrated-production-20261002'||head?.repo?.full_name!==env.GITHUB_REPOSITORY||!/^[a-f0-9]{40}$/.test(head?.sha??''))reject('CANDIDATE_CONTEXT');
+  return {candidateSha:head.sha,workflowSha:env.GITHUB_SHA,source:'PULL_REQUEST_HEAD'};
+ }
+ if(!['workflow_dispatch','push'].includes(env.GITHUB_EVENT_NAME))reject('CANDIDATE_CONTEXT');
+ return {candidateSha:env.GITHUB_SHA,workflowSha:env.GITHUB_SHA,source:'WORKFLOW_REF'};
+}
 export function hasReleaseCredentials(env){
  // Only the hosted runner's ephemeral artifact-service token is allowed here.
  return Object.entries(env).some(([name,value])=>value&&name!=='ACTIONS_RUNTIME_TOKEN'&&/(?:SECRET|TOKEN|PASSWORD|PRIVATE_KEY|SERVICE_ROLE|API_KEY|ACCESS_KEY|CREDENTIAL)/i.test(name));
@@ -45,6 +56,8 @@ export function validateExceptionActivation(input,now=Date.now()){
 /** Collect from this process/checkout, never from a caller-supplied activation file. */
 export function collectExceptionActivation(root,policy,policySha256,candidate,artifact,sbom,audit,env=process.env,evidenceDirectory,lintEvidence){
  assertExceptionExecutionEnvironment(env);
+ const context=readCandidateContext(env);
+ if(context.candidateSha!==candidate.head)reject('CANDIDATE_MISMATCH');
  const git=(...args)=>execFileSync('git',args,{cwd:root,encoding:'utf8'}).trim();
  if(git('rev-parse','HEAD')!==candidate.head||git('rev-parse','HEAD^{tree}')!==candidate.tree)reject('CANDIDATE_MISMATCH');
  execFileSync('git',['merge-base','--is-ancestor',policy.preparationBase,candidate.head],{cwd:root});
@@ -52,6 +65,6 @@ export function collectExceptionActivation(root,policy,policySha256,candidate,ar
  const script="import {ESLint} from 'eslint';const c=await new ESLint().calculateConfigForFile('src/app/page.tsx');console.log(JSON.stringify({rootDir:c.settings?.next?.rootDir===undefined?'UNSET':'CUSTOM',ruleEnabled:(c.rules?.['@next/next/no-html-link-for-pages']?.[0]??0)>0}));";
  const settings=JSON.parse(execFileSync(process.execPath,['--input-type=module','-e',script],{cwd:root,encoding:'utf8',timeout:30000}));
  const loopback=value=>{try{return ['localhost','127.0.0.1','[::1]'].includes(new URL(value).hostname);}catch{return false;}};
- const isolation={platform:process.platform,ci:env.CI==='true'&&env.GITHUB_ACTIONS==='true',githubHosted:env.RUNNER_ENVIRONMENT==='github-hosted',workspaceMatches:env.GITHUB_WORKSPACE===root,cleanCheckout,loopbackServices:[env.DATABASE_URL,env.DIRECT_URL,env.NEXT_PUBLIC_SUPABASE_URL].every(loopback),noReleaseCredentials:!hasReleaseCredentials(env),runId:env.GITHUB_RUN_ID,runAttempt:env.GITHUB_RUN_ATTEMPT,job:env.GITHUB_JOB,sha:env.GITHUB_SHA};
+ const isolation={platform:process.platform,ci:env.CI==='true'&&env.GITHUB_ACTIONS==='true',githubHosted:env.RUNNER_ENVIRONMENT==='github-hosted',workspaceMatches:env.GITHUB_WORKSPACE===root,cleanCheckout,loopbackServices:[env.DATABASE_URL,env.DIRECT_URL,env.NEXT_PUBLIC_SUPABASE_URL].every(loopback),noReleaseCredentials:!hasReleaseCredentials(env),runId:env.GITHUB_RUN_ID,runAttempt:env.GITHUB_RUN_ATTEMPT,job:env.GITHUB_JOB,sha:context.candidateSha,workflowSha:context.workflowSha,candidateSource:context.source};
  return validateExceptionActivation({policy,policySha256,candidate,artifact,sbomSha256:digest(JSON.stringify(sbom)),auditSha256:digest(JSON.stringify(audit)),lint:{...lintEvidence,...settings,configSha256:digest(readFileSync(join(root,'eslint.config.mjs')))},isolation});
 }

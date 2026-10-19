@@ -21,9 +21,10 @@ const vercel = JSON.parse(read("vercel.json"));
 
 describe("Production workflow approval contract", () => {
   it("uses the fail-closed fresh Web scope runner in every release gate", () => {
-    for (const workflow of [ci, readiness, applicationRelease]) {
+    expect(ci).toContain("uses: ./.github/workflows/web-install-scope.yml");
+    for (const workflow of [ci + read(".github/workflows/web-install-scope.yml"), readiness, applicationRelease]) {
       expect(workflow).toContain("npm ci --workspace packages/contracts --include-workspace-root --include=dev");
-      expect(workflow).toContain("node scripts/verify-web-release-scope.mjs web-release-evidence");
+      expect(workflow).toMatch(/node scripts\/verify-web-release-scope\.mjs web-(?:release|scope)-evidence/u);
       expect(workflow).not.toContain("npm audit --audit-level=moderate");
     }
     expect(applicationRelease).toContain("node scripts/verify-web-release-plan.mjs approved-application-plan/production-application-web-scope.json web-release-evidence/result.json");

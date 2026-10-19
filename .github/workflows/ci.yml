@@ -20,7 +20,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  web-scope:
+    uses: ./.github/workflows/web-install-scope.yml
   verify:
+    needs: web-scope
+    if: always()
     runs-on: ubuntu-latest
     # Eight sequential shards share one local stack; retain every test and failure result.
     timeout-minutes: 120
@@ -31,9 +35,14 @@ jobs:
       NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL: http://127.0.0.1:54321/functions/v1
       ALLOW_DEMO_SEED: "false"
     steps:
+      - name: Require isolated Web proof success
+        env:
+          WEB_SCOPE_RESULT: ${{ needs.web-scope.result }}
+        run: test "$WEB_SCOPE_RESULT" = success
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4, verified 2026-09-13
         with:
           persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
@@ -132,11 +141,6 @@ jobs:
           "playwright test e2e/dine-in-order-flow.spec.ts e2e/ordering-selection.spec.ts e2e/p2-growth-tools.spec.ts e2e/product-bundles.spec.ts e2e/qr-manual-pickup-cash-checkout.spec.ts e2e/staff-pos-line-delivery.spec.ts e2e/product-availability-recovery.spec.ts e2e/staff-order-edit-regression.spec.ts e2e/reusable-note-navigation-local.spec.ts e2e/catalog-product-list-preview-regression.spec.ts e2e/notification-filter-regression.spec.ts e2e/preview-harness-lifecycle.spec.ts e2e/public-cache.spec.ts e2e/theme-toggle.spec.ts"
       - name: Production-mode resilience smoke
         run: npm run test:e2e:resilience:production
-      - name: Dependency audit
-        run: |
-          npm install --global npm@11.16.0
-          npm ci --workspace packages/contracts --include-workspace-root --include=dev
-          node scripts/verify-web-release-scope.mjs web-release-evidence
       - name: Preserve failed E2E evidence
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -147,13 +151,6 @@ jobs:
             playwright-report/
           retention-days: 1
           if-no-files-found: ignore
-      - name: Preserve fresh Web scope evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: web-release-scope-${{ github.run_id }}-${{ github.job }}
-          path: web-release-evidence/
-          if-no-files-found: warn
       - name: Stop local Supabase
         if: always()
         run: npx supabase stop --no-backup
