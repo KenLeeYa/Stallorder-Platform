@@ -1,0 +1,301 @@
+{
+  "schemaVersion": 1,
+  "status": "INCOMPATIBLE_DO_NOT_APPLY",
+  "platform": "win32",
+  "node": "v24.18.0",
+  "plugin": "16.3.6",
+  "helperSha256": "886677432990a735e5ebdfb345ff1cbd40e264f9947a8432eeeb254b3a926bde",
+  "candidate": "fs.globSync + statSync directory filter + slash normalization",
+  "total": 19,
+  "matched": 11,
+  "results": [
+    {
+      "pattern": "apps/*",
+      "before": [
+        "apps/alpha",
+        "apps/beta"
+      ],
+      "after": [
+        "apps/alpha",
+        "apps/beta"
+      ],
+      "equal": true
+    },
+    {
+      "pattern": "apps/**",
+      "before": [
+        "apps/alpha",
+        "apps/beta",
+        "apps/alpha/pages",
+        "apps/beta/pages"
+      ],
+      "after": [
+        "apps",
+        "apps/beta",
+        "apps/beta/pages",
+        "apps/alpha",
+        "apps/alpha/pages"
+      ],
+      "equal": false
+    },
+    {
+      "pattern": "*",
+      "before": [
+        "aaa",
+        "apps",
+        "linked",
+        "space dir",
+        "zeta"
+      ],
+      "after": [
+        "aaa",
+        "apps",
+        "linked",
+        "space dir",
+        "zeta"
+      ],
+      "equal": true
+    },
+    {
+      "pattern": "**",
+      "before": [
+        "aaa",
+        "apps",
+        "linked",
+        "space dir",
+        "zeta",
+        "apps/alpha",
+        "apps/beta",
+        "linked/pages",
+        "apps/alpha/pages",
+        "apps/beta/pages"
+      ],
+      "after": [
+        ".",
+        "linked",
+        "zeta",
+        "space dir",
+        "apps",
+        "apps/beta",
+        "apps/beta/pages",
+        "apps/alpha",
+        "apps/alpha/pages",
+        "aaa"
+      ],
+      "equal": false
+    },
+    {
+      "pattern": ".",
+      "before": [
+        "."
+      ],
+      "after": [],
+      "equal": false
+    },
+    {
+      "pattern": "apps",
+      "before": [
+        "apps"
+      ],
+      "after": [
+        "apps"
+      ],
+      "equal": true
+    },
+    {
+      "pattern": "apps/",
+      "before": [
+        "apps/"
+      ],
+      "after": [
+        "apps"
+      ],
+      "equal": false
+    },
+    {
+      "pattern": "apps/{alpha,beta}",
+      "before": [
+        "apps/beta",
+        "apps/alpha"
+      ],
+      "after": [
+        "apps/alpha",
+        "apps/beta"
+      ],
+      "equal": false
+    },
+    {
+      "pattern": "apps/@(alpha|beta)",
+      "before": [
+        "apps/alpha",
+        "apps/beta"
+      ],
+      "after": [
+        "apps/alpha",
+        "apps/beta"
+      ],
+      "equal": true
+    },
+    {
+      "pattern": "apps/!(alpha)",
+      "before": [
+        "apps/.hidden",
+        "apps/beta"
+      ],
+      "after": [
+        "apps/beta"
+      ],
+      "equal": false
+    },
+    {
+      "pattern": "!apps/alpha",
+      "before": [],
+      "after": [],
+      "equal": true
+    },
+    {
+      "pattern": "missing*",
+      "before": [],
+      "after": [],
+      "equal": true
+    },
+    {
+      "pattern": "apps/.hidden",
+      "before": [
+        "apps/.hidden"
+      ],
+      "after": [
+        "apps/.hidden"
+      ],
+      "equal": true
+    },
+    {
+      "pattern": "apps/.*",
+      "before": [
+        "apps/.hidden"
+      ],
+      "after": [
+        "apps/.hidden"
+      ],
+      "equal": true
+    },
+    {
+      "pattern": "linked/**",
+      "before": [
+        "linked/pages"
+      ],
+      "after": [
+        "linked",
+        "linked/pages"
+      ],
+      "equal": false
+    },
+    {
+      "pattern": "apps/alpha/../beta",
+      "before": [
+        "apps/alpha/../beta"
+      ],
+      "after": [
+        "apps/beta"
+      ],
+      "equal": false
+    },
+    {
+      "pattern": "apps\\*",
+      "before": [
+        "apps/alpha",
+        "apps/beta"
+      ],
+      "after": [
+        "apps/alpha",
+        "apps/beta"
+      ],
+      "equal": true
+    },
+    {
+      "pattern": "<fixture>\\apps\\*",
+      "before": [
+        "<fixture>/apps/alpha",
+        "<fixture>/apps/beta"
+      ],
+      "after": [
+        "<fixture>/apps/alpha",
+        "<fixture>/apps/beta"
+      ],
+      "equal": true
+    },
+    {
+      "pattern": "<fixture>\\apps\\alpha",
+      "before": [
+        "<fixture>/apps/alpha"
+      ],
+      "after": [
+        "<fixture>/apps/alpha"
+      ],
+      "equal": true
+    }
+  ],
+  "recordedAt": "2026-10-19T14:00:42.282Z",
+  "baselineCommit": "cdd70822c0b360391cc91d70c43e91ff186ef99e",
+  "officialTarball": {
+    "url": "https://registry.npmjs.org/@next/eslint-plugin-next/-/eslint-plugin-next-16.3.6.tgz",
+    "integrity": "sha512-jowwDX+7DOlDIjJLgTMxudw+k37QnWu1JkZLkSi9MaJBfDYcfhAPMKBhXL0idYzFN/AGg//axnOR4cLkHX/Rng==",
+    "installedHelperMatchesOfficial": true
+  },
+  "scopedOverride": {
+    "status": "LOCK_RESOLUTION_ONLY_PASS",
+    "npm": "11.16.0",
+    "unmodifiedOfficialPackage": true,
+    "manifestSha256": "6c3a1c0b64a1399eecb0071a7ae56b814bcde23c03ad7348b9bec0c7c55f6863",
+    "lockSha256": "7c9dd781656a77cd4ee6e54b9ca1e92a3ee90fcd1d49918ae8a8d0802649f47d"
+  },
+  "baselineLint": {
+    "files": 2292,
+    "errors": 0,
+    "warnings": 27,
+    "sha256": "da540e014d7222a87cb27bb89513c9a4fd171ca70422e0ad26a04b53d59df3c9"
+  },
+  "audit": {
+    "metadata": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 5,
+      "critical": 0,
+      "total": 5
+    },
+    "packages": [
+      "@next/eslint-plugin-next",
+      "braces",
+      "eslint-config-next",
+      "fast-glob",
+      "micromatch"
+    ],
+    "sha256": "b82ae650927f2b110a2b1a786ff28b5e5276260c706f76b05367fde747fabf7f",
+    "eliminated": 0
+  },
+  "applied": false,
+  "dependencyFilesChanged": false,
+  "acceptanceStagesAfterCompatibility": "NOT_RUN_REJECTED_AT_COMPATIBILITY",
+  "remoteMutation": false,
+  "finalLint": {
+    "baselineFiles": 2292,
+    "finalFiles": 2293,
+    "diagnosticsIdentical": true,
+    "finalErrors": 0,
+    "finalWarnings": 27,
+    "sha256": "f2edd5777f0e839e47799b5fac5cc8fca99d173791b1423a68a6cd7062e3df29"
+  },
+  "productionGuardrails": {
+    "status": "PASS",
+    "inputs": 3254,
+    "migrations": 173,
+    "existingReviewedMigrationWarning": true
+  },
+  "probeSha256": "d980b392aaf966f9ce2d232abb5d2eda87d95894d0595082cab4b63897d40acd",
+  "independentReview": {
+    "status": "NO_CONFIRMED_BLOCKING_FINDINGS",
+    "readOnly": true,
+    "probeRerunByReviewer": false
+  }
+}
