@@ -7,9 +7,11 @@ import {tmpdir} from 'node:os';
 import ts from 'typescript';
 import {verifyWebInstallScope} from '../verify-web-install-scope.mjs';
 import {readCheckedFile} from './checked-file-read.mjs';
+import {validateExceptionWindow} from './web-audit-exception-activation.mjs';
 
 const hash=value=>createHash('sha256').update(value).digest('hex');
 const nativePackage=name=>/^(?:expo(?:$|-)|@expo\/|react-native(?:$|-)|@react-native\/|node-forge$|decode-uri-component$|query-string$)/.test(name);
+const exceptionPackage=name=>['braces','micromatch','fast-glob','@next/eslint-plugin-next','eslint-config-next'].includes(name)||name.startsWith('next/dist/compiled/micromatch');
 const inside=(root,path)=>path===root||path.startsWith(root+sep);
 function files(root){return existsSync(root)?readdirSync(root,{withFileTypes:true}).flatMap(e=>e.isDirectory()?files(join(root,e.name)):[join(root,e.name)]):[];}
 const json=path=>JSON.parse(readFileSync(path,'utf8'));
@@ -31,6 +33,7 @@ function packageName(specifier){return specifier.startsWith('@')?specifier.split
 export function assertRootAudit(audit,exception,now=Date.now()){
  if(audit.error||!audit.metadata?.vulnerabilities||!audit.vulnerabilities)reject('WEB_ROOT_AUDIT_INVALID');
  if(exception){
+  validateExceptionWindow(exception.policy,now);
   if(!Number.isFinite(Date.parse(exception.policy.expiresAt))||now>Date.parse(exception.policy.expiresAt))reject('WEB_AUDIT_EXCEPTION_EXPIRED');
   if(exception.policy.advisory!=='GHSA-vfj7-8cjw-p6xm'||exception.policy.lockSha256!==hash(JSON.stringify(exception.lock)))reject('WEB_AUDIT_EXCEPTION_LOCK_MISMATCH');
   if(audit.auditReportVersion!==2||JSON.stringify(audit.metadata.vulnerabilities)!==JSON.stringify(exception.policy.counts))reject('WEB_AUDIT_EXCEPTION_UNREVIEWED');
@@ -47,7 +50,7 @@ export function assertRootAudit(audit,exception,now=Date.now()){
  }
  if(Object.keys(audit.vulnerabilities).length||audit.metadata.vulnerabilities.total!==0)reject('WEB_ROOT_AUDIT_VULNERABILITIES');
 }
-export function rootAuditDisposition(exception){return {rootAudit:exception?'NON_PASS':'PASS',auditReleaseDecision:exception?'USER_ACCEPTED_EXACT_EXCEPTION':'ZERO_VULNERABILITIES'};}
+export function rootAuditDisposition(exception){return {rootAudit:exception?'NON_PASS':'PASS',auditReleaseDecision:exception?'PENDING_EXCEPTION_ACTIVATION':'ZERO_VULNERABILITIES'};}
 export function parseClientReferenceManifest(source,path='client-reference-manifest.js'){
  const ast=ts.createSourceFile(path,source,ts.ScriptTarget.Latest,true);
  if(ast.parseDiagnostics.length||ast.statements.length!==2)reject('WEB_MANIFEST_NOT_LITERAL');
@@ -160,6 +163,7 @@ export function auditPackageSet(sbom,lock){
 export function sourceSnapshot(root){
  const paths=['src','packages/contracts','public','prisma','supabase/functions/_shared'].flatMap(p=>files(join(root,p)))
   .concat(['package.json','package-lock.json','next.config.ts','tsconfig.json','postcss.config.mjs','vercel.json','scripts/lib/web-release-dependency-audit.mjs','scripts/web-release-dependency-audit.mjs','scripts/verify-web-install-scope.mjs','.github/workflows/web-install-scope.yml','scripts/verify-web-release-scope.mjs','scripts/verify-web-release-plan.mjs','scripts/web-release-audit-exception.json','scripts/production-release-target.mjs','scripts/qa-pr366-preview-binding.mjs','scripts/production-readiness.mjs','scripts/lib/runtime-test-key-policy.mjs','.github/workflows/ci.yml','.github/workflows/production-readiness.yml','.github/workflows/production-application-release.yml'].map(p=>join(root,p)))
+  .concat(['eslint.config.mjs','scripts/lib/web-audit-exception-activation.mjs'].map(p=>join(root,p)))
   .filter(p=>existsSync(p)).sort();
  if(!paths.length)reject('WEB_SOURCE_EMPTY');
  const digest=hash(paths.map(p=>`${relative(root,p).replaceAll('\\','/')}\0${hash(readFileSync(p))}`).join('\n'));
@@ -260,6 +264,7 @@ export function verifyWebArtifact(root,baseline,audit,sbom,exception){
   if(scan.parseErrors)problems.push({path:relative(root,path),code:'SOURCE_PARSE_FAILED'});
   if(scan.unknown.length)problems.push({path:relative(root,path),code:'UNKNOWN_SOURCE_IMPORT',calls:scan.unknown});
   for(const specifier of scan.imports){
+   if(exception&&(exceptionPackage(specifier)||exceptionPackage(packageName(specifier))))problems.push({path:relative(root,path),code:'EXCEPTION_SOURCE_PACKAGE'});
    if(specifier.includes('apps/mobile')||nativePackage(packageName(specifier)))problems.push({path:relative(root,path),code:'NATIVE_SOURCE_IMPORT'});
    if(specifier.startsWith('.')){
     const target=resolve(dirname(path),specifier);
@@ -330,6 +335,7 @@ export function verifyWebArtifact(root,baseline,audit,sbom,exception){
     const packageEnd=boundary+(segments[boundary+1]?.startsWith('@')?3:2);
     const packageRoot=join(realRoot,...segments.slice(0,packageEnd));
     const manifest=existsSync(join(packageRoot,'package.json'))?json(join(packageRoot,'package.json')):null;
+    if(exception&&(exceptionPackage(manifest?.name??'')||rel.includes('next/dist/compiled/micromatch/')))problems.push({path:rel,code:'EXCEPTION_RUNTIME_PACKAGE'});
     if(!manifest?.name||nativePackage(manifest.name)||!packages.has(`${manifest.name}@${manifest.version}`))problems.push({path:rel,code:'TRACE_PACKAGE_OUTSIDE_AUDITED_CLOSURE'});
    }
    traced.add(real);
@@ -341,10 +347,12 @@ export function verifyWebArtifact(root,baseline,audit,sbom,exception){
   if(scan.parseErrors)problems.push({path:relative(root,path),code:'COMPILED_PARSE_FAILED'});
   if(scan.unknown.length)problems.push({path:relative(root,path),code:'UNKNOWN_COMPILED_IMPORT',calls:scan.unknown});
   if(scan.imports.some(s=>s.includes('apps/mobile')||nativePackage(packageName(s))))problems.push({path:relative(root,path),code:'NATIVE_COMPILED_IMPORT'});
+  if(exception&&scan.imports.some(s=>exceptionPackage(s)||exceptionPackage(packageName(s))))problems.push({path:relative(root,path),code:'EXCEPTION_COMPILED_PACKAGE'});
  }
  const manifestClosure=verifyManifestReferences(root,nextFiles,traced);
  const artifactInputs=[...new Set([...nextFiles,...traces,...traced,buildPath])].sort().map(p=>`${relative(root,p).replaceAll('\\','/')}\0${hash(readFileSync(p))}`);
  const receipt={version:1,scope:baseline.scope,...current,buildId,traces:traces.length,tracedFiles:traced.size,artifactSha256:hash(artifactInputs.join('\n')),...rootAuditDisposition(exception),manifestClosure,generatedPrisma,sourceScope:{roots:['src','packages/contracts'],scannedFiles:scannedSources.size,edgeFunctions:'NOT_VERIFIED_DENO_QA_REQUIRED'},status:problems.length?'INCOMPLETE':'PASS',problems};
+ if(exception)receipt.advisoryRuntimeExclusion={status:problems.some(p=>p.code.startsWith('EXCEPTION_'))?'INCOMPLETE':'PASS',scope:'REVIEWED_SOURCE_LITERAL_IMPORTS_AND_NFT_PACKAGE_CLOSURE',traces:traces.length};
  return receipt;
 }
 export function npmJson(root,args){

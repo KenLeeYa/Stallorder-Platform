@@ -1,9 +1,9 @@
 {
-  "id": "WEB-20261009-BRACES-USER-ACCEPTED",
-  "expiresAt": "2026-10-10T04:00:00Z",
+  "id": "WEB-20261019-ONE-WINDOW-BRACES",
+  "expiresAt": "2026-10-22T14:00:00Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
-  "authorization": "User explicitly approved extending only the existing exact five high Web development dependency findings through Taipei 2026-10-10 12:00 (UTC 2026-10-10 04:00); original audit remains NON_PASS. New vulnerabilities or dependency changes remain blocking; no CodeQL, Native, live LINE or payment waiver.",
-  "scope": "Web release only; no Native release; original audit remains NON_PASS",
+  "authorization": "Owner approved this exact five-HIGH advisory and locked Web dependency set for one fixed window. Activation requires fresh exact-candidate artifact/SBOM, controlled lint and isolated runner evidence. Raw audit remains NON_PASS; no Native, new advisory, deployment or paid acceptance authorization.",
+  "scope": "WEB_ONLY_ONE_ACCEPTANCE_WINDOW",
   "lockSha256": "00f3c2b4363f58e2485fb9139142ac9d611671ad04e8561150cf35be8015bc6c",
   "counts": {
     "info": 0,
@@ -69,5 +69,12 @@
         "braces"
       ]
     }
-  }
+  },
+  "authorizedAt": "2026-10-19T15:53:58Z",
+  "authorizationMessage": "Sentinel_2859b6c9b0908191a8647cc7508aa2bc",
+  "preparationBase": "980309944db37379906c44714387ff65fa22fc0c",
+  "lintConfigSha256": "8fd517247f4021feb4bfeb4edb33d14e1579084e0ff413ab7c3bc6d31e587313",
+  "activation": "REQUIRED_AFTER_EACH_COMMIT_EXTERNAL_EVIDENCE_ONLY",
+  "lockBytesSha256": "d284d352264e152619d134d21c5323005e2727f314672e74ff3dff54e91379ef",
+  "hashByteContract": "COMMITTED_GIT_BLOB_LF_BYTES_FOR_HOSTED_LINUX_CHECKOUT"
 }

@@ -108,3 +108,9 @@ Release is complete only when all are reconciled:
 - no unresolved functional or responsive regression.
 
 Report every `not evaluated` area. Workflow success alone is insufficient.
+
+## Exact Web audit acceptance is deferred until evidence exists
+
+- The single GHSA-vfj7-8cjw-p6xm window ends at 2026-10-22T14:00:00Z; no sliding extension, Native waiver, new advisory or dependency/lock drift is allowed. Raw audit stays NON_PASS; no vulnerability is marked fixed.
+- Exact finding checks alone are PENDING_EXCEPTION_ACTIVATION. Only fresh exact-candidate artifact/SBOM, successful controlled lint and isolated hosted-runner evidence can activate; each new commit needs new external bindings. Plan rejects missing/stale activation. Never put a candidate's own SHA/evidence inside its tracked policy.
+- Windows unit/local evidence is preparation only. Preserve runtimeLoaderSafety NOT_PROVEN and the narrow literal-import/NFT proof scope; do not claim deployed artifact verification. See docs/releases/PR366_EXACT_AUDIT_WINDOW_20261019.md.

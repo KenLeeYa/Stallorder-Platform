@@ -5,6 +5,7 @@ import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {verifyWebInstallScope,supplementSharedWorkspaceSbom} from './verify-web-install-scope.mjs';
 import {assertRootAudit,prepareWebAudit,verifyKnownNativeExclusion} from './lib/web-release-dependency-audit.mjs';
+import {collectExceptionActivation,assertExceptionExecutionEnvironment} from './lib/web-audit-exception-activation.mjs';
 
 export function assertFreshWebRunner(root,env,platform=process.platform){
  if(platform!=='linux'||env.CI!=='true'||env.GITHUB_ACTIONS!=='true'||env.RUNNER_ENVIRONMENT!=='github-hosted'||!env.GITHUB_WORKSPACE||realpathSync(env.GITHUB_WORKSPACE)!==realpathSync(root))throw new Error('WEB_RELEASE_FRESH_HOSTED_RUNNER_REQUIRED');
@@ -38,21 +39,33 @@ export function runWebReleaseScope(root,evidenceDirectory){
   if(![0,1].includes(audited.status))throw new Error('WEB_RELEASE_SELECTED_AUDIT_UNREVIEWED_EXIT');
   const usedException=audited.status===1,acceptedException=usedException?exception:undefined;
   assertRootAudit(audit,acceptedException);
+  if(usedException)assertExceptionExecutionEnvironment(process.env);
   const selectedAuditStatus=usedException?'NON_PASS':'PASS',auditDecision=usedException?'USER_ACCEPTED_EXACT_EXCEPTION':'ZERO_VULNERABILITIES';
-  write('selected-audit-decision.json',{auditStatus:selectedAuditStatus,releaseDecision:auditDecision,policyId:usedException?policy.id:null,policySha256:auditExceptionPolicySha256,advisory:usedException?policy.advisory:null});
+  write('selected-audit-assessment.json',{auditStatus:selectedAuditStatus,releaseDecision:usedException?'PENDING_EXCEPTION_ACTIVATION':auditDecision,policyId:usedException?policy.id:null,policySha256:auditExceptionPolicySha256,advisory:usedException?policy.advisory:null});
   const raw=command(['sbom','--workspaces=false','--package-lock-only','--sbom-format','cyclonedx'],'npm-root-sbom.json');
   if(raw.status!==0)throw new Error('WEB_RELEASE_RAW_SBOM_NON_PASS');
   const supplemented=supplementSharedWorkspaceSbom(actualRoot,parse(raw));
   write('sbom.json',supplemented.sbom);write('sbom-supplement.json',supplemented.receipt);
   write('installed-sbom-coverage.json',verifyWebInstallScope(actualRoot,supplemented.sbom));
+  const lint=command(['run','lint'],'lint.log');
+  if(lint.status!==0)throw new Error('WEB_RELEASE_LINT_NON_PASS');
+  const lintEvidence={status:'PASS',logSha256:createHash('sha256').update((lint.stdout??'')+'\0'+(lint.stderr??'')).digest('hex')};
   const baseline=prepareWebAudit(actualRoot);write('prebuild.json',baseline);
   if(command(['run','build'],'build.log').status!==0)throw new Error('WEB_RELEASE_BUILD_NON_PASS');
   const receipt=verifyKnownNativeExclusion(actualRoot,baseline,audit,supplemented.sbom,acceptedException);
-  write('artifact.json',receipt);
   if(receipt.status!=='PASS')throw new Error('WEB_RELEASE_ARTIFACT_NON_PASS');
-  const verifierSha256=createHash('sha256').update(['./verify-web-release-scope.mjs','./verify-web-install-scope.mjs','./lib/web-release-dependency-audit.mjs'].map(path=>path+'\0'+readFileSync(new URL(path,import.meta.url),'utf8')).join('\n')).digest('hex');
+  let activation;
+  if(usedException){
+   activation=collectExceptionActivation(actualRoot,policy,auditExceptionPolicySha256,baseline,receipt,supplemented.sbom,audit,process.env,evidence,lintEvidence);
+   write('exception-activation.json',activation);
+   receipt.auditReleaseDecision=auditDecision;
+  }
+  write('artifact.json',receipt);
+  write('selected-audit-decision.json',{auditStatus:selectedAuditStatus,releaseDecision:auditDecision,policyId:usedException?policy.id:null,policySha256:auditExceptionPolicySha256,advisory:usedException?policy.advisory:null});
+  const verifierSha256=createHash('sha256').update(['./verify-web-release-scope.mjs','./verify-web-install-scope.mjs','./lib/web-release-dependency-audit.mjs','./lib/web-audit-exception-activation.mjs'].map(path=>path+'\0'+readFileSync(new URL(path,import.meta.url),'utf8')).join('\n')).digest('hex');
   const result={selector:'npm ci --workspace packages/contracts --include-workspace-root --include=dev',npmVersion:'11.16.0',verifierSha256,status:'PASS',scope:'WEB_KNOWN_NATIVE_DEPENDENCY_EXCLUSION',head:receipt.head,tree:receipt.tree,sourceSha256:receipt.sourceSha256,lockSha256:receipt.lockSha256,artifactSha256:receipt.artifactSha256,buildId:receipt.buildId,installedGraphSha256:receipt.installation.installedGraphSha256,installedPackages:receipt.installation.installedPackages,fullRepositoryDiagnostic:'SEPARATE_NOT_A_RELEASE_PASS',runtimeLoaderSafety:'NOT_PROVEN',deployment:'NOT_DEPLOYED'};
   result.auditExceptionPolicySha256=auditExceptionPolicySha256;result.selectedAuditStatus=selectedAuditStatus;result.auditDecision=auditDecision;
+  if(activation)result.exceptionActivation=activation;
   write('result.json',result);return result;
  }catch(error){write('failure.json',{status:'INCOMPLETE',code:error.message,deployment:'NOT_DEPLOYED'});throw error;}
 }

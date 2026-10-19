@@ -225,3 +225,7 @@ Affected surfaces: manual Preview creation and independent deadline cleanup guar
 ### 2026-10-19 PR366 native glob dependency experiment — Rejected; not applied
 
 Owner-approved local trial proved scoped tarball override resolution, but the actual official helper versus Node 24.18.0 native glob comparison had material root-set differences (junction traversal, negative extglob, globstar base). Stopped before dependency changes under the approved compatibility condition. No vendor package or audit reduction; five HIGH remain and the exception is unchanged. Retained the opt-in probe and sanitized evidence in [the experiment record](releases/PR366_NATIVE_GLOB_EXPERIMENT_20261019.md). Existing cdd70822 application/dependency baseline is preserved; no remote action.
+
+### 2026-10-19 PR366 exact audit window — Prepared; activation pending
+
+Owner authorized only the existing GHSA-vfj7-8cjw-p6xm five-HIGH locked Web chain until 2026-10-22T14:00:00Z, one fixed acceptance window. Split raw NON_PASS findings from post-artifact activation; require exact candidate/lock/SBOM/artifact/lint/isolated-hosted evidence after every commit and refuse stale or missing activation in Plan. Added runtime package exclusion within the existing literal-import/NFT scope, preserving runtimeLoaderSafety NOT_PROVEN. MSI local work does not activate the exception or authorize remote actions. See [the fixed-window contract](releases/PR366_EXACT_AUDIT_WINDOW_20261019.md).

@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {createHash} from 'node:crypto';
+import {validateExceptionActivation} from './lib/web-audit-exception-activation.mjs';
 
 export function verifyWebReleasePlan(plan, current, now=Date.now()) {
   const policyBytes=readFileSync(new URL('./web-release-audit-exception.json',import.meta.url)),policy=JSON.parse(policyBytes);
@@ -18,6 +19,12 @@ export function verifyWebReleasePlan(plan, current, now=Date.now()) {
       throw Error('WEB_PLAN_SCOPE_INVALID');
     }
     if(receipt.auditDecision==='USER_ACCEPTED_EXACT_EXCEPTION'&&(!Number.isFinite(Date.parse(policy.expiresAt))||now>Date.parse(policy.expiresAt)))throw Error('WEB_PLAN_EXCEPTION_EXPIRED');
+    if(receipt.auditDecision==='USER_ACCEPTED_EXACT_EXCEPTION'){
+      const activation=receipt.exceptionActivation;
+      if(!activation||activation.status!=='ACTIVATED'||activation.policySha256!==policyHash)throw Error('WEB_PLAN_EXCEPTION_ACTIVATION_REQUIRED');
+      for(const key of ['head','tree','sourceSha256','lockSha256','artifactSha256','buildId','installedGraphSha256'])if(activation[key]!==receipt[key])throw Error('WEB_PLAN_EXCEPTION_BINDING_MISMATCH');
+      validateExceptionActivation({policy,policySha256:policyHash,candidate:receipt,artifact:{...receipt,advisoryRuntimeExclusion:activation.advisoryRuntimeExclusion,sbomSha256:activation.sbomSha256,auditSha256:activation.auditSha256,installation:{sbom:'PASS',installedGraphSha256:receipt.installedGraphSha256}},sbomSha256:activation.sbomSha256,auditSha256:activation.auditSha256,lint:activation.lint,isolation:activation.isolation},now);
+    }
   }
   if(plan.auditDecision!==current.auditDecision||plan.selectedAuditStatus!==current.selectedAuditStatus)throw Error('WEB_PLAN_AUDIT_DECISION_MISMATCH');
   for (const key of ['head', 'tree', 'sourceSha256', 'lockSha256', 'installedGraphSha256', 'verifierSha256', 'auditExceptionPolicySha256']) {
