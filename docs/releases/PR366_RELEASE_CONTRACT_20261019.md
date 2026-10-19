@@ -2,6 +2,8 @@
 
 Status: local remediation; NOT release approval or hosted acceptance.
 
+The [independent review and local follow-up](PR366_FOLLOWUP_REVIEW_20261019.md) supersedes the initial clean-install/build limitations below and preserves the original failed attempts. Full local build now passes; full-unit and release gates remain open. See its separate source-bound validation receipt.
+
 ## One candidate and evidence ledger
 
 - Source PR: KenLeeYa/Stallorder-Platform#366, targeting staging. Read-only GitHub inspection on 2026-10-19 confirms Draft/BLOCKED, head `94d2ad3a426959a865fcd0abd89d3a0ac35a43e2`.

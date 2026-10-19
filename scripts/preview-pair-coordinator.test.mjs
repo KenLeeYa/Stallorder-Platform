@@ -11,7 +11,23 @@ import { initialize, attempt, cleanup } from './preview-pair-coordinator.mjs';
 
 const now = Date.parse('2026-10-04T00:00:00Z');
 const roots = [];
-afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
+const workers = new Map();
+function ownedWorker(child) {
+  workers.set(child, new Promise(resolve => child.once('close', resolve)));
+  return child;
+}
+async function stopWorker(child) {
+  const closed = workers.get(child);
+  if (!closed) return;
+  if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+  await closed;
+  workers.delete(child);
+}
+afterEach(async () => {
+  // Also runs when a timed-out test is still awaiting worker readiness.
+  await Promise.all([...workers.keys()].map(stopWorker));
+  for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 25 });
+});
 async function directory() { const root = await mkdtemp(join(tmpdir(), 'preview-pair-test-')); roots.push(root); return root; }
 const guard = { assertHeld() {}, signal: new AbortController().signal };
 const request = { reserveMicros: 100, maxDurationMs: 1000 };
@@ -88,7 +104,7 @@ test('corrupt state fails without logging content or replacing it', async () => 
 function worker(root, body) {
   const script = `import { withSessionLock, readState, writeState } from ${JSON.stringify(new URL('./preview-pair-store.mjs', import.meta.url).href)};
     await withSessionLock(process.argv[1], async guard => { ${body}; console.log('LOCK_HELD'); await new Promise(resolve => process.stdin.once('data', resolve)); });`;
-  return spawn(process.execPath, ['--input-type=module', '-e', script, root], { stdio: ['pipe', 'pipe', 'pipe'] });
+  return ownedWorker(spawn(process.execPath, ['--input-type=module', '-e', script, root], { stdio: ['pipe', 'pipe', 'pipe'] }));
 }
 async function ready(child) {
   let text = '';
@@ -104,7 +120,7 @@ test('real processes contend for one stable OS lock; release does not unlink its
     const exited = once(child, 'exit'); child.stdin.end('release'); await exited;
     await withSessionLock(root, async lock => lock.assertHeld());
     expect((await stat(join(root, 'session.lock'))).ino).toBe(before.ino);
-  } finally { if (child.exitCode === null) child.kill('SIGKILL'); }
+  } finally { await stopWorker(child); }
 });
 test('SIGKILL releases OS lock, but durable RUNNING and budget survive; cleanup does not rerun UI', async () => {
   const root = await directory(), scenario = syntheticScenario(now);
@@ -129,7 +145,7 @@ test('SIGKILL releases OS lock, but durable RUNNING and budget survive; cleanup 
     expect(stored.session.status).toBe('RUNNING'); expect(stored.session.reservedMicros).toBe(400);
     await expect(attempt(root, { ...scenario, request, expectedRevision: stored.revision, outcome: 'PASS' }, now)).rejects.toThrow('PREVIEW_REUSE_DENIED');
     expect((await cleanup(root, {}, now + 86400000)).session.status).toBe('CLEANED');
-  } finally { if (child.exitCode === null) child.kill('SIGKILL'); }
+  } finally { await stopWorker(child); }
 });
 
 test('two real coordinators with the same revision cannot both reserve an attempt', async () => {
@@ -139,7 +155,7 @@ test('two real coordinators with the same revision cannot both reserve an attemp
     try { await attempt(process.argv[1], ${JSON.stringify({ ...scenario, request, expectedRevision: 0, outcome: 'UI_TIMEOUT' })}, ${now}); console.log('SUCCESS'); }
     catch (error) { console.log(error.message); }`;
   async function run() {
-    const child = spawn(process.execPath, ['--input-type=module', '-e', code, root], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = ownedWorker(spawn(process.execPath, ['--input-type=module', '-e', code, root], { stdio: ['ignore', 'pipe', 'pipe'] }));
     let output = ''; for await (const chunk of child.stdout) output += chunk;
     return output.trim();
   }

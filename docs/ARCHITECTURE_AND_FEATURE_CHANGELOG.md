@@ -4,6 +4,8 @@ This ledger is the durable entry point for owner-approved architecture and produ
 
 ## 2026-10-19 — PR366 release evidence preparation
 
+Follow-up, local only: independent reviewer found no receipt regression, suggested writer→reader coverage (added), and confirmed a pre-existing Windows test teardown race (fixed with exact owned-child close waits and bounded tmp deletion). Official Web+contracts installation, full build, typecheck, lint/UI/production checks passed. First full unit run remains NON_PASS; single-worker failed-suite recheck passed 232, final related suites passed 149 with 2 platform skips. Dependency replacement remains Proposed; see [review, exact commands and dependency proposal](releases/PR366_FOLLOWUP_REVIEW_20261019.md). No release or remote mutation.
+
 Implemented locally; not released: require authorized session/private-detail preconditions and ordered same-resource session-revocation evidence in the real deployment verifier; preserve sanitized failure classification. Affects only hosted QA and evidence scripts/tests. Dependency audit remains five HIGH/NON_PASS with expired unchanged exception. Fixed DR test-environment conversion is Proposed only; recovery coverage and Production DR gates remain unresolved. See [candidate, validation and recovery contract](releases/PR366_RELEASE_CONTRACT_20261019.md). No remote Apply, workflow dispatch, deployment or alias mutation. Local verification results are recorded in that contract; fresh final-source CI and full hosted acceptance remain required.
 
 ## Source-of-truth order

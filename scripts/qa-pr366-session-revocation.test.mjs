@@ -1,5 +1,6 @@
 import { expect, test, vi } from 'vitest';
 import { verifySessionRevocation } from './qa-pr366-preview-ui.mjs';
+import { verifySessionEvidence } from './verify-pr366-deployment-evidence.mjs';
 
 const mounted = { denialVisible: false, listVisible: true, detailVisible: true, refreshVisible: true };
 const cleared = { denialVisible: true, listVisible: false, detailVisible: false, refreshVisible: false };
@@ -34,6 +35,10 @@ test.each(['early', 'clickable', 'race'])('session revocation proves 401 and pri
   expect(result.steps).toContainEqual({ stage: 'SESSION_READBACK', httpStatus: 401 });
   expect(result.steps.at(-1)).toMatchObject({ stage: 'VERIFY_PRIVATE_STATE_CLEARED', ...cleared });
   expect(JSON.stringify(saves)).not.toMatch(/must-not-be-recorded|private diagnostics/);
+  const binding = { resourceKey: 'manual-123', childRef: 'isolated-child', deploymentId: 'dpl_isolated', sha: 'a'.repeat(40), tree: 'b'.repeat(40) };
+  // Feed the actual writer output to the release reader, including both refresh paths.
+  expect(() => verifySessionEvidence({ ...binding, ...result }, binding)).not.toThrow();
+  expect(() => verifySessionEvidence({ ...binding, ...result, sha: 'c'.repeat(40) }, binding)).toThrow('EVIDENCE_SESSION_PROOF');
 });
 
 test('a cleared UI cannot mask a session that is still valid', async () => {

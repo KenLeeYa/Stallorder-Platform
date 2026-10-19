@@ -1,0 +1,175 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-19T13:36:10.810Z",
+  "status": "LOCAL_BUILD_PASS_FULL_UNIT_NON_PASS_RELEASE_OPEN",
+  "baseCommit": "1a867403d16700294c34844597fcfa928baa0522",
+  "branch": "codex/pr366-release-remediation-20261019",
+  "sourceSha256": {
+    "scripts/qa-pr366-preview-ui.mjs": "8088d1fb4c1e97bee6e9f5559a535106fbe5af064b93a856dbb548f7b31c5dc9",
+    "scripts/verify-pr366-deployment-evidence.mjs": "6d78ffed7f49073150bbf0fd9f6e0800372b11245d0d6a2a48a9245a32961cc7",
+    "scripts/qa-pr366-session-revocation.test.mjs": "ce179477590566e5547e6c64114d811091bbd91db637dbaa8d74692409078940",
+    "scripts/verify-pr366-deployment-evidence.test.mjs": "fcbbe13be8692a4705a176dacb8f91e89b2079a2ac4fed4b124d601b9c0659b2",
+    "scripts/preview-pair-coordinator.test.mjs": "5d4d082939d43e3e140b8c79aae58b4fe2d0415f30f7875b236705b267b086ca"
+  },
+  "independentReview": {
+    "originalReceiptChange": "NO_CONFIRMED_REGRESSION",
+    "suggestion": "WRITER_TO_READER_INTEGRATION_ADDED",
+    "confirmedExistingIssue": "WINDOWS_TEST_TEARDOWN_WORKER_CLOSE_RACE",
+    "fixReview": "NO_CONFIRMED_NEW_ISSUE",
+    "productLockBehaviorChanged": false,
+    "testTimeoutsChanged": false,
+    "requiredAssertionsWeakened": false
+  },
+  "installation": {
+    "command": "npm ci --workspace packages/contracts --include-workspace-root --include=dev --ignore-scripts --no-audit --registry=https://registry.npmjs.org --fetch-retries=2 --fetch-timeout=60000",
+    "status": "PASS",
+    "registry": "https://registry.npmjs.org/",
+    "node": "v24.18.0",
+    "npm": "11.16.0",
+    "packages": 660,
+    "graphSha256": "684873404e57ffc65165196376be9ff68514d860e5382b1ae5e78617a770f703",
+    "scope": "Web root production + development dependencies and packages/contracts; Native excluded",
+    "packageLockSha256": "cf1287a526555cb1a8c515774f265fba4674fd04a1750aee95f459a14c0a6adf",
+    "prismaGenerate": "PASS_6.19.3",
+    "globalSettingsChanged": false
+  },
+  "checks": {
+    "build": "PASS_NEXT_16.3.8_131_STATIC_PAGES_LOCAL_SYNTHETIC_ENV_ONLY",
+    "typecheck": "PASS",
+    "lint": {
+      "status": "PASS",
+      "errors": 0,
+      "warnings": 27
+    },
+    "uiAudit": {
+      "status": "PASS",
+      "tsxFiles": 396
+    },
+    "productionGuardrails": {
+      "status": "PASS",
+      "inputs": 3251,
+      "migrations": 173,
+      "existingWarningRetained": true
+    }
+  },
+  "fullUnit": {
+    "reportRelativeToReceipt": "../../../phase2-unit.json",
+    "sha256": "dc5df9abcbaac0992c9b6c0baf030e5d968ee7817356b26b434be12c6c3c98bc",
+    "total": 4846,
+    "passed": 4723,
+    "failed": 15,
+    "skipped": 108,
+    "loadErrorFiles": [
+      "apps/mobile/src/api/base-url.test.ts",
+      "apps/mobile/src/api/client.test.ts",
+      "apps/mobile/src/auth/session-controller.test.ts",
+      "apps/mobile/src/auth/session-lifecycle.test.ts",
+      "apps/mobile/src/auth/session-recovery.test.tsx",
+      "apps/mobile/src/auth/session-store.test.ts",
+      "apps/mobile/src/operations/orders-screen.test.tsx",
+      "apps/mobile/src/operations/presentation.test.ts"
+    ],
+    "failedCaseFiles": [
+      {
+        "path": "scripts/preview-pair-coordinator.test.mjs",
+        "failed": 1
+      },
+      {
+        "path": "scripts/qa-pr366-preview-ui.test.mjs",
+        "failed": 3
+      },
+      {
+        "path": "src/components/operations-mobile-records.test.ts",
+        "failed": 7
+      },
+      {
+        "path": "scripts/awesome-optimization/repair.test.mjs",
+        "failed": 1
+      },
+      {
+        "path": "scripts/lib/web-release-dependency-audit.test.mjs",
+        "failed": 3
+      }
+    ],
+    "sourceStage": "BEFORE_TEST_TEARDOWN_FIX; coordinator fixture from baseCommit"
+  },
+  "failedSuiteRecheckBeforeTeardownFix": {
+    "reportRelativeToReceipt": "../../../phase2-focused-recheck.json",
+    "sha256": "b2f8d38846580f4aac39dc01d995bce4bbeef1e84f90fe7d76355d1bc5d3568c",
+    "total": 232,
+    "passed": 232,
+    "failed": 0,
+    "skipped": 0,
+    "loadErrorFiles": [],
+    "failedCaseFiles": [],
+    "sourceStage": "BEFORE_TEST_TEARDOWN_FIX; coordinator fixture from baseCommit"
+  },
+  "finalRelatedSuites": {
+    "reportRelativeToReceipt": "../../../phase2-targeted-final.json",
+    "sha256": "aa8f304fe0c88d2bcc3bbd000f696f0a96bfe0e0fb8c70bd52d2b74ad0293f12",
+    "total": 151,
+    "passed": 149,
+    "failed": 0,
+    "skipped": 2,
+    "loadErrorFiles": [],
+    "failedCaseFiles": [],
+    "sourceStage": "FINAL_SOURCE_HASHES_ABOVE"
+  },
+  "audit": {
+    "selected": {
+      "status": "NON_PASS",
+      "counts": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 5,
+        "critical": 0,
+        "total": 5
+      },
+      "sha256": "b82ae650927f2b110a2b1a786ff28b5e5276260c706f76b05367fde747fabf7f"
+    },
+    "omitDevDiagnostic": {
+      "status": "NON_PASS_NOT_A_REPLACEMENT_GATE",
+      "counts": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 2,
+        "critical": 0,
+        "total": 2
+      },
+      "sha256": "161ee6a62a1bdde4d2e13ee4640d87bbdd3fe0f17357c5843936dc0fa09b09c2"
+    },
+    "policyExpiry": "2026-10-10T04:00:00Z",
+    "exceptionUnchanged": true,
+    "dependencyGraphChanged": false
+  },
+  "upstreamAssessment": {
+    "installedPlugin": "16.3.6",
+    "latestStablePlugin": "16.4.2",
+    "canaryPlugin": "16.5.0-canary.17",
+    "allDependOnFastGlob": "3.3.1",
+    "latestFastGlob": "3.3.3_still_micromatch",
+    "latestMicromatch": "4.0.8_still_braces",
+    "olderPlugin": "14.2.35_uses_glob_but_lacks_current_rule_and_export_shape",
+    "replacement": "PROPOSED_NOT_APPLIED"
+  },
+  "rawLogSha256": {
+    "phase2-build.log": "6e0bf256cff95dc275a8b8f42b843cf39a87b66095ac722a9715b77078250037",
+    "phase2-lint.log": "de1088748c4a38e6cebf3f6ad0a9044d005df9accd0c2e403d9640f777bc71f2",
+    "phase2-typecheck.log": "1e1cab1a6918c565660b9a5ed0f182162f4c6991f18d54aa42d7eabcd4aa4c8d",
+    "phase2-production-check.log": "5bd3ba6ad5bd59b24146d85304c27b0f84bf736db80889d0df9765bc65eb8eac",
+    "phase2-production-check-final.log": "31a6b8f00f643dbb0cbb75b702a273e7519ba5c8c0d6911d5994c2147872e23d",
+    "phase2-unit.log": "6aa912fbe0bfec80915a6b5638d0c0bddc21eccd2858972c3d1331740e208ec8",
+    "phase2-focused-recheck.log": "a45123c95997b882f43e0b73c43e7f6193ad84e4eaf47bea046869229e5418ec",
+    "phase2-targeted-final.log": "a523a8c8d23c453d9632461313161f4cc203dda8ed67f5708c9e9b909a877ea4"
+  },
+  "remoteMutation": false,
+  "workflowDispatched": false,
+  "pushed": false,
+  "dockerStarted": false,
+  "drConversion": "NOT_APPLIED",
+  "backupRestoreProof": "NOT_VERIFIED",
+  "hostedAcceptance": "NOT_RUN",
+  "releaseGate": "OPEN"
+}
