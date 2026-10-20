@@ -1,5 +1,20 @@
 # PR366 clean Linux proof routing
 
+## Shallow history correction
+
+Run 39341921739 on 1ac75bab completed installation, lint and build, then failed
+closed because checkout's default depth omitted preparationBase 98030994.
+The clean reusable checkout now fetches full history while retaining the exact
+candidate ref, persist-credentials=false and the original ancestry assertion.
+A workflow contract test reproduces the missing fetch-depth setting and requires
+zero (full history). This does not waive artifact closure or activate the audit
+exception; a fresh exact-candidate hosted result remains required.
+
+The owner's later authorization permits zero-additional-cost repairs, pushes,
+necessary reruns and controlled release. It supersedes the original one-run
+limit below, but does not authorize added billing, unknown overages, destructive
+data operations or bypassing provider confirmations and release gates.
+
 The owner approved minimal CI isolation, updating the existing PR366 head and one
 standard Linux proof without Supabase/Vercel cloud resources at
 2026-10-19T23:13:48Z (message Sentinel_1834404bbc148191b220d6154cf7d899).

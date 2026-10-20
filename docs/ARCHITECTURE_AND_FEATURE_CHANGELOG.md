@@ -233,3 +233,7 @@ Owner authorized only the existing GHSA-vfj7-8cjw-p6xm five-HIGH locked Web chai
 ### 2026-10-20 PR366 clean exact Linux proof — Implemented; remote proof pending
 
 Owner approved a minimal clean-job/exact-ref route, existing PR366 fast-forward and one standard Linux proof with no Supabase/Vercel cloud resources. Required verify now depends on and explicitly fails for a failed clean reusable Web proof, preserving all original regression steps. PR checkouts use the actual PR head while evidence retains separate workflow/merge SHA provenance. Added the restricted web-scope-proof dispatch route to the registered workflow; no provider environment, secrets inheritance or deployment permission changes. Fixed five-HIGH expiry and shim guards remain unchanged. See [the routing contract](releases/PR366_CLEAN_LINUX_PROOF_20261020.md); final local/remote evidence is external to the candidate commit.
+
+### 2026-10-20 PR366 proof ancestry correction - Implemented; hosted evidence pending
+
+The clean Web proof fetches full history to evaluate the existing preparation-base ancestry assertion. Run39341921739 failed closed after successful install/lint/build because shallow checkout omitted that commit. Added a failing-then-passing workflow contract test; no security assertion, audit scope or expiry changed. See docs/releases/PR366_CLEAN_LINUX_PROOF_20261020.md. Later owner authorization permits zero-additional-cost controlled release; paid or unknown costs remain blocked.
