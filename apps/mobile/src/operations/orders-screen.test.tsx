@@ -21,7 +21,7 @@ vi.mock("@/lib/prisma",()=>({prisma:{order:{findMany:h.findMany}}}));
 vi.mock("@/server/mobile/authorization",()=>({authorizeMobileStallRequest:h.authorize}));
 
 // Resolve the real Web BFF at test time without adding server imports to the Native type graph.
-const routePath="../../../../src/app/api/mobile/v1/stalls/[stallId]/orders/route.ts";
+const routePath=new URL("../../../../src/app/api/mobile/v1/stalls/[stallId]/orders/route.ts",import.meta.url).href;
 let route:(request:Request,context:{params:Promise<{stallId:string}>})=>Promise<Response>;
 const time=new Date("2026-10-02T00:00:00.000Z");
 const records=Array.from({length:501},(_,i)=>({id:`00000000-0000-4000-8000-${String(i+1).padStart(12,"0")}`,orderNo:`ORDER-${i+1}`,status:i%2?"CANCELLED":"COMPLETED",paymentStatus:"PAID",fulfillmentType:"TAKEOUT",customerName:"合成訂單",tableLabel:null,total:100,isTest:true,createdAt:time,updatedAt:time,_count:{items:1}})).reverse();

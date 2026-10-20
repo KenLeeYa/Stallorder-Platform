@@ -2,6 +2,10 @@
 
 This ledger is the durable entry point for owner-approved architecture and product-function changes. It prevents a new task from relying only on chat history or rediscovering an already changed contract.
 
+## 2026-10-21 — PR366 follow-redirects security patch preparation
+
+Implemented locally, not released; release verification blocked: minimally update follow-redirects 1.16.0 to 1.16.1, add real HTTP credential-redirect regressions, and make the existing Native orders consumer test independent of invocation cwd. Selected Web audit returns to the original five HIGH/NON_PASS; those vulnerabilities remain NOT_FIXED. Existing policy excludes all lock/version changes, so neither its exact hash binding nor its fixed expiry was changed. See [patch, Web/Native results and precise rebind decision](releases/PR366_FOLLOW_REDIRECTS_PATCH_20261021.md). No new hosted resource, Production or DR mutation.
+
 ## 2026-10-21 — PR366 ordering fixture lifetime
 
 Implemented locally, not released: begin the owned ordering snapshot after catalog UI mutations and immediately before POS in initial and resume QA. Keep the original full version/five-flag CAS and ownership guards. Real PostgreSQL/Prisma reproduces the same-run unchanged upsell write advancing `@updatedAt`; TIMESTAMP(3) receipt roundtrip succeeds. Historical external concurrency is unproven. See [failure evidence, reproduction and remaining gates](releases/PR366_ORDERING_FIXTURE_CAS_20261021.md). No new hosted resource, Production or DR mutation.
