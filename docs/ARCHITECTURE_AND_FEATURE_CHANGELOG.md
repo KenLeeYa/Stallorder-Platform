@@ -241,3 +241,5 @@ The clean Web proof fetches full history to evaluate the existing preparation-ba
 ### 2026-10-21 PR366 single paid hosted window - Prepared; acceptance pending
 
 Owner approved one data-less Micro child and paired Preview, US$2 management target and maximum three billable hours. Replace only the expired resource window with UTC2026-10-20 17:00-20:00, retain latest18:45/minimum75 minutes, precreation receipt and independent early cleanup. Original audit expiry and all acceptance gates unchanged. Fresh candidate CI is required. See docs/releases/PR366_HOSTED_WINDOW_20261021.md.
+
+The same preparation-base ancestry prerequisite is now supplied to Production readiness's local gate, with persisted checkout credentials disabled. Its regression binds the first local job, preventing the same known shallow-history failure after merge; no Plan/Apply ordering changes.

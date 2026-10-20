@@ -15,7 +15,11 @@ Waiting for approval or CI does not extend this window. If insufficient time
 remains, no resource is created and a new concrete schedule must be reviewed.
 
 The application/dependency baseline is f6094b8d. Only resource-window guards,
-corresponding regression cases and this change memory are updated. Fresh
+corresponding regression cases and this change memory are updated. The required
+Production readiness local job also receives full checkout history and disables
+persisted credentials: it executes the same exact ancestry verifier and otherwise
+would repeat the shallow-checkout failure after merge. No release gate is waived.
+Fresh
 same-candidate CI, scan and exact Web artifact proof remain required before the
 single validation. The five-HIGH audit exception still ends at October 22
 14:00 UTC; raw audit remains NON_PASS and NOT_FIXED. No security assertion,

@@ -883,3 +883,5 @@ function workflowJob(source, jobName) {
   if (!match) throw new Error(`WORKFLOW_JOB_NOT_FOUND_${jobName}`);
   return match[0];
 }
+
+it('Production readiness retains ancestry for its exact Web evidence gate', () => { expect(readiness.split('  verify-remote:')[0]).toMatch(/- uses: actions\/checkout@v4\r?\n\s+with:\r?\n\s+fetch-depth: 0\r?\n\s+persist-credentials: false/); });
