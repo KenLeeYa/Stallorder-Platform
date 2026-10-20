@@ -237,3 +237,7 @@ Owner approved a minimal clean-job/exact-ref route, existing PR366 fast-forward 
 ### 2026-10-20 PR366 proof ancestry correction - Implemented; hosted evidence pending
 
 The clean Web proof fetches full history to evaluate the existing preparation-base ancestry assertion. Run39341921739 failed closed after successful install/lint/build because shallow checkout omitted that commit. Added a failing-then-passing workflow contract test; no security assertion, audit scope or expiry changed. See docs/releases/PR366_CLEAN_LINUX_PROOF_20261020.md. Later owner authorization permits zero-additional-cost controlled release; paid or unknown costs remain blocked.
+
+### 2026-10-21 PR366 single paid hosted window - Prepared; acceptance pending
+
+Owner approved one data-less Micro child and paired Preview, US$2 management target and maximum three billable hours. Replace only the expired resource window with UTC2026-10-20 17:00-20:00, retain latest18:45/minimum75 minutes, precreation receipt and independent early cleanup. Original audit expiry and all acceptance gates unchanged. Fresh candidate CI is required. See docs/releases/PR366_HOSTED_WINDOW_20261021.md.
