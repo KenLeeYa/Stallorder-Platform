@@ -41,14 +41,13 @@ node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.
 for operation in enable-supply dense-schedule dense-workforce dense-supply synthetic-invoices inbox inbox-membership; do
   node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui "$operation"
 done
-node -e 'const fs = require("node:fs"); const p = ".preview-receipt/ui-binding.json"; const b = JSON.parse(fs.readFileSync(p,"utf8")); const load = name => JSON.parse(fs.readFileSync(`.preview-receipt/pr366-ui/fixture-${name}.json`,"utf8")); b.fixtures = {catalogProduct:load("catalog-descriptor"),schedule:load("dense-schedule"),workforce:load("dense-workforce"),supply:load("dense-supply"),invoices:load("synthetic-invoices"),inbox:load("inbox"),membership:load("inbox-membership")}; b.fixtureActions = {prepareDenseExpenses:true}; fs.writeFileSync(p,JSON.stringify(b,null,2));'
-for operation in prepare-ordering prepare-pos-product; do
+node -e 'const fs = require("node:fs"); const p = ".preview-receipt/ui-binding.json"; const b = JSON.parse(fs.readFileSync(p,"utf8")); const load = name => JSON.parse(fs.readFileSync(`.preview-receipt/pr366-ui/fixture-${name}.json`,"utf8")); b.fixtures = {catalogProduct:load("catalog-descriptor"),schedule:load("dense-schedule"),workforce:load("dense-workforce"),supply:load("dense-supply"),invoices:load("synthetic-invoices"),inbox:load("inbox"),membership:load("inbox-membership")}; b.fixtureActions = {prepareDenseExpenses:true,preparePosOrdering:true}; fs.writeFileSync(p,JSON.stringify(b,null,2));'
+for operation in prepare-pos-product; do
   node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui "$operation"
 done
 node scripts/qa-pr366-preview-ui-supervised.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui prepare-cash-shift
-node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui pos-descriptor
-node -e 'const fs=require("node:fs"); const p=".preview-receipt/ui-binding.json"; const b=JSON.parse(fs.readFileSync(p,"utf8")); b.fixtures.pos=JSON.parse(fs.readFileSync(".preview-receipt/pr366-ui/fixture-pos-descriptor.json","utf8")); fs.writeFileSync(p,JSON.stringify(b,null,2));'
 node scripts/qa-pr366-preview-ui-supervised.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui
+node -e 'const fs=require("node:fs"); const p=".preview-receipt/ui-binding.json"; const b=JSON.parse(fs.readFileSync(p,"utf8")); b.fixtures.pos=JSON.parse(fs.readFileSync(".preview-receipt/pr366-ui/fixture-pos-descriptor.json","utf8")); fs.writeFileSync(p,JSON.stringify(b,null,2));'
 node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui inbox-readback .preview-receipt/pr366-ui/fixture-inbox.json
 node scripts/qa-pr366-preview-db-fixtures.mjs .preview-receipt/manual-resources.json .preview-receipt/ui-binding.json .preview-receipt/pr366-ui inbox-membership-readback .preview-receipt/pr366-ui/inbox-membership-revoked.json
 for operation in enable-circuit-b public-qr open-hours; do

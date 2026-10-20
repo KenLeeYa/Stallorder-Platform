@@ -23,6 +23,85 @@ function dbFixture() {
   return { ...target, databaseUrl: syntheticDatabaseUrl('db.child123.supabase.co') };
 }
 
+// Opt-in, real PostgreSQL/Prisma regression. Only an explicitly named loopback disposable DB is accepted.
+test.skipIf(!process.env.PR366_ORDERING_CAS_TEST_DATABASE_URL)('ordering CAS preserves ownership across real Prisma timestamps and catalog writes', async () => {
+  const url = new URL(process.env.PR366_ORDERING_CAS_TEST_DATABASE_URL);
+  expect(['127.0.0.1', 'localhost']).toContain(url.hostname);
+  expect(url.pathname).toBe('/pr366_ordering_cas');
+  const { PrismaClient } = await import('@prisma/client');
+  const db = new PrismaClient({ datasources: { db: { url: url.href } } });
+  const flags = ['deliveryModuleEnabled', 'staffDeliveryEnabled', 'printModuleEnabled', 'paymentModuleEnabled', 'kdsModuleEnabled'];
+  const stallId = '22222222-2222-4222-8222-222222222222';
+  const organizationId = '11111111-1111-4111-8111-111111111111';
+  try {
+    await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS stall_ordering_settings (
+      stall_id uuid PRIMARY KEY, organization_id uuid NOT NULL, updated_at timestamp(3) NOT NULL,
+      delivery_module_enabled boolean NOT NULL, staff_delivery_enabled boolean NOT NULL,
+      print_module_enabled boolean NOT NULL, payment_module_enabled boolean NOT NULL,
+      kds_module_enabled boolean NOT NULL, checkout_upsell_product_ids uuid[] NOT NULL DEFAULT '{}')`);
+    await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS stall_business_hours (
+      id uuid PRIMARY KEY, organization_id uuid NOT NULL, stall_id uuid NOT NULL, day_of_week integer NOT NULL,
+      opens_at text, closes_at text, last_order_at text, is_closed boolean NOT NULL,
+      created_at timestamptz(6) NOT NULL, updated_at timestamptz(6) NOT NULL)`);
+    await db.$executeRawUnsafe('TRUNCATE stall_business_hours');
+    await db.$executeRaw`INSERT INTO stall_business_hours SELECT gen_random_uuid(), ${organizationId}::uuid,
+      ${stallId}::uuid, day, '09:00', '18:00', NULL, false, clock_timestamp(), clock_timestamp()
+      FROM generate_series(0,6) AS day`;
+    const adapter = { stallOrderingSettings: db.stallOrderingSettings,
+      $queryRaw: db.$queryRaw.bind(db), $transaction: db.$transaction.bind(db),
+      profile: { findFirst: async () => ({ id: 'synthetic-owner' }) },
+      stall: { findFirst: async () => ({ id: stallId }) } };
+    const tool = await createDatabaseFixtures({ ...dbFixture(), now: () => now, save: async () => {}, clientFactory: async () => adapter });
+    const reset = async () => {
+      await db.$executeRawUnsafe('TRUNCATE stall_ordering_settings');
+      await db.$executeRaw`INSERT INTO stall_ordering_settings VALUES (${stallId}::uuid, ${organizationId}::uuid,
+        '2026-10-20 17:04:49.351'::timestamp, true, true, true, true, true, '{}')`;
+    };
+    const serializedPrepare = async () => JSON.parse(JSON.stringify(await tool.prepareOrdering()));
+    const read = () => db.stallOrderingSettings.findFirst({ select: { updatedAt: true, ...Object.fromEntries(flags.map(f => [f, true])) } });
+    // Millisecond schema survives the receipt's Date -> JSON -> Date round trip.
+    await reset(); await tool.restoreOrdering(await serializedPrepare());
+    expect((await read()).printModuleEnabled).toBe(true);
+    // Contrast with microseconds: Date truncation exists, but is not this table's schema.
+    const [precision] = await db.$queryRaw`SELECT '2026-10-20 17:04:49.351789'::timestamp(6) AS value,
+      '2026-10-20 17:04:49.351789'::timestamp(6)::text AS exact`;
+    expect(precision.value.toISOString()).toBe('2026-10-20T17:04:49.351Z');
+    expect(precision.exact).toContain('.351789');
+    // Original harness sequence: catalog's unchanged upsell array still advances @updatedAt.
+    await reset(); const original = await serializedPrepare();
+    await db.$queryRaw`SELECT pg_sleep(0.01)::text`;
+    await db.stallOrderingSettings.update({ where: { stallId }, data: { checkoutUpsellProductIds: [] }, select: { stallId: true } });
+    expect((await read()).updatedAt.toISOString()).not.toBe(original.after.updatedAt);
+    await expect(tool.restoreOrdering(original)).rejects.toThrow('FIXTURE_ORDERING_CONCURRENT_CHANGE');
+    // Correct lifetime begins after catalog writes. The real hours fixture/restore touches a different table.
+    const corrected = await serializedPrepare();
+    const hours = JSON.parse(JSON.stringify(await tool.setHours('OPEN')));
+    await tool.restoreHours(hours);
+    await tool.restoreOrdering(corrected);
+    for (const data of [{ updatedAt: new Date('2030-01-01') }, { checkoutUpsellProductIds: ['33333333-3333-4333-8333-333333333333'] },
+      ...flags.map(flag => ({ [flag]: flag === 'printModuleEnabled' }))]) {
+      await reset(); const evidence = await serializedPrepare();
+      await db.$queryRaw`SELECT pg_sleep(0.01)::text`;
+      await db.stallOrderingSettings.updateMany({ where: { stallId }, data });
+      const changed = await read();
+      await expect(tool.restoreOrdering(evidence)).rejects.toThrow('FIXTURE_ORDERING_CONCURRENT_CHANGE');
+      expect(await read()).toEqual(changed);
+    }
+    // The flags predicate also protects against a writer preserving the old timestamp.
+    for (const flag of flags) {
+      await reset(); const evidence = await serializedPrepare();
+      await db.stallOrderingSettings.updateMany({ where: { stallId },
+        data: { [flag]: !evidence.after[flag], updatedAt: new Date(evidence.after.updatedAt) } });
+      await expect(tool.restoreOrdering(evidence)).rejects.toThrow('FIXTURE_ORDERING_CONCURRENT_CHANGE');
+    }
+    await reset(); const owned = await serializedPrepare();
+    for (const patch of [{ resourceKey: 'other-run' }, { childRef: 'other-child' }])
+      await expect(tool.restoreOrdering({ ...owned, ...patch })).rejects.toThrow('FIXTURE_RESTORE_RECEIPT_DENIED');
+    for (const field of ['stallId', 'organizationId'])
+      await expect(tool.restoreOrdering({ ...owned, after: { ...owned.after, [field]: 'other' } })).rejects.toThrow('FIXTURE_RESTORE_RECEIPT_DENIED');
+  } finally { await db.$disconnect(); }
+}, 30_000);
+
 function membershipDatabase(existing = []) {
   let member;
   const create = vi.fn(async ({ data }) => { member = { ...data, updatedAt: new Date(now) }; return member; });

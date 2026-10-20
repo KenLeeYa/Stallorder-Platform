@@ -9,6 +9,16 @@ import { catalogDesktopEditButton, catalogMobileEditButton } from './lib/catalog
 import { assertTarget } from './lib/pr366-preview-target.mjs';
 export { assertTarget };
 
+// Catalog PATCH writes this shared row's @updatedAt, even for an unchanged upsell array.
+// Start the owned ordering snapshot only after catalog mutations have finished.
+export async function preparePosOrderingFixture(receipt, binding, outDir, runFixture) {
+  if (binding.fixtureActions?.preparePosOrdering !== true) return;
+  const run = runFixture ?? (await import('./qa-pr366-preview-db-fixtures.mjs')).runDatabaseFixture;
+  await run(receipt, binding, outDir, 'prepare-ordering');
+  const descriptor = await run(receipt, binding, outDir, 'pos-descriptor');
+  binding.fixtures = { ...binding.fixtures, pos: descriptor };
+}
+
 export function normalizePreviewBypassSecret(value) {
   if (value === undefined || value === null || value === '') return '';
   if (typeof value !== 'string') throw Error('PREVIEW_BYPASS_HEADER_INVALID');
@@ -886,6 +896,7 @@ export async function run(receipt, binding, outDir) {
       await page.getByTestId('supply-record-dialog').getByRole('button', { name: '關閉管理視窗', exact: true }).click();
     });
     else results.push({ name: 'dense-supply-mobile-pagination-last-record', status: 'PENDING', reason: 'EXACT_CHILD_SUPPLY_READBACK_REQUIRED' });
+    await preparePosOrderingFixture(receipt, binding, outDir);
     if (binding.fixtures?.pos) await check('staff-toolbar-and-real-cash-pos-checkout', async () => {
       const fixture = binding.fixtures.pos;
       assertCatalogFixture({ ...fixture, originalName: fixture.name }, binding);

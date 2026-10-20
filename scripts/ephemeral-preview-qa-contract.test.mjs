@@ -7,6 +7,23 @@ const main = workflow.jobs.validate.steps.find(step => step.name === 'Capture fr
 const resume = readFileSync('scripts/qa-pr366-preview-resume.sh', 'utf8').replace(/\r\n/g, '\n');
 const ci = yaml.load(readFileSync('.github/workflows/ci.yml', 'utf8'));
 
+test('ordering snapshot begins inside main UI after catalog mutations, in both entry points', () => {
+  for (const source of [main, resume]) {
+    expect(source).toContain('preparePosOrdering:true');
+    expect(source).not.toContain('for operation in prepare-ordering prepare-pos-product');
+    expect(source).not.toContain('pr366-ui pos-descriptor\n');
+    const mainUi = source.indexOf('ui-binding.json .preview-receipt/pr366-ui\n');
+    const persistPos = source.indexOf('b.fixtures.pos=JSON.parse');
+    expect(persistPos).toBeGreaterThan(mainUi);
+    expect(persistPos).toBeLessThan(source.indexOf('for operation in enable-circuit-b public-qr open-hours'));
+  }
+  const ui = readFileSync('scripts/qa-pr366-preview-ui.mjs', 'utf8');
+  expect(ui.indexOf('await preparePosOrderingFixture(receipt, binding, outDir)'))
+    .toBeGreaterThan(ui.indexOf("check('catalog-real-save-readback-return-restore'"));
+  expect(ui.indexOf('await preparePosOrderingFixture(receipt, binding, outDir)'))
+    .toBeLessThan(ui.indexOf("check('staff-toolbar-and-real-cash-pos-checkout'"));
+});
+
 test('all validate and resume UI phases are supervised while cleanup and evidence remain unconditional', () => {
   for (const source of [main, resume]) {
     expect(source).not.toContain('node scripts/qa-pr366-preview-ui.mjs ');

@@ -1,6 +1,19 @@
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { expect, test, vi } from 'vitest';
+import { preparePosOrderingFixture } from './qa-pr366-preview-ui.mjs';
+
+test('POS preparation is explicit, awaited, and cannot use a descriptor after a failed snapshot', async () => {
+  const run = vi.fn(async (_receipt, _binding, _out, operation) => ({ operation }));
+  const binding = { fixtureActions: { preparePosOrdering: true }, fixtures: { catalogProduct: 'preserved' } };
+  await preparePosOrderingFixture({}, binding, 'out', run);
+  expect(run.mock.calls.map(call => call[3])).toEqual(['prepare-ordering', 'pos-descriptor']);
+  expect(binding.fixtures).toEqual({ catalogProduct: 'preserved', pos: { operation: 'pos-descriptor' } });
+  run.mockClear(); await preparePosOrderingFixture({}, {}, 'out', run); expect(run).not.toHaveBeenCalled();
+  run.mockRejectedValueOnce(Error('FIXTURE_ORDERING_CONCURRENT_CHANGE'));
+  await expect(preparePosOrderingFixture({}, binding, 'out', run)).rejects.toThrow('FIXTURE_ORDERING_CONCURRENT_CHANGE');
+  expect(run).toHaveBeenCalledTimes(1);
+});
 import { assertTarget, assertCatalogFixture, assertReadbackFixture, assertPublicQrFixture, assertInboxFixture, assertMembershipFixture, hoursPhasePolicy, assertPreorderFixture, requestPolicy, routePreviewRequest, createPreviewContext, shutdownPreviewBrowser, sanitizedCaseFailure, readPreviewOpenCashShift } from './qa-pr366-preview-ui.mjs';
 
 test('cash shift readback accepts the API state envelope before opening a shift', () => {

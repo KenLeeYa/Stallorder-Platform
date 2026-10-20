@@ -2,6 +2,10 @@
 
 This ledger is the durable entry point for owner-approved architecture and product-function changes. It prevents a new task from relying only on chat history or rediscovering an already changed contract.
 
+## 2026-10-21 — PR366 ordering fixture lifetime
+
+Implemented locally, not released: begin the owned ordering snapshot after catalog UI mutations and immediately before POS in initial and resume QA. Keep the original full version/five-flag CAS and ownership guards. Real PostgreSQL/Prisma reproduces the same-run unchanged upsell write advancing `@updatedAt`; TIMESTAMP(3) receipt roundtrip succeeds. Historical external concurrency is unproven. See [failure evidence, reproduction and remaining gates](releases/PR366_ORDERING_FIXTURE_CAS_20261021.md). No new hosted resource, Production or DR mutation.
+
 ## 2026-10-19 — PR366 release evidence preparation
 
 Follow-up, local only: independent reviewer found no receipt regression, suggested writer→reader coverage (added), and confirmed a pre-existing Windows test teardown race (fixed with exact owned-child close waits and bounded tmp deletion). Official Web+contracts installation, full build, typecheck, lint/UI/production checks passed. First full unit run remains NON_PASS; single-worker failed-suite recheck passed 232, final related suites passed 149 with 2 platform skips. Dependency replacement remains Proposed; see [review, exact commands and dependency proposal](releases/PR366_FOLLOWUP_REVIEW_20261019.md). No release or remote mutation.
