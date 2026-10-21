@@ -8,12 +8,25 @@ import { spawnSync } from "node:child_process";
 const CONTAINER = "supabase_db_dr-retirement-restore";
 let operation = "TARGET_CHECK";
 
+export function rehearsalEnvironment(source) {
+  const environment = { ...source };
+  for (const key of Object.keys(environment)) {
+    if (key.startsWith("DR_") || key.startsWith("PRIMARY_") || key.startsWith("PG")
+      || ["DATABASE_URL", "DIRECT_URL", "SUPABASE_ACCESS_TOKEN"].includes(key)) delete environment[key];
+  }
+  // CLI 2.109.1 reconstructs remote connection URLs without the sslmode query.
+  // This process can address only the disposable loopback target checked above;
+  // no hosted reset or hosted TLS override belongs to this rehearsal.
+  environment.PGSSLMODE = "disable";
+  return environment;
+}
+
 export function rehearsalFailureCode(result, stage) {
   assert.match(stage, /^[A-Z_]+$/);
   const output = `${result.stderr ?? ""}\n${result.stdout ?? ""}`;
   const category = ["permission denied", "must be owner", "already exists", "does not exist",
     "password authentication failed", "violates foreign key constraint", "cannot truncate",
-    "cannot drop", "connection refused", "failed to connect", "failed to parse",
+    "cannot drop", "connection refused", "server refused tls", "failed to connect", "failed to parse",
     "unrecognized configuration parameter", "must be superuser", "read-only transaction",
     "no such file", "unknown flag", "direct deletion", "dependent objects"]
     .find((value) => output.toLowerCase().includes(value));
@@ -111,12 +124,7 @@ function sql(query) {
 }
 
 function run(command, args, input, includeStderr = true) {
-  const environment = { ...process.env };
-  for (const key of Object.keys(environment)) {
-    if (key.startsWith("DR_") || key.startsWith("PRIMARY_") || key.startsWith("PG")
-      || ["DATABASE_URL", "DIRECT_URL", "SUPABASE_ACCESS_TOKEN"].includes(key)) delete environment[key];
-  }
-  const result = spawnSync(command, args, { input, env: environment, encoding: "utf8",
+  const result = spawnSync(command, args, { input, env: rehearsalEnvironment(process.env), encoding: "utf8",
     timeout: 300_000, maxBuffer: 8 * 1024 * 1024 });
   if (result.status !== 0) {
     throw new Error(rehearsalFailureCode(result, operation));

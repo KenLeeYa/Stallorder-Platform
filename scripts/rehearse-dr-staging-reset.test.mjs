@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assertRehearsalTarget, rehearsalFailureCode } from "./rehearse-dr-staging-reset.mjs";
+import { assertRehearsalTarget, rehearsalFailureCode, rehearsalEnvironment } from "./rehearse-dr-staging-reset.mjs";
 
 describe("restored DR reset rehearsal boundary", () => {
   it("identifies the failed stage without exposing SQL, credentials or data", () => {
@@ -8,6 +8,11 @@ describe("restored DR reset rehearsal boundary", () => {
       .toBe("REHEARSAL_REMOVE_FILES_FAILED_CANNOT_TRUNCATE_0A000");
     expect(rehearsalFailureCode({ stderr: "PRIVATE_DATA_SENTINEL", status: 1 }, "REMOTE_RESET"))
       .toBe("REHEARSAL_REMOTE_RESET_FAILED");
+  });
+  it("supplies loopback TLS policy after stripping every hosted database credential", () => {
+    const environment = rehearsalEnvironment({ PATH: "tools", DR_DIRECT_URL: "private", PRIMARY_URL: "private",
+      DATABASE_URL: "private", PGHOST: "hosted", PGSSLMODE: "require", SUPABASE_ACCESS_TOKEN: "private" });
+    expect(environment).toEqual({ PATH: "tools", PGSSLMODE: "disable" });
   });
   it("accepts only the disposable loopback database, never either hosted project", () => {
     expect(() => assertRehearsalTarget("postgresql://supabase_admin:example-placeholder@127.0.0.1:54322/postgres?sslmode=disable")).not.toThrow();

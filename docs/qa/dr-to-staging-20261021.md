@@ -237,3 +237,10 @@ run `39636020159` passed capture/restore/verification but failed the reset step.
 Its generic sanitized error does not identify a cause. Stage-specific safe error
 codes and a no-secret regression test were added; no hosted reset or seed is
 authorized by this unsuccessful rehearsal result.
+
+Run `39637555240` isolated that failure to the CLI remote-reset connection, before
+reset SQL. Pinned CLI `internal/utils/connect.go` rebuilds URLs without `sslmode`
+and refuses a TLS-to-plaintext fallback. The loopback-only child environment now
+explicitly sets `PGSSLMODE=disable` after removing hosted credentials. Hosted
+connections retain required TLS. This does not bypass any migration or assertion;
+the actual rehearsal must pass before using its result.
