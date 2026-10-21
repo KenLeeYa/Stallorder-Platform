@@ -68,13 +68,17 @@ async function main() {
     PGOPTIONS: "-c default_transaction_read_only=on -c statement_timeout=120000",
   };
   const local = {
-    PGHOST: "127.0.0.1", PGPORT: "54322", PGUSER: "postgres", PGPASSWORD: "postgres",
+    PGHOST: "/var/run/postgresql", PGPORT: "5432", PGUSER: "supabase_admin",
     PGDATABASE: "postgres", PGSSLMODE: "disable", PGOPTIONS: "-c statement_timeout=120000",
   };
+  const localContainer = "supabase_db_dr-retirement-restore";
   function run(command, args, environment) {
-    const result = spawnSync("docker", ["run", "--rm", "--network", "host",
+    const dockerArgs = environment === local
+      ? ["exec", ...Object.keys(local).flatMap((name) => ["--env", name]), localContainer, command, ...args]
+      : ["run", "--rm", "--network", "host",
       ...Object.keys(environment).flatMap((name) => ["--env", name]),
-      "--volume", `${directory}:/out`, "postgres:17", command, ...args], {
+      "--volume", `${directory}:/out`, "postgres:17", command, ...args];
+    const result = spawnSync("docker", dockerArgs, {
       env: { ...process.env, ...environment }, encoding: "utf8", timeout: 300_000,
       maxBuffer: 16 * 1024 * 1024,
     });
@@ -166,7 +170,8 @@ async function main() {
     })));
     console.log(JSON.stringify({ event: "dr_backup_captured", tables: tables.length, files: files.length, remoteWrites: false }));
   } else if (mode === "restore") {
-    // The only writable connection is this loopback-only ephemeral CI database.
+    // Provider-owned schemas require the local container administrator. This
+    // Unix-socket connection can never resolve to either hosted database.
     await writeFile(resolve(directory, "restore.dump"), await decrypted("database.dump.enc"), { mode: 0o600 });
     const restoreSchemas = SCHEMAS.filter((schema) => schema !== "vault");
     query(`${restoreSchemas.map((schema) => `drop schema if exists ${identifier(schema)} cascade; create schema ${identifier(schema)};`).join("\n")}
@@ -179,6 +184,14 @@ async function main() {
     const objectList = run("pg_restore", ["--list", "/out/restore.dump"], {})
       .split("\n").filter((line) => !/^\d+; \d+ \d+ SCHEMA - /.test(line)).join("\n");
     await writeFile(resolve(directory, "restore.list"), objectList, { mode: 0o600 });
+    for (const [command, ...args] of [
+      ["exec", localContainer, "mkdir", "-p", "/out"],
+      ["cp", resolve(directory, "restore.dump"), `${localContainer}:/out/restore.dump`],
+      ["cp", resolve(directory, "restore.list"), `${localContainer}:/out/restore.list`],
+    ]) {
+      const copy = spawnSync("docker", [command, ...args], { encoding: "utf8", timeout: 30_000 });
+      if (copy.status !== 0) throw new Error("LOCAL_RESTORE_COPY_FAILED");
+    }
     for (const section of ["pre-data", "data", "post-data"]) {
       run("pg_restore", [`--section=${section}`, "--no-owner", "--no-acl", "--single-transaction", "--exit-on-error",
         "--use-list=/out/restore.list", "--dbname=postgres", "/out/restore.dump"], local);
