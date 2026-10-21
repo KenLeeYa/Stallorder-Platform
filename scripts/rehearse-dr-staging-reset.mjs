@@ -4,6 +4,7 @@ import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
+import { retiredDrSequenceCleanupSql } from "./lib/dr-reset-preparation.mjs";
 
 const CONTAINER = "supabase_db_dr-retirement-restore";
 let operation = "TARGET_CHECK";
@@ -87,6 +88,8 @@ async function main() {
   sql("truncate storage.objects cascade;");
   operation = "REMOVE_SCHEMAS";
   sql("drop schema if exists app_private cascade; drop schema if exists internal cascade;");
+  operation = "REMOVE_SEQUENCES";
+  sql(retiredDrSequenceCleanupSql);
   const url = assertRehearsalTarget(`postgresql://supabase_admin:${password}@127.0.0.1:54322/postgres?sslmode=disable`);
   operation = "REMOTE_RESET";
   const resetLog = run("supabase", ["db", "reset", "--workdir", cliWorkdir,

@@ -9,6 +9,8 @@ on:
       - scripts/backup-dr-for-staging.test.mjs
       - scripts/rehearse-dr-staging-reset.mjs
       - scripts/rehearse-dr-staging-reset.test.mjs
+      - scripts/lib/dr-reset-preparation.mjs
+      - scripts/lib/dr-reset-preparation.test.mjs
 
 permissions:
   contents: read
@@ -37,7 +39,7 @@ jobs:
           version: 2.109.1
       - run: npm ci
       - name: Validate backup target and authenticated encryption
-        run: npx vitest run scripts/backup-dr-for-staging.test.mjs scripts/rehearse-dr-staging-reset.test.mjs
+        run: npx vitest run scripts/backup-dr-for-staging.test.mjs scripts/rehearse-dr-staging-reset.test.mjs scripts/lib/dr-reset-preparation.test.mjs
       - name: Resolve DR-only database connection (no Primary access)
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}

@@ -264,3 +264,13 @@ Run `39641543978` passed the ACL-preserving restore, then advanced to a duplicat
 relation error (`42P07`) during remote reset. Diagnostics now expose only an
 identifier already present in the disposable database catalog and the migration
 filename, never SQL/data/credentials, to identify the remaining conflict precisely.
+
+Run `39643629498` isolates the actual error to `invoice_number_seq`, in migration
+`20260718224537_commercial_billing_phase1_core`. Supabase CLI 2.109.1's
+`apps/cli-go/pkg/migration/queries/drop.sql` filters sequences using lowercase
+`relkind='s'`; PostgreSQL stores sequence kind as uppercase `S`. Consequently the
+standalone invoice counter survives the CLI reset. The retirement preparation
+now explicitly drops only non-extension public sequences on the offline copy
+before replaying the unchanged migrations. The eventual hosted action must use
+this same preparation only after the backup/Primary-isolation/target guards.
+No historical migration was edited and no Primary sequence was touched.
