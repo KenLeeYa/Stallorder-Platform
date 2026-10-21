@@ -41,6 +41,16 @@ describe("security dependency release contract", () => {
   it("keeps dependency lifecycle scripts denied at the repository boundary", () => {
     expect(readFileSync(path.join(root, ".npmrc"), "utf8")).toMatch(/^ignore-scripts=true$/m);
   });
+
+  it("generates Prisma explicitly before the script-disabled Production Plan typecheck", () => {
+    const plan = readFileSync(path.join(root, ".github/workflows/production-application-release.yml"), "utf8").split(/\r?\n  apply:/)[0];
+    const install = plan.indexOf("run: npm ci");
+    const generate = plan.indexOf("run: npm run prisma:generate");
+    const typecheck = plan.indexOf("run: npm run typecheck");
+    expect(install).toBeGreaterThanOrEqual(0);
+    expect(generate).toBeGreaterThan(install);
+    expect(typecheck).toBeGreaterThan(generate);
+  });
 });
 
 describe("Next lint root discovery compatibility", () => {

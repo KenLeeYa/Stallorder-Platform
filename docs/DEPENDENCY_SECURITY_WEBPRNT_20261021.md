@@ -59,7 +59,8 @@ Node 24 and npm 11.16.0 remain the declared toolchain. Repository `.npmrc` sets
 `ignore-scripts=true`: dependency and root lifecycle hooks do not run implicitly.
 Use `npm ci`, then the existing explicit `npm run prisma:generate` before tests or
 type checking; `npm run build` already generates the client. CI already has this
-explicit generation step. Do not re-enable all lifecycle scripts to make an install
+explicit generation step; the application-only Production Plan now has it too,
+with a failing-before/passing-after workflow-order regression. Do not re-enable all lifecycle scripts to make an install
 pass. Optional platform binaries must be present through the locked packages.
 
 This policy applies only inside this checkout, not global npm configuration or other
@@ -81,7 +82,10 @@ and actual Next/accessibility lint execution.
   155 attestations**. No suppression, waiver or audit-threshold change.
 - Full unit run: **554 files / 3,360 tests passed**, 2 files / 9 opt-in replay cases
   skipped. Two subsequently added native-image/install-policy cases passed in the
-  final **21-case dependency regression run**; they were not counted in that full run.
+  **21-case dependency regression run**; they were not counted in that full run.
+  A subsequent Production Plan ordering regression makes the final focused total
+  **22 passed**. Only the explicit Prisma-generation step changed after that local
+  full application/DB/browser verification; dependency versions and app bytes did not.
 - Lint: zero errors, five existing navigation warnings outside this diff. Typecheck,
   UI control audit (335 TSX files), production build, Worker dry-run and all eight
   client bundle budgets passed.
