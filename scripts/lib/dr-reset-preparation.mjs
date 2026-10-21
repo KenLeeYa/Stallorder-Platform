@@ -16,3 +16,18 @@ end $$;`;
 
 // Hosted postgres owns the jobs, but cannot UPDATE the provider-owned cron table.
 export const disableStagingCronsSql = "select cron.alter_job(jobid, active := false) from cron.job where active;";
+
+// Applied only after a qualified empty reset and the unchanged development seed.
+// The development bestseller fixtures deliberately use is_test=false; persistent
+// Staging must never treat them as live sales or offer an active hardware queue.
+export const syntheticStagingSafetySql = `do $$ begin
+  if (select count(*) from public.organizations) <> 2
+    or exists(select 1 from public.organizations where id not in (
+      '11111111-1111-4111-8111-111111111111','11111111-1111-4111-8111-111111111112'))
+    or exists(select 1 from public.orders where source is distinct from 'DEMO_BESTSELLER_SEED') then
+    raise exception 'STAGING_SEED_SCOPE_INVALID';
+  end if;
+  update public.orders set is_test = true;
+  update public.printers set is_enabled = false;
+  update public.payment_options set is_enabled = false where kind <> 'CASH';
+end $$;`;

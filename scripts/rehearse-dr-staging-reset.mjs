@@ -4,7 +4,7 @@ import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
-import { retiredDrSequenceCleanupSql, disableStagingCronsSql } from "./lib/dr-reset-preparation.mjs";
+import { retiredDrSequenceCleanupSql, disableStagingCronsSql, syntheticStagingSafetySql } from "./lib/dr-reset-preparation.mjs";
 
 const CONTAINER = "supabase_db_dr-retirement-restore";
 let operation = "TARGET_CHECK";
@@ -114,6 +114,8 @@ async function main() {
   applicationSql(`${disableStagingCronsSql} select pg_notify('pgrst','reload schema');`);
   operation = "SYNTHETIC_SEED";
   applicationSql(await readFile("supabase/seed.sql", "utf8"));
+  operation = "SYNTHETIC_SAFETY";
+  applicationSql(syntheticStagingSafetySql);
   operation = "VERIFY_SYNTHETIC";
   const state = JSON.parse(sql(`select json_build_object(
     'orders',(select count(*) from public.orders),
@@ -124,9 +126,13 @@ async function main() {
     'files',(select count(*) from storage.objects),
     'subscriptions',(select count(*) from pg_subscription),
     'active_crons',(select count(*) from cron.job where active),
+    'enabled_printers',(select count(*) from public.printers where is_enabled),
+    'enabled_non_cash',(select count(*) from public.payment_options where is_enabled and kind <> 'CASH'),
     'migrations',(select count(*) from supabase_migrations.schema_migrations))`));
+  console.log(JSON.stringify({ syntheticState: state }));
   assert.ok(state.real_orders === 0 && state.vault === 0 && state.auth_users === 0
     && state.files === 0 && state.subscriptions === 0 && state.active_crons === 0
+    && state.enabled_printers === 0 && state.enabled_non_cash === 0
     && state.organizations === 2 && state.migrations === 146, "REHEARSAL_SYNTHETIC_STATE_INVALID");
   await writeFile("dr-staging-backup-artifacts/reset-rehearsal.json", JSON.stringify({
     sourceSha: process.env.GITHUB_SHA, runId: process.env.GITHUB_RUN_ID,
@@ -136,6 +142,7 @@ async function main() {
     localStorageRemovalSimulated: true,
     sequenceRegression: true,
     applicationRole: "postgres",
+    syntheticSafetyOverlay: true,
   }, null, 2));
   console.log("PASS: original DR restore reset and synthetic seed on disposable loopback only.");
 }
