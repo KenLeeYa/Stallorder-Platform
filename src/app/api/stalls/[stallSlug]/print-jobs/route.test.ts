@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   authorize: vi.fn(),
   validateCsrf: vi.fn(),
   recordAuditEvent: vi.fn(),
+  checkRateLimit: vi.fn(),
   verifyManagerAuthorization: vi.fn(),
   getState: vi.fn(),
   reconcileStale: vi.fn(),
@@ -41,6 +42,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/authorization", () => ({ authorizeApiRequest: mocks.authorize }));
 vi.mock("@/lib/csrf", () => ({ validateCsrf: mocks.validateCsrf }));
 vi.mock("@/lib/audit", () => ({ recordAuditEvent: mocks.recordAuditEvent }));
+vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: mocks.checkRateLimit }));
 vi.mock("@/lib/manager-authorization", () => ({
   ManagerAuthorizationError: class ManagerAuthorizationError extends Error {},
   verifyManagerAuthorization: mocks.verifyManagerAuthorization,
@@ -89,6 +91,7 @@ beforeEach(() => {
     stall: { id: stallId, organizationId, name: "越好吃一中店", timezone: "Asia/Taipei" },
   });
   mocks.validateCsrf.mockReturnValue(true);
+  mocks.checkRateLimit.mockResolvedValue({ allowed: true, retryAfterSeconds: 60 });
   mocks.assertFeatureEnabled.mockResolvedValue(undefined);
   mocks.entitlementErrorResponse.mockReturnValue(null);
   mocks.settingsFindFirst.mockResolvedValue({ printModuleEnabled: true });
@@ -151,6 +154,39 @@ beforeEach(() => {
       updateMany: mocks.printJobUpdateMany,
     },
   }));
+});
+
+describe("WebPRNT diagnostics", () => {
+  const command = { operation: "WEBPRNT_DIAGNOSTIC", printerId, phase: "PROBE", code: "OFFLINE", traderCode: "1100", traderStatus: "0000080000000000" };
+  it("records a tenant-scoped client report without changing jobs or printer liveness", async () => {
+    expect((await postCommand(command)).status).toBe(200);
+    expect(mocks.topLevelPrinterFindFirst).toHaveBeenCalledWith({
+      where: { id: printerId, organizationId, stallId, isEnabled: true, connectionType: "WEBPRNT_BLUETOOTH" }, select: { id: true },
+    });
+    expect(mocks.recordAuditEvent).toHaveBeenCalledWith(expect.objectContaining({
+      action: "PRINT_QUEUE_WEBPRNT_DIAGNOSTIC", organizationId, stallId, entityId: printerId, outcome: "FAILURE",
+      metadata: { source: "CLIENT_REPORTED", phase: "PROBE", code: "OFFLINE", traderCode: "1100", traderStatus: "0000080000000000" },
+    }));
+    expect(mocks.transaction).not.toHaveBeenCalled();
+    expect(mocks.printerUpdate).not.toHaveBeenCalled();
+  });
+  it("does not accept another tenant's printer", async () => {
+    mocks.topLevelPrinterFindFirst.mockResolvedValue(null);
+    expect((await postCommand(command)).status).toBe(404);
+    expect(mocks.recordAuditEvent).not.toHaveBeenCalled();
+  });
+  it("requires CSRF and throttles repeated reports", async () => {
+    mocks.validateCsrf.mockReturnValue(false);
+    expect((await postCommand(command)).status).toBe(403);
+    mocks.validateCsrf.mockReturnValue(true);
+    mocks.checkRateLimit.mockResolvedValue({ allowed: false, retryAfterSeconds: 60 });
+    expect((await postCommand(command)).status).toBe(429);
+    expect(mocks.recordAuditEvent).not.toHaveBeenCalled();
+  });
+  it.each([{ responseText: "private receipt" }, { traderCode: "secret token" }, { traderStatus: "invalid" }, { httpStatus: 999 }, { code: "UNBOUNDED" }])("rejects non-allowlisted diagnostic data %j", async extra => {
+    expect((await postCommand({ ...command, ...extra })).status).toBe(400);
+    expect(mocks.recordAuditEvent).not.toHaveBeenCalled();
+  });
 });
 
 describe("print queue capability enforcement", () => {

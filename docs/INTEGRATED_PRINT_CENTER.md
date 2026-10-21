@@ -77,6 +77,10 @@ An explicit customer utensils request is printed as `免洗餐具：需要` on b
 
 ## Physical acceptance before automatic use
 
+### Overnight WebPRNT recovery and diagnostics (2026-10-21)
+
+SDK loaded is not printer connected. WebPRNT liveness must follow a successful device probe, including manual selection, foreground resume and periodic checks. Prioritize hardware status over generic rejection and retain bounded Star codes in errors and tenant-scoped `PRINT_QUEUE_WEBPRNT_DIAGNOSTIC` audit reports. The native iOS bridge has one callback slot: serialize callers, bound missing responses, quarantine ambiguous timeouts and never auto-replay a ticket or drawer command. A late callback may free transport but must not turn a timed-out job into success. See [incident, safety contract and separate software/device evidence](WEBPRNT_OVERNIGHT_RECOVERY_20261021.md).
+
 - [ ] Safari displays the Star-browser handoff instead of claiming direct Bluetooth support.
 - [ ] The official Star browser opens the same StallOrder URL, allows a one-time sign-in when needed, preserves that session after relaunch, and detects its bridge.
 - [ ] Only the device that took over the printer can claim its jobs.

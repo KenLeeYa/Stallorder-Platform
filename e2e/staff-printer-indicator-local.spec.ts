@@ -62,7 +62,7 @@ test("連線、缺紙、斷線與恢復會更新圖示；成功狀態不占用�
   await page.route("**/api/stalls/" + slug + "/print-jobs", async route => {
     const operation = route.request().postDataJSON()?.operation;
     operations.push(operation);
-    if (!["REFRESH", "HEARTBEAT"].includes(operation)) throw new Error("QA_UNEXPECTED_PRINT_COMMAND:" + operation);
+    if (!["REFRESH", "HEARTBEAT", "WEBPRNT_DIAGNOSTIC"].includes(operation)) throw new Error("QA_UNEXPECTED_PRINT_COMMAND:" + operation);
     await route.fulfill({ json: { state: {
       printers: configured === "NO_PRINTER" ? [] : [{ id: "qa-printer", name: "QA 連線印表機", isEnabled: true,
         autoDetectEnabled: true, connectionType: "WEBPRNT_BLUETOOTH", openCashDrawerOnCashPayment: false }],
@@ -83,7 +83,12 @@ test("連線、缺紙、斷線與恢復會更新圖示；成功狀態不占用�
     await expect(icon).not.toHaveClass(/bg-teal-50/);
     await expect(status).not.toHaveClass(/sr-only/);
     await expect(status).toBeVisible();
-    await page.evaluate(() => { (window as typeof window & { qaPrinter: string }).qaPrinter = "READY"; });
+    if (state === "TIMEOUT") {
+      // An unknown native result must not reuse the callback slot or auto-reprint.
+      await page.reload();
+    } else {
+      await page.evaluate(() => { (window as typeof window & { qaPrinter: string }).qaPrinter = "READY"; });
+    }
     await expect(icon).toHaveAttribute("data-printer-status", "READY");
   }
   configured = "NO_RULE";
@@ -107,7 +112,7 @@ test("連線、缺紙、斷線與恢復會更新圖示；成功狀態不占用�
       expect((await status.boundingBox())?.height).toBeLessThanOrEqual(1);
     }
   }
-  expect(operations.every(operation => ["REFRESH", "HEARTBEAT"].includes(operation))).toBe(true);
+  expect(operations.every(operation => ["REFRESH", "HEARTBEAT", "WEBPRNT_DIAGNOSTIC"].includes(operation))).toBe(true);
   expect(errors).toEqual([]);
 });
 
