@@ -23,7 +23,7 @@ jobs:
     environment: production
     env:
       DR_SUPABASE_PROJECT_REF: daeqwtpaxcebmtwxqdkj
-      RESTORE_WORKDIR: ${{ runner.temp }}/dr-retirement-restore
+      RESTORE_WORKDIR: /tmp/dr-retirement-restore
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
