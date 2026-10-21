@@ -102,3 +102,14 @@ Pending: pass actual backup restoration; separately retire file replication;
 prove effective permissions and synthetic seed isolation; convert Preview runtime,
 domain and Access; real Staging user flows; final Primary identity and flow checks.
 No Staging readiness or release completion is claimed.
+
+## Latest credential retry (2026-10-21 22:55 Asia/Taipei)
+
+The owner replaced `CLOUDFLARE_API_TOKEN` again at `2026-10-21T14:49:30Z`.
+Run `39619054558` still reports attempt 1 as in progress although its only job
+`119287272309` completed with failure before this update. GitHub refuses rerun
+as already running, while cancellation reports the run is completed. That stale
+attempt is not evidence about the new secret. Start a new GET-only inventory run
+using a dedicated read-only concurrency group; keep the mutation workflow's
+remote-writer lock unchanged. No DNS, Access, data or deployment write is part of
+this credential check. Backup restoration remains a separate failed gate.

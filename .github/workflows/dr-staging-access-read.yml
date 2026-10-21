@@ -8,7 +8,8 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: production-dr-operator-entry
+  # GET-only inventory must not hold the mutation workflow's remote-writer lock.
+  group: dr-staging-access-read
   cancel-in-progress: false
 jobs:
   inspect:
