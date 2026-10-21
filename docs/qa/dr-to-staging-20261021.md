@@ -244,3 +244,12 @@ and refuses a TLS-to-plaintext fallback. The loopback-only child environment now
 explicitly sets `PGSSLMODE=disable` after removing hosted credentials. Hosted
 connections retain required TLS. This does not bypass any migration or assertion;
 the actual rehearsal must pass before using its result.
+
+Run `39638904977` progressed past connection and failed with `MUST_BE_OWNER`
+(`42501`). CLI remote reset steps `supabase_admin` down to `postgres`, while
+`pg_restore --no-owner` had made all restored application objects administrator-
+owned. A read-only hosted inventory confirmed 208 public relations owned by
+`postgres`, 28 auth relations by `supabase_auth_admin`, and eight storage relations
+by `supabase_storage_admin`. The restore now retains archive object ownership and
+the three known application schema owners. ACL/provider recovery is still not
+claimed, and the normal CLI role/migration checks are not bypassed.

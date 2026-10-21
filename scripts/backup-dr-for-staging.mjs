@@ -250,7 +250,10 @@ async function main() {
       create extension if not exists btree_gist with schema extensions;
       create extension if not exists pgcrypto with schema extensions;
       create extension if not exists "uuid-ossp" with schema extensions;
-      create extension if not exists supabase_vault;`, local);
+      create extension if not exists supabase_vault;
+      alter schema public owner to pg_database_owner;
+      alter schema app_private owner to postgres;
+      alter schema internal owner to postgres;`, local);
     // PostgreSQL's built-in public namespace and provider schemas are created
     // explicitly above. Keep all their objects, data, constraints and triggers.
     const objectList = run("pg_restore", ["--list", "/out/restore.dump"], {})
@@ -265,7 +268,10 @@ async function main() {
       if (copy.status !== 0) throw new Error("LOCAL_RESTORE_COPY_FAILED");
     }
     for (const section of ["pre-data", "data", "post-data"]) {
-      run("pg_restore", [`--section=${section}`, "--no-owner", "--no-acl", "--single-transaction", "--exit-on-error",
+      // Preserve the original object owners from the custom archive. Restoring
+      // everything as supabase_admin makes the CLI's normal postgres role unable
+      // to reset a copy of tables that postgres actually owns on the source.
+      run("pg_restore", [`--section=${section}`, "--no-acl", "--single-transaction", "--exit-on-error",
         "--use-list=/out/restore.list", "--dbname=postgres", "/out/restore.dump"], local);
       console.log(JSON.stringify({ event: "dr_restore_section_passed", section }));
       if (section === "data") {
