@@ -14,6 +14,13 @@ describe("restored DR reset rehearsal boundary", () => {
       DATABASE_URL: "private", PGHOST: "hosted", PGSSLMODE: "require", SUPABASE_ACCESS_TOKEN: "private" });
     expect(environment).toEqual({ PATH: "tools", PGSSLMODE: "disable" });
   });
+  it("reports only catalog-known object names and the migration filename", () => {
+    const result = { stderr: 'Applying migration 20260101000000_fixture.sql...\nERROR: relation "schema_migrations" already exists (SQLSTATE 42P07) PRIVATE_DATA_SENTINEL' };
+    expect(rehearsalFailureCode(result, "REMOTE_RESET", ["schema_migrations"]))
+      .toBe("REHEARSAL_REMOTE_RESET_FAILED_ALREADY_EXISTS_42P07_OBJECT_SCHEMA_MIGRATIONS_MIGRATION_20260101000000_FIXTURE");
+    expect(rehearsalFailureCode({ stderr: 'relation "PRIVATE_DATA_SENTINEL" already exists' }, "REMOTE_RESET", []))
+      .toBe("REHEARSAL_REMOTE_RESET_FAILED_ALREADY_EXISTS");
+  });
   it("accepts only the disposable loopback database, never either hosted project", () => {
     expect(() => assertRehearsalTarget("postgresql://supabase_admin:example-placeholder@127.0.0.1:54322/postgres?sslmode=disable")).not.toThrow();
     for (const url of [

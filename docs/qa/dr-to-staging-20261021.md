@@ -259,3 +259,8 @@ failed reset with `PERMISSION_DENIED_42501`. The restore had still discarded
 archive ACLs. It now restores those original grants as well, with a regression
 test that disallows stripping owners or ACLs. No extra superuser grant or hosted
 permission change is introduced. Hosted cleanup remains blocked on rehearsal.
+
+Run `39641543978` passed the ACL-preserving restore, then advanced to a duplicate
+relation error (`42P07`) during remote reset. Diagnostics now expose only an
+identifier already present in the disposable database catalog and the migration
+filename, never SQL/data/credentials, to identify the remaining conflict precisely.

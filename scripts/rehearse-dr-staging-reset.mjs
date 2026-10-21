@@ -7,6 +7,7 @@ import { spawnSync } from "node:child_process";
 
 const CONTAINER = "supabase_db_dr-retirement-restore";
 let operation = "TARGET_CHECK";
+let knownObjects = [];
 
 export function rehearsalEnvironment(source) {
   const environment = { ...source };
@@ -21,7 +22,7 @@ export function rehearsalEnvironment(source) {
   return environment;
 }
 
-export function rehearsalFailureCode(result, stage) {
+export function rehearsalFailureCode(result, stage, catalogObjects = []) {
   assert.match(stage, /^[A-Z_]+$/);
   const output = `${result.stderr ?? ""}\n${result.stdout ?? ""}`;
   const category = ["permission denied", "must be owner", "already exists", "does not exist",
@@ -31,7 +32,9 @@ export function rehearsalFailureCode(result, stage) {
     "no such file", "unknown flag", "direct deletion", "dependent objects"]
     .find((value) => output.toLowerCase().includes(value));
   const sqlState = output.match(/SQLSTATE ([0-9A-Z]{5})\b/)?.[1];
-  return `REHEARSAL_${stage}_FAILED${category ? `_${category.toUpperCase().replaceAll(" ", "_").replaceAll("-", "_")}` : ""}${sqlState ? `_${sqlState}` : ""}`;
+  const object = output.match(/(?:relation|table|schema|sequence|type|function) "([a-zA-Z_][a-zA-Z0-9_]{0,63})"/)?.[1];
+  const migration = [...output.matchAll(/Applying migration ([0-9]{14}_[a-z0-9_]+)\.sql/g)].at(-1)?.[1];
+  return `REHEARSAL_${stage}_FAILED${category ? `_${category.toUpperCase().replaceAll(" ", "_").replaceAll("-", "_")}` : ""}${sqlState ? `_${sqlState}` : ""}${object && catalogObjects.includes(object) ? `_OBJECT_${object.toUpperCase()}` : ""}${migration ? `_MIGRATION_${migration.toUpperCase()}` : ""}`;
 }
 
 export function assertRehearsalTarget(value) {
@@ -71,6 +74,7 @@ async function main() {
   "REHEARSAL_CONTAINER_INVALID");
   operation = "READ_BASELINE";
   const original = JSON.parse(sql("select json_build_object('orders',(select count(*) from public.orders),'vault',(select count(*) from vault.secrets))"));
+  knownObjects = JSON.parse(sql("select json_agg(name) from (select relname as name from pg_class union select nspname from pg_namespace union select typname from pg_type) names"));
   const password = randomBytes(32).toString("hex");
   operation = "LOCAL_PASSWORD";
   sql(`alter role supabase_admin password '${password}';`);
@@ -127,7 +131,7 @@ function run(command, args, input, includeStderr = true) {
   const result = spawnSync(command, args, { input, env: rehearsalEnvironment(process.env), encoding: "utf8",
     timeout: 300_000, maxBuffer: 8 * 1024 * 1024 });
   if (result.status !== 0) {
-    throw new Error(rehearsalFailureCode(result, operation));
+    throw new Error(rehearsalFailureCode(result, operation, knownObjects));
   }
   return `${result.stdout}${includeStderr ? result.stderr : ""}`.trim();
 }
