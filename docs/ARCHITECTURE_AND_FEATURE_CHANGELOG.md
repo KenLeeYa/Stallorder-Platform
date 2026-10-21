@@ -98,6 +98,12 @@ Every entry must identify the affected user roles, routes/services/data/environm
 | --- | --- | --- | --- | --- | --- |
 | 2026-09-13 | `AUTH-LINE-LIVE-PREVIEW-001` | Implemented; not released | Correct Web LINE ID-token verification to strict HS256; isolate real LINE QA to an exact-branch-selected paired PR Preview. Keep the auth-flag guard/write in one prepared SQL statement after synthetic gates. | Merchant/Staff OAuth start/callback and session, provider config, PR workflow and disposable Preview flags; no Production/DR activation or schema change | [OAuth contract](OAUTH_IDENTITY_ARCHITECTURE.md#line-web-登入驗證), [Preview runbook](GITHUB_PREVIEW_ENVIRONMENT.md#隔離的真實-line-login-驗收); `AUTH-LINE-001/002`, `QA-AUTH-LINE-01/02`; Draft PR #359; prior head e53760e full CI 34752843423 passed; Preview 34752843405 fixture failure reproduced red and locally corrected; fresh hosted and real-login evidence still required |
 
+## DR recovery qualification follow-up
+
+| Date | ID | Status | Change | Evidence |
+| --- | --- | --- | --- | --- |
+| 2026-10-21 | `DR-TO-STAGING-002` | Implemented; restore QA pending | Preserve the original encrypted DR snapshot and separately capture exactly three missing print-rule parents through read-only Primary access for archival recovery only. Validate original constraints, original rows and supplemental rows separately; never seed Staging from these artifacts. | [ADR-006 recovery closure](adr/ADR-006-dr-retirement-independent-staging.md#recovery-only-reference-closure), [QA](qa/dr-to-staging-20261021.md); seven focused tests pass, fresh Cloudflare readback run 39621513322 passes; no hosted data or runtime change |
+
 ## Maintenance rule
 
 Do not rewrite an old row to make a later rollout look complete. Append a new row when status changes, include the exact commit/tree and protected evidence, and mark the prior row superseded only when the new decision is accepted.

@@ -113,3 +113,20 @@ attempt is not evidence about the new secret. Start a new GET-only inventory run
 using a dedicated read-only concurrency group; keep the mutation workflow's
 remote-writer lock unchanged. No DNS, Access, data or deployment write is part of
 this credential check. Backup restoration remains a separate failed gate.
+
+Fresh run `39621513322` on `7cdbccc313a5888662fcb4474fd82fa3f86570a2`
+passed at `2026-10-21T14:58:17Z`: the exact zone/account, all three hostname DNS
+queries and the existing DR Access application/policies were read successfully.
+The optional user-token verification still returns 401/1000; it does not disprove
+the successful account-scoped resource authorization. Staging DNS is absent.
+No provider mutations were performed.
+
+The restore correction now preserves the original dump and adds a separately
+encrypted, recovery-only closure of exactly three missing print-rule references.
+Their printer/tenant tuple already exists in DR. Primary access is a bounded
+read-only Management API query, not a new database credential or JIT grant.
+The original constraints, row fingerprints and file checks remain mandatory;
+supplemental rows are checked separately and cannot overwrite original DR rows.
+Seven encryption/target/recovery-scope tests pass, including rejection of extra
+Production rows, columns and new parent dependencies. Actual hosted-runner restore
+verification is pending; no cleanup or Staging readiness is claimed.

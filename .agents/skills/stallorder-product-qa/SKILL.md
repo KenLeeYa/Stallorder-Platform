@@ -76,7 +76,10 @@ For environment/release work, read `docs/adr/ADR-006-dr-retirement-independent-s
 and `docs/qa/dr-to-staging-20261021.md` before using historical DR rules. The owner
 approved backup + actual restore proof, then only-DR replica cleanup and synthetic
 Staging. Until acceptance is complete, the old DR remains fenced, not ready Staging.
-Never recreate replication into the test project or copy Production credentials/data.
+Never recreate replication into the test project or import Production credentials/data
+into Staging. ADR-006's bounded, encrypted recovery-only reference supplement is not
+seed data and must retain all original constraint and data checks; it does not permit
+hosted data repair or additional Primary copies.
 Preserve Primary-only Storage cleanup when retiring mirroring. Keep Cloudflare
 Access and Standard Vercel protection; the historical paid-All-Deployments
 provisioning paragraph is superseded by ADR-005, not permission to buy an add-on.

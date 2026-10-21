@@ -5,8 +5,24 @@ import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 
 const DR_REF = "daeqwtpaxcebmtwxqdkj";
+const PRIMARY_REF = "eyuctbnlvnbnivwasvqr";
+const RECOVERY_RULE_IDS = ["14e82b29-5b3c-4b8a-819a-f0a16f9db2fd", "ce425c1e-c149-42e0-83b3-590268772896", "f66584a9-6357-4422-8cda-40c8a13c259d"];
 const SCHEMAS = ["public", "auth", "storage", "app_private", "internal", "vault"];
 const MAGIC = Buffer.from("STAGING-BACKUP-1\n");
+
+export function assertRecoveryRuleSet(rows, columns, parents) {
+  if (!Array.isArray(rows) || JSON.stringify(rows.map((row) => row.id).sort()) !== JSON.stringify(RECOVERY_RULE_IDS)) {
+    throw new Error("RECOVERY_RULE_SCOPE_INVALID");
+  }
+  for (const row of rows) {
+    if (JSON.stringify(Object.keys(row).sort()) !== JSON.stringify([...columns].sort())) {
+      throw new Error("RECOVERY_RULE_COLUMNS_INVALID");
+    }
+    if (!parents.some((parent) => ["printer_id", "organization_id", "stall_id"].every((key) => parent[key] === row[key]))) {
+      throw new Error("RECOVERY_RULE_PARENT_MISSING");
+    }
+  }
+}
 
 export function assertDrBackupTarget(value) {
   const url = new URL(value);
@@ -107,12 +123,14 @@ async function main() {
       throw new Error("DR_BACKUP_NOT_FENCED");
     }
   }
-  function fingerprints(tables, environment) {
+  function fingerprints(tables, environment, excludeRecoveryRows = false) {
     // Both databases execute the identical source-column projection; new local columns cannot hide data loss.
     const sql = tables.map(({ schema, name, columns }) => `select json_build_object(
       'table', ${literal(`${schema}.${name}`)}, 'rows', count(*),
       'digest', md5(coalesce(string_agg(md5(row_to_json(t)::text), '' order by md5(row_to_json(t)::text)), '')))
-      from (select ${columns.map(identifier).join(",")} from ${identifier(schema)}.${identifier(name)}) t`).join(" union all ");
+      from (select ${columns.map(identifier).join(",")} from ${identifier(schema)}.${identifier(name)}
+        ${excludeRecoveryRows && schema === "public" && name === "print_rules"
+          ? `where id not in (${RECOVERY_RULE_IDS.map(literal).join(",")})` : ""}) t`).join(" union all ");
     return query(sql, environment).split("\n").filter(Boolean).map((line) => JSON.parse(line))
       .sort((a, b) => a.table.localeCompare(b.table));
   }
@@ -124,6 +142,20 @@ async function main() {
   }
   async function decrypted(name) {
     return openBackup(await readFile(resolve(artifacts, name)), key);
+  }
+  function recoveryParents(environment) {
+    return JSON.parse(query("select coalesce(json_agg(json_build_object('printer_id',id,'organization_id',organization_id,'stall_id',stall_id)),'[]') from public.printers", environment));
+  }
+  async function recoverySupplement(manifest) {
+    if (!manifest.recovery) return null;
+    const bytes = await readFile(resolve(artifacts, "reference-recovery.json.enc"));
+    if (hash(bytes) !== manifest.recovery.sha256) throw new Error("RECOVERY_ARCHIVE_CHANGED");
+    const supplement = JSON.parse(openBackup(bytes, key).toString());
+    const columns = manifest.tables.find((table) => table.schema === "public" && table.name === "print_rules")?.columns;
+    if (supplement.sourceRef !== PRIMARY_REF || !columns
+      || JSON.stringify(supplement.columns) !== JSON.stringify(columns)) throw new Error("RECOVERY_IDENTITY_INVALID");
+    assertRecoveryRuleSet(supplement.rows, columns, recoveryParents(local));
+    return supplement;
   }
   if (mode === "capture") {
     assertDetached();
@@ -141,6 +173,30 @@ async function main() {
     const objects = JSON.parse(query("select coalesce(json_agg(json_build_object('bucket',bucket_id,'name',name) order by bucket_id,name),'[]') from storage.objects", remote));
     const accessToken = process.env.SUPABASE_ACCESS_TOKEN;
     if (!accessToken) throw new Error("SUPABASE_ACCESS_TOKEN_MISSING");
+    // Preserve the original DR dump byte-for-byte. The known missing parents are
+    // separately archived for offline recovery only, never copied into Staging.
+    const missingRules = JSON.parse(query(`select coalesce(json_agg(id order by id),'[]') from (
+      select distinct j.print_rule_id as id from public.print_jobs j left join public.print_rules r on r.id=j.print_rule_id
+      where j.print_rule_id is not null and r.id is null) missing`, remote));
+    let recovery = null;
+    if (missingRules.length) {
+      if (JSON.stringify(missingRules) !== JSON.stringify(RECOVERY_RULE_IDS)) throw new Error("RECOVERY_RULE_SCOPE_INVALID");
+      const columns = tables.find((table) => table.schema === "public" && table.name === "print_rules").columns;
+      const recoveryResponse = await fetch(`https://api.supabase.com/v1/projects/${PRIMARY_REF}/database/query`, {
+        method: "POST", headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
+        redirect: "error", signal: AbortSignal.timeout(30_000),
+        body: JSON.stringify({ read_only: true, query: `select coalesce(json_agg(r order by id),'[]') as rules from (
+          select ${columns.map(identifier).join(",")} from public.print_rules where id in (${RECOVERY_RULE_IDS.map(literal).join(",")})) r` }),
+      });
+      if (!recoveryResponse.ok) throw new Error(`RECOVERY_READ_HTTP_${recoveryResponse.status}`);
+      const result = await recoveryResponse.json();
+      const rows = result[0]?.rules;
+      assertRecoveryRuleSet(rows, columns, recoveryParents(remote));
+      recovery = await saveEncrypted("reference-recovery.json.enc", Buffer.from(JSON.stringify({
+        sourceRef: PRIMARY_REF, columns, rows, capturedAt: new Date().toISOString(), readOnly: true,
+      })));
+      console.log(JSON.stringify({ event: "recovery_references_captured", rows: rows.length, primaryWrites: false }));
+    }
     const response = await fetch(`https://api.supabase.com/v1/projects/${DR_REF}/api-keys?reveal=true`, {
       headers: { authorization: `Bearer ${accessToken}` }, redirect: "error", signal: AbortSignal.timeout(30_000),
     });
@@ -165,11 +221,12 @@ async function main() {
     assertDetached();
     if (JSON.stringify(fingerprints(tables, remote)) !== JSON.stringify(before)) throw new Error("DR_CHANGED_DURING_BACKUP");
     await saveEncrypted("manifest.json.enc", Buffer.from(JSON.stringify({
-      version: 1, ref: DR_REF, commit: process.env.GITHUB_SHA, runId: process.env.GITHUB_RUN_ID,
-      tables, fingerprints: before, archive, files,
+      version: 2, ref: DR_REF, commit: process.env.GITHUB_SHA, runId: process.env.GITHUB_RUN_ID,
+      tables, fingerprints: before, archive, files, recovery,
     })));
     console.log(JSON.stringify({ event: "dr_backup_captured", tables: tables.length, files: files.length, remoteWrites: false }));
   } else if (mode === "restore") {
+    const manifest = JSON.parse((await decrypted("manifest.json.enc")).toString());
     // Provider-owned schemas require the local container administrator. This
     // Unix-socket connection can never resolve to either hosted database.
     await writeFile(resolve(directory, "restore.dump"), await decrypted("database.dump.enc"), { mode: 0o600 });
@@ -196,6 +253,17 @@ async function main() {
       run("pg_restore", [`--section=${section}`, "--no-owner", "--no-acl", "--single-transaction", "--exit-on-error",
         "--use-list=/out/restore.list", "--dbname=postgres", "/out/restore.dump"], local);
       console.log(JSON.stringify({ event: "dr_restore_section_passed", section }));
+      if (section === "data") {
+        const supplement = await recoverySupplement(manifest);
+        if (supplement) {
+          // INSERT only: existing DR rows cannot be replaced. Every original FK
+          // is subsequently created and validated by the unchanged post-data restore.
+          const columns = supplement.columns.map(identifier).join(",");
+          query(`insert into public.print_rules (${columns}) select ${columns}
+            from json_populate_recordset(null::public.print_rules, ${literal(JSON.stringify(supplement.rows))})`, local);
+          console.log(JSON.stringify({ event: "recovery_references_restored", rows: supplement.rows.length }));
+        }
+      }
     }
   } else {
     const manifest = JSON.parse((await decrypted("manifest.json.enc")).toString());
@@ -203,7 +271,13 @@ async function main() {
       throw new Error("BACKUP_MANIFEST_IDENTITY_MISMATCH");
     }
     if (hash(await readFile(resolve(artifacts, manifest.archive.name))) !== manifest.archive.sha256) throw new Error("ARCHIVE_CHANGED");
-    if (JSON.stringify(fingerprints(manifest.tables, local)) !== JSON.stringify(manifest.fingerprints)) throw new Error("RESTORED_DATA_MISMATCH");
+    const supplement = await recoverySupplement(manifest);
+    if (JSON.stringify(fingerprints(manifest.tables, local, Boolean(supplement))) !== JSON.stringify(manifest.fingerprints)) throw new Error("RESTORED_DATA_MISMATCH");
+    if (supplement) {
+      const rows = JSON.parse(query(`select json_agg(r order by id) from (select ${supplement.columns.map(identifier).join(",")}
+        from public.print_rules where id in (${RECOVERY_RULE_IDS.map(literal).join(",")})) r`, local));
+      if (JSON.stringify(rows) !== JSON.stringify(supplement.rows)) throw new Error("RECOVERY_DATA_MISMATCH");
+    }
     for (const file of manifest.files) {
       const encrypted = await readFile(resolve(artifacts, file.name));
       if (hash(encrypted) !== file.sha256 || hash(openBackup(encrypted, key)) !== file.plaintextSha256) throw new Error("RESTORED_FILE_MISMATCH");
@@ -214,7 +288,8 @@ async function main() {
       version: 1, ref: DR_REF, commit: process.env.GITHUB_SHA, runId: process.env.GITHUB_RUN_ID,
       databaseDataRestore: true, tableCount: manifest.tables.length, restoredFileBytes: true,
       fileCount: manifest.files.length, encrypted: true, remoteWrites: false,
-      fullProviderRecovery: false, primaryAccessed: false,
+      fullProviderRecovery: false, primaryAccessed: Boolean(supplement), primaryWrites: false,
+      recoveryOnlyReferenceRows: supplement?.rows.length ?? 0, originalReplicaSelfContained: !supplement,
       checkedAt: new Date().toISOString(),
     }, null, 2));
     console.log(JSON.stringify({ event: "dr_backup_restore_verified", tables: manifest.tables.length, files: manifest.files.length }));

@@ -59,3 +59,23 @@ target; an independent test database is not a Production recovery replica.
 
 The detailed execution record is [DR-to-Staging QA](../qa/dr-to-staging-20261021.md).
 Until every required acceptance case passes, report this conversion as incomplete.
+
+## Recovery-only reference closure
+
+The original DR contains 552 print jobs referencing three missing print rules.
+Preserve its original encrypted dump without modifying either hosted database.
+For archival recovery only, read exactly those three existing Primary rules with
+Management API `read_only=true`, selecting only DR's existing columns and requiring
+their complete printer/organization/stall tuple to exist in DR. Encrypt this
+supplement separately, with source identity and capture time. Do not copy any
+additional dependencies or credentials; fail if the bounded closure is incomplete.
+
+Insert the supplement only into the disposable, offline restore database before
+restoring the original post-data section. Every original constraint must still be
+created and validated; do not disable triggers, remove constraints, null original
+references, or replace original rows. Compare all original DR table fingerprints
+separately from the three supplemental rows and verify the latter exactly. The
+receipt must disclose that the original replica is not self-contained and that
+the current Primary reference rows are supplemental, not historical DR rows.
+These recovery artifacts are never Staging seed inputs. Staging still starts from
+reviewed migrations and synthetic data only; this does not qualify DR failover.
