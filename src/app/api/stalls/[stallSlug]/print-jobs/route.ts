@@ -20,6 +20,7 @@ import {
   reconcileStalePrintJobs,
 } from "@/lib/print-queue";
 import { prisma } from "@/lib/prisma";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { hashClientIp } from "@/lib/security";
 import { entitlementErrorResponse } from "@/server/billing/entitlement-http";
 import { entitlementService } from "@/server/billing/entitlement-service";
@@ -111,6 +112,32 @@ export async function POST(request: Request, context: RouteContext) {
   const organizationId = authorization.stall.organizationId;
   const stallId = authorization.stall.id;
   try {
+    if (command.operation === "WEBPRNT_DIAGNOSTIC") {
+      const printer = await prisma.printer.findFirst({
+        where: { id: command.printerId, organizationId, stallId, isEnabled: true, connectionType: "WEBPRNT_BLUETOOTH" },
+        select: { id: true },
+      });
+      if (!printer) throw new PrintQueueNotFoundError();
+      const limit = await checkRateLimit({
+        scope: "webprnt-diagnostic", identifier: `${organizationId}:${stallId}:${authorization.principal.user.id}`,
+        limit: 6, windowMs: 60_000,
+      });
+      if (!limit.allowed) return NextResponse.json({ error: "DIAGNOSTIC_RATE_LIMITED" }, {
+        status: 429, headers: { "retry-after": String(limit.retryAfterSeconds), "x-request-id": authorization.requestId },
+      });
+      await recordAuditEvent({
+        organizationId, stallId, actorProfileId: authorization.principal.user.id,
+        action: "PRINT_QUEUE_WEBPRNT_DIAGNOSTIC", entityType: "PRINTER", entityId: printer.id,
+        outcome: "FAILURE", requestId: authorization.requestId,
+        metadata: {
+          source: "CLIENT_REPORTED", phase: command.phase, code: command.code,
+          ...(command.traderCode ? { traderCode: command.traderCode } : {}),
+          ...(command.traderStatus ? { traderStatus: command.traderStatus } : {}),
+          ...(command.httpStatus !== undefined ? { httpStatus: command.httpStatus } : {}),
+        },
+      });
+      return NextResponse.json({ recorded: true }, { headers: { "x-request-id": authorization.requestId } });
+    }
     if (capabilityGatedOperations.has(command.operation)) {
       await entitlementService.assertFeatureEnabled(organizationId, "PRINTER_INTEGRATION");
       const settings = await prisma.stallOrderingSettings.findFirst({

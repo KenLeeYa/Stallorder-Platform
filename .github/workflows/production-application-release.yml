@@ -89,6 +89,7 @@ jobs:
           cache: npm
 
       - run: npm ci
+      - run: npm run prisma:generate
       - run: npm run production:check
       - run: npm run lint
       - run: npm run ui:audit

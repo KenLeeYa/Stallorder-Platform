@@ -85,6 +85,15 @@ export const printQueueCommandSchema = z.discriminatedUnion("operation", [
   }).strict(),
   z.object({ operation: z.literal("ROTATE_CLOUDPRNT_TOKEN"), printerId: uuid }).strict(),
   z.object({ operation: z.literal("HEARTBEAT"), printerId: uuid }).strict(),
+  z.object({
+    operation: z.literal("WEBPRNT_DIAGNOSTIC"),
+    printerId: uuid,
+    phase: z.enum(["PROBE", "PRINT", "TEST", "DRAWER"]),
+    code: z.enum(["NOT_STAR_BROWSER", "SDK_NOT_READY", "INVALID_PAYLOAD", "PRINT_REJECTED", "PRINTER_BUSY", "BRIDGE_UNRESPONSIVE", "PAPER_END", "COVER_OPEN", "OFFLINE", "CUTTER_ERROR", "ROLL_POSITION_ERROR", "HIGH_TEMPERATURE", "NON_RECOVERABLE", "TIMEOUT", "CONNECTION_ERROR", "INVALID_RESPONSE"]),
+    traderCode: z.string().regex(/^\d{1,8}$/).optional(),
+    traderStatus: z.string().regex(/^[\da-f]{16}$/i).optional(),
+    httpStatus: z.number().int().min(0).max(599).optional(),
+  }).strict(),
   z.object({ operation: z.literal("TEST_PRINTER"), printerId: uuid }).strict(),
   z.object({
     operation: z.literal("AUTHORIZE_CASH_DRAWER"),

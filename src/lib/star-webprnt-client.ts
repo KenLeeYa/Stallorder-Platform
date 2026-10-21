@@ -8,6 +8,8 @@ export type StarWebPrntErrorCode =
   | "SDK_NOT_READY"
   | "INVALID_PAYLOAD"
   | "PRINT_REJECTED"
+  | "PRINTER_BUSY"
+  | "BRIDGE_UNRESPONSIVE"
   | "PAPER_END"
   | "COVER_OPEN"
   | "OFFLINE"
@@ -20,7 +22,7 @@ export type StarWebPrntErrorCode =
   | "INVALID_RESPONSE";
 
 type StarWebPrntResponse = {
-  traderSuccess: string;
+  traderSuccess: string | boolean;
   traderCode?: string;
   traderStatus?: string;
   status?: number;
@@ -62,10 +64,27 @@ declare global {
 }
 
 export class StarWebPrntError extends Error {
-  constructor(public readonly code: StarWebPrntErrorCode) {
+  readonly diagnostics: { traderCode?: string; traderStatus?: string; httpStatus?: number };
+
+  constructor(public readonly code: StarWebPrntErrorCode, response?: Partial<StarWebPrntResponse>) {
     super(code);
     this.name = "StarWebPrntError";
+    // Only protocol codes: never retain response text, receipt data or device credentials.
+    this.diagnostics = {
+      ...(typeof response?.traderCode === "string" && /^\d{1,8}$/.test(response.traderCode)
+        ? { traderCode: response.traderCode } : {}),
+      ...(typeof response?.traderStatus === "string" && /^[\da-f]{16}$/i.test(response.traderStatus)
+        ? { traderStatus: response.traderStatus } : {}),
+      ...(typeof response?.status === "number" && Number.isInteger(response.status) && response.status >= 0 && response.status <= 599
+        ? { httpStatus: response.status } : {}),
+    };
   }
+}
+
+export function withStarWebPrntDiagnostics(message: string, error: unknown) {
+  if (!(error instanceof StarWebPrntError)) return message;
+  const details = Object.entries(error.diagnostics).map(([key, value]) => `${key}=${value}`);
+  return `${message} [${[error.code, ...details].join("; ")}]`;
 }
 
 export function detectStarWebPrntEnvironment(userAgent: string): StarWebPrntEnvironment {
@@ -96,17 +115,18 @@ export function buildStarWebPrntRequest(dataBase64: string) {
 }
 
 export function classifyStarWebPrntResponse(
-  response: Pick<StarWebPrntResponse, "traderSuccess">,
+  response: Pick<StarWebPrntResponse, "traderSuccess" | "traderCode">,
   status: StarWebPrntStatus,
 ): StarWebPrntErrorCode | null {
-  if (response.traderSuccess.toLowerCase() !== "true") return "PRINT_REJECTED";
   if (status.paperEnd) return "PAPER_END";
   if (status.coverOpen) return "COVER_OPEN";
-  if (status.offline) return "OFFLINE";
   if (status.cutterError) return "CUTTER_ERROR";
   if (status.rollPositionError) return "ROLL_POSITION_ERROR";
   if (status.highTemperature) return "HIGH_TEMPERATURE";
   if (status.nonRecoverable) return "NON_RECOVERABLE";
+  if (status.offline || response.traderCode === "1100") return "OFFLINE";
+  if (response.traderCode === "2001") return "PRINTER_BUSY";
+  if (String(response.traderSuccess).toLowerCase() !== "true") return "PRINT_REJECTED";
   return null;
 }
 
@@ -132,6 +152,11 @@ export async function openStarCashDrawer(timeout = 10_000) {
   return sendStarWebPrntRequest('<peripheral channel="1" on="200" off="200"></peripheral>', timeout);
 }
 
+// Star's iOS bridge has one callback slot per URL and no native timeout.
+// Serialize callers, and never reuse that slot after an ambiguous timeout until
+// the actual callback arrives (or the page is reloaded). No ticket is replayed.
+const bridgeStates = new WeakMap<Window, { active: Promise<StarWebPrntResponse> | null; quarantined: boolean }>();
+
 async function sendStarWebPrntRequest(request: string, timeout: number) {
   if (typeof window === "undefined"
     || detectStarWebPrntEnvironment(window.navigator.userAgent) !== "STAR_WEBPRNT") {
@@ -140,18 +165,33 @@ async function sendStarWebPrntRequest(request: string, timeout: number) {
   const Trader = window.StarWebPrintTrader;
   if (!Trader) throw new StarWebPrntError("SDK_NOT_READY");
   if (!request) throw new StarWebPrntError("INVALID_PAYLOAD");
+  let bridge = bridgeStates.get(window);
+  if (!bridge) {
+    bridge = { active: null, quarantined: false };
+    bridgeStates.set(window, bridge);
+  }
+  while (bridge.active) await bridge.active.catch(() => undefined);
+  if (bridge.quarantined) throw new StarWebPrntError("BRIDGE_UNRESPONSIVE");
+  const state = bridge;
 
-  return new Promise<StarWebPrntResponse>((resolve, reject) => {
+  const pending = new Promise<StarWebPrntResponse>((resolve, reject) => {
     let settled = false;
+    let sendStarted = false;
+    const timer = setTimeout(() => {
+      state.quarantined = true;
+      finish(() => reject(new StarWebPrntError("TIMEOUT")));
+    }, timeout);
     const finish = (operation: () => void) => {
       if (settled) return;
       settled = true;
+      clearTimeout(timer);
       operation();
     };
 
     try {
       const trader = new Trader({ url: STAR_WEBPRNT_ENDPOINT, timeout });
       trader.onReceive = (response) => {
+        state.quarantined = false;
         try {
           const errorCode = classifyStarWebPrntResponse(response, {
             paperEnd: trader.isPaperEnd(response),
@@ -163,19 +203,33 @@ async function sendStarWebPrntRequest(request: string, timeout: number) {
             nonRecoverable: trader.isNonRecoverableError(response),
           });
           finish(() => errorCode
-            ? reject(new StarWebPrntError(errorCode))
+            ? reject(new StarWebPrntError(errorCode, response))
             : resolve(response));
         } catch {
-          finish(() => reject(new StarWebPrntError("INVALID_RESPONSE")));
+          finish(() => reject(new StarWebPrntError("INVALID_RESPONSE", response)));
         }
       };
-      trader.onError = () => finish(() => reject(new StarWebPrntError("CONNECTION_ERROR")));
-      trader.onTimeout = () => finish(() => reject(new StarWebPrntError("TIMEOUT")));
+      trader.onError = (response) => {
+        state.quarantined = false;
+        finish(() => reject(new StarWebPrntError("CONNECTION_ERROR", response)));
+      };
+      trader.onTimeout = () => {
+        state.quarantined = true;
+        finish(() => reject(new StarWebPrntError("TIMEOUT")));
+      };
+      sendStarted = true;
       trader.sendMessage({ request, timeout });
     } catch (error) {
+      if (sendStarted) state.quarantined = true;
       finish(() => reject(error instanceof StarWebPrntError
         ? error
         : new StarWebPrntError("CONNECTION_ERROR")));
     }
   });
+  state.active = pending;
+  try {
+    return await pending;
+  } finally {
+    if (state.active === pending) state.active = null;
+  }
 }
