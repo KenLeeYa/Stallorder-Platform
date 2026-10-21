@@ -20,6 +20,11 @@ on:
         required: false
         type: string
         default: ""
+      retire_dr_runtime:
+        description: Plan-bound retirement of Primary's DR bindings after verified Primary-only deployment
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   actions: read
@@ -98,10 +103,16 @@ jobs:
       - run: npm run build
       - run: node scripts/run-npm-audit.mjs
 
+      - name: Capture exact Primary DR retirement prestate
+        if: inputs.retire_dr_runtime
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: node scripts/retire-primary-dr-runtime.mjs plan
+
       - name: Create immutable Production application Plan receipt
         env:
           PRODUCTION_APPROVAL_OPERATION: production-application
-          PRODUCTION_APPROVAL_PARAMETERS_JSON: '{"databaseChanges":false,"edgeFunctionChanges":false}'
+          PRODUCTION_APPROVAL_PARAMETERS_JSON: ${{ env.APPLICATION_APPROVAL_PARAMETERS || '{"databaseChanges":false,"edgeFunctionChanges":false}' }}
           PRODUCTION_APPROVAL_RECEIPT_PATH: artifacts/production-application-approval.json
         run: node scripts/production-approval.mjs create
 
@@ -109,7 +120,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: production-application-plan-${{ github.run_id }}
-          path: artifacts/production-application-approval.json
+          path: |
+            artifacts/production-application-approval.json
+            artifacts/primary-dr-runtime-plan.json
           if-no-files-found: error
           retention-days: 1
 
@@ -184,14 +197,24 @@ jobs:
           github-token: ${{ github.token }}
           run-id: ${{ inputs.plan_run_id }}
 
+      - name: Bind retirement Apply to its approved snapshot
+        if: inputs.retire_dr_runtime
+        run: node scripts/retire-primary-dr-runtime.mjs parameters
+
       - name: Verify application approval is bound to the immutable Plan
         env:
           GITHUB_TOKEN: ${{ github.token }}
           PRODUCTION_APPROVAL_OPERATION: production-application
-          PRODUCTION_APPROVAL_PARAMETERS_JSON: '{"databaseChanges":false,"edgeFunctionChanges":false}'
+          PRODUCTION_APPROVAL_PARAMETERS_JSON: ${{ env.APPLICATION_APPROVAL_PARAMETERS || '{"databaseChanges":false,"edgeFunctionChanges":false}' }}
           PRODUCTION_APPROVAL_PLAN_RUN_ID: ${{ inputs.plan_run_id }}
           PRODUCTION_APPROVAL_RECEIPT_PATH: approved-application-plan/production-application-approval.json
         run: node scripts/production-approval.mjs verify
+
+      - name: Verify Primary retirement prestate and explicit recovery artifact
+        if: inputs.retire_dr_runtime
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: node scripts/retire-primary-dr-runtime.mjs verify
 
       - name: Validate protected Production application configuration
         env:
@@ -234,9 +257,17 @@ jobs:
       - name: Build application-only Production deployment without assigning domains
         env:
           APPROVAL_PLAN_RUN_ID: ${{ inputs.plan_run_id }}
+          RETIRE_DR_RUNTIME: ${{ inputs.retire_dr_runtime }}
         shell: bash
         run: |
           set -euo pipefail
+          retirement_args=()
+          if [ "$RETIRE_DR_RUNTIME" = "true" ]; then
+            for name in DR_SUPABASE_URL DR_SUPABASE_SECRET_KEY DR_DIRECT_URL DR_DATABASE_URL DR_REPLICATION_SUBSCRIPTION_NAME; do
+              retirement_args+=(--env "$name=" --build-env "$name=")
+            done
+            retirement_args+=(--meta "dr_runtime_retired=true")
+          fi
           deployment="$(
             vercel deploy . \
               --prod \
@@ -247,6 +278,7 @@ jobs:
               --meta "approval_plan_run_id=$APPROVAL_PLAN_RUN_ID" \
               --meta "release_mode=application_only" \
               --meta "git_commit=${GITHUB_SHA}" \
+              "${retirement_args[@]}" \
               -e "ABUSE_HASH_SECRET=${ABUSE_HASH_SECRET}" \
               -e "TOKEN_DERIVATION_SECRET=${TOKEN_DERIVATION_SECRET}" \
               -e "TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY}"
@@ -281,7 +313,11 @@ jobs:
           rollback_on_error() {
             if [ "$promoted" = "true" ]; then
               echo "::warning::Production smoke failed; rolling back the Vercel alias."
-              vercel rollback --yes --token "$VERCEL_TOKEN"
+              if [ -n "${RETIREMENT_RECOVERY_DEPLOYMENT:-}" ]; then
+                vercel rollback "$RETIREMENT_RECOVERY_DEPLOYMENT" --yes --token "$VERCEL_TOKEN"
+              else
+                vercel rollback --yes --token "$VERCEL_TOKEN"
+              fi
             fi
           }
           trap rollback_on_error ERR
@@ -289,6 +325,10 @@ jobs:
           promoted=true
           npm run production:smoke
           trap - ERR
+
+      - name: Retire only planned Production DR bindings after live smoke
+        if: inputs.retire_dr_runtime
+        run: node scripts/retire-primary-dr-runtime.mjs retire
 
       - name: Create immutable successful application release evidence
         env:
@@ -300,6 +340,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: production-application-${{ github.run_id }}
-          path: artifacts/production-application-evidence.json
+          path: |
+            artifacts/production-application-evidence.json
+            artifacts/primary-dr-runtime-retirement.json
           if-no-files-found: error
           retention-days: 30

@@ -1,0 +1,75 @@
+name: DR retirement backup and restore proof
+
+on:
+  push:
+    branches: [codex/dr-to-staging-20261021]
+    paths:
+      - .github/workflows/dr-staging-backup.yml
+      - scripts/backup-dr-for-staging.mjs
+      - scripts/backup-dr-for-staging.test.mjs
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-dr-operations
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    if: github.repository == 'KenLeeYa/Stallorder-Platform' && github.actor == github.repository_owner
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment: production
+    env:
+      DR_SUPABASE_PROJECT_REF: daeqwtpaxcebmtwxqdkj
+      RESTORE_WORKDIR: /tmp/dr-retirement-restore
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.1
+      - run: npm ci
+      - name: Validate backup target and authenticated encryption
+        run: npx vitest run scripts/backup-dr-for-staging.test.mjs
+      - name: Resolve DR-only database connection (no Primary access)
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          DR_SUPABASE_DB_PASSWORD: ${{ secrets.DR_SUPABASE_DB_PASSWORD }}
+        run: node scripts/export-dr-database-urls.mjs --dr-only
+      - name: Capture DR data and Storage bytes into encrypted artifacts
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          DR_BACKUP_ENCRYPTION_KEY: ${{ secrets.DR_BACKUP_ENCRYPTION_KEY }}
+        run: node scripts/backup-dr-for-staging.mjs capture
+      - name: Initialize isolated restore database
+        run: |
+          mkdir -p "$RESTORE_WORKDIR"
+          supabase init --workdir "$RESTORE_WORKDIR"
+          supabase db start --workdir "$RESTORE_WORKDIR"
+      - name: Decrypt and actually restore data (loopback database only)
+        env:
+          DR_BACKUP_ENCRYPTION_KEY: ${{ secrets.DR_BACKUP_ENCRYPTION_KEY }}
+        run: node scripts/backup-dr-for-staging.mjs restore
+      - name: Verify every restored table and file; recheck source did not change
+        env:
+          DR_BACKUP_ENCRYPTION_KEY: ${{ secrets.DR_BACKUP_ENCRYPTION_KEY }}
+        run: node scripts/backup-dr-for-staging.mjs verify
+      - name: Retain only encrypted backup and non-sensitive verification receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dr-retirement-encrypted-${{ github.run_id }}
+          path: dr-staging-backup-artifacts/
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Stop this disposable runner database
+        if: always()
+        run: supabase stop --workdir "$RESTORE_WORKDIR"
+
+# This workflow never resets a hosted database, deletes Storage objects, deploys,
+# changes DNS/Access, or grants permission for the later DR cleanup phase.
