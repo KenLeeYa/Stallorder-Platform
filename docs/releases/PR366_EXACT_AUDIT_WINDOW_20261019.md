@@ -16,11 +16,33 @@ micromatch 4.0.8 -> braces 3.0.3. Existing exact audit checks retain package/nod
 version, integrity presence, advisory source/range, via/effects and count checks.
 Both semantic lock identity and exact lock bytes are bound. Native and any new
 advisory, version or lock change are excluded. No vendor experiment is resumed.
-The sole subsequent amendment is the owner-approved follow-redirects 1.16.0 ->
-1.16.1 patch below; every other version/lock change remains excluded.
+The subsequent amendments are the explicitly approved follow-redirects and Vite
+security patches below; every other version/lock change remains excluded.
 Approved byte hashes use the committed Git blobs (LF) for the required hosted
 Linux checkout; MSI's CRLF working-copy hashes differ and are not substituted for
 those values. Activation still checks the actual candidate file bytes exactly.
+
+## Approved Vite security patch amendment, 2026-10-21
+
+Owner message `Sentinel_4667d21038ec81918e0646b937fc3b15` directly approved the
+Vite 8.2.2 -> 8.2.4 compatible patch and exact rebind question. This amendment
+starts from `c9ff9c6de43cd660797156f1fbd44a3dcc60dbac`; it changes only Vite's
+version, resolved URL and integrity. No manifest, Vitest version or other
+package entry changes. The earlier follow-redirects approval remains separate.
+
+| Binding | Previous | Patched |
+| --- | --- | --- |
+| Semantic lock SHA256 | 7273203027bb3e4c194cedcc5890bcc9d164c9d41a0b8dee9ae3e1f081c62f97 | 72ef791033d591a4495d3d14f42fb467d2894558b0d33fe86dbf5e028dba827a |
+| Committed LF bytes SHA256 | 51d616877d27acbb72a1c788fad7ea6c80abdcd045f99c6254b29b6eaa978732 | 115b0966e3ef571f968ad50dc7f9c54634a8c3e5b45f8fd574b642c7384a141a |
+
+The separate `viteLockRebind` metadata and both exact hashes are required by
+the verifier. Tests reverse each approved tuple and verify whole-lock hashes
+without depending on Git history. Original five HIGH entries remain
+NON_PASS/NOT_FIXED, with the same scope, approval identity and fixed
+`2026-10-22T14:00:00Z` expiry. No Vite finding is accepted as an exception.
+Old activation evidence cannot transfer. Fresh exact-source Linux evidence,
+hosted acceptance and Production/DR gates remain required. No paid resource or
+release gate bypass is authorized by this amendment.
 
 ## Approved narrow lock amendment, 2026-10-21
 

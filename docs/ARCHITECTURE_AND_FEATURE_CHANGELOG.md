@@ -2,6 +2,10 @@
 
 This ledger is the durable entry point for owner-approved architecture and product-function changes. It prevents a new task from relying only on chat history or rediscovering an already changed contract.
 
+## 2026-10-21 — Approved Vite minimum security patch
+
+Implemented locally, full local regression passed (4844 passed / 109 skipped / zero failures), remote CI pending: Vite 8.2.2 -> 8.2.4 changes only its locked version/resolved/integrity tuple, retaining Vitest 4.1.11. Owner message `Sentinel_4667d21038ec81918e0646b937fc3b15` separately authorizes this patch and exact binding. The original five HIGH findings remain NON_PASS/NOT_FIXED with unchanged scope and expiry. Both amendment identities and whole-lock delta proofs remain enforced. See [contract and exact hashes](releases/PR366_EXACT_AUDIT_WINDOW_20261019.md). No paid acceptance or Production/DR write.
+
 ## 2026-10-21 — Approved exact-lock amendment, new audit blocker
 
 Implemented locally, not released: owner message `Sentinel_a4cb747e08008191a8ca1859de6f791a` approved only rebinding the existing five-HIGH exception to the follow-redirects 1.16.1 lock. Both exact hashes and separate amendment metadata are enforced; the original approval, NON_PASS/NOT_FIXED findings, scope and `2026-10-22T14:00:00Z` expiry remain unchanged. New tests reject stale/broader bindings without relying on CI Git history. Fresh audit reports an additional Vite 8.2.2 HIGH entry outside that approval; it remains blocking, with no Vite update, exception expansion, push, paid resource or deployment. See [current gate and validation](releases/PR366_FOLLOW_REDIRECTS_PATCH_20261021.md).

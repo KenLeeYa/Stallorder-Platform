@@ -20,6 +20,14 @@ test('lock amendment requires its exact separate authorization and rejects stale
   {lockSha256:'0'.repeat(64)},{lockBytesSha256:'0'.repeat(64)}])
   expect(()=>validateExceptionWindow({...policy,...patch},now)).toThrow();
 });
+test('Vite lock amendment requires exact independent approval and no scope expansion',()=>{
+ expect(policy.viteLockRebind.authorizationMessage).toBe('Sentinel_4667d21038ec81918e0646b937fc3b15');
+ for(const viteLockRebind of [undefined,{...policy.viteLockRebind,authorizationMessage:'OTHER'},{...policy.viteLockRebind,to:'8.3.0'},{...policy.viteLockRebind,extraPackage:'unreviewed'}])
+  expect(()=>validateExceptionWindow({...policy,viteLockRebind},now)).toThrow('VITE_LOCK_REBIND_UNREVIEWED');
+ for(const patch of [{lockSha256:policy.viteLockRebind.previousLockSha256},{lockBytesSha256:policy.viteLockRebind.previousLockBytesSha256}])
+  expect(()=>validateExceptionWindow({...policy,...patch},now)).toThrow('POLICY_BINDING_UNREVIEWED');
+});
+
 test.each(['head','tree','sourceSha256','lockSha256'])('rejects stale artifact %s',key=>{const x=inputs();x.artifact[key]='0'.repeat(x.candidate[key].length);expect(()=>validateExceptionActivation(x,now)).toThrow('CANDIDATE_MISMATCH');});
 test.each(['artifact','lint','isolation','sbomSha256','auditSha256'])('rejects missing %s evidence',key=>{const x=inputs();delete x[key];expect(()=>validateExceptionActivation(x,now)).toThrow();});
 test.each(['cleanCheckout','loopbackServices','noReleaseCredentials','githubHosted','workspaceMatches'])('rejects isolation condition %s',key=>{const x=inputs();x.isolation[key]=false;expect(()=>validateExceptionActivation(x,now)).toThrow('ISOLATION');});

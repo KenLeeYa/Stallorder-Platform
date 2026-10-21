@@ -4,7 +4,7 @@
   "advisory": "GHSA-vfj7-8cjw-p6xm",
   "authorization": "Owner approved this exact five-HIGH advisory and locked Web dependency set for one fixed window. Activation requires fresh exact-candidate artifact/SBOM, controlled lint and isolated runner evidence. Raw audit remains NON_PASS; no Native, new advisory, deployment or paid acceptance authorization.",
   "scope": "WEB_ONLY_ONE_ACCEPTANCE_WINDOW",
-  "lockSha256": "7273203027bb3e4c194cedcc5890bcc9d164c9d41a0b8dee9ae3e1f081c62f97",
+  "lockSha256": "72ef791033d591a4495d3d14f42fb467d2894558b0d33fe86dbf5e028dba827a",
   "counts": {
     "info": 0,
     "low": 0,
@@ -75,7 +75,7 @@
   "preparationBase": "980309944db37379906c44714387ff65fa22fc0c",
   "lintConfigSha256": "8fd517247f4021feb4bfeb4edb33d14e1579084e0ff413ab7c3bc6d31e587313",
   "activation": "REQUIRED_AFTER_EACH_COMMIT_EXTERNAL_EVIDENCE_ONLY",
-  "lockBytesSha256": "51d616877d27acbb72a1c788fad7ea6c80abdcd045f99c6254b29b6eaa978732",
+  "lockBytesSha256": "115b0966e3ef571f968ad50dc7f9c54634a8c3e5b45f8fd574b642c7384a141a",
   "hashByteContract": "COMMITTED_GIT_BLOB_LF_BYTES_FOR_HOSTED_LINUX_CHECKOUT",
   "lockRebind": {
     "authorizationMessage": "Sentinel_a4cb747e08008191a8ca1859de6f791a",
@@ -85,5 +85,14 @@
     "to": "1.16.1",
     "previousLockSha256": "00f3c2b4363f58e2485fb9139142ac9d611671ad04e8561150cf35be8015bc6c",
     "previousLockBytesSha256": "d284d352264e152619d134d21c5323005e2727f314672e74ff3dff54e91379ef"
+  },
+  "viteLockRebind": {
+    "authorizationMessage": "Sentinel_4667d21038ec81918e0646b937fc3b15",
+    "candidateBase": "c9ff9c6de43cd660797156f1fbd44a3dcc60dbac",
+    "package": "vite",
+    "from": "8.2.2",
+    "to": "8.2.4",
+    "previousLockSha256": "7273203027bb3e4c194cedcc5890bcc9d164c9d41a0b8dee9ae3e1f081c62f97",
+    "previousLockBytesSha256": "51d616877d27acbb72a1c788fad7ea6c80abdcd045f99c6254b29b6eaa978732"
   }
 }

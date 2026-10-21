@@ -1,10 +1,27 @@
 # PR366 follow-redirects patch and exact-lock approval boundary
 
-Status: the narrow follow-redirects lock rebind is now owner-approved and implemented locally. Release verification is **BLOCKED by a new Vite audit finding outside that approval**. No advisory allowance or expiry was expanded; no new hosted resource was created.
+Status: follow-redirects and the subsequently approved Vite security patch are implemented locally. Local verification passed; exact-source remote CI is pending; no advisory allowance or expiry was expanded, and no new hosted resource was created.
 
-## Current gate, 2026-10-21
+## Final local Vite verification
 
-Fresh selected Web audit now reports **six HIGH package entries**. The original
+Clean npm ci installed Vite 8.2.4 with unchanged Vitest 4.1.11. The complete
+root suite, including applicable Native tests, passed **4844 / skipped 109 /
+failed 0** across 726 passed and 13 skipped files with
+`node node_modules/vitest/vitest.mjs run --maxWorkers=1 --reporter=dot`.
+The earlier concurrent run remains recorded as 4833 passed, 109 skipped and
+11 browser/fixture timeout failures; an elevated focused run had 123 passes
+and one existing fixture timeout. No timeout, assertion or skip was relaxed.
+The final serial complete run includes all 124 focused patch/evidence tests.
+Web and Native typechecks passed. Full root lint passed with 27 existing
+warnings and zero errors; changed-file lint also passed. Independent review
+found no concrete remaining issue after correcting historical document wording.
+Fresh selected audit is NON_PASS: exactly the original five complete HIGH
+entries, JSON-identical to baseline CI 39456477602. Vite and follow-redirects
+findings are absent. No new paid resources, deployment or alias mutation.
+
+## Historical Vite blocker and subsequent repair, 2026-10-21
+
+Before the Vite patch, the selected Web audit reported **six HIGH package entries**. The original
 five remain present, and follow-redirects findings are absent, but locked
 `vite@8.2.2` has an additional HIGH entry containing three launch-editor advisories:
 
@@ -13,12 +30,13 @@ five remain present, and follow-redirects findings are absent, but locked
 - [GHSA-587h-7wmj-h5pm](https://github.com/advisories/GHSA-587h-7wmj-h5pm), high: Windows existence-check bypass.
 
 The official advisories list **8.2.4** as the patched version on the 8.2 line.
-No Vite update or new risk acceptance is implemented. The current exact gate
-correctly rejects this audit with `WEB_AUDIT_EXCEPTION_UNREVIEWED`. This is a new
-material difference, so push/free-CI dispatch is held and the difference is
-reported before changing another lock entry. Any additional patch would need a
-new exact-lock review beyond the approved follow-redirects tuple; the existing
-five-HIGH allowance and fixed expiry cannot be broadened automatically.
+The exact gate rejected this audit with `WEB_AUDIT_EXCEPTION_UNREVIEWED`.
+Owner message `Sentinel_4667d21038ec81918e0646b937fc3b15` subsequently approved
+Vite 8.2.2 -> 8.2.4 and its precise binding. Only Vite's version/resolved/integrity
+tuple changes; Vitest 4.1.11 already permits Vite 8. No Vite advisory is accepted.
+The new selected audit contains exactly the original five HIGH entries,
+JSON-identical to the prior approved baseline. They remain NON_PASS/NOT_FIXED.
+See the [separate exact amendment](PR366_EXACT_AUDIT_WINDOW_20261019.md).
 
 The audit command was initially denied for potentially disclosing private
 dependency metadata. Offline inspection of npm 11.16.0's actual bulk payload
@@ -43,9 +61,9 @@ the fixture was corrected without relaxing assertions, and the complete lower
 concurrency run above passed. Independent review confirmed both the shallow
 checkout fix and real-lock fixture preserve the fail-closed checks.
 
-### Project impact and minimum next-step proposal
+### Project impact and approved minimum repair
 
-Vite 8.2.2 is a `dev:true` lock entry reached through Vitest 4.1.11 and its mocker.
+Before repair, Vite 8.2.2 was a `dev:true` lock entry reached through Vitest 4.1.11 and its mocker.
 Vitest explicitly accepts `^6.0.0 || ^7.0.0 || ^8.0.0`; 8.2.4 is therefore the
 minimum patched release on the current line, with no Vitest upgrade or override
 required. The repository scripts use `vitest run`; the config has no API/UI
@@ -59,10 +77,9 @@ manifest string rather than the lock's `{url:...}` form. Thus no transitive
 version upgrade is required by changed dependency ranges. The proposed target
 tarball is `https://registry.npmjs.org/vite/-/vite-8.2.4.tgz`, integrity
 `sha512-lfauXnrf2x0p+UoA+wXh0dgFWnUjCyG6Js95KBkgaCwUU9k0DAHI4W6Q0WCx+h+5g+Alce1y4Zi2QjjK0UvGBw==`.
-The intended minimal lock delta is only the existing Vite entry's version,
-resolved URL and integrity. This is a proposal, not an installed or approved
-Vite patch; actual package-manager output, integrity and new complete-lock
-hashes still need verification before a later amendment.
+The implemented lock delta is only the existing Vite entry's version, resolved
+URL and integrity. Clean npm ci installed 8.2.4 successfully from this lock;
+the exact full-lock hashes are recorded in the separate approved amendment.
 
 Installed-source tracing shows Vitest's middleware-mode Vite server registers
 editor middleware but only calls `listen()` when an API port is configured.
@@ -78,17 +95,17 @@ file first.
 
 Production uses Next build/start. No direct production Vite source path was
 found, but fresh exact-candidate production NFT/SBOM exclusion is **not proven**.
-The Web audit intentionally includes development dependencies, so the new HIGH
-entry remains blocking regardless of these default-listener observations.
+The Web audit intentionally includes development dependencies, so the former new HIGH
+entry correctly blocked acceptance until the approved repair removed it.
 
-Next authorization should cover only the minimum Vite security patch and any
-actually necessary related lock delta, verification of its published integrity
-and installed version, relevant editor/normal-Vitest regressions, and a new
-precisely reviewed lock-hash amendment. Re-run clean Web scope audit, real
-Web/Native tests, lint/typecheck/build and fresh NFT/SBOM/activation/free CI.
-Accept no new advisory and keep the original five findings NON_PASS/NOT_FIXED
-with the same expiry. The current follow-redirects-only approval does not cover
-that additional lock change. No Vite installation or lock mutation was made.
+The approved repair retains the original five findings NON_PASS/NOT_FIXED and
+unchanged expiry. Its 11 actual bundled-helper VM tests cover Windows percent
+and newline refusal, WSL filename operands, normalized existence checks and
+legitimate Windows/Linux filenames and cursor positions; child_process is
+entirely mocked, with no editor or listener. An offline old-version comparison
+was unavailable (ENOTCACHED), so these are patched-behavior controls, not an
+executed before/after proof. Full Web/Native regression and fresh exact-source
+CI/build/NFT/SBOM/activation results must still be recorded separately.
 
 ## Finding and minimal patch
 

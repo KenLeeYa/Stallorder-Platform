@@ -5,15 +5,21 @@ import {assertRootAudit as validateAudit} from './lib/web-release-dependency-aud
 const assertRootAudit=(audit,exception,now=Date.parse('2026-10-20T10:00:00+08:00'))=>validateAudit(audit,exception,now);
 const policy=JSON.parse(readFileSync(new URL('./web-release-audit-exception.json',import.meta.url)));
 const lock=JSON.parse(readFileSync(new URL('../package-lock.json',import.meta.url)));
-test('reviewed lock amendment changes only the approved follow-redirects tuple',()=>{
+test('reviewed lock amendments change only the approved Vite and follow-redirects tuples',()=>{
  // Reverse only the approved tuple, then verify the entire previous lock against its approved digests.
  // This also runs in a shallow CI checkout without trusting a locally available historical object.
- const previous=structuredClone(lock);
+ const beforeVite=structuredClone(lock);
+ Object.assign(beforeVite.packages['node_modules/vite'],{"version":"8.2.2","resolved":"https://registry.npmjs.org/vite/-/vite-8.2.2.tgz","integrity":"sha512-cFKLV/PRgAUlIRm5WjMjJ86jrftzpqcgH+Us+DS8mI3CDNiH30Whrz8uHL3+MOLPAgqbMBAqWdAHAphOAM+z/Q=="});
+ const hash=value=>createHash('sha256').update(value).digest('hex');
+ expect(policy.viteLockRebind.previousLockSha256).toBe(hash(JSON.stringify(beforeVite)));
+ expect(policy.viteLockRebind.previousLockBytesSha256).toBe(hash(JSON.stringify(beforeVite,null,2)+'\n'));
+ const previous=structuredClone(beforeVite);
  Object.assign(previous.packages['node_modules/follow-redirects'],{version:'1.16.0',resolved:'https://registry.npmjs.org/follow-redirects/-/follow-redirects-1.16.0.tgz',integrity:'sha512-y5rN/uOsadFT/JfYwhxRS5R7Qce+g3zG97+JrtFZlC9klX/W5hD7iiLzScI4nZqUS7DNUdhPgw4xI8W2LuXlUw=='});
  const expected=structuredClone(previous);
  Object.assign(expected.packages['node_modules/follow-redirects'],{version:'1.16.1',resolved:'https://registry.npmjs.org/follow-redirects/-/follow-redirects-1.16.1.tgz',integrity:'sha512-FNvFGzoMLWmE6Yj9spb/zjd7yiNCHiAW9/Tg9CXrQ8wuu32HtlJOwWO11OJafl5FfY3DxTdQ0vj42zU1kvv5jg=='});
+ expect(beforeVite).toEqual(expected);
+ Object.assign(expected.packages['node_modules/vite'],{version:'8.2.4',resolved:'https://registry.npmjs.org/vite/-/vite-8.2.4.tgz',integrity:'sha512-lfauXnrf2x0p+UoA+wXh0dgFWnUjCyG6Js95KBkgaCwUU9k0DAHI4W6Q0WCx+h+5g+Alce1y4Zi2QjjK0UvGBw=='});
  expect(lock).toEqual(expected);
- const hash=value=>createHash('sha256').update(value).digest('hex');
  expect(policy.lockRebind.previousLockSha256).toBe(hash(JSON.stringify(previous)));
  expect(policy.lockRebind.previousLockBytesSha256).toBe(hash(JSON.stringify(previous,null,2)+'\n'));
  expect(policy.lockSha256).toBe(hash(JSON.stringify(lock)));
