@@ -21,6 +21,11 @@ describe("restored DR reset rehearsal boundary", () => {
     expect(rehearsalFailureCode({ stderr: 'relation "PRIVATE_DATA_SENTINEL" already exists' }, "REMOTE_RESET", []))
       .toBe("REHEARSAL_REMOTE_RESET_FAILED_ALREADY_EXISTS");
   });
+  it("does not confuse DROP notices with the actual error object", () => {
+    expect(rehearsalFailureCode({ stderr: 'NOTICE: drop cascades to relation "old_pkey"\nERROR: relation "plan_versions" already exists (SQLSTATE 42P07)' },
+      "REMOTE_RESET", ["old_pkey", "plan_versions"]))
+      .toBe("REHEARSAL_REMOTE_RESET_FAILED_ALREADY_EXISTS_42P07_OBJECT_PLAN_VERSIONS");
+  });
   it("accepts only the disposable loopback database, never either hosted project", () => {
     expect(() => assertRehearsalTarget("postgresql://supabase_admin:example-placeholder@127.0.0.1:54322/postgres?sslmode=disable")).not.toThrow();
     for (const url of [

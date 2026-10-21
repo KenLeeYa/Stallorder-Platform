@@ -25,14 +25,15 @@ export function rehearsalEnvironment(source) {
 export function rehearsalFailureCode(result, stage, catalogObjects = []) {
   assert.match(stage, /^[A-Z_]+$/);
   const output = `${result.stderr ?? ""}\n${result.stdout ?? ""}`;
+  const failure = [...output.matchAll(/(?:ERROR|FATAL):[^\r\n]+/g)].at(-1)?.[0] ?? output;
   const category = ["permission denied", "must be owner", "already exists", "does not exist",
     "password authentication failed", "violates foreign key constraint", "cannot truncate",
     "cannot drop", "connection refused", "server refused tls", "failed to connect", "failed to parse",
     "unrecognized configuration parameter", "must be superuser", "read-only transaction",
     "no such file", "unknown flag", "direct deletion", "dependent objects"]
-    .find((value) => output.toLowerCase().includes(value));
-  const sqlState = output.match(/SQLSTATE ([0-9A-Z]{5})\b/)?.[1];
-  const object = output.match(/(?:relation|table|schema|sequence|type|function) "([a-zA-Z_][a-zA-Z0-9_]{0,63})"/)?.[1];
+    .find((value) => failure.toLowerCase().includes(value));
+  const sqlState = failure.match(/SQLSTATE ([0-9A-Z]{5})\b/)?.[1];
+  const object = failure.match(/(?:relation|table|schema|sequence|type|function) "([a-zA-Z_][a-zA-Z0-9_]{0,63})"/)?.[1];
   const migration = [...output.matchAll(/Applying migration ([0-9]{14}_[a-z0-9_]+)\.sql/g)].at(-1)?.[1];
   return `REHEARSAL_${stage}_FAILED${category ? `_${category.toUpperCase().replaceAll(" ", "_").replaceAll("-", "_")}` : ""}${sqlState ? `_${sqlState}` : ""}${object && catalogObjects.includes(object) ? `_OBJECT_${object.toUpperCase()}` : ""}${migration ? `_MIGRATION_${migration.toUpperCase()}` : ""}`;
 }
