@@ -6,6 +6,20 @@ import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 
 const CONTAINER = "supabase_db_dr-retirement-restore";
+let operation = "TARGET_CHECK";
+
+export function rehearsalFailureCode(result, stage) {
+  assert.match(stage, /^[A-Z_]+$/);
+  const output = `${result.stderr ?? ""}\n${result.stdout ?? ""}`;
+  const category = ["permission denied", "must be owner", "already exists", "does not exist",
+    "password authentication failed", "violates foreign key constraint", "cannot truncate",
+    "cannot drop", "connection refused", "failed to connect", "failed to parse",
+    "unrecognized configuration parameter", "must be superuser", "read-only transaction",
+    "no such file", "unknown flag", "direct deletion", "dependent objects"]
+    .find((value) => output.toLowerCase().includes(value));
+  const sqlState = output.match(/SQLSTATE ([0-9A-Z]{5})\b/)?.[1];
+  return `REHEARSAL_${stage}_FAILED${category ? `_${category.toUpperCase().replaceAll(" ", "_").replaceAll("-", "_")}` : ""}${sqlState ? `_${sqlState}` : ""}`;
+}
 
 export function assertRehearsalTarget(value) {
   const url = new URL(value);
@@ -42,24 +56,32 @@ async function main() {
   assert.ok(inspect[0]?.State?.Running
     && inspect[0]?.NetworkSettings?.Ports?.["5432/tcp"]?.some((port) => port.HostPort === "54322"),
   "REHEARSAL_CONTAINER_INVALID");
+  operation = "READ_BASELINE";
   const original = JSON.parse(sql("select json_build_object('orders',(select count(*) from public.orders),'vault',(select count(*) from vault.secrets))"));
   const password = randomBytes(32).toString("hex");
+  operation = "LOCAL_PASSWORD";
   sql(`alter role supabase_admin password '${password}';`);
   // Local-only simulation of confirmed Storage API removal. This is not
   // evidence that any hosted file was removed.
-  sql(`delete from vault.secrets;
-    truncate storage.objects cascade;
-    drop schema if exists app_private cascade;
-    drop schema if exists internal cascade;`);
+  operation = "REMOVE_VAULT";
+  sql("delete from vault.secrets;");
+  operation = "REMOVE_FILES";
+  sql("truncate storage.objects cascade;");
+  operation = "REMOVE_SCHEMAS";
+  sql("drop schema if exists app_private cascade; drop schema if exists internal cascade;");
   const url = assertRehearsalTarget(`postgresql://supabase_admin:${password}@127.0.0.1:54322/postgres?sslmode=disable`);
+  operation = "REMOTE_RESET";
   const resetLog = run("supabase", ["db", "reset", "--workdir", cliWorkdir,
     "--db-url", url.toString(), "--no-seed", "--yes"]);
   assert.ok(resetLog.includes("Resetting remote database") && !resetLog.includes("Recreating database"),
     "REHEARSAL_RESET_PATH_INVALID");
   // SQL replay creates cron jobs. No old credentials exist; leave all jobs
   // inactive before synthetic data or any application is introduced.
+  operation = "STOP_CRONS";
   sql("update cron.job set active=false; select pg_notify('pgrst','reload schema');");
+  operation = "SYNTHETIC_SEED";
   sql(await readFile("supabase/seed.sql", "utf8"));
+  operation = "VERIFY_SYNTHETIC";
   const state = JSON.parse(sql(`select json_build_object(
     'orders',(select count(*) from public.orders),
     'real_orders',(select count(*) from public.orders where not is_test),
@@ -97,17 +119,14 @@ function run(command, args, input, includeStderr = true) {
   const result = spawnSync(command, args, { input, env: environment, encoding: "utf8",
     timeout: 300_000, maxBuffer: 8 * 1024 * 1024 });
   if (result.status !== 0) {
-    const category = ["permission denied", "must be owner", "already exists", "does not exist",
-      "password authentication failed", "violates foreign key constraint"]
-      .find((value) => result.stderr?.toLowerCase().includes(value));
-    throw new Error(`REHEARSAL_COMMAND_FAILED${category ? `_${category.toUpperCase().replaceAll(" ", "_")}` : ""}`);
+    throw new Error(rehearsalFailureCode(result, operation));
   }
   return `${result.stdout}${includeStderr ? result.stderr : ""}`.trim();
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
   main().catch((error) => {
-    console.error(/^REHEARSAL_[A-Z_]+$/.test(error?.message ?? "") ? error.message : "REHEARSAL_FAILED");
+    console.error(/^REHEARSAL_[A-Z0-9_]+$/.test(error?.message ?? "") ? error.message : "REHEARSAL_FAILED");
     process.exitCode = 1;
   });
 }

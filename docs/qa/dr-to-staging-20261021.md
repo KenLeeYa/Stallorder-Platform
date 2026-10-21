@@ -229,3 +229,11 @@ all recreated cron jobs are then left inactive. The temporary CLI configuration
 uses a different local port so it cannot select Docker-volume reset. This uses
 the local administrator and simulates already-confirmed Storage API deletion;
 neither hosted permissions nor actual hosted cleanup are claimed by the rehearsal.
+
+Run `39634669875` passed the v3 restore checks for 239 tables and 42 files,
+including original-path readback. Its encrypted artifact `12361565729` is also
+retained locally; GitHub retention ends 2026-11-20T16:31:03Z. The later rehearsal
+run `39636020159` passed capture/restore/verification but failed the reset step.
+Its generic sanitized error does not identify a cause. Stage-specific safe error
+codes and a no-secret regression test were added; no hosted reset or seed is
+authorized by this unsuccessful rehearsal result.
