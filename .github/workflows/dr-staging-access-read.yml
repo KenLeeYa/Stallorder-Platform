@@ -1,0 +1,27 @@
+name: DR retirement Access readback
+on:
+  push:
+    branches: [codex/dr-to-staging-20261021]
+    paths:
+      - .github/workflows/dr-staging-access-read.yml
+      - scripts/inspect-dr-access.mjs
+permissions:
+  contents: read
+concurrency:
+  group: production-dr-operator-entry
+  cancel-in-progress: false
+jobs:
+  inspect:
+    if: github.repository == 'KenLeeYa/Stallorder-Platform' && github.actor == github.repository_owner
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Read exact zone, DNS and Access identities (GET only)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node scripts/inspect-dr-access.mjs
