@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { assertDrBackupTarget, assertRecoveryRuleSet, fileArchiveRecord, assertFileObjectMapping, openBackup, sealBackup } from "./backup-dr-for-staging.mjs";
+import { assertDrBackupTarget, assertRecoveryRuleSet, fileArchiveRecord, assertFileObjectMapping, openBackup, sealBackup, restoreArguments } from "./backup-dr-for-staging.mjs";
 
 describe("DR retirement backup boundary", () => {
+  it("restores original owners and ACLs for the ordinary postgres reset role", () => {
+    const args = restoreArguments("post-data");
+    expect(args).toContain("--section=post-data");
+    expect(args).toContain("--exit-on-error");
+    expect(args).not.toContain("--no-owner");
+    expect(args).not.toContain("--no-acl");
+    expect(() => restoreArguments("invalid")).toThrow("RESTORE_SECTION_INVALID");
+  });
   it("retains the original object path separately from its encrypted archive filename", () => {
     const object = { bucket: "product-images", name: "fixture/product.webp" };
     const archive = { name: "object-0.enc", sha256: "a".repeat(64), bytes: 90 };

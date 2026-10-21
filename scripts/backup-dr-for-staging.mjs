@@ -10,6 +10,12 @@ const RECOVERY_RULE_IDS = ["14e82b29-5b3c-4b8a-819a-f0a16f9db2fd", "ce425c1e-c14
 const SCHEMAS = ["public", "auth", "storage", "app_private", "internal", "vault"];
 const MAGIC = Buffer.from("STAGING-BACKUP-1\n");
 
+export function restoreArguments(section) {
+  if (!["pre-data", "data", "post-data"].includes(section)) throw new Error("RESTORE_SECTION_INVALID");
+  return [`--section=${section}`, "--single-transaction", "--exit-on-error",
+    "--use-list=/out/restore.list", "--dbname=postgres", "/out/restore.dump"];
+}
+
 export function fileArchiveRecord(object, archive, plaintextSha256) {
   return { bucket: object.bucket, objectPath: object.name, plaintextSha256, ...archive };
 }
@@ -268,11 +274,9 @@ async function main() {
       if (copy.status !== 0) throw new Error("LOCAL_RESTORE_COPY_FAILED");
     }
     for (const section of ["pre-data", "data", "post-data"]) {
-      // Preserve the original object owners from the custom archive. Restoring
-      // everything as supabase_admin makes the CLI's normal postgres role unable
-      // to reset a copy of tables that postgres actually owns on the source.
-      run("pg_restore", [`--section=${section}`, "--no-acl", "--single-transaction", "--exit-on-error",
-        "--use-list=/out/restore.list", "--dbname=postgres", "/out/restore.dump"], local);
+      // Preserve owners and ACLs: the CLI's ordinary postgres role needs the
+      // source grants on managed auth/storage objects, not elevated privileges.
+      run("pg_restore", restoreArguments(section), local);
       console.log(JSON.stringify({ event: "dr_restore_section_passed", section }));
       if (section === "data") {
         const supplement = await recoverySupplement(manifest);

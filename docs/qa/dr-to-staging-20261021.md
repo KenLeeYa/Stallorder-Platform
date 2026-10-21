@@ -253,3 +253,9 @@ owned. A read-only hosted inventory confirmed 208 public relations owned by
 by `supabase_storage_admin`. The restore now retains archive object ownership and
 the three known application schema owners. ACL/provider recovery is still not
 claimed, and the normal CLI role/migration checks are not bypassed.
+
+Run `39640190911` retained owners and passed restore/data verification, then
+failed reset with `PERMISSION_DENIED_42501`. The restore had still discarded
+archive ACLs. It now restores those original grants as well, with a regression
+test that disallows stripping owners or ACLs. No extra superuser grant or hosted
+permission change is introduced. Hosted cleanup remains blocked on rehearsal.
