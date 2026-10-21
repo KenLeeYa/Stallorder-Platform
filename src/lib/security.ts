@@ -101,6 +101,15 @@ export function createRequestId() {
   return randomUUID();
 }
 
+export function protectedStagingOrigin(environment: Record<string, string | undefined>) {
+  return environment.VERCEL_ENV === "preview"
+    && environment.DR_ACCESS_ENFORCEMENT_ENABLED === "true"
+    && environment.DR_ACCESS_HOSTNAME === "staging.qidaigo.com"
+    && environment.APP_BASE_URL === "https://staging.qidaigo.com"
+    && environment.NEXT_PUBLIC_APP_URL === "https://staging.qidaigo.com"
+    ? "https://staging.qidaigo.com" : undefined;
+}
+
 export function resolveAppOrigin(
   requestUrl: URL,
   environment: {
@@ -110,6 +119,8 @@ export function resolveAppOrigin(
     VERCEL_URL?: string;
   } = process.env,
 ) {
+  const stagingOrigin = protectedStagingOrigin(environment);
+  if (stagingOrigin) return stagingOrigin;
   if (environment.VERCEL_ENV === "preview" && environment.VERCEL_URL) {
     return new URL(`https://${environment.VERCEL_URL}`).origin;
   }

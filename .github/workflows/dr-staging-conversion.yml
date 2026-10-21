@@ -1,0 +1,160 @@
+name: Retire DR into independent Staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        type: choice
+        options: [plan, apply]
+        required: true
+      backup_run_id:
+        description: Successful encrypted backup, actual restore and reset rehearsal run
+        type: string
+        required: true
+      plan_run_id:
+        description: Immutable conversion Plan run required for Apply
+        type: string
+        default: ""
+      confirmation:
+        description: CONVERT_RETIRED_DR_TO_STAGING for the already authorized Apply
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  actions: read
+  statuses: read
+
+concurrency:
+  group: production-dr-operations
+  cancel-in-progress: false
+
+jobs:
+  conversion:
+    if: github.repository == 'KenLeeYa/Stallorder-Platform' && github.actor == github.repository_owner && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    environment: production
+    env:
+      BACKUP_RUN_ID: ${{ inputs.backup_run_id }}
+      DR_SUPABASE_PROJECT_REF: daeqwtpaxcebmtwxqdkj
+    steps:
+      - name: Validate owner-approved operation
+        env:
+          OPERATION: ${{ inputs.operation }}
+          PLAN_RUN: ${{ inputs.plan_run_id }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          [[ "$BACKUP_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]]
+          if [ "$OPERATION" = plan ]; then
+            test -z "$PLAN_RUN" && test -z "$CONFIRMATION"
+          else
+            test "$OPERATION" = apply
+            [[ "$PLAN_RUN" =~ ^[1-9][0-9]{0,19}$ ]]
+            test "$CONFIRMATION" = CONVERT_RETIRED_DR_TO_STAGING
+          fi
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require identical verified Staging source
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin staging
+          test "$(git rev-parse 'HEAD^{tree}')" = "$(git rev-parse 'origin/staging^{tree}')"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.1
+      - run: npm ci
+      - run: npm run prisma:generate
+      - run: npm run production:check
+      - run: node scripts/run-npm-audit.mjs
+      - run: npx vitest run scripts/convert-dr-to-staging.test.mjs scripts/dr-staging-conversion-plan.test.mjs scripts/staging-access-entry.test.mjs scripts/staging-data-conversion.test.mjs scripts/staging-runtime.test.mjs scripts/staging-retired-entry.test.mjs scripts/staging-workflow-contract.test.mjs scripts/lib/production-approval.test.mjs
+      - name: Download verified encrypted recovery archive
+        uses: actions/download-artifact@v4
+        with:
+          name: dr-retirement-encrypted-${{ inputs.backup_run_id }}
+          path: approved-backup
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.backup_run_id }}
+      - name: Capture non-mutating conversion Plan
+        if: inputs.operation == 'plan'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          DR_BACKUP_ENCRYPTION_KEY: ${{ secrets.DR_BACKUP_ENCRYPTION_KEY }}
+        run: node scripts/dr-staging-conversion-plan.mjs plan
+      - name: Create immutable Plan receipt
+        if: inputs.operation == 'plan'
+        env:
+          PRODUCTION_APPROVAL_OPERATION: dr-staging-conversion
+          PRODUCTION_APPROVAL_PARAMETERS_JSON: ${{ env.STAGING_APPROVAL_PARAMETERS }}
+          PRODUCTION_APPROVAL_RECEIPT_PATH: artifacts/dr-staging-approval.json
+        run: node scripts/production-approval.mjs create
+      - name: Retain immutable conversion Plan
+        if: inputs.operation == 'plan'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dr-staging-plan-${{ github.run_id }}
+          path: |
+            artifacts/dr-staging-transition-plan.json
+            artifacts/dr-staging-approval.json
+          if-no-files-found: error
+          retention-days: 1
+      - name: Download the approved conversion Plan
+        if: inputs.operation == 'apply'
+        uses: actions/download-artifact@v4
+        with:
+          name: dr-staging-plan-${{ inputs.plan_run_id }}
+          path: approved-transition-plan
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.plan_run_id }}
+      - name: Bind Apply to the qualified backup and Plan
+        if: inputs.operation == 'apply'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DR_BACKUP_ENCRYPTION_KEY: ${{ secrets.DR_BACKUP_ENCRYPTION_KEY }}
+        run: node scripts/dr-staging-conversion-plan.mjs parameters
+      - name: Resolve only the retired DR connection
+        if: inputs.operation == 'apply'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          DR_SUPABASE_DB_PASSWORD: ${{ secrets.DR_SUPABASE_DB_PASSWORD }}
+        run: node scripts/export-dr-database-urls.mjs --dr-only
+      - name: Install isolated browser test runtime
+        if: inputs.operation == 'apply'
+        run: npx playwright install --with-deps chromium
+      - name: Apply with backup, drift, Primary and provider boundaries
+        if: inputs.operation == 'apply'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          DR_BACKUP_ENCRYPTION_KEY: ${{ secrets.DR_BACKUP_ENCRYPTION_KEY }}
+          STAGING_CONVERSION_CONFIRMATION: ${{ inputs.confirmation }}
+          PRODUCTION_APPROVAL_OPERATION: dr-staging-conversion
+          PRODUCTION_APPROVAL_PARAMETERS_JSON: ${{ env.STAGING_APPROVAL_PARAMETERS }}
+          PRODUCTION_APPROVAL_PLAN_RUN_ID: ${{ inputs.plan_run_id }}
+          PRODUCTION_APPROVAL_RECEIPT_PATH: approved-transition-plan/dr-staging-approval.json
+        run: node scripts/apply-dr-staging-conversion.mjs
+      - name: Record successful conversion evidence
+        if: inputs.operation == 'apply'
+        env:
+          PRODUCTION_APPROVAL_OPERATION: dr-staging-conversion
+          PRODUCTION_EVIDENCE_PATH: artifacts/dr-staging-conversion-evidence.json
+        run: node scripts/production-approval.mjs create-evidence
+      - name: Retain only encrypted recovery settings and sanitized receipts
+        if: always() && inputs.operation == 'apply'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dr-staging-conversion-${{ github.run_id }}
+          path: artifacts/
+          if-no-files-found: ignore
+          retention-days: 30
