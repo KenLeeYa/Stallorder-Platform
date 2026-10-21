@@ -168,27 +168,22 @@ async function main() {
   } else if (mode === "restore") {
     // The only writable connection is this loopback-only ephemeral CI database.
     await writeFile(resolve(directory, "restore.dump"), await decrypted("database.dump.enc"), { mode: 0o600 });
-    query(`create extension if not exists btree_gist with schema extensions;
-      drop schema if exists app_private cascade;
-      drop schema if exists internal cascade;
-      drop schema public cascade;`, local);
-    run("pg_restore", ["--schema-only", "--no-owner", "--no-acl", "--exit-on-error",
-      "--schema=public", "--schema=app_private", "--schema=internal", "--dbname=postgres", "/out/restore.dump"], local);
-    query(`do $$ declare r record; relations text; begin
-      for r in select schemaname,tablename from pg_tables where schemaname in (${SCHEMAS.map(literal).join(",")}) loop
-        execute format('alter table %I.%I disable trigger user',r.schemaname,r.tablename);
-      end loop;
-      select string_agg(format('%I.%I',schemaname,tablename),',') into relations from pg_tables
-      where schemaname in (${SCHEMAS.map(literal).join(",")});
-      if relations is not null then execute 'truncate ' || relations || ' cascade'; end if;
-    end $$`, local);
-    run("pg_restore", ["--data-only", "--no-owner", "--no-acl", "--single-transaction", "--exit-on-error",
-      "--dbname=postgres", "/out/restore.dump"], local);
-    query(`do $$ declare r record; begin
-      for r in select schemaname,tablename from pg_tables where schemaname in (${SCHEMAS.map(literal).join(",")}) loop
-        execute format('alter table %I.%I enable trigger user',r.schemaname,r.tablename);
-      end loop;
-    end $$`, local);
+    const restoreSchemas = SCHEMAS.filter((schema) => schema !== "vault");
+    query(`${restoreSchemas.map((schema) => `drop schema if exists ${identifier(schema)} cascade; create schema ${identifier(schema)};`).join("\n")}
+      create extension if not exists btree_gist with schema extensions;
+      create extension if not exists pgcrypto with schema extensions;
+      create extension if not exists "uuid-ossp" with schema extensions;
+      create extension if not exists supabase_vault;`, local);
+    // PostgreSQL's built-in public namespace and provider schemas are created
+    // explicitly above. Keep all their objects, data, constraints and triggers.
+    const objectList = run("pg_restore", ["--list", "/out/restore.dump"], {})
+      .split("\n").filter((line) => !/^\d+; \d+ \d+ SCHEMA - /.test(line)).join("\n");
+    await writeFile(resolve(directory, "restore.list"), objectList, { mode: 0o600 });
+    for (const section of ["pre-data", "data", "post-data"]) {
+      run("pg_restore", [`--section=${section}`, "--no-owner", "--no-acl", "--single-transaction", "--exit-on-error",
+        "--use-list=/out/restore.list", "--dbname=postgres", "/out/restore.dump"], local);
+      console.log(JSON.stringify({ event: "dr_restore_section_passed", section }));
+    }
   } else {
     const manifest = JSON.parse((await decrypted("manifest.json.enc")).toString());
     if (manifest.ref !== DR_REF || manifest.commit !== process.env.GITHUB_SHA || manifest.runId !== process.env.GITHUB_RUN_ID) {
