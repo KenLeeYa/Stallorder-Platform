@@ -81,8 +81,22 @@ Restore run `39615232670` captured the encrypted backup but failed with
 ordinary local `postgres` role. Revision `5dc7090c` confines restore operations
 to the exact disposable runner container's Unix socket and its local
 `supabase_admin` role; it cannot target either hosted database. Run `39616803086`
-is verifying that correction. Until verification succeeds, restoration remains
-unproven and deleting DR data remains prohibited.
+completed with pre-data and data restoration passing, but post-data constraint
+validation failed. A read-only check of every source foreign key identified
+exactly one inconsistent relationship: 552 `print_jobs` reference three absent
+`print_rules`. Every other checked foreign key has zero orphaned rows. A bounded
+Primary read confirmed the three parent rule IDs still exist there; no parent
+rows were copied, no constraints disabled, and no print jobs replayed or changed.
+This source inconsistency means the full restore gate remains failed and DR
+deletion remains prohibited.
+
+The owner updated the GitHub environment secret at `2026-10-21T14:38:43Z`.
+Fresh audit `39619054558` still received Cloudflare HTTP 403 / code 9109 at the
+zone read (optional user-token verification returned HTTP 401 / code 1000).
+Thus the updated value is not yet accepted; this is not a successful credential
+repair. Chrome pages for the Cloudflare API Token manager and the exact GitHub
+Production environment were opened for secure user entry. Browser page control
+was unavailable; no credentials were read, entered or submitted by automation.
 
 Pending: pass actual backup restoration; separately retire file replication;
 prove effective permissions and synthetic seed isolation; convert Preview runtime,
