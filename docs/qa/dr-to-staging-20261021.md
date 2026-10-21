@@ -389,3 +389,30 @@ QR order, displayed its tracker, confirmed it through Staff and observed the
 same order in KDS with SSE ready. Only that exact test-marked order was deleted;
 readback found zero matching orders/print jobs. No payment or printing occurred.
 CI `39670467211` passed. The full automated mobile/responsive rerun remains pending.
+
+### Current Preview and dependency gate (2026-10-22)
+
+Preview `39674978026` passed on candidate `501c540`, paired merge `fadf342` and
+deployment `dpl_Gfuh4RgkACDY9ZUNmGceVGiKoT2B` with isolated backend
+`yorwbxvcflxygmrvtuys`. Artifact `12381668301` confirms actual QR session,
+320/390/768/1440 layouts, mobile checkout and tracker; downloaded screenshots were
+visually checked. Normal Chrome password login, workspace, Staff/SSE, disabled
+Print Center and KDS/SSE passed without injected protection headers.
+
+CI `39674977886` passed unit and Chromium/WebKit E2E tests, then failed the native
+dependency audit on newly indexed `@vitest/mocker` advisories
+`GHSA-qxg6-89mg-rqv8` and `GHSA-xp26-3454-mjgp`. Local `npm audit --json`
+reproduced two moderate findings. Upstream's 4.1.12 release fixes both; update
+only Vitest and its seven version-coupled packages, preserving every other lock
+entry and the default-deny install-script policy. Clean `npm ci --ignore-scripts`,
+native audit (zero findings), 517 registry signatures / 155 attestations,
+typecheck, production guardrails, build, UI audit and 3,424 unit tests passed
+(nine existing skips). Lint has zero errors and five existing navigation warnings.
+This is test tooling remediation,
+not evidence of a Production exploit. The patched candidate still requires new
+cloud gates; the earlier green Preview does not override the failed audit.
+
+Cloudflare readback `39621513322` attempt 2 passed at 21:09:33Z using the currently
+stored Token. Exact Primary DNS and old DR Access identities remain unchanged;
+Staging DNS is absent. Actual edit capability remains a protected-entry step
+before deletion. No hosted DR data/files/provider mutation has occurred.
