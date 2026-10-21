@@ -64,3 +64,10 @@ next-env.d.ts
 # local infrastructure plans
 /artifacts/github-ruleset-plan.json
 /artifacts/catalog-translation-benchmark-*.json
+
+# Private, one-time DR conversion runner material (never source or deployment input)
+/staging-conversion-private/
+/approved-backup/
+/approved-transition-plan/
+/artifacts/staging-*
+/artifacts/dr-staging-*

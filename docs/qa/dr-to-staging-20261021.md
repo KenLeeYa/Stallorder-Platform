@@ -281,3 +281,43 @@ owned and identity dependencies (`e`, `a`, `i`); the CLI removes owned sequences
 with their tables. A transactional SQL regression on the disposable restore
 creates both an identity-backed table and a standalone sequence, proves only the
 latter is removed, then rolls back before the actual reset rehearsal.
+
+## Qualified restore and Primary isolation (2026-10-22 02:32–02:54 Asia/Taipei)
+
+Backup run `39647447270`, source `291c3c56f1dc6ed743f9c7fe67a117f2dac554ff`,
+passed all 239 table and 42 original-path file-byte checks, original constraints,
+and an actual pinned-CLI remote-reset SQL rehearsal under the ordinary `postgres`
+role. It replayed 146 unchanged migrations and synthetic seed: two organizations,
+ten test orders, zero real orders/Auth users/files/Vault/subscriptions/active cron,
+and no enabled printer or non-cash payment. Only the disposable bootstrap/restore
+uses the local administrator; no hosted grant elevation is introduced.
+
+Artifact `12368487539` expires `2026-11-20T17:56:32Z`, with SHA-256
+`fbab2a1c9b481c60ad4e8d67442c1842055ec72ba0f12d09c18f34ee324f5cd9`.
+An encrypted local copy and its receipts are retained in the task's output folder.
+The archive still needs the separately checked three-row recovery supplement;
+it is not a full provider/configuration recovery claim.
+
+PRs #369/#370 and source/Staging/main CI, Preview, security, remote DB readiness,
+and application Plan `39647622492` passed. Application Apply `39652990080` passed:
+Primary is now `4e95d2ea5d53ae78c5af9c3db044481237674c44`, deployment
+`dpl_4v5acoGZU8tkbTAnb6uEwuN5AjJQ`. The exact five Production DR bindings were
+removed after live smoke; unrelated variables, Primary backend and epoch 3 stayed
+unchanged. Actual authenticated health, dedicated Staff/SSE and print-center
+pages loaded, without changing customer orders/cash/printing. The workflow's
+valid Production QA QR page/session passed. Use this Primary-only artifact as
+the recovery baseline after cleanup, never the earlier DR-capable deployment.
+
+Phase B implementation is not hosted conversion evidence. It includes strict
+provider scopes, source/backup drift guards, independent Auth/Edge/Preview runtime,
+actual Storage deletion readback, reset/seed/DB tests, origin TLS/JWT checks and
+real password/catalog/QR/Staff/KDS browser acceptance. The old public default
+alias `stallorder-dr.vercel.app` currently responds 200 and must be detached before
+unfencing synthetic data; the generated old deployment responds with Vercel SSO.
+Legacy DR publishing/replication workflows now fail before their approval or
+mutation jobs, and direct target reconfiguration is refused.
+
+No hosted DR files/data/Auth/Edge/DNS/Access changes have occurred at this checkpoint.
+Pending: candidate CI/Preview and promotion; fresh conversion Plan/Apply; human
+Access login and ordinary browser/SW QA; persistent independent Staging release
+and schema predecessor; final Primary invariance. Do not report complete Staging.

@@ -90,6 +90,14 @@ Keep Cloudflare
 Access and Standard Vercel protection; the historical paid-All-Deployments
 provisioning paragraph is superseded by ADR-005, not permission to buy an add-on.
 An independent Staging environment cannot satisfy a Production DR-readiness gate.
+Use `dr-staging-conversion.yml` only for the one-time, backup-qualified conversion.
+The legacy DR operation/entry workflows and direct configurator now fail closed.
+Do not re-enable them to clear a release gate. After the old replica is removed,
+recover Production only with a verified Primary-only artifact. Protect all test
+entry points, including the old default Vercel alias; deployment upload inputs
+must be the reviewed Git archive, never the runner's decrypted recovery files.
+Track service-token QA, real human Access login and ordinary browser/SW behavior
+separately; cleanup removes the temporary service-token policy and token.
 
 ## LINE Web authentication
 

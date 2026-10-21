@@ -229,6 +229,8 @@ This file is the durable owner acceptance baseline. It does not assert that a re
 
 ## Protected release and DR
 
+- `REL-STAGING-001` ADR-006's conversion requires actual encrypted restore and ordinary-role reset rehearsal, unchanged source/fingerprints, Primary-only isolation, independent synthetic runtime and real role/order/media QA. No Production data or credential is a Staging seed. Retire old public aliases before data reset and old DNS/Access only after new-entry acceptance. Legacy DR automation must fail closed, and temporary QA credentials cannot enter deployment bundles.
+
 - `REL-DR-STORAGE-01` DR Storage readiness MUST use the canonical object-and-manifest mirror proof. A manifest outside the active object inventory is accepted as a completed deletion tombstone only when `replication_status=DELETED`, `deleted_at` is present, and both checksums are null. Active objects still require matching Primary/DR inventories plus a mirrored, checksum-matched manifest; malformed tombstones, missing objects/manifests, pending states, and checksum differences fail closed.
 
 ## Cross-cutting validation and error behavior

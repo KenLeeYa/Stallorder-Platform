@@ -1,5 +1,7 @@
 import "server-only";
 
+import { protectedStagingOrigin } from "@/lib/security";
+
 import type { OAuthProvider } from "./types";
 import { oauthProviderPath } from "./types";
 
@@ -79,7 +81,8 @@ export function getOAuthAppBaseUrl(
     : undefined;
   return validAbsoluteUrl(
     required(
-      previewDeploymentUrl
+      protectedStagingOrigin(environment)
+      ?? previewDeploymentUrl
       ?? environment.APP_BASE_URL
       ?? environment.NEXT_PUBLIC_APP_URL,
       "OAUTH_APP_BASE_URL_MISSING",
