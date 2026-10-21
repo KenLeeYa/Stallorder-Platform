@@ -1,0 +1,8 @@
+{
+  "source": "C:/Users/KY/.codex/worktrees/responsive-cross-device/b3-a1-source-a0c635bc-20260930",
+  "command": "\"C:\\Program Files\\nodejs\\node.exe\" node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3026",
+  "pid": 41236,
+  "parentPid": 5156,
+  "phase": "before",
+  "port": 3026
+}

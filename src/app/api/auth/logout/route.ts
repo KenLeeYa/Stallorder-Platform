@@ -4,6 +4,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { validateCsrf } from "@/lib/csrf";
 import { createRequestId, hashClientIp } from "@/lib/security";
 import { createSupabaseAuthClient, isSupabaseAuthConfigured } from "@/lib/supabase-auth";
+import { productAnalytics } from "@/server/analytics/product-analytics";
 
 export async function POST(request: Request) {
   const requestId = createRequestId();
@@ -16,6 +17,7 @@ export async function POST(request: Request) {
   }
 
   await revokeRequestSession(request);
+  productAnalytics.invalidate(principal.user.id);
   if (isSupabaseAuthConfigured()) {
     const supabase = await createSupabaseAuthClient();
     await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);

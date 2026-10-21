@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { Prisma, PrismaClient } from "@prisma/client";
 
@@ -5,8 +6,8 @@ loadLocalEnv();
 assertLocalDatabase();
 
 const control = new PrismaClient();
-const organizationId = "f1000000-0000-4000-8000-000000000001";
-const stallId = "f1000000-0000-4000-8000-000000000002";
+const organizationId = randomUUID();
+const stallId = randomUUID();
 
 type CapacitySnapshotRow = {
   snapshot: Prisma.JsonValue;
@@ -24,7 +25,7 @@ test.describe.serial("QR 容量刷新併發鎖定", () => {
         data: {
           id: organizationId,
           name: "E2E 容量併發測試商家",
-          slug: "e2e-capacity-refresh-concurrency",
+          slug: `e2e-capacity-refresh-concurrency-${organizationId.slice(0, 8)}`,
           businessName: "E2E 容量併發測試商家",
           status: "ACTIVE",
           email: "capacity-refresh-concurrency@stallorder.test",
@@ -55,8 +56,8 @@ test.describe.serial("QR 容量刷新併發鎖定", () => {
           id: stallId,
           organizationId,
           name: "E2E 容量併發測試攤位",
-          slug: "e2e-capacity-refresh-concurrency-stall",
-          code: "CAPACITY-CONCURRENCY",
+          slug: `e2e-capacity-refresh-concurrency-stall-${stallId.slice(0, 8)}`,
+          code: `CAPACITY-CONCURRENCY-${stallId.slice(0, 8)}`,
           address: "E2E local database only",
           location: "E2E local database only",
         },
@@ -239,7 +240,7 @@ function formatError(error: unknown) {
 }
 
 async function removeFixture() {
-  await control.organization.deleteMany({ where: { id: organizationId } });
+  await control.organization.deleteMany({ where: { id: organizationId, auditLogs: { none: {} }, stalls: { none: { auditLogs: { some: {} } } } } });
 }
 
 function assertLocalDatabase() {

@@ -1,0 +1,40 @@
+{
+  "observedAt": "2026-09-13T07:38:08.7074329Z",
+  "stopped": [
+    "supabase_storage_stallorder-compliance-20260913",
+    "supabase_rest_stallorder-compliance-20260913",
+    "supabase_inbucket_stallorder-compliance-20260913",
+    "supabase_auth_stallorder-compliance-20260913",
+    "supabase_kong_stallorder-compliance-20260913",
+    "supabase_db_stallorder-compliance-20260913",
+    "supabase_inbucket_stallorder-compliance-regression-2026091",
+    "supabase_db_stallorder-compliance-regression-2026091"
+  ],
+  "containersDeleted": 0,
+  "volumesDeleted": 0,
+  "otherPreviouslyRunningContainers": [
+    "kuanguard-db-1",
+    "kuanguard-queue-1",
+    "supabase_storage_stallorder-omo-scm-completion-20260909",
+    "supabase_rest_stallorder-omo-scm-completion-20260909",
+    "supabase_realtime_stallorder-omo-scm-completion-20260909",
+    "supabase_auth_stallorder-omo-scm-completion-20260909",
+    "supabase_kong_stallorder-omo-scm-completion-20260909",
+    "supabase_db_stallorder-omo-scm-completion-20260909",
+    "supabase_db_stallorder-catalog-ops-20260907",
+    "supabase_studio_stallorder-supply-runtime-20260903",
+    "supabase_pg_meta_stallorder-supply-runtime-20260903",
+    "supabase_storage_stallorder-supply-runtime-20260903",
+    "supabase_rest_stallorder-supply-runtime-20260903",
+    "supabase_realtime_stallorder-supply-runtime-20260903",
+    "supabase_inbucket_stallorder-supply-runtime-20260903",
+    "supabase_auth_stallorder-supply-runtime-20260903",
+    "supabase_kong_stallorder-supply-runtime-20260903",
+    "supabase_analytics_stallorder-supply-runtime-20260903",
+    "supabase_db_stallorder-supply-runtime-20260903"
+  ],
+  "otherUnexpectedStops": [],
+  "nextPort3093Listening": false,
+  "resume": "Review labels, ports and active consumers, then docker start only these retained containers; use scripts/start-compliance-qa.mjs for 3093 if needed.",
+  "retainedDuplicateArtifact": "e2e/docs/security-compliance/browser-tests.json; cleanup rejected by automatic policy; retained and ignored"
+}

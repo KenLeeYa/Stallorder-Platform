@@ -2,6 +2,7 @@ import "server-only";
 
 import type { AuditOutcome, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { redactAuditValue } from "@/lib/audit-redaction";
 
 type AuditEvent = {
   organizationId?: string;
@@ -26,7 +27,7 @@ function cleanMetadata(metadata: AuditEvent["metadata"]) {
       typeof value === "string" ? value.replace(/[\r\n]/g, " ").slice(0, 200) : value,
     ]),
   );
-  return JSON.stringify(cleaned);
+  return JSON.stringify(redactAuditValue(cleaned));
 }
 
 export function logEvent(
@@ -34,7 +35,7 @@ export function logEvent(
   event: string,
   fields: Record<string, string | number | boolean | null | undefined>,
 ) {
-  const record = { timestamp: new Date().toISOString(), level, event, ...fields };
+  const record = { timestamp: new Date().toISOString(), level, event, ...(redactAuditValue(fields) as Record<string, unknown>) };
   const output = JSON.stringify(record);
   if (level === "error") console.error(output);
   else if (level === "warn") console.warn(output);
@@ -61,8 +62,8 @@ export async function recordAuditEvent(event: AuditEvent) {
         entityId: event.entityId,
         ipHash: event.ipHash,
         metadata: cleanMetadata(event.metadata),
-        beforeJson: event.before,
-        afterJson: event.after,
+        beforeJson: event.before ? redactAuditValue(event.before) as Prisma.InputJsonObject : undefined,
+        afterJson: event.after ? redactAuditValue(event.after) as Prisma.InputJsonObject : undefined,
       },
     });
     logEvent(event.outcome === "SUCCESS" ? "info" : "warn", event.action, {

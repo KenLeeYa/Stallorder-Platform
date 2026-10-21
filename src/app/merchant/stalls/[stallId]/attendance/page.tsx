@@ -26,5 +26,5 @@ export default async function AttendanceManagementPage({ params }: PageProps) {
     stallId,
     timezone: stall.timezone,
   });
-  return <main className="mx-auto min-h-[calc(100vh-76px)] max-w-5xl px-4 py-7 md:px-8"><ContextualBackButton fallbackHref={`/merchant/stalls/${stallId}`}>返回攤位設定</ContextualBackButton><header className="mt-4 border-b border-stone-200 pb-5"><p className="text-sm font-semibold text-teal-800">{workspace.businessName}</p><h1 className="mt-1 text-3xl font-semibold">員工定位打卡</h1><p className="mt-2 text-sm text-stone-600">{stall.name} · 設定打卡範圍、動態驗證碼與覆核紀錄</p></header><div className="py-7"><AttendanceManager stallId={stallId} initialData={data} /></div></main>;
+  return <main className="mx-auto min-h-[calc(100vh-76px)] max-w-5xl px-4 py-7 md:px-8"><ContextualBackButton fallbackHref={`/merchant/stalls/${stallId}`}>返回攤位設定</ContextualBackButton><header className="mt-4 border-b border-stone-200 pb-5"><p className="text-sm font-semibold text-teal-800">{workspace.businessName}</p><h1 className="mt-1 text-3xl font-semibold">員工定位打卡</h1><p className="mt-2 text-sm text-stone-600">{stall.name}</p></header><div className="py-7"><AttendanceManager stallId={stallId} initialData={data} /></div></main>;
 }

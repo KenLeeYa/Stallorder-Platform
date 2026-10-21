@@ -1,0 +1,154 @@
+{
+  "schemaVersion": 1,
+  "status": "incomplete",
+  "exitCode": 1,
+  "checks": [
+    {
+      "id": "external-disabled",
+      "required": true,
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/awesome-optimization/cli.mjs",
+        "external-check"
+      ],
+      "timeoutMs": 10000,
+      "durationMs": 472,
+      "status": "passed",
+      "exitCode": 0,
+      "output": "{\n  \"mode\": \"local-mock\",\n  \"activationStatus\": \"DISABLED_PENDING_APPROVAL\",\n  \"networkCalls\": 0,\n  \"settings\": {\n    \"LINE_CHANNEL_SECRET\": \"MISSING\",\n    \"LINE_CHANNEL_ACCESS_TOKEN\": \"MISSING\",\n    \"VAPID_PRIVATE_KEY\": \"MISSING\",\n    \"RESEND_API_KEY\": \"MISSING\",\n    \"POSTHOG_API_KEY\": \"MISSING\",\n    \"NOVU_API_KEY\": \"MISSING\",\n    \"TRIGGER_SECRET_KEY\": \"MISSING\",\n    \"MEILISEARCH_API_KEY\": \"MISSING\",\n    \"OTEL_EXPORTER_OTLP_ENDPOINT\": \"MISSING\"\n  },\n  \"exitCode\": 0\n}\n"
+    },
+    {
+      "id": "client-boundaries",
+      "required": true,
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/awesome-optimization/boundaries.mjs"
+      ],
+      "timeoutMs": 30000,
+      "durationMs": 2437,
+      "status": "passed",
+      "exitCode": 0,
+      "output": "{\n  \"scope\": \"new/changed static client/native/shared edges; exact hashed baseline debt remains open; server-action RPC references excluded; runtime auth remains separately tested\",\n  \"entries\": 190,\n  \"checkedVisits\": 2144,\n  \"findings\": [],\n  \"baselineDebt\": [\n    {\n      \"entry\": \"src/app/store/[identifier]/storefront-mode-nav.tsx\",\n      \"path\": \"src/lib/prisma.ts\",\n      \"classification\": \"SERVER_DEPENDENCY_IN_CLIENT\"\n    }\n  ]\n}\n"
+    },
+    {
+      "id": "foundation-tests",
+      "required": true,
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "node_modules/vitest/vitest.mjs",
+        "run",
+        "scripts/awesome-optimization",
+        "scripts/responsive-qa-target.test.mjs",
+        "scripts/lib/production-workflow-contract.test.mjs"
+      ],
+      "timeoutMs": 120000,
+      "durationMs": 3715,
+      "status": "passed",
+      "exitCode": 0,
+      "output": "(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v4.1.11 C:/Users/KY/.codex/worktrees/responsive-cross-device/Stallorder-Platform\n\n\n Test Files  7 passed (7)\n      Tests  56 passed (56)\n   Start at  09:27:48\n   Duration  2.58s (transform 346ms, setup 0ms, import 704ms, tests 3.44s, environment 0ms)\n\n"
+    },
+    {
+      "id": "affected-authority-tests",
+      "required": true,
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "node_modules/vitest/vitest.mjs",
+        "run",
+        "src/lib/use-live-resource.test.ts",
+        "src/lib/report-data.test.ts",
+        "src/server/merchant-applications/application-state.test.ts"
+      ],
+      "timeoutMs": 120000,
+      "durationMs": 1710,
+      "status": "passed",
+      "exitCode": 0,
+      "output": "(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v4.1.11 C:/Users/KY/.codex/worktrees/responsive-cross-device/Stallorder-Platform\n\n\n Test Files  3 passed (3)\n      Tests  19 passed (19)\n   Start at  09:27:51\n   Duration  729ms (transform 120ms, setup 0ms, import 218ms, tests 24ms, environment 0ms)\n\n"
+    },
+    {
+      "id": "typecheck",
+      "required": true,
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "node_modules/typescript/bin/tsc",
+        "--noEmit"
+      ],
+      "timeoutMs": 180000,
+      "durationMs": 15488,
+      "status": "passed",
+      "exitCode": 0,
+      "output": ""
+    },
+    {
+      "id": "affected-lint",
+      "required": true,
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "node_modules/eslint/bin/eslint.js",
+        "scripts/awesome-optimization",
+        "e2e/responsive-lab/responsive-admin-workflows.spec.ts",
+        "e2e/responsive-lab/responsive-merchant-workflows.spec.ts"
+      ],
+      "timeoutMs": 120000,
+      "durationMs": 6467,
+      "status": "passed",
+      "exitCode": 0,
+      "output": ""
+    },
+    {
+      "id": "core-cross-device-e2e",
+      "required": true,
+      "command": null,
+      "timeoutMs": 1000,
+      "durationMs": 0,
+      "status": "not_run",
+      "exitCode": null,
+      "output": "No executable check is configured."
+    },
+    {
+      "id": "database-tenant-regression",
+      "required": true,
+      "command": null,
+      "timeoutMs": 1000,
+      "durationMs": 0,
+      "status": "not_run",
+      "exitCode": null,
+      "output": "No executable check is configured."
+    },
+    {
+      "id": "native-compatibility",
+      "required": true,
+      "command": null,
+      "timeoutMs": 1000,
+      "durationMs": 0,
+      "status": "not_run",
+      "exitCode": null,
+      "output": "No executable check is configured."
+    },
+    {
+      "id": "paired-fixture-metrics",
+      "required": true,
+      "command": null,
+      "timeoutMs": 1000,
+      "durationMs": 0,
+      "status": "not_run",
+      "exitCode": null,
+      "output": "No executable check is configured."
+    }
+  ],
+  "scope": "full",
+  "cwd": "C:\\Users\\KY\\.codex\\worktrees\\responsive-cross-device\\Stallorder-Platform",
+  "startedAt": "2026-10-01T01-27-41-925Z",
+  "finishedAt": "2026-10-01T01:28:17.585Z",
+  "sourceBefore": {
+    "head": "87230e266281472a71fd764d616be1adf788c635",
+    "branch": "codex/responsive-cross-device-20260930",
+    "sourceSha256": "03d6f5bbba76c4ae938e4b4ecbe31d21dc7136dbbc510a71bf3c606c9a638dee"
+  },
+  "sourceAfter": {
+    "head": "87230e266281472a71fd764d616be1adf788c635",
+    "branch": "codex/responsive-cross-device-20260930",
+    "sourceSha256": "03d6f5bbba76c4ae938e4b4ecbe31d21dc7136dbbc510a71bf3c606c9a638dee"
+  },
+  "overallProductStatus": "INCOMPLETE",
+  "activationStatus": "NOT_ACTIVATED"
+}

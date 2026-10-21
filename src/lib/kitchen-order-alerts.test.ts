@@ -49,6 +49,6 @@ describe("kitchen order alerts", () => {
     expect(staffPreferenceIndex).toBeGreaterThan(-1);
     expect(kitchenPreferenceIndex).toBeGreaterThan(-1);
     expect(staffPreferenceIndex).toBeLessThan(staffSource.indexOf("startStaffOrderLiveLifecycle({"));
-    expect(kitchenPreferenceIndex).toBeLessThan(kitchenSource.indexOf("new EventSource("));
+    expect(kitchenPreferenceIndex).toBeLessThan(kitchenSource.indexOf("startKitchenBoardLiveLifecycle({"));
   });
 });

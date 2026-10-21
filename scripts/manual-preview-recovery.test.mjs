@@ -1,0 +1,16 @@
+import {test,expect} from 'vitest';
+import {validateRecovery} from './manual-preview-recovery.mjs';
+const env={CLEANUP_RUN_ID:'123',GITHUB_REPOSITORY:'KenLeeYa/Stallorder-Platform',SUPABASE_PARENT_PROJECT_REF:'parent',VERCEL_ORG_ID:'team',VERCEL_PROJECT_ID:'project'};
+const source={id:123,event:'workflow_dispatch',status:'completed',repository:{full_name:env.GITHUB_REPOSITORY},path:'.github/workflows/ephemeral-preview.yml',head_branch:'codex/original',head_sha:'a'.repeat(40)};
+const receipt={resourceKey:'manual-123',branchName:'manual-123',gitBranch:'codex/original',parent:'parent',team:'team',project:'project',branches:[{id:'child',name:'manual-123'}],deployments:[{id:'dpl_abc',project:'project',target:'preview'}]};
+test('binds original run artifact to exact owner and restores original branch',()=>{expect(validateRecovery(source,[receipt],env)).toMatchObject({environment:{PREVIEW_GIT_BRANCH:'codex/original'},receipt:{recoverySource:{headSha:source.head_sha},branches:[{id:'child',absent:false}]}});});
+for(const patch of [{id:124},{event:'pull_request'},{status:'in_progress'},{repository:{full_name:'other/repo'}},{path:'.github/workflows/other.yml'},{head_branch:'main'},{head_sha:'invalid'}])test('rejects mismatched original run '+JSON.stringify(patch),()=>expect(()=>validateRecovery({...source,...patch},[receipt],env)).toThrow('IDENTITY_INVALID'));
+for(const patch of [{resourceKey:'manual-124'},{branchName:'manual-124'},{gitBranch:'codex/new'},{parent:'other'},{team:'other'},{project:'other'},{branches:[{id:'parent',name:'manual-123'}]},{deployments:[{id:'dpl_abc',project:'project',target:'production'}]}])test('rejects mismatched artifact owner '+JSON.stringify(patch),()=>expect(()=>validateRecovery(source,[{...receipt,...patch}],env)).toThrow('IDENTITY_INVALID'));
+test('rejects missing receipts and replacement branch across phases',()=>{expect(()=>validateRecovery(source,[],env)).toThrow();expect(()=>validateRecovery(source,[receipt,{...receipt,branches:[{id:'replacement',name:'manual-123'}]}],env)).toThrow();});
+test('preserves exact IDs recorded in earlier receipt phases',()=>{const result=validateRecovery(source,[receipt,{...receipt,branches:[],deployments:[]}],env);expect(result.receipt.deployments).toHaveLength(1);expect(result.receipt.branches).toHaveLength(1);});
+test('deadline watcher requires recovered source SHA and branch to match its bound run',()=>{
+ const bound={...env,PREVIEW_EXPECTED_HEAD_SHA:source.head_sha,PREVIEW_EXPECTED_GIT_BRANCH:source.head_branch};
+ expect(validateRecovery(source,[receipt],bound).receipt.recoverySource.headSha).toBe(source.head_sha);
+ expect(()=>validateRecovery({...source,head_sha:'b'.repeat(40)},[receipt],bound)).toThrow('IDENTITY_INVALID');
+ expect(()=>validateRecovery({...source,head_branch:'codex/other'},[{...receipt,gitBranch:'codex/other'}],bound)).toThrow('IDENTITY_INVALID');
+});

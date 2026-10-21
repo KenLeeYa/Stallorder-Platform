@@ -7,7 +7,7 @@ function source(relativePath: string) {
 }
 
 const responsiveViews = [
-  ["admin-subscriptions", source("./subscriptions/page.tsx")],
+  ["admin-subscriptions", source("../../components/admin-subscription-directory.tsx")],
   ["admin-invoices", source("./invoices/page.tsx")],
   ["admin-invoice-detail", source("./invoices/[invoiceId]/page.tsx")],
   ["admin-usage", source("./usage/page.tsx")],
@@ -17,7 +17,7 @@ const responsiveViews = [
 ] as const;
 
 describe("admin data page responsive layouts", () => {
-  it.each(responsiveViews)("renders %s as cards below md and a table from md", (testId, pageSource) => {
+  it.each(responsiveViews)("renders %s as cards and a wide comparison table", (testId, pageSource) => {
     const mobileStart = pageSource.indexOf(`data-testid="${testId}-mobile-list"`);
     const desktopStart = pageSource.indexOf(`data-testid="${testId}-desktop-table"`);
 
@@ -27,12 +27,17 @@ describe("admin data page responsive layouts", () => {
     const mobileView = pageSource.slice(mobileStart, desktopStart);
     const desktopView = pageSource.slice(desktopStart);
 
-    expect(mobileView).toContain("md:hidden");
+    if (testId === "admin-plan-versions") {
+      expect(mobileView).not.toContain("md:hidden");
+      expect(desktopView).toContain("2xl:block");
+    } else {
+      expect(mobileView).toContain("md:hidden");
+      expect(desktopView).toContain("md:block");
+    }
     expect(mobileView).toContain("min-w-0");
     expect(mobileView).not.toContain("overflow-x-auto");
     expect(mobileView).not.toContain("min-w-[");
     expect(desktopView).toContain("hidden overflow-x-auto");
-    expect(desktopView).toContain("md:block");
   });
 
   it("keeps mobile management controls touch friendly", () => {

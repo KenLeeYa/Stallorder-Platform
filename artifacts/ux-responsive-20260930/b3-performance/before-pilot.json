@@ -1,0 +1,872 @@
+{
+  "phase": "before",
+  "mode": "pilot",
+  "source": {
+    "head": "3e586386d8b916b7e68c5242bc344155e9410fd5",
+    "tree": "67caefa18c14659961dead94ea929a40716dbe6b",
+    "productSourceClean": true,
+    "worktreeDirty": false,
+    "workingTreePatchSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "buildId": "ZRPD1C0hp87hIxeN-6rwI",
+    "builtAt": "2026-09-30T14:01:44.696Z",
+    "runtimeWorktreeDirty": false,
+    "runtimeWorkingTreePatchSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "originalSourceCommit": "a0c635bc8177abd953fd7381d85fbbaf22cf1fe1",
+  "startedAt": "2026-09-30T14:06:58.187Z",
+  "measurementSha256": "e6b9dc3e97bf0eb4f2774231667918d71e3d8bf4f1077f4eca9029be5f6ba930",
+  "environment": {
+    "origin": "http://127.0.0.1:3026",
+    "database": "127.0.0.1:56822/postgres",
+    "primaryApi": "http://127.0.0.1:56821",
+    "platform": "win32",
+    "arch": "x64",
+    "cpus": "12th Gen Intel(R) Core(TM) i7-12650H",
+    "node": "v24.18.0",
+    "browser": "149.0.7827.55"
+  },
+  "semantics": {
+    "cold": "New Chromium context and page with authenticated storage copied in memory; empty browser HTTP cache. Server/OS remain warm.",
+    "warm": "One context/page/identity for all repeated full navigations; one unmeasured priming interaction. No identity rotation or cache clearing.",
+    "timing": "Before page.goto until genuine readonly interaction and observable state assertion complete. Includes normal navigation/load/actionability.",
+    "pacing": "Serial, one fixed synthetic visitor IP; wait actual Retry-After (or 61s) on 429. No rate bucket changes.",
+    "clocks": "Wall clock not changed; fixed explicit report date 2026-09-30; order age and report refreshed timestamp naturally advance, retained timestamps quantify this.",
+    "vitals": "Chromium PerformanceObserver LCP last entry before first input; CLS maximum session window (1s gap/5s cap); INP max duration per interaction, worst interaction for these <50-interaction rounds. EventTiming below 16ms is left-censored, never called 0. Local lab, not RUM.",
+    "privacy": "No cookies, password, response bodies or QR tokens persisted."
+  },
+  "freeze": [
+    {
+      "at": "2026-09-30T14:06:58.319Z",
+      "orderDigest": "10b7242ec9d9fb274e5cd38e78fcb937089a6c35e72e5601df0d01410301d255",
+      "fullDatasetDigest": "0e6c590475502b69070d0a00da43c2bf08ca911441f705f9e86dacc3abf6c447",
+      "settings": {
+        "kdsModuleEnabled": true,
+        "printModuleEnabled": false,
+        "paymentModuleEnabled": true,
+        "enabledLocales": [
+          "zh-TW",
+          "en",
+          "ja",
+          "ko",
+          "vi",
+          "th"
+        ],
+        "kdsWarningMinutes": 5,
+        "kdsCriticalMinutes": 10,
+        "kdsDefaultView": "ORDER"
+      },
+      "flags": [
+        {
+          "id": "87af29f6-10da-4aaf-8358-a164e0ae4072",
+          "flag": {
+            "code": "MODULE_HQ_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "bfb35eab-064d-42de-b33b-e1f219ff7ce5",
+          "flag": {
+            "code": "MODULE_GROWTH_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "84272135-7596-41c4-8767-d65b38537fbc",
+          "flag": {
+            "code": "MODULE_SUPPLY_LITE_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "a0feb80c-e992-4d83-bb42-fd7e761d52e8",
+          "flag": {
+            "code": "MODULE_PUBLIC_API_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "a1a9f2d3-ead5-4d7a-9388-15cefcc40da5",
+          "flag": {
+            "code": "MODULE_EVENT_GROWTH_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "07948fe5-db85-436c-9ff2-f904441af278",
+          "flag": {
+            "code": "MODULE_ADVANCED_ANALYTICS_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "6f7ad6b5-3757-4332-9960-ec00438f70c0",
+          "flag": {
+            "code": "DUAL_ORDER_INTAKE_ENABLED"
+          },
+          "scopeType": "GLOBAL",
+          "organizationId": null,
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": "2026-10-01T00:20:50.494Z"
+        }
+      ],
+      "surroundings": {
+        "orders": [
+          {
+            "_count": 4,
+            "status": "WAITING_CONFIRMATION"
+          },
+          {
+            "_count": 157,
+            "status": "CONFIRMED"
+          },
+          {
+            "_count": 4,
+            "status": "READY"
+          },
+          {
+            "_count": 20,
+            "status": "COMPLETED"
+          },
+          {
+            "_count": 46,
+            "status": "EXPIRED"
+          }
+        ],
+        "products": 214,
+        "tasks": [
+          {
+            "_count": 14,
+            "status": "COMPLETED"
+          },
+          {
+            "_count": 122,
+            "status": "PENDING"
+          },
+          {
+            "_count": 10,
+            "status": "CANCELLED"
+          }
+        ]
+      },
+      "runtimeContractSha256": "28d68479b0a2a61ad8ea65b773175693744385651caa7a0415fab6a358676389"
+    },
+    {
+      "at": "2026-09-30T14:12:20.366Z",
+      "orderDigest": "10b7242ec9d9fb274e5cd38e78fcb937089a6c35e72e5601df0d01410301d255",
+      "fullDatasetDigest": "0e6c590475502b69070d0a00da43c2bf08ca911441f705f9e86dacc3abf6c447",
+      "settings": {
+        "kdsModuleEnabled": true,
+        "printModuleEnabled": false,
+        "paymentModuleEnabled": true,
+        "enabledLocales": [
+          "zh-TW",
+          "en",
+          "ja",
+          "ko",
+          "vi",
+          "th"
+        ],
+        "kdsWarningMinutes": 5,
+        "kdsCriticalMinutes": 10,
+        "kdsDefaultView": "ORDER"
+      },
+      "flags": [
+        {
+          "id": "87af29f6-10da-4aaf-8358-a164e0ae4072",
+          "flag": {
+            "code": "MODULE_HQ_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "bfb35eab-064d-42de-b33b-e1f219ff7ce5",
+          "flag": {
+            "code": "MODULE_GROWTH_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "84272135-7596-41c4-8767-d65b38537fbc",
+          "flag": {
+            "code": "MODULE_SUPPLY_LITE_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "a0feb80c-e992-4d83-bb42-fd7e761d52e8",
+          "flag": {
+            "code": "MODULE_PUBLIC_API_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "a1a9f2d3-ead5-4d7a-9388-15cefcc40da5",
+          "flag": {
+            "code": "MODULE_EVENT_GROWTH_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "07948fe5-db85-436c-9ff2-f904441af278",
+          "flag": {
+            "code": "MODULE_ADVANCED_ANALYTICS_ENABLED"
+          },
+          "scopeType": "ORGANIZATION",
+          "organizationId": "11111111-1111-4111-8111-111111111111",
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": null
+        },
+        {
+          "id": "6f7ad6b5-3757-4332-9960-ec00438f70c0",
+          "flag": {
+            "code": "DUAL_ORDER_INTAKE_ENABLED"
+          },
+          "scopeType": "GLOBAL",
+          "organizationId": null,
+          "stallId": null,
+          "enabled": true,
+          "rolloutPercentage": null,
+          "expiresAt": "2026-10-01T00:20:50.494Z"
+        }
+      ],
+      "surroundings": {
+        "orders": [
+          {
+            "_count": 4,
+            "status": "WAITING_CONFIRMATION"
+          },
+          {
+            "_count": 157,
+            "status": "CONFIRMED"
+          },
+          {
+            "_count": 4,
+            "status": "READY"
+          },
+          {
+            "_count": 20,
+            "status": "COMPLETED"
+          },
+          {
+            "_count": 46,
+            "status": "EXPIRED"
+          }
+        ],
+        "products": 214,
+        "tasks": [
+          {
+            "_count": 14,
+            "status": "COMPLETED"
+          },
+          {
+            "_count": 122,
+            "status": "PENDING"
+          },
+          {
+            "_count": 10,
+            "status": "CANCELLED"
+          }
+        ]
+      },
+      "runtimeContractSha256": "28d68479b0a2a61ad8ea65b773175693744385651caa7a0415fab6a358676389"
+    }
+  ],
+  "routes": {
+    "QR": {
+      "width": 390,
+      "route": "/q/[frozen main QR]",
+      "role": "anonymous",
+      "cold": {
+        "samples": [
+          1317.9
+        ],
+        "attempts": [
+          {
+            "at": "2026-09-30T14:07:02.771Z",
+            "index": 1,
+            "ms": 1317.9,
+            "valid": true,
+            "responses": []
+          }
+        ],
+        "priming": null,
+        "summary": {
+          "n": 1,
+          "median": 1317.9,
+          "p95": 1317.9,
+          "min": 1317.9,
+          "max": 1317.9
+        },
+        "errorRate": 0
+      },
+      "warm": {
+        "samples": [
+          291.2
+        ],
+        "attempts": [
+          {
+            "at": "2026-09-30T14:07:05.506Z",
+            "index": 1,
+            "ms": 291.2,
+            "valid": true,
+            "responses": []
+          }
+        ],
+        "priming": {
+          "at": "2026-09-30T14:07:05.506Z",
+          "errors": []
+        },
+        "summary": {
+          "n": 1,
+          "median": 291.2,
+          "p95": 291.2,
+          "min": 291.2,
+          "max": 291.2
+        },
+        "errorRate": 0
+      }
+    },
+    "Staff": {
+      "width": 1024,
+      "route": "/staff/aming-chicken",
+      "role": "STAFF",
+      "cold": {
+        "samples": [
+          914.4
+        ],
+        "attempts": [
+          {
+            "at": "2026-09-30T14:07:05.881Z",
+            "index": 1,
+            "ms": 914.4,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          }
+        ],
+        "priming": null,
+        "summary": {
+          "n": 1,
+          "median": 914.4,
+          "p95": 914.4,
+          "min": 914.4,
+          "max": 914.4
+        },
+        "errorRate": 0
+      },
+      "warm": {
+        "samples": [
+          732.4
+        ],
+        "attempts": [
+          {
+            "at": "2026-09-30T14:07:08.031Z",
+            "index": 1,
+            "ms": 732.4,
+            "valid": true,
+            "responses": [
+              {
+                "status": 409,
+                "path": "/api/stalls/aming-chicken/attendance",
+                "retryAfter": null,
+                "preflightCode": "ATTENDANCE_DISABLED",
+                "expectedOptionalModuleResponse": true
+              }
+            ]
+          }
+        ],
+        "priming": {
+          "at": "2026-09-30T14:07:08.031Z",
+          "errors": [
+            {
+              "status": 409,
+              "path": "/api/stalls/aming-chicken/attendance",
+              "retryAfter": null,
+              "preflightCode": "ATTENDANCE_DISABLED",
+              "expectedOptionalModuleResponse": true
+            }
+          ]
+        },
+        "summary": {
+          "n": 1,
+          "median": 732.4,
+          "p95": 732.4,
+          "min": 732.4,
+          "max": 732.4
+        },
+        "errorRate": 0
+      }
+    },
+    "KDS": {
+      "width": 1024,
+      "route": "/kitchen?stall=aming-chicken",
+      "role": "KDS",
+      "cold": {
+        "samples": [
+          326.9
+        ],
+        "attempts": [
+          {
+            "at": "2026-09-30T14:07:08.883Z",
+            "index": 1,
+            "ms": 326.9,
+            "valid": true,
+            "responses": []
+          }
+        ],
+        "priming": null,
+        "summary": {
+          "n": 1,
+          "median": 326.9,
+          "p95": 326.9,
+          "min": 326.9,
+          "max": 326.9
+        },
+        "errorRate": 0
+      },
+      "warm": {
+        "samples": [
+          444.8
+        ],
+        "attempts": [
+          {
+            "at": "2026-09-30T14:07:09.596Z",
+            "index": 1,
+            "ms": 411.2,
+            "valid": false,
+            "error": "expect(received).toEqual(expected) // deep equality\n\n- Expected  - 1\n+ Received  + 7\n\n- Array []\n+ Array [\n+   Object {\n+     \"path\": \"/api/stalls/aming-chicken/kitchen/stream\",\n+     \"retryAfter\": \"60\",\n+     \"status\": 429,\n+   },\n+ ]",
+            "responses": [
+              {
+                "status": 429,
+                "path": "/api/stalls/aming-chicken/kitchen/stream",
+                "retryAfter": "60"
+              }
+            ]
+          },
+          {
+            "at": "2026-09-30T14:12:11.028Z",
+            "index": 2,
+            "ms": 444.8,
+            "valid": true,
+            "responses": []
+          }
+        ],
+        "priming": {
+          "at": "2026-09-30T14:07:09.596Z",
+          "errors": []
+        },
+        "summary": {
+          "n": 1,
+          "median": 444.8,
+          "p95": 444.8,
+          "min": 444.8,
+          "max": 444.8
+        },
+        "errorRate": 0.5
+      }
+    },
+    "Report": {
+      "width": 390,
+      "route": "/merchant/reports/overview?organizationId=11111111-1111-4111-8111-111111111111&stallId=22222222-2222-4222-8222-222222222222&dateFrom=2026-09-30&dateTo=2026-09-30",
+      "role": "OWNER",
+      "cold": {
+        "samples": [
+          384.1
+        ],
+        "attempts": [
+          {
+            "at": "2026-09-30T14:12:11.652Z",
+            "index": 1,
+            "ms": 384.1,
+            "valid": true,
+            "responses": []
+          }
+        ],
+        "priming": null,
+        "summary": {
+          "n": 1,
+          "median": 384.1,
+          "p95": 384.1,
+          "min": 384.1,
+          "max": 384.1
+        },
+        "errorRate": 0
+      },
+      "warm": {
+        "samples": [
+          187.3
+        ],
+        "attempts": [
+          {
+            "at": "2026-09-30T14:12:12.584Z",
+            "index": 1,
+            "ms": 187.3,
+            "valid": true,
+            "responses": []
+          }
+        ],
+        "priming": {
+          "at": "2026-09-30T14:12:12.584Z",
+          "errors": []
+        },
+        "summary": {
+          "n": 1,
+          "median": 187.3,
+          "p95": 187.3,
+          "min": 187.3,
+          "max": 187.3
+        },
+        "errorRate": 0
+      }
+    }
+  },
+  "api": {
+    "Staff": {
+      "endpoint": "/api/stalls/aming-chicken/orders",
+      "role": "Staff",
+      "attempts": [
+        {
+          "ms": 231.8,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null
+        }
+      ],
+      "samples": [
+        231.8
+      ],
+      "summary": {
+        "n": 1,
+        "median": 231.8,
+        "p95": 231.8,
+        "min": 231.8,
+        "max": 231.8
+      },
+      "errorRate": 0
+    },
+    "KDS": {
+      "endpoint": "/api/stalls/aming-chicken/kitchen/board",
+      "role": "KDS",
+      "attempts": [
+        {
+          "ms": 110.6,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null
+        }
+      ],
+      "samples": [
+        110.6
+      ],
+      "summary": {
+        "n": 1,
+        "median": 110.6,
+        "p95": 110.6,
+        "min": 110.6,
+        "max": 110.6
+      },
+      "errorRate": 0
+    },
+    "Report": {
+      "endpoint": "/api/availability/config",
+      "role": "Report",
+      "attempts": [
+        {
+          "ms": 21.7,
+          "status": 200,
+          "contentType": "application/json",
+          "retryAfter": null
+        }
+      ],
+      "samples": [
+        21.7
+      ],
+      "summary": {
+        "n": 1,
+        "median": 21.7,
+        "p95": 21.7,
+        "min": 21.7,
+        "max": 21.7
+      },
+      "errorRate": 0
+    }
+  },
+  "vitals": {
+    "QR": [
+      {
+        "round": 1,
+        "at": "2026-09-30T14:12:16.216Z",
+        "responses": [],
+        "lcp": 268,
+        "cls": 0,
+        "events": [
+          {
+            "id": 1668,
+            "duration": 64,
+            "name": "pointerdown"
+          },
+          {
+            "id": 1668,
+            "duration": 64,
+            "name": "pointerup"
+          },
+          {
+            "id": 1668,
+            "duration": 64,
+            "name": "click"
+          },
+          {
+            "id": 1675,
+            "duration": 16,
+            "name": "pointerdown"
+          },
+          {
+            "id": 1675,
+            "duration": 16,
+            "name": "pointerup"
+          },
+          {
+            "id": 1675,
+            "duration": 16,
+            "name": "click"
+          }
+        ],
+        "shifts": [],
+        "firstInput": 1197.7000000476837,
+        "inp": 64,
+        "interactionsRecorded": 2,
+        "inpCensoring": null
+      }
+    ],
+    "Staff": [
+      {
+        "round": 1,
+        "at": "2026-09-30T14:12:17.893Z",
+        "responses": [
+          {
+            "status": 409,
+            "path": "/api/stalls/aming-chicken/attendance",
+            "retryAfter": null,
+            "preflightCode": "ATTENDANCE_DISABLED",
+            "expectedOptionalModuleResponse": true
+          }
+        ],
+        "lcp": 732,
+        "cls": 0,
+        "events": [
+          {
+            "id": 5304,
+            "duration": 24,
+            "name": "pointerdown"
+          },
+          {
+            "id": 5304,
+            "duration": 24,
+            "name": "pointerup"
+          },
+          {
+            "id": 5304,
+            "duration": 24,
+            "name": "click"
+          },
+          {
+            "id": 5311,
+            "duration": 24,
+            "name": "pointerdown"
+          },
+          {
+            "id": 5311,
+            "duration": 24,
+            "name": "pointerup"
+          },
+          {
+            "id": 5311,
+            "duration": 24,
+            "name": "click"
+          }
+        ],
+        "shifts": [],
+        "firstInput": 967.5,
+        "inp": 24,
+        "interactionsRecorded": 2,
+        "inpCensoring": null
+      }
+    ],
+    "KDS": [
+      {
+        "round": 1,
+        "at": "2026-09-30T14:12:19.257Z",
+        "responses": [],
+        "lcp": 688,
+        "cls": 0,
+        "events": [
+          {
+            "id": 7906,
+            "duration": 24,
+            "name": "pointerdown"
+          },
+          {
+            "id": 7906,
+            "duration": 24,
+            "name": "pointerup"
+          },
+          {
+            "id": 7906,
+            "duration": 24,
+            "name": "click"
+          }
+        ],
+        "shifts": [],
+        "firstInput": 700.5,
+        "inp": 24,
+        "interactionsRecorded": 1,
+        "inpCensoring": null
+      }
+    ],
+    "Report": [
+      {
+        "round": 1,
+        "at": "2026-09-30T14:12:20.302Z",
+        "responses": [],
+        "lcp": 208,
+        "cls": 0,
+        "events": [
+          {
+            "id": 610,
+            "duration": 16,
+            "name": "pointerdown"
+          },
+          {
+            "id": 610,
+            "duration": 16,
+            "name": "pointerup"
+          },
+          {
+            "id": 610,
+            "duration": 16,
+            "name": "click"
+          },
+          {
+            "id": 617,
+            "duration": 16,
+            "name": "pointerdown"
+          },
+          {
+            "id": 617,
+            "duration": 16,
+            "name": "pointerup"
+          },
+          {
+            "id": 617,
+            "duration": 16,
+            "name": "click"
+          }
+        ],
+        "shifts": [],
+        "firstInput": 295.7999999523163,
+        "inp": 16,
+        "interactionsRecorded": 2,
+        "inpCensoring": null
+      }
+    ]
+  },
+  "diagnostics": [
+    {
+      "tag": "Staff/cold",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "Staff/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    },
+    {
+      "tag": "KDS/warm",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 429 (Too Many Requests)"
+    },
+    {
+      "tag": "Staff/vitals",
+      "type": "console",
+      "message": "Failed to load resource: the server responded with a status of 409 (Conflict)"
+    }
+  ],
+  "optionalAttendancePreflight": {
+    "status": 409,
+    "code": "ATTENDANCE_DISABLED"
+  },
+  "status": "MEASURED",
+  "finishedAt": "2026-09-30T14:12:22.141Z"
+}

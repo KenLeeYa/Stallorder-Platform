@@ -91,8 +91,8 @@ function editErrorResponse(error: unknown, requestId: string) {
   if (error instanceof StaffOrderEditError) {
     const messages: Record<StaffOrderEditFailure, string> = {
       NOT_FOUND: "找不到此訂單。",
-      NOT_EDITABLE_SOURCE: "僅能修改尚未製作的店員訂單或線上外帶自取訂單。",
-      CUSTOMER_NOTICE_REQUIRED: "修改線上外帶訂單時，請選擇原因並填寫通知顧客的內容。",
+      NOT_EDITABLE_SOURCE: "僅能修改尚未製作的店員訂單或本系統的線上點餐訂單。",
+      CUSTOMER_NOTICE_REQUIRED: "修改顧客線上訂單時，請選擇原因並填寫通知顧客的內容。",
       PAYMENT_ALREADY_RECORDED: "此訂單已結帳或已套用付款資料，無法修改商品。",
       ORDER_ALREADY_STARTED: "餐點已開始製作，無法再修改訂單商品。",
       UNSUPPORTED_EXISTING_CONFIGURATION: "此訂單包含活動贈品，需先確認活動資格與贈品處理方式，無法直接調整商品。",

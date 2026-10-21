@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-09-30T07:02:49.415Z",
+  "scope": "LOCAL_ENV_FILE_ISOLATION_AND_REQUIREMENTS_SYNC_ONLY",
+  "workspace": "C:\\Users\\KY\\Documents\\Codex projects\\Stallorder-Platform-security-compliance-20260913",
+  "branch": "codex/security-assessment-refresh-20260930",
+  "baseCommit": "c31a5d9b379086b04360430aa71564b083a99292",
+  "testedState": "DIRTY_WORKTREE_IDENTIFIED_BY_SOURCE_HASHES; final commit contains this receipt",
+  "sources": [
+    {
+      "file": "scripts/local-qa-runtime.mjs",
+      "sha256": "09406d4150ba879680facad072fa6f8237b4afa60380ccb6e2896c63b86c6d4a"
+    },
+    {
+      "file": "scripts/local-qa-env-files.test.mjs",
+      "sha256": "70a5681983309ad4f1e7f8d4a3cedcdb44a36f956b05e812b5ed0a6fb544bdb7"
+    },
+    {
+      "file": "scripts/local-qa-runtime.test.mjs",
+      "sha256": "42c6508674f181fc145c54b8bf4615ff48e04688825b9527dffd85213eef76db"
+    },
+    {
+      "file": "scripts/start-local-qa.mjs",
+      "sha256": "e8d1577f124635cbc5fd37205bb8a026886c7ea4eb3625ec4389569def4da375"
+    },
+    {
+      "file": "scripts/start-compliance-qa.mjs",
+      "sha256": "bfbe01cabc3f94a3d9fc60c4b394bb7b48e8f22b9871d3c74eb89c8dbd65e7e8"
+    }
+  ],
+  "inputs": [
+    {
+      "file": "docs/security-compliance/inputs/assessment-20260913.recovered.md",
+      "sha256": "05fcbf7bfa8136c397e1a05300ddc4d194588583c957d2af14d44d1f70b6caa3",
+      "historicalReconstruction": true
+    },
+    {
+      "file": "docs/security-compliance/inputs/assessment-20260929.md",
+      "sha256": "8a3228232092909a3ed3f3d2c04404c2674d34b064b7e5d411feb203101d04bd",
+      "historicalReconstruction": false
+    },
+    {
+      "file": "docs/security-compliance/inputs/prompt-20260913.recovered.md",
+      "sha256": "96d9eb16ddff893a87ce3fedab7dce4907547fbcbb2c86e706ec9016fc22cb12",
+      "historicalReconstruction": true
+    },
+    {
+      "file": "docs/security-compliance/inputs/prompt-20260930.received.md",
+      "sha256": "758e3991fdd035549030f4f6cce0204850e2cf9d21673df5ea9157552d4bdab1",
+      "historicalReconstruction": false
+    }
+  ],
+  "synchronizedPrompt": {
+    "file": "docs/security-compliance/Stallorder_Security_Privacy_Compliance_Codex_Prompt_20260930.md",
+    "sha256": "05c07eddab8b616e076fe4fc211e84f0ffd66371419aded6988476bd7c8a6d93",
+    "downloadHashMatches": true,
+    "originalPreserved": "inputs/prompt-20260930.received.md"
+  },
+  "versions": {
+    "node": "v24.18.0",
+    "npm": "11.16.0",
+    "vitest": "4.1.11",
+    "next": "16.3.4"
+  },
+  "checks": [
+    {
+      "command": "npx vitest run scripts/local-qa-runtime.test.mjs scripts/local-qa-env-files.test.mjs --maxWorkers=1",
+      "environment": "isolated temporary synthetic env files; actual Next env loader subprocess; no DB/provider connection",
+      "startedAt": "2026-09-30T06:58:31Z",
+      "exitCode": 0,
+      "passed": 23,
+      "failed": 0,
+      "files": 2,
+      "assertions": [
+        "all four development env files reject stripped provider credentials",
+        "remote destination rejected even when shadowed",
+        "platform enable/binding, Pay secret and NODE_OPTIONS rejected",
+        "actual Next loader reproduces injection without preflight",
+        "actual Next loader preserves verified local/mock overrides with preflight"
+      ],
+      "warning": "existing Vite future native config-loader compatibility warning"
+    },
+    {
+      "command": "npx eslint scripts/local-qa-runtime.mjs scripts/local-qa-env-files.test.mjs scripts/start-local-qa.mjs scripts/start-compliance-qa.mjs",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run typecheck",
+      "exitCode": 0
+    },
+    {
+      "command": "git diff --cached --check -- . :(exclude)docs/security-compliance/inputs/**",
+      "exitCode": 0,
+      "scope": "authored code/docs; original input snapshots and unified diffs preserve intentional whitespace and EOF"
+    }
+  ],
+  "redBeforeFix": {
+    "failed": 5,
+    "passed": 2,
+    "reason": "expected rejection missing before env-file preflight"
+  },
+  "notRun": [
+    "T71-T80 integration and actual channel flows",
+    "full application E2E",
+    "DB/RLS/migrations",
+    "hosted OAuth/Pay/webhook",
+    "physical device",
+    "DR failover/failback"
+  ],
+  "isolation": {
+    "independentClone": true,
+    "sharedGitObjects": false,
+    "remoteWrites": 0,
+    "servicesStarted": 0,
+    "servicesStopped": 0,
+    "otherWorkspace": "C:/Users/KY/.codex/worktrees/responsive-cross-device/Stallorder-Platform",
+    "otherHeadAtReadback": "507dc101a15d080807f95b7074f4796e11dbdcf2",
+    "retainedOtherServices": [
+      "stallorder-responsive-20260930:56821/56822",
+      "stallorder-catalog-ops-20260907:55722"
+    ],
+    "resume": "No test service to resume for this refresh; rerun focused tests without Docker. Before any server test, recheck project labels/ports and isolated env files."
+  },
+  "productionReadback": {
+    "observedAt": "2026-09-30T07:01:42.890Z",
+    "hostname": "app.qidaigo.com",
+    "project": "prj_uoG4FNJIgnF1LdKRiXnfRaieXnUP",
+    "deployment": "dpl_Cx8GfP12KuFHcCgtnZ7SXxzt4AYZ",
+    "commit": "5cc15c6a6189cfd56e127676bc5228e9ffd2ff56",
+    "state": "READY",
+    "unchangedFromTurnBaseline": true,
+    "backend": "PRIMARY",
+    "promotionEpoch": 3,
+    "paths": {
+      "/login": 200,
+      "/staff/login": 200,
+      "/api/health": 401,
+      "/api/availability/config": 200
+    },
+    "authenticatedAndValidQr": "NOT_RUN",
+    "interpretation": "anonymous probes plus provider readback, not full production flow QA"
+  },
+  "release": "NO_GO_FOR_FULL_SECURITY_PRIVACY_ROLLOUT",
+  "externalChecklist": "E01-E22 in EXTERNAL_SETUP_CHECKLIST.md"
+}

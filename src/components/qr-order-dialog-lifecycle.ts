@@ -23,7 +23,7 @@ export function startQrOrderCartDialogLifecycle({
   closeButton: HTMLButtonElement | null;
   onClose: () => void;
 }) {
-  const desktopQuery = window.matchMedia("(min-width: 768px)");
+  const desktopQuery = window.matchMedia("(min-width: 1024px)");
   if (desktopQuery.matches) {
     const closeFrame = window.requestAnimationFrame(onClose);
     return () => window.cancelAnimationFrame(closeFrame);

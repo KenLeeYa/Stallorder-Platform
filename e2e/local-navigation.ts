@@ -95,10 +95,20 @@ export async function addFirstStaffCatalogProduct(
   return productName;
 }
 
+export async function openSharedCatalogManagement(page: Page) {
+  const entry = page.getByRole("button", { name: "完整管理／新增商品", exact: true });
+  await expect(entry).toBeVisible();
+  await entry.click();
+  await expect(page.getByRole("region", { name: "商品批次管理", exact: true })).toBeVisible();
+}
+
 export async function openSharedCatalogProductActions(
   page: Page,
   productName: string,
 ) {
+  if (await page.getByRole("button", { name: "完整管理／新增商品", exact: true }).isVisible()) {
+    await openSharedCatalogManagement(page);
+  }
   const desktopSearch = page.getByRole("searchbox", { name: "搜尋管理商品", exact: true });
   const navigator = page.getByTestId("catalog-navigator-dialog");
   const openNavigator = page
@@ -196,11 +206,15 @@ export async function loginLocalTestAccount(
   page: Page,
   email: string,
   password: string,
+  destination?: string,
 ) {
+  if (destination !== undefined && (
+    !destination.startsWith("/") || destination.startsWith("//") || destination.length > 500
+  )) throw new Error("E2E_LOCAL_LOGIN_DESTINATION_INVALID");
   await gotoLocalPath(page, "/login");
   const origin = new URL(page.url()).origin;
   const response = await page.context().request.post("/api/auth/login", {
-    data: { email, password },
+    data: { email, password, ...(destination === undefined ? {} : { next: destination }) },
     headers: {
       origin,
       referer: page.url(),
@@ -217,6 +231,9 @@ export async function loginLocalTestAccount(
     body.next.startsWith("//")
   ) {
     throw new Error("E2E_LOCAL_LOGIN_DESTINATION_INVALID");
+  }
+  if (destination !== undefined && body.next !== destination) {
+    throw new Error("E2E_LOCAL_LOGIN_DESTINATION_MISMATCH");
   }
   await gotoLocalPath(page, body.next);
   return body.next;
@@ -291,6 +308,16 @@ export async function dismissStaffStartReminder(page: Page) {
     .last()
     .click();
   await backdrop.waitFor({ state: "detached", timeout: 5_000 });
+}
+
+export async function openStaffMobileTools(page: Page) {
+  const tools = page.getByTestId("staff-tools-toggle").filter({ visible: true });
+  await expect(tools).toBeVisible();
+  await expect(tools).toBeEnabled();
+  if (await tools.getAttribute("aria-expanded") !== "true") {
+    await tools.click();
+  }
+  await expect(tools).toHaveAttribute("aria-expanded", "true");
 }
 
 export async function waitForDefaultMerchantDashboard(

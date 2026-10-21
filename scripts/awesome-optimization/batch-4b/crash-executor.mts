@@ -1,0 +1,9 @@
+import {loadEnvFile} from 'node:process';import {registerHooks} from './node-hooks';import assert from 'node:assert/strict';
+import {captureFrozenResponsiveSource} from '../../responsive-build-provenance.mjs';import {openGuardedDatabase,verifyLiveFixture} from '../../../docs/awesome-optimization/qa/live-fixture-guard.mjs';
+loadEnvFile('.env.local');assert.equal(captureFrozenResponsiveSource().sourceIdentity.sourceSha256,process.env.B4B_ROOT_RUNTIME_SOURCE);const db=await openGuardedDatabase();await verifyLiveFixture(db);
+const [mode,id,organizationId,initialAttempts='0']=process.argv.slice(2),row=await db.reportDelivery.findUniqueOrThrow({where:{id}});assert.ok(initialAttempts==='0'||initialAttempts==='4'&&mode==='before-effect');assert.equal(row.organizationId,organizationId);assert.equal(row.attemptCount,Number(initialAttempts));assert.equal(row.effectState,initialAttempts==='4'?'REJECTED':'NOT_STARTED');assert.equal(row.status,'PROCESSING');assert.equal(row.leaseToken,null);
+globalThis.fetch=async()=>{throw Error('CRASH_CHILD_NETWORK_DENIED');};
+registerHooks({resolve(s,c,next){if(s==='server-only')return{url:new URL('../../../src/test/server-only.ts',import.meta.url).href,shortCircuit:true};const r=next(s,c);return r.url.endsWith('/src/server/reports/report-email.ts')?{url:new URL('./crash-provider.mts',import.meta.url).href,shortCircuit:true}:r;}});
+if(mode==='before-effect'){
+ const {claimReportDeliveries}=await import('../../../src/server/reports/report-execution');const claims=await claimReportDeliveries(1,id);assert.equal(claims.length,1);process.send?.({kind:'BEFORE_EFFECT_GRANT',pid:process.pid,claim:claims[0]});setInterval(()=>{},1000);
+}else{assert.equal(mode,'after-effect');await (await import('../../../src/lib/report-delivery')).processReportDelivery(id);throw Error('CRASH_CHILD_MUST_BE_TERMINATED');}

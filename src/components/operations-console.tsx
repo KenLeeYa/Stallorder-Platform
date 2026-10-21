@@ -161,7 +161,6 @@ export function OperationsConsole({
       <div className="border-b border-stone-200 pb-5">
         <div className="flex items-center gap-2 text-teal-800"><ShieldAlert className="h-5 w-5" /><span className="text-sm font-semibold">{m("治理與營運")}</span></div>
         <h1 className="mt-2 text-3xl font-semibold">{m("稽核紀錄與營運警示")}</h1>
-        <p className="mt-2 text-sm text-stone-600">{m("依登入者權限、攤位與篩選條件，由伺服器分頁載入資料。")}</p>
       </div>
 
       <form method="get" className="border-b border-stone-200 py-5">

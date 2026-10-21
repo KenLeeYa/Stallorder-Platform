@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  prepareStaffOrderItems,
   prepareTrustedStaffOrderItem,
   staffOrderExceedsLimits,
   type TrustedStaffOrderAssignment,
@@ -19,12 +20,16 @@ function bundleAssignment(): TrustedStaffOrderAssignment {
     productId: bundleProductId,
     priceOverride: 120,
     product: {
+      createdAt: new Date("2026-07-01T00:00:00Z"),
+      updatedAt: new Date("2026-07-01T00:00:00Z"),
       organizationId,
       name: "招牌套餐",
       defaultPrice: 100,
       kind: "BUNDLE",
       isOrderDiscountEligible: true,
       bundleChoiceGroups: [{
+        createdAt: new Date("2026-07-01T00:00:00Z"),
+        updatedAt: new Date("2026-07-01T00:00:00Z"),
         id: choiceGroupId,
         organizationId,
         bundleProductId,
@@ -32,6 +37,8 @@ function bundleAssignment(): TrustedStaffOrderAssignment {
         minSelections: 1,
         maxSelections: 1,
         choices: [{
+          createdAt: new Date("2026-07-01T00:00:00Z"),
+          updatedAt: new Date("2026-07-01T00:00:00Z"),
           id: choiceId,
           organizationId,
           choiceGroupId,
@@ -39,6 +46,8 @@ function bundleAssignment(): TrustedStaffOrderAssignment {
           priceDelta: 25,
           isEnabled: true,
           componentProduct: {
+            createdAt: new Date("2026-07-01T00:00:00Z"),
+            updatedAt: new Date("2026-07-01T00:00:00Z"),
             organizationId,
             name: "河粉",
             kind: "SINGLE",
@@ -84,6 +93,12 @@ function requestedItem(bundleChoiceIds = [choiceId]) {
 }
 
 describe("店員套餐伺服器定價", () => {
+  it("按履約時間拒絕已停止供應的套餐元件", () => {
+    const assignment = bundleAssignment();
+    assignment.product.bundleChoiceGroups[0]!.choices[0]!.componentProduct.stallProducts[0]!.availableUntil = new Date("2026-08-03T10:00:00Z");
+    expect(() => prepareTrustedStaffOrderItem({ organizationId, stallId, now, assignment, requested: requestedItem() })).not.toThrow();
+    expect(() => prepareTrustedStaffOrderItem({ organizationId, stallId, now: new Date("2026-08-04T10:00:00Z"), assignment, requested: requestedItem() })).toThrow("PRODUCT_UNAVAILABLE");
+  });
   it("使用可信任的套餐價差並建立 KDS 共用註記快照", () => {
     const item = prepareTrustedStaffOrderItem({
       organizationId,
@@ -152,6 +167,54 @@ describe("店員套餐伺服器定價", () => {
     });
 
     expect(item.unitPrice).toBe(155);
+  });
+
+  it("顧客修改拒絕停售套餐元件，店員仍可受權照點", () => {
+    const assignment = bundleAssignment();
+    assignment.product.bundleChoiceGroups[0]!.choices[0]!.componentProduct.stallProducts[0]!.isSoldOut = true;
+    const input = { organizationId, stallId, now, assignment, requested: requestedItem() };
+    expect(() => prepareTrustedStaffOrderItem(input)).not.toThrow();
+    expect(() => prepareTrustedStaffOrderItem({ ...input, rejectSoldOutBundleComponents: true })).toThrow("PRODUCT_UNAVAILABLE");
+    assignment.product.bundleChoiceGroups[0]!.choices[0]!.componentProduct.stallProducts[0]!.soldOutUntil = new Date("2020-01-01T00:00:00Z");
+    expect(() => prepareTrustedStaffOrderItem({ ...input, rejectSoldOutBundleComponents: true })).not.toThrow();
+  });
+
+  it("真實prepare保留同配置停售套餐減量，拒絕增量並偵測替換配置", async () => {
+    const assignment = bundleAssignment();
+    const component = assignment.product.bundleChoiceGroups[0]!.choices[0]!.componentProduct;
+    component.stallProducts[0]!.isSoldOut = true;
+    const settings = { unconfirmedOrderTimeoutSeconds: 300, maxItemQuantity: 10, maxTotalQuantity: 20, maxUniqueProducts: 10, maxNoteLength: 1000 };
+    const client = { stallOrderingSettings: { findUnique: async () => settings }, stallProduct: { findMany: async () => [assignment] } };
+    const previous = [{ productId: bundleProductId, quantity: 2, createdAt: now, noteOptions: [{ noteOptionId: null, groupName: "套餐 · 主餐", optionName: "河粉 × 2" }] }];
+    const request = { customerNote: "", items: [{ ...requestedItem(), quantity: 1 }] };
+    await expect(prepareStaffOrderItems(client as never, organizationId, stallId, request, now, true, previous)).resolves.toMatchObject({ addsBundleFulfillment: false });
+    await expect(prepareStaffOrderItems(client as never, organizationId, stallId, { ...request, items: [{ ...requestedItem(), quantity: 3 }] }, now, true, previous)).rejects.toThrow("PRODUCT_UNAVAILABLE");
+    component.stallProducts[0]!.isSoldOut = false;
+    const alternative = { ...assignment.product.bundleChoiceGroups[0]!.choices[0]!, id: "50000000-0000-4000-8000-000000000002", componentProduct: { ...component, name: "炒飯" } };
+    assignment.product.bundleChoiceGroups[0]!.choices.push(alternative);
+    await expect(prepareStaffOrderItems(client as never, organizationId, stallId, { ...request, items: [{ ...requestedItem([alternative.id]), quantity: 1 }] }, now, true, previous)).resolves.toMatchObject({ addsBundleFulfillment: true });
+    alternative.componentProduct.name = "河粉";
+    component.stallProducts[0]!.isSoldOut = true;
+    await expect(prepareStaffOrderItems(client as never, organizationId, stallId, request, now, true, previous)).rejects.toThrow("PRODUCT_UNAVAILABLE");
+  });
+
+  it.each(["choice recreated", "choice reassigned", "component replaced", "group recreated", "timestamp missing"])("does not retain historical names after %s", async (change) => {
+    const assignment = bundleAssignment();
+    const group = assignment.product.bundleChoiceGroups[0]!;
+    const choice = group.choices[0]!;
+    choice.componentProduct.stallProducts[0]!.isSoldOut = true;
+    const later = new Date("2026-08-03T00:00:00Z");
+    if (change === "choice recreated") choice.createdAt = later;
+    if (change === "choice reassigned") choice.updatedAt = later;
+    if (change === "component replaced") choice.componentProduct.createdAt = later;
+    if (change === "group recreated") group.createdAt = later;
+    if (change === "timestamp missing") choice.updatedAt = undefined;
+    const settings = { unconfirmedOrderTimeoutSeconds: 300, maxItemQuantity: 10, maxTotalQuantity: 20, maxUniqueProducts: 10, maxNoteLength: 1000 };
+    const client = { stallOrderingSettings: { findUnique: async () => settings }, stallProduct: { findMany: async () => [assignment] } };
+    const previous = [{ productId: bundleProductId, quantity: 2, createdAt: now, noteOptions: [{ noteOptionId: null, groupName: "套餐 · 主餐", optionName: "河粉 × 2" }] }];
+    const request = { customerNote: "", items: [{ ...requestedItem(), quantity: 1 }] };
+    await expect(prepareStaffOrderItems(client as never, organizationId, stallId, request, now, true, previous)).rejects.toThrow("PRODUCT_UNAVAILABLE");
+    await expect(prepareStaffOrderItems(client as never, organizationId, stallId, request, now)).resolves.toMatchObject({ addsBundleFulfillment: false });
   });
 
   it("拒絕跨攤位元件與跨組織套餐", () => {

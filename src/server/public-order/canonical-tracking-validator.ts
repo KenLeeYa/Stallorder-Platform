@@ -20,6 +20,9 @@ function functionsBaseUrl() {
 }
 
 function functionOrigin() {
+  if (!process.env.PUBLIC_ORDER_FUNCTION_ORIGIN && process.env.VERCEL_ENV === "preview" && process.env.VERCEL_URL) {
+    return new URL(`https://${process.env.VERCEL_URL}`).origin;
+  }
   const configured = process.env.PUBLIC_ORDER_FUNCTION_ORIGIN || process.env.NEXT_PUBLIC_APP_URL;
   if (!configured) return "https://app.qidaigo.com";
   return new URL(configured).origin;

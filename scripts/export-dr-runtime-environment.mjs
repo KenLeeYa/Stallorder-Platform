@@ -1,5 +1,7 @@
 import { appendFile } from "node:fs/promises";
 
+if (process.env.GITHUB_ACTIONS !== "true") throw new Error("DR_RUNTIME_ACTIONS_REQUIRED");
+
 const accessToken = required("SUPABASE_ACCESS_TOKEN");
 const options = process.argv.slice(2);
 if (options.length > 1 || (options[0] && options[0] !== "--dr-only")) {

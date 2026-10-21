@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { Layers3, Pencil } from "lucide-react";
 import { csrfHeaders } from "@/lib/csrf-client";
 import { formatMoney } from "@/lib/money";
+import { useMerchantMessages } from "@/lib/messages/merchant-client";
 import { ProductStockEditor, type StockAssignment, type StockProduct } from "@/components/product-stock-editor";
 
 type Category = { id: string; name: string; isActive: boolean; sortOrder: number };
@@ -24,6 +25,8 @@ export function SharedCatalogBoard({ currency, categories, groups, products, sta
   onEditCategory: (id: string) => void; onEditGroup: (id: string) => void;
   onUpdated: (stallId: string, rows: StockAssignment[]) => void;
 }) {
+  const { m } = useMerchantMessages();
+  const [page, setPage] = useState(1);
   const [stallId, setStallId] = useState(stalls[0]?.id ?? "");
   const [categoryId, setCategoryId] = useState("");
   const [groupId, setGroupId] = useState<string | null>(null);
@@ -48,11 +51,16 @@ export function SharedCatalogBoard({ currency, categories, groups, products, sta
     && row.name.toLocaleLowerCase().includes(search.toLocaleLowerCase())
   ).sort((a,b) => a.sortOrder-b.sortOrder || a.name.localeCompare(b.name,"zh-TW"));
   const selectable = visible.filter((row) => row.isAssigned);
+  const pageCount = Math.max(1, Math.ceil(visible.length / 5));
+  const currentPage = Math.min(page, pageCount);
+  if (page !== currentPage) setPage(currentPage);
+  const pageRows = visible.slice((currentPage - 1) * 5, currentPage * 5);
+  const pageSelectable = pageRows.filter((row) => row.isAssigned);
   const selectedIds = selectable.filter((row) => selected.has(row.id)).map((row) => row.id);
-  const allSelected = selectable.length > 0 && selectedIds.length === selectable.length;
+  const allSelected = pageSelectable.length > 0 && pageSelectable.every((row) => selected.has(row.id));
   const selectedCategory = categories.find((row) => row.id === categoryId);
   const selectedGroup = groups.find((row) => row.id === groupId);
-  function resetSelection() { setSelected(new Set()); setMessage(""); }
+  function resetSelection() { setSelected(new Set()); setMessage(""); setPage(1); }
   function stockRows(rows: typeof assigned) {
     return rows.map((row) => ({ productId: row.id, name: row.name, stockRemaining: row.assignment.stockRemaining, stockVersion: row.assignment.stockVersion }));
   }
@@ -118,14 +126,14 @@ export function SharedCatalogBoard({ currency, categories, groups, products, sta
           {groupId === "" ? <p className="mt-2 text-sm text-stone-600">系統清單：這些商品尚未指定群組。請編輯商品的「群組」欄位完成歸組。</p> : null}
         </div>
         <div className="flex flex-wrap items-center gap-2 border-b border-stone-200 p-3">
-          <label className="flex min-h-11 items-center gap-2 text-sm"><input className="ordering-checkbox" type="checkbox" checked={allSelected} onChange={(e) => setSelected(e.target.checked ? new Set(selectable.map((row) => row.id)) : new Set())} />全選本清單（{visible.length}）</label>
+          <label className="flex min-h-11 items-center gap-2 text-sm"><input className="ordering-checkbox" type="checkbox" checked={allSelected} disabled={!pageSelectable.length || busy} onChange={(e) => { const checked = e.target.checked; setSelected((current) => { const next = new Set(current); for (const row of pageSelectable) { if (checked) next.add(row.id); else next.delete(row.id); } return next; }); }} />{m("catalog.pageSelection", { count: pageSelectable.length })}</label>
           <span className="text-sm text-stone-500">已選 {selectedIds.length} 項</span>
           <button type="button" disabled={busy || !selectedIds.length} onClick={() => setAvailabilityProducts(stockRows(visible.filter((row) => selected.has(row.id))))} className={button}>批次供應設定</button>
           <button type="button" disabled={busy || !selectedIds.length} onClick={() => void bulk("BULK_SOLD_OUT",false)} className={button}>恢復供應</button>
           <button type="button" disabled={busy || !selectedIds.length} onClick={() => setStockProducts(stockRows(visible.filter((row) => selected.has(row.id))))} className={button}>設定所選庫存</button>
         </div>
         <div className="max-h-[65vh] min-h-0 overflow-y-auto md:max-h-none md:flex-1">
-          {visible.map((row) => <article key={row.id} data-testid="catalog-management-row" className="flex flex-wrap items-center gap-3 border-b border-stone-100 p-3">
+          {pageRows.map((row) => <article key={row.id} data-testid="catalog-management-row" className="flex flex-wrap items-center gap-3 border-b border-stone-100 p-3">
             <label className="ordering-checkbox-target grid shrink-0 place-items-center">
               <input className="ordering-checkbox" type="checkbox" aria-label={`選取 ${row.name}`} disabled={!row.isAssigned} checked={selected.has(row.id)} onChange={(e) => setSelected((current) => { const next=new Set(current); if(e.target.checked) next.add(row.id); else next.delete(row.id); return next; })} />
             </label>
@@ -137,6 +145,10 @@ export function SharedCatalogBoard({ currency, categories, groups, products, sta
             <button type="button" aria-label={`更多操作 ${row.name}`} onClick={() => onMore(row.id)} className={button}>更多</button>
           </article>)}
           {!visible.length ? <p className="p-8 text-center text-stone-500">此清單沒有商品。</p> : null}
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-stone-200 bg-stone-50 p-3" data-testid="catalog-pagination">
+          <span role="status" className="text-sm text-stone-600">{m("第 {page} / {total} 頁", { page: currentPage, total: pageCount })}</span>
+          <div className="flex gap-2"><button type="button" className={button} disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>{m("catalog.previousPage")}</button><button type="button" className={button} disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)}>{m("catalog.nextPage")}</button></div>
         </div>
       </div>
     </div>

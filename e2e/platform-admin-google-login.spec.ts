@@ -5,6 +5,7 @@ const prisma = new PrismaClient();
 const email = "platform.admin.e2e@stallorder.test";
 const authUserId = "a9000000-0000-4000-8000-000000000001";
 let profileId = "";
+let bootstrapStartedAt = new Date();
 
 test.describe("Staging 平台管理員 Google 登入", () => {
   test.beforeAll(async () => {
@@ -51,17 +52,15 @@ test.describe("Staging 平台管理員 Google 登入", () => {
     });
     profileId = profile.id;
     await prisma.authSession.deleteMany({ where: { profileId } });
-    await prisma.auditLog.deleteMany({
-      where: { actorProfileId: profileId, action: "PLATFORM_ADMIN_BOOTSTRAPPED" },
-    });
+    bootstrapStartedAt = new Date();
   });
 
   test.afterAll(async () => {
     try {
       if (profileId) {
         await prisma.authSession.deleteMany({ where: { profileId } });
-        await prisma.auditLog.deleteMany({ where: { actorProfileId: profileId } });
-        await prisma.profile.deleteMany({ where: { id: profileId } });
+        // Keep the immutable audit actor; deleting the profile would SET NULL on committed evidence.
+        await prisma.profile.updateMany({ where: { id: profileId }, data: { isActive: false, authUserId: null } });
       }
       await prisma.$executeRaw`delete from auth.users where id = ${authUserId}::uuid`;
     } finally {
@@ -105,6 +104,7 @@ test.describe("Staging 平台管理員 Google 登入", () => {
       where: {
         actorProfileId: profileId,
         action: "PLATFORM_ADMIN_BOOTSTRAPPED",
+        createdAt: { gte: bootstrapStartedAt },
         outcome: "SUCCESS",
       },
     })).toBe(1);

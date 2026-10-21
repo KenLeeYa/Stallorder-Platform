@@ -259,3 +259,11 @@ Skipped / not evaluated:
 Staging / DR / Production receipts:
 Live smoke and rollback state:
 ```
+
+## Preview harness / offline reuse candidate
+
+- `QA-PREVIEW-HARNESS-01`: Standard Playwright runner and standalone contexts must agree: explicitly English negative control, zh-TW hosted context/cookie, exact owned pending HEAD/SSE shutdown, safe failure evidence and setup-failure cleanup. Validate required hosted settings, captured deployment coordinates and exact synthetic cash-shift actor/scope before accepting UI prerequisites. See `docs/releases/PR366_CLOUD_HARNESS_20261004.md`.
+- `QA-PREVIEW-REUSE-01` (offline prototype only): Bind exact same pair/source, original approval deadline, cumulative total budget including cleanup/holding reserve and unchanged active watchdog. Recoverable retries cannot reset counters or extend time; expired/exhausted sessions still permit independent exact-identity cleanup with absence readback. Simulated evidence is never live authorization, provider billing or hosted QA. Existing failure cleanup stays enabled; live retention requires new explicit approval and independently reviewed persistence/provider integration.
+
+- `QA-PREVIEW-REUSE-02` (local mock coordinator): Two actual processes sharing the canonical state directory must not reserve the same revision twice. After SIGKILL, the OS lock releases but durable RUNNING/reservations remain; only independent cleanup may recover uncertain work. Reject stale CAS, changed approval/expiry, rewritten completed attempts and corrupted receipts. Save per-resource partial cleanup and verify absence. Local checksum/OS lock is neither approval authenticity nor distributed fencing; Windows and real-provider checks remain separate gates.
+- `QA-PR366-MSI-01` (isolated local acceptance): Run the normal CI-port suite against an owned loopback API/DB at 54321/54322. The toggle surfaces suite has its own explicit 55722 database guard and must be run separately with `PLAYWRIGHT_REUSE_EXISTING_SERVER=true` and an owned 55721/55722 mapping. Verify both sets without removing guards or mixing their counts. Secure session cookies used by Playwright API contexts must be forwarded explicitly when seeding synthetic orders.

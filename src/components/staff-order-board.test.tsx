@@ -6,10 +6,13 @@ import type { StaffOrderDto } from "@/lib/orders";
 
 vi.mock("@/components/work-mode-switcher", () => ({ WorkModeSwitcher: () => null }));
 vi.mock("@/components/workspace-switcher", () => ({ WorkspaceSwitcher: () => null }));
-vi.mock("@/components/pwa-controls", () => ({ PwaControls: () => null }));
+vi.mock("@/components/pwa-controls", () => ({ PwaControls: () => null, PwaWakeControl: () => null }));
 vi.mock("@/components/offline-bootstrap-control", () => ({ OfflineBootstrapControl: () => null }));
 vi.mock("@/components/offline-queue-status", () => ({ OfflineQueueStatus: () => null }));
 vi.mock("@/components/logout-button", () => ({ LogoutButton: () => null }));
+vi.mock("@/components/line-platform-pickup-panel", () => ({
+  LinePlatformPickupPanel: () => <button type="button" data-testid="staff-platform-qr-pickup">平台 QR 掃碼交付</button>,
+}));
 
 const orderId = "11111111-1111-4111-8111-111111111111";
 const itemId = "22222222-2222-4222-8222-222222222222";
@@ -81,7 +84,7 @@ function render(orders: StaffOrderDto[], moduleOverride: Partial<{ dineIn: boole
     }}
     initialOrders={orders}
     initialNow={new Date("2026-08-13T04:10:00.000Z").getTime()}
-    account={{ displayName: "店員", role: "STAFF" }}
+    account={{ displayName: "店員", role: "STAFF", profileId: "actor" }}
     modules={{ dineIn: true, delivery: true, print: false, kds: true, payment: false, discount: false, discountApprovalThresholdBps: 8000, ...moduleOverride }}
     paymentOptions={[]}
     discountOptions={[]}
@@ -108,6 +111,17 @@ function render(orders: StaffOrderDto[], moduleOverride: Partial<{ dineIn: boole
 }
 
 describe("StaffOrderBoard ticket presentation", () => {
+  it("places capability-enabled platform QR pickup directly after pickup-code lookup", () => {
+    const html = render([]);
+    const pickup = html.indexOf('data-testid="staff-pickup-code-lookup"');
+    const qr = html.indexOf('data-testid="staff-platform-qr-pickup"');
+    const floor = html.indexOf('href="/staff/demo/floor"');
+    expect(pickup).toBeGreaterThan(-1);
+    expect(qr).toBeGreaterThan(pickup);
+    expect(floor).toBeGreaterThan(qr);
+    expect(html).toMatch(/data-testid="staff-pickup-code-lookup"[\s\S]*?<\/button><button[^>]*data-testid="staff-platform-qr-pickup"/);
+  });
+
   it("places ordering actions before status controls in the icon-only toolbar", () => {
     const html = render([]);
 
@@ -125,7 +139,7 @@ describe("StaffOrderBoard ticket presentation", () => {
     expect(html).toContain("sticky top-0");
     expect(html).toMatch(/<header[^>]*data-testid="staff-sticky-header"[^>]*overflow-x-clip[^>]*overflow-y-visible/);
     expect(html).toContain("overscroll-x-contain");
-    expect(html).toContain("min-[360px]:flex-nowrap");
+    expect(html).toContain('data-testid="staff-common-controls"');
     expect(html).not.toContain("backdrop-blur");
     expect(html).toContain("[&amp;_button]:box-border");
     expect(html).toContain("h-11 w-11");
@@ -133,13 +147,13 @@ describe("StaffOrderBoard ticket presentation", () => {
     expect(html).toMatch(/<header[^>]*data-testid="staff-sticky-header"[^>]*sticky top-0[\s\S]*data-testid="staff-function-grid"[\s\S]*<\/header>/);
   });
 
-  it("keeps the item summary and primary actions visible while detailed controls stay compact", () => {
+  it("keeps the mobile summary entry and desktop item actions available", () => {
     const html = render([order()]);
 
     expect(html).toContain("查看明細");
     expect(html).toContain("修改訂單內容");
-    expect(html).toContain('aria-expanded="false"');
-    expect(html).toContain(`aria-controls="order-details-${orderId}"`);
+    expect(html).toContain('data-testid="staff-order-mobile-list"');
+    expect(html).toContain('data-testid="staff-order-master-detail"');
     expect(html).toContain("1 × 測試餐點");
   });
 
@@ -271,4 +285,11 @@ describe("StaffOrderBoard ticket presentation", () => {
     expect(html).toContain("查看明細");
     expect(html).not.toContain("未來預約訂單（1）");
   });
+});
+
+
+it("labels test orders explicitly on the phone summary, without labelling normal orders", () => {
+  const phone = (html: string) => html.split('data-testid="staff-order-mobile-list"')[1].split('</article>')[0];
+  expect(phone(render([order({ isTest: true })]))).toContain("測試訂單");
+  expect(phone(render([order({ isTest: false })]))).not.toContain("測試訂單");
 });

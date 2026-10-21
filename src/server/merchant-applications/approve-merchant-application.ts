@@ -38,6 +38,7 @@ export async function approveMerchantApplication(
   applicationId: string,
   context: ApprovalAuditContext,
 ) {
+  for (let attempt = 0; ; attempt += 1) {
   try {
     return await prisma.$transaction(async (transaction) => {
       await transaction.$queryRaw`
@@ -247,6 +248,7 @@ export async function approveMerchantApplication(
       await transaction.merchantApplication.update({
         where: { id: application.id },
         data: {
+          draftVersion: { increment: 1 },
           status: "APPROVED",
           approvedAt: now,
           reviewedAt: now,
@@ -303,6 +305,10 @@ export async function approveMerchantApplication(
       return { applicationId: application.id, organizationId: organization.id, idempotent: false };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === "P2034" || (error.code === "P2010" && error.meta?.code === "40001"))) {
+      if (attempt < 2) continue;
+      throw new MerchantApprovalError("APPLICATION_STATE_CONFLICT");
+    }
     if (error instanceof MerchantApprovalError) throw error;
     if (error instanceof GlobalStallCodeConflictError) {
       throw new MerchantApprovalError("SLUG_UNAVAILABLE");
@@ -311,6 +317,7 @@ export async function approveMerchantApplication(
       throw new MerchantApprovalError("PROVISIONING_CONFLICT");
     }
     throw error;
+  }
   }
 }
 

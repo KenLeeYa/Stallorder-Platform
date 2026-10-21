@@ -10,6 +10,7 @@ if (!Number.isSafeInteger(shardCount) || shardCount < 1 || shardCount > 32) {
 const playwrightCli = resolve("node_modules", "playwright", "cli.js");
 const localBin = resolve("node_modules", ".bin");
 const pathKey = Object.keys(process.env).find((key) => key.toLowerCase() === "path") ?? "PATH";
+const failedShards = [];
 
 for (let shard = 1; shard <= shardCount; shard += 1) {
   const trustedClientIp = `203.0.113.${20 + shard}`;
@@ -18,17 +19,21 @@ for (let shard = 1; shard <= shardCount; shard += 1) {
 
   const result = spawnSync(
     process.execPath,
-    [playwrightCli, "test", `--shard=${shard}/${shardCount}`],
+    [playwrightCli, "test", `--shard=${shard}/${shardCount}`, `--output=test-results/shard-${shard}`],
     {
       env: {
         ...process.env,
         [pathKey]: `${localBin}${delimiter}${process.env[pathKey] ?? ""}`,
         PLAYWRIGHT_TRUSTED_CLIENT_IP: trustedClientIp,
+        PLAYWRIGHT_HTML_OUTPUT_DIR: resolve("playwright-report", `shard-${shard}`),
       },
       stdio: "inherit",
     },
   );
 
   if (result.error) throw result.error;
-  if (result.status !== 0) process.exit(result.status ?? 1);
+  if (result.status !== 0) failedShards.push(shard);
 }
+
+if (failedShards.length > 0) console.error(`Failed Playwright shards: ${failedShards.join(", ")}`);
+process.exitCode = failedShards.length > 0 ? 1 : 0;

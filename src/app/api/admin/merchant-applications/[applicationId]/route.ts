@@ -4,6 +4,10 @@ import { validateCsrf } from "@/lib/csrf";
 import { readJson } from "@/lib/http";
 import { hashClientIp } from "@/lib/security";
 import { merchantApplicationAdminCommandSchema } from "@/lib/merchant-application-contract";
+import { z } from "zod";
+import { applicationDetailResultSchema } from "@/lib/operations-read-contract";
+import { createOperationsScope } from "@/server/operations-read-scope";
+import { operationsAuthorizationFailure, operationsReadFailure, operationsReadResponse } from "@/server/operations-read-response";
 import {
   approveMerchantApplication,
   MerchantApprovalError,
@@ -11,9 +15,23 @@ import {
 import {
   applyMerchantApplicationReviewAction,
   MerchantApplicationReviewError,
+  getMerchantApplicationForAdmin,
 } from "@/server/merchant-applications/merchant-application-admin-service";
 
 type RouteContext = { params: Promise<{ applicationId: string }> };
+
+export async function GET(request: Request, context: RouteContext) {
+  const authorization = await authorizePlatformAdminApiRequest(request);
+  if (!authorization.ok) return operationsAuthorizationFailure(authorization.response);
+  const { applicationId } = await context.params;
+  if (!z.uuid().safeParse(applicationId).success) return operationsReadFailure(404, authorization.requestId);
+  if (new URL(request.url).search) return operationsReadFailure(400, authorization.requestId);
+  try {
+    const detail = await getMerchantApplicationForAdmin(applicationId);
+    if (!detail) return operationsReadFailure(404, authorization.requestId);
+    return operationsReadResponse(applicationDetailResultSchema.parse({ version: "v1", scope: createOperationsScope(authorization.principal), detail }), authorization.requestId);
+  } catch { return operationsReadFailure(500, authorization.requestId); }
+}
 
 export async function PATCH(request: Request, context: RouteContext) {
   const { applicationId } = await context.params;
@@ -48,7 +66,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         })
       : await applyMerchantApplicationReviewAction(applicationId, parsed.data, audit);
     return NextResponse.json(
-      { result },
+      { result: "organizationId" in result ? { applicationId: result.applicationId, organizationId: result.organizationId, idempotent: result.idempotent } : { id: result.id, status: result.status } },
       { headers: { "cache-control": "no-store", "x-request-id": authorization.requestId } },
     );
   } catch (error) {

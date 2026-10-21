@@ -7,6 +7,7 @@ import {
   isExpectedPublicSiteResponse,
 } from "./lib/production-smoke-public-site.mjs";
 import { fetchWithTransientRetry } from "./lib/production-smoke-request.mjs";
+import { allowsTurnstileCsp } from "./lib/production-smoke-csp.mjs";
 
 const baseUrl = new URL(process.env.PRODUCTION_BASE_URL ?? "https://app.qidaigo.com");
 const publicSiteUrl = process.env.ROOT_DOMAIN_URL ?? "https://qidaigo.com";
@@ -100,7 +101,7 @@ async function run() {
   }
   const csp = mainResponse.headers.get("content-security-policy") ?? "";
   assert("CSP denies framing", /frame-ancestors\s+'none'/.test(csp), csp || "missing");
-  assert("CSP allows Turnstile", csp.includes("https://challenges.cloudflare.com"), csp || "missing");
+  assert("CSP allows Turnstile", allowsTurnstileCsp(csp), csp || "missing");
   assert("CSP avoids broad wildcard", !/(?:^|;|\s)\*(?:\s|;|$)/.test(csp), csp || "missing");
   if (baseUrl.protocol === "https:") {
     assert("HSTS enabled", Boolean(mainResponse.headers.get("strict-transport-security")), mainResponse.headers.get("strict-transport-security") ?? "missing");

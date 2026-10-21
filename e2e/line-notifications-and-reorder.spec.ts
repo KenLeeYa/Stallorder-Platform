@@ -1,5 +1,12 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { gotoLocalPath } from "./local-navigation";
+import { PrismaClient } from "@prisma/client";
+import { prepareLocalLegacyLineEntitlement } from "./line-legacy-entitlement-fixture";
+
+const prisma = new PrismaClient();
+let restoreEntitlement: (() => Promise<void>) | undefined;
+test.beforeAll(async () => { restoreEntitlement = await prepareLocalLegacyLineEntitlement(prisma); });
+test.afterAll(async () => { try { await restoreEntitlement?.(); } finally { await prisma.$disconnect(); } });
 
 const stallId = "22222222-2222-4222-8222-222222222222";
 const password = "StallOrderDemo!2026";

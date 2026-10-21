@@ -28,6 +28,7 @@ import {
 } from "@/components/qr-lottery-dialogs";
 import { QrLanguageSelector } from "@/components/qr-language-selector";
 import { QrCustomerMembershipEntry } from "@/components/qr-customer-membership-entry";
+import { LinePlatformCartHandoff } from "@/components/line-platform-cart-handoff";
 import { QrSessionCountdown } from "@/components/qr-session-countdown";
 import { SessionExpiryDialog } from "@/components/qr-session-expiry-dialog";
 import { SpecialClosureNoticeDialog } from "@/components/special-closure-notice-dialog";
@@ -347,7 +348,7 @@ export function QrOrderFlowPresentation({
   );
 
   return (
-    <main className="mx-auto grid min-h-screen max-w-5xl gap-6 px-4 py-5 pb-28 md:grid-cols-[minmax(0,1fr)_340px] md:px-8 md:pb-5">
+    <main className="mx-auto grid min-h-screen max-w-5xl gap-6 px-4 py-5 pb-28 lg:grid-cols-[minmax(0,1fr)_340px] lg:px-8 lg:pb-5">
       {session.specialClosure ? <SpecialClosureNoticeDialog closure={session.specialClosure} locale={locale} timeZone={session.stall.timezone} /> : null}
       <section className="min-w-0">
         <div className="flex min-w-0 flex-wrap items-end justify-between gap-3">
@@ -359,6 +360,7 @@ export function QrOrderFlowPresentation({
           </div>
         </div>
         <p className="mt-2 text-sm font-semibold text-stone-700">{session.stall.fulfillmentType === "DINE_IN" ? copy.dineIn(session.stall.table?.label ?? "") : session.stall.fulfillmentType === "DELIVERY" ? deliveryCopy.delivery : copy.takeout}</p>
+        <LinePlatformCartHandoff {...controller.platformCartHandoff} />
         {activeOrderingMode === "PREORDER" ? <p className="mt-2 rounded-md bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-900">{copy.preorderOnlyNotice}</p> : null}
         {session.specialClosure ? (
           <section
@@ -468,7 +470,7 @@ export function QrOrderFlowPresentation({
         />
       </section>
 
-      {cartDialogOpen ? <button type="button" aria-label={copy.close} onClick={closeCart} className="fixed inset-0 z-30 bg-black/45 md:hidden" /> : null}
+      {cartDialogOpen ? <button type="button" aria-label={copy.close} onClick={closeCart} className="fixed inset-0 z-30 bg-black/45 lg:hidden" /> : null}
       <aside
         ref={cartPanelRef}
         data-testid="qr-cart-panel"
@@ -476,7 +478,7 @@ export function QrOrderFlowPresentation({
         aria-modal={cartDialogOpen ? true : undefined}
         aria-labelledby="qr-cart-heading"
         tabIndex={cartDialogOpen ? -1 : undefined}
-        className={`${cartDialogOpen ? "safe-area-bottom fixed inset-x-0 bottom-0 z-40 max-h-[88dvh] overflow-y-auto rounded-t-lg border-t border-stone-200 shadow-2xl" : "hidden"} bg-white p-5 md:sticky md:top-5 md:block md:h-fit md:max-h-none md:overflow-visible md:rounded-lg md:border md:shadow-none`}
+        className={`${cartDialogOpen ? "safe-area-bottom fixed inset-x-0 bottom-0 z-40 max-h-[88dvh] overflow-y-auto rounded-t-lg border-t border-stone-200 shadow-2xl" : "hidden"} bg-white p-5 lg:sticky lg:top-5 lg:block lg:h-fit lg:max-h-none lg:overflow-visible lg:rounded-lg lg:border lg:shadow-none`}
       >
         {cartPanel}
       </aside>
@@ -487,13 +489,13 @@ export function QrOrderFlowPresentation({
           title={copy.backToTop}
           aria-label={copy.backToTop}
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          className={`${totalQuantity > 0 ? "bottom-20" : "bottom-4"} fixed right-4 z-20 grid h-11 w-11 place-items-center rounded-full border border-stone-300 bg-white/95 text-stone-800 shadow-lg backdrop-blur hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 md:bottom-5 md:right-96 lg:right-[calc(50vw-8rem)]`}
+          className={`${totalQuantity > 0 ? "bottom-20" : "bottom-4"} fixed right-4 z-20 grid h-11 w-11 place-items-center rounded-full border border-stone-300 bg-white/95 text-stone-800 shadow-lg backdrop-blur hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 lg:bottom-5 lg:right-[calc(50vw-8rem)]`}
         >
           <ArrowUp className="h-4 w-4" />
         </button>
       ) : null}
       {totalQuantity > 0 && !cartOpen ? (
-        <button ref={cartTriggerRef} data-testid="qr-mobile-cart-summary" type="button" onClick={() => { setCartStep("CART"); setCartOpen(true); }} className="safe-area-bottom fixed inset-x-3 bottom-0 z-30 flex min-h-16 items-center gap-3 rounded-t-lg bg-stone-900 px-4 pt-3 text-left text-white shadow-2xl md:hidden">
+        <button ref={cartTriggerRef} data-testid="qr-mobile-cart-summary" type="button" onClick={() => { setCartStep("CART"); setCartOpen(true); }} className="safe-area-bottom fixed inset-x-3 bottom-0 z-30 flex min-h-16 items-center gap-3 rounded-t-lg bg-stone-900 px-4 pt-3 text-left text-white shadow-2xl lg:hidden">
           <ShoppingCart className="h-5 w-5 shrink-0" />
           <span className="min-w-0 flex-1"><span className="block text-xs text-stone-300">{copy.itemCount(totalQuantity)}</span><strong>{formatMoney(total, session.stall.currency, locale)}</strong></span>
           <span className="inline-flex items-center gap-1 text-sm font-semibold">{copy.viewOrder}<ChevronDown className="h-4 w-4 rotate-180" /></span>

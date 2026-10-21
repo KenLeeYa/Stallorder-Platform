@@ -41,6 +41,39 @@ describe("canonical public-order device validation", () => {
     );
   });
 
+  it("uses the actual Preview origin instead of an inherited local app URL", async () => {
+    vi.stubEnv("PUBLIC_ORDER_FUNCTION_ORIGIN", "");
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "http://127.0.0.1:3000");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("VERCEL_URL", "owned-preview.vercel.app");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "public-test-key");
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 404 }));
+    const { validateTrackedPublicOrderAtCanonicalEdge } = await import("./canonical-tracking-validator");
+    await validateTrackedPublicOrderAtCanonicalEdge({ trackingToken: "tracking-token", deviceId: "device-id",
+      clientIp: "203.0.113.8", operationId: "operation-id", fetchImpl });
+    expect(fetchImpl).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+      headers: expect.objectContaining({ origin: "https://owned-preview.vercel.app" }),
+    }));
+  });
+
+  it.each([
+    ["preview", "https://explicit.example.test", "https://explicit.example.test"],
+    ["production", "", "https://app.qidaigo.com"],
+  ])("preserves configured origin precedence in %s", async (environment, explicit, expected) => {
+    vi.stubEnv("PUBLIC_ORDER_FUNCTION_ORIGIN", explicit);
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://app.qidaigo.com");
+    vi.stubEnv("VERCEL_ENV", environment);
+    vi.stubEnv("VERCEL_URL", "owned-preview.vercel.app");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "public-test-key");
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 404 }));
+    const { validateTrackedPublicOrderAtCanonicalEdge } = await import("./canonical-tracking-validator");
+    await validateTrackedPublicOrderAtCanonicalEdge({ trackingToken: "tracking-token", deviceId: "device-id",
+      clientIp: "203.0.113.8", operationId: "operation-id", fetchImpl });
+    expect(fetchImpl).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+      headers: expect.objectContaining({ origin: expected }),
+    }));
+  });
+
   it.each([
     [404, "NOT_FOUND"],
     [429, "UNAVAILABLE"],

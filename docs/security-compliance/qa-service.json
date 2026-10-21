@@ -1,0 +1,12 @@
+{
+  "project": "stallorder-compliance-20260913",
+  "worktree": "C:\\Users\\KY\\Documents\\Codex projects\\Stallorder-Platform-security-compliance-20260913",
+  "wrapperPid": 39724,
+  "childPid": 25720,
+  "port": 3093,
+  "databasePort": 55992,
+  "startedAt": "2026-09-13T06:48:32.548Z",
+  "secretsLogged": false,
+  "stoppedAt": "2026-09-13T07:18:16.8224380Z",
+  "status": "STOPPED_AFTER_BROWSER_QA"
+}

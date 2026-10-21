@@ -17,6 +17,8 @@ let db: PrismaClient, context: BrowserContext, page: Page;
 let headers: Record<string, string>;
 let categoryId: string, normal: string, side: string, custom: string, bundle: string, option: string, choice: string;
 let printerId: string;
+let savedModules: { kdsModuleEnabled: boolean; printModuleEnabled: boolean } | undefined;
+let fixtureRuleId: string;
 let savedCapacity: { maxOrdersPerWindow: number; maxItemsPerWindow: number; autoResumeEnabled: boolean } | undefined;
 const orders: Array<{ id: string; orderNo: string; scenario: string }> = [];
 const errors: string[] = [];
@@ -69,7 +71,7 @@ async function patchOrder(order: StaffOrderDto, items: unknown[], extra = {}) {
 test.beforeAll(async ({ browser }) => {
   test.setTimeout(120_000);
   const database = new URL(process.env.DATABASE_URL!);
-  const retainedTarget = base === "http://127.0.0.1:3018" && database.pathname === "/postgres";
+  const retainedTarget = ["http://127.0.0.1:3018", "http://127.0.0.1:3023"].includes(base) && database.pathname === "/postgres";
   const releaseTarget = base === "http://127.0.0.1:3028" && database.pathname === "/stallorder_release_primary_20260912";
   if ((!retainedTarget && !releaseTarget) || database.hostname !== "127.0.0.1" || database.port !== "55722") throw new Error("LOCAL_QA_TARGET_MISMATCH");
   db = new PrismaClient();
@@ -79,6 +81,8 @@ test.beforeAll(async ({ browser }) => {
   await page.getByTestId("local-qa-login-grid").getByRole("button", { name: "商家", exact: true }).click();
   await expect(page).toHaveURL(/\/merchant\/dashboard/);
   headers = { origin: base, "x-csrf-token": (await context.cookies()).find((cookie) => cookie.name === "stallorder_csrf")!.value };
+  savedModules = await db.stallOrderingSettings.findUniqueOrThrow({ where: { stallId: stall }, select: { kdsModuleEnabled: true, printModuleEnabled: true } });
+  await db.stallOrderingSettings.update({ where: { stallId: stall }, data: { kdsModuleEnabled: true, printModuleEnabled: true } });
   savedCapacity = await db.stallCapacitySettings.findUniqueOrThrow({ where: { stallId: stall }, select: { maxOrdersPerWindow: true, maxItemsPerWindow: true, autoResumeEnabled: true } });
   await db.stallCapacitySettings.update({ where: { stallId: stall }, data: { maxOrdersPerWindow: 1000, maxItemsPerWindow: 5000, autoResumeEnabled: true } });
   await db.$queryRaw`select public.refresh_stall_capacity(${stall}::uuid, true, 'LOCAL_CATALOG_SUITE')`;
@@ -96,9 +100,13 @@ test.beforeAll(async ({ browser }) => {
     choices: { create: { organizationId: org, componentProductId: side, quantity: 1, priceDelta: 10 } },
   }, include: { choices: true } }); choice = bundleGroup.choices[0].id;
   printerId = (await db.printer.findFirstOrThrow({ where: { stallId: stall, isEnabled: true, connectionType: "SYSTEM_PRINT" } })).id;
+  fixtureRuleId = (await db.printRule.create({ data: { organizationId: org, stallId: stall, printerId, name: `UIUX isolated category ${stamp}`, productCategoryIds: [categoryId], trigger: "ORDER_CONFIRMED", autoPrint: false } })).id;
+
 });
 
 test.afterAll(async () => {
+  if (fixtureRuleId) await db.printRule.update({ where: { id: fixtureRuleId }, data: { isEnabled: false } });
+  if (savedModules) await db.stallOrderingSettings.update({ where: { stallId: stall }, data: savedModules });
   if (savedCapacity) {
     await db.stallCapacitySettings.update({ where: { stallId: stall }, data: savedCapacity });
     await db.$queryRaw`select public.refresh_stall_capacity(${stall}::uuid, true, 'LOCAL_CATALOG_SUITE_RESTORED')`;
@@ -227,6 +235,7 @@ test("電腦平板手機供應選單與勾選控制正常，巢狀視窗保持�
   for (const width of [1440, 1024, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 950 });
     await page.goto(`/merchant/catalog?organizationId=${org}`);
+    if (width >= 768) await page.getByRole("searchbox", { name: "搜尋管理商品" }).fill(`QA 主餐 ${stamp}`);
     if (width < 768) {
       await waitForHydratedControl(page.getByTestId("open-catalog-navigator"));
       await page.getByTestId("open-catalog-navigator").click();
@@ -302,6 +311,9 @@ test("店員畫面可增刪已出單餐點並驗證必選註記", async () => {
   await printCommand({ operation: "SUCCESS", jobId: original.id });
   await page.setViewportSize({ width: 1024, height: 900 });
   await page.goto("/staff/aming-chicken");
+  await page.getByTestId("staff-search-open").click();
+  await page.getByRole("searchbox").fill(created.orderNo);
+  await page.getByRole("dialog").getByRole("button", { name: "確認", exact: true }).click();
   const ticket = page.getByTestId("staff-order-list-pane").getByRole("button").filter({ hasText: created.orderNo });
   await waitForHydratedControl(ticket);
   await ticket.click();

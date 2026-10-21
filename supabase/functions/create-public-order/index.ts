@@ -25,7 +25,7 @@ import {
   buildPublicOrderFailureBody,
   buildPublicOrderResponse,
   publicOrderItemsToRpc,
-  publicOrderNeedsPickupCode,
+  publicOrderNeedsPickupCodeWrite,
   publicOrderSubmissionAbuseBehavior,
   resolveStoredPickupCode,
   type StoredPublicOrderContract,
@@ -74,7 +74,7 @@ async function persistPickupCodeDisplay(
   order: StoredOrder,
   pickupCode: string,
 ) {
-  if (!publicOrderNeedsPickupCode(order)) return;
+  if (!publicOrderNeedsPickupCodeWrite(order, pickupCode)) return;
   const { error } = await admin.from("orders")
     .update({ pickup_code_display: pickupCode })
     .eq("id", order.order_id);

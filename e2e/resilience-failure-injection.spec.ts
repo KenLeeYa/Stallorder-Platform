@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { Prisma, PrismaClient } from "@prisma/client";
-import { qrProductSelectionControl } from "./local-navigation";
+import { loginLocalTestAccount, qrProductSelectionControl } from "./local-navigation";
 import { createOpenQrFixture } from "./open-qr-fixture";
 
 loadLocalEnv();
@@ -305,13 +305,7 @@ async function removeTemporaryFlag() {
 }
 
 async function login(page: Page, email: string, expectedUrl: RegExp) {
-  await page.goto("/login");
-  await page
-    .getByRole("button", { name: "使用電子郵件與密碼登入", exact: true })
-    .click();
-  await page.getByLabel("電子郵件").fill(email);
-  await page.getByLabel("密碼").fill(password);
-  await page.getByRole("button", { name: "登入", exact: true }).click();
+  await loginLocalTestAccount(page, email, password, "/staff/aming-chicken");
   await expect(page).toHaveURL(expectedUrl, { timeout: 30_000 });
 }
 

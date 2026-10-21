@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useReducer } from "react";
 import type { UserRole } from "@prisma/client";
 import Link from "next/link";
 import { TriangleAlert, X } from "lucide-react";
+import { CashChangeSummary } from "@/components/cash-change-summary";
 import { StaffDiscountSelector } from "@/components/staff-discount-selector";
 import {
   createStaffOrderCheckoutState,
@@ -189,12 +190,12 @@ export function StaffOrderCheckoutDialog({
     && checkoutOrder.paymentStatus === "UNPAID";
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/45 p-4 print:hidden">
+    <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/45 p-2 sm:p-4 print:hidden">
       <section
         role="dialog"
         aria-modal="true"
         aria-labelledby="checkout-title"
-        className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto overscroll-contain rounded-lg bg-white p-5 shadow-xl"
+        className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto overscroll-contain rounded-lg bg-white p-3 shadow-xl sm:p-5"
       >
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -315,11 +316,9 @@ export function StaffOrderCheckoutDialog({
 
         {model.usesCash ? (
           <div className="mt-5">
-            <div data-testid="staff-checkout-cash-row" className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
-              <StaffDiscountSelector enabled={modules.discount} options={discountOptions} selectedOptionId={state.selectedDiscountOptionId} onSelect={controller.selectDiscount} isApplicable={model.discountEligibleSubtotal > 0} existingDiscountLabel={model.preview.discountAmount > 0 ? model.preview.discountLabel ?? "訂單既有折扣" : null} />
-              <label data-testid="staff-cash-received-field" className="grid min-w-0 grid-cols-[auto_minmax(0,11rem)] items-center justify-end gap-2 text-xs font-semibold text-stone-600" htmlFor="cash-received"><span className="shrink-0">客戶實收金額</span><input type="text" id="cash-received" inputMode="numeric" maxLength={9} pattern="[0-9]{0,9}" value={state.cashReceived} onChange={(event) => controller.setCashReceived(event.target.value.replace(/\D/g, "").slice(0, 9))} placeholder={String(model.total)} className="h-11 w-full min-w-0 rounded-md border border-stone-300 px-3 text-lg font-semibold" /></label>
-            </div>
-            <div className="mt-2 grid grid-cols-3 gap-2">
+            <div data-testid="staff-checkout-cash-row" className="grid grid-cols-[3rem_minmax(0,12rem)_4rem] items-center gap-1">
+              <StaffDiscountSelector compact enabled={modules.discount} options={discountOptions} selectedOptionId={state.selectedDiscountOptionId} onSelect={controller.selectDiscount} isApplicable={model.discountEligibleSubtotal > 0} existingDiscountLabel={model.preview.discountAmount > 0 ? model.preview.discountLabel ?? "訂單既有折扣" : null} />
+            <div data-testid="cash-quick-amounts" className="grid min-w-0 grid-cols-[1fr_1fr_1.2fr] gap-1">
               {[200, 500, 1000]
                 .map((value) => (
                   <button
@@ -327,15 +326,15 @@ export function StaffOrderCheckoutDialog({
                     type="button"
                     disabled={value < model.total}
                     onClick={() => controller.setCashReceived(String(value))}
-                    className="h-10 rounded-md border border-stone-300 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+                    className="min-h-14 min-w-0 whitespace-nowrap rounded-md border border-stone-300 px-0.5 text-sm font-medium tabular-nums disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    {formatMoney(value, currency)}
+                    {value}
                   </button>
                 ))}
             </div>
-            <div className="mt-3 flex justify-between rounded-md bg-emerald-50 px-3 py-3 text-sm font-semibold text-emerald-900">
-              <span>找零</span><span>{formatMoney(model.change, currency)}</span>
+              <label data-testid="staff-cash-received-field" className="relative min-w-0" htmlFor="cash-received"><span aria-hidden="true" className="pointer-events-none absolute inset-x-1 top-1 truncate text-center text-[0.625rem] font-medium text-stone-600">實收金額</span><input type="text" id="cash-received" aria-label="客戶實收金額" inputMode="numeric" maxLength={9} pattern="[0-9]{0,9}" value={state.cashReceived} onChange={(event) => controller.setCashReceived(event.target.value.replace(/\D/g, "").slice(0, 9))} placeholder={String(model.total)} className="h-14 w-full min-w-0 rounded-md border border-stone-300 bg-white px-1 pb-1 pt-5 text-center text-xl font-semibold tabular-nums" /></label>
             </div>
+            <CashChangeSummary label="找零" amount={formatMoney(model.shortage || model.change, currency)} insufficient={state.cashReceived !== "" && Number(state.cashReceived) < model.total} insufficientLabel="實收金額不足" />
           </div>
         ) : null}
 

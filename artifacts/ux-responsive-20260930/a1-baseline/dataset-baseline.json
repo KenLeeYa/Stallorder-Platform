@@ -1,0 +1,53 @@
+{
+  "capturedAt": "2026-09-30T01:01:17.087Z",
+  "source": "isolated responsive lab DB56822",
+  "stall": {
+    "id": "22222222-2222-4222-8222-222222222222",
+    "slug": "aming-chicken",
+    "orderingEnabled": true,
+    "orderingState": "OPEN",
+    "businessStatus": "OPEN"
+  },
+  "ordersByStatus": [
+    {
+      "status": "READY",
+      "count": 4
+    },
+    {
+      "status": "COMPLETED",
+      "count": 12
+    },
+    {
+      "status": "EXPIRED",
+      "count": 2
+    }
+  ],
+  "qaProductCount": 13,
+  "capacity": {
+    "acknowledgmentThresholdMinutes": 1,
+    "maxOrdersPerWindow": 20,
+    "maxItemsPerWindow": 60
+  },
+  "dualOrderIntakeFlag": {
+    "code": "DUAL_ORDER_INTAKE_ENABLED",
+    "defaultEnabled": false,
+    "overrides": [
+      {
+        "scopeType": "GLOBAL",
+        "enabled": true,
+        "expiresAt": "2026-10-01T00:20:50.494Z"
+      }
+    ]
+  },
+  "roles": [
+    {
+      "email": "staff@stallorder.test",
+      "isActive": true
+    },
+    {
+      "email": "kitchen@stallorder.test",
+      "isActive": true
+    }
+  ],
+  "reportedRevisionUnverified": "2f8de0b7ac5a03c3235125a1848f8d35efe6a71d"
+}

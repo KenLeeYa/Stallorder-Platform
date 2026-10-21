@@ -1,0 +1,6 @@
+
+> stallorder-platform@0.1.0 build
+> prisma generate && next build
+
+'prisma' is not recognized as an internal or external command,
+operable program or batch file.

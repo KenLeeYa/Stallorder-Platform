@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { orderItemsExceedLimits } from "@/lib/order-item-limits";
 import { freezeOrderPrintDocuments, queueOrderAmendmentPrints } from "@/server/printing/order-amendment-print";
 import { isOrderStockError } from "@/lib/order-stock-error";
+import { isPublicStaffAmendment, isStaffEditableOrderState } from "@/lib/staff-order-edit-eligibility";
 
 import { Prisma } from "@prisma/client";
 import {
@@ -48,12 +49,8 @@ type EligibilityOrder = {
 
 export function getStaffOrderEditFailure(order: EligibilityOrder): StaffOrderEditFailure | null {
   const staffOrder = order.source === "STAFF_POS";
-  const publicTakeoutOrder = order.source === "QR_MENU" && order.fulfillmentType === "TAKEOUT";
-  if (!staffOrder && !publicTakeoutOrder) return "NOT_EDITABLE_SOURCE";
-  if (
-    (staffOrder && order.status !== "CONFIRMED")
-    || (publicTakeoutOrder && order.status !== "WAITING_CONFIRMATION" && order.status !== "CONFIRMED")
-  ) return "ORDER_ALREADY_STARTED";
+  if (!staffOrder && !isPublicStaffAmendment(order)) return "NOT_EDITABLE_SOURCE";
+  if (!isStaffEditableOrderState(order)) return "ORDER_ALREADY_STARTED";
   if (order.paymentStatus !== "UNPAID" || order.payment) return "PAYMENT_ALREADY_RECORDED";
   if (
     order.items.some((item) => (
@@ -146,9 +143,9 @@ export async function editStaffOrderItems(input: {
       if (order.updatedAt.getTime() !== new Date(input.request.expectedUpdatedAt).getTime()) throw new StaffOrderEditError("ORDER_CONFLICT");
       const failure = getStaffOrderEditFailure(order);
       if (failure) throw new StaffOrderEditError(failure);
-      const publicTakeoutOrder = order.source === "QR_MENU" && order.fulfillmentType === "TAKEOUT";
-      if (publicTakeoutOrder && !input.request.publicAmendment) throw new StaffOrderEditError("CUSTOMER_NOTICE_REQUIRED");
-      const eventType = publicTakeoutOrder ? "PUBLIC_ORDER_ITEMS_ADJUSTED" : "STAFF_ORDER_ITEMS_EDITED";
+      const publicOrder = isPublicStaffAmendment(order);
+      if (publicOrder && !input.request.publicAmendment) throw new StaffOrderEditError("CUSTOMER_NOTICE_REQUIRED");
+      const eventType = publicOrder ? "PUBLIC_ORDER_ITEMS_ADJUSTED" : "STAFF_ORDER_ITEMS_EDITED";
       const byId = new Map(order.items.map((item) => [item.id, item]));
       const requestedExisting = input.request.items.filter((item) => item.kind === "EXISTING");
       if (requestedExisting.some((item) => !byId.has(item.itemId))
@@ -233,7 +230,7 @@ export async function editStaffOrderItems(input: {
         id: input.request.changeId, organizationId: input.organizationId, stallId: input.stallId, orderId: order.id,
         eventType, previousStatus: order.status, newStatus: order.status, createdBy: input.actorProfileId,
         metadataJson: { before, after, requestHash, amendmentNumber: number,
-          ...(publicTakeoutOrder ? { reason: input.request.publicAmendment!.reason, customerMessage: input.request.publicAmendment!.customerMessage } : {}),
+          ...(publicOrder ? { reason: input.request.publicAmendment!.reason, customerMessage: input.request.publicAmendment!.customerMessage } : {}),
         },
       } });
       await queueOrderAmendmentPrints(transaction, {

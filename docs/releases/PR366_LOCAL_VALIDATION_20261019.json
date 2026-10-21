@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-19T13:11:35.252Z",
+  "status": "LOCAL_TARGETED_PASS_WITH_SKIPS_RELEASE_OPEN",
+  "baseSHA": "94d2ad3a426959a865fcd0abd89d3a0ac35a43e2",
+  "branch": "codex/pr366-release-remediation-20261019",
+  "sourceSha256": {
+    "scripts/qa-pr366-preview-ui.mjs": "8088d1fb4c1e97bee6e9f5559a535106fbe5af064b93a856dbb548f7b31c5dc9",
+    "scripts/qa-pr366-session-revocation.test.mjs": "ba1a8c71d460b94276316fbb6a496f1cb59a9724cbc4acc057e5723c2d651af8",
+    "scripts/verify-pr366-deployment-evidence.mjs": "6d78ffed7f49073150bbf0fd9f6e0800372b11245d0d6a2a48a9245a32961cc7",
+    "scripts/verify-pr366-deployment-evidence.test.mjs": "fcbbe13be8692a4705a176dacb8f91e89b2079a2ac4fed4b124d601b9c0659b2"
+  },
+  "tests": {
+    "runner": "task-level isolated Vitest 4.1.11 / Playwright 1.61.1 / js-yaml 4.1.1",
+    "node": "v24.18.0",
+    "suites": 5,
+    "total": 138,
+    "passed": 136,
+    "failed": 0,
+    "skipped": 2,
+    "skippedCases": [
+      "Linux terminates an actual detached descendant group",
+      "Linux accumulates an actual detached group created by the TERM handler"
+    ],
+    "rawReportSha256": "b97041378529e21b82629701c5bf3d791575d058721110c7923c71b70b92b20f",
+    "rawReportRelativeToThisFile": "../../../local-qa-results-final.json"
+  },
+  "reproduction": "Actual base verifier accepted missing session receipt; current verifier rejected EVIDENCE_SESSION_PROOF",
+  "audit": {
+    "scope": "npm audit --workspaces=false --package-lock-only --json",
+    "status": "NON_PASS",
+    "counts": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 5,
+      "critical": 0,
+      "total": 5
+    },
+    "reportSha256": "b82ae650927f2b110a2b1a786ff28b5e5276260c706f76b05367fde747fabf7f",
+    "packageLockSha256": "cf1287a526555cb1a8c515774f265fba4674fd04a1750aee95f459a14c0a6adf",
+    "exceptionExpiresAt": "2026-10-10T04:00:00Z",
+    "exceptionUnchanged": true
+  },
+  "providerReadOnlyInventory": {
+    "observedOn": "2026-10-19",
+    "primary": "eyuctbnlvnbnivwasvqr",
+    "dr": "daeqwtpaxcebmtwxqdkj",
+    "bothProjectStatus": "ACTIVE_HEALTHY",
+    "publication": "stallorder_primary_to_dr",
+    "replicatedTables": 124,
+    "primarySlotActive": true,
+    "drSubscriptionEnabled": true,
+    "drRelationsReady": 124,
+    "drRelationsNotReady": 0,
+    "drActiveSubscriptionWorkers": 1,
+    "migrationCountEach": 146,
+    "latestMigrationEach": "20260912112200",
+    "drCronJobs": 9,
+    "drEnabledCronJobs": 0,
+    "drActiveEdgeFunctions": 5,
+    "productionDeployment": "dpl_Cx8GfP12KuFHcCgtnZ7SXxzt4AYZ",
+    "productionSHA": "5cc15c6a6189cfd56e127676bc5228e9ffd2ff56",
+    "productionState": "READY",
+    "requiredAliasesStillBound": [
+      "app.qidaigo.com",
+      "stallorder-platform.vercel.app"
+    ],
+    "backupPitrRestoreEvidence": "NOT_VERIFIED",
+    "conversion": "NOT_APPLIED"
+  },
+  "incompleteOrNotExecuted": [
+    "full application clean install (ECONNRESET / ENOTCACHED)",
+    "full lint/typecheck/build",
+    "database rebuild/tests",
+    "full hosted acceptance",
+    "remote workflow dispatch",
+    "Docker startup",
+    "provider mutation"
+  ]
+}

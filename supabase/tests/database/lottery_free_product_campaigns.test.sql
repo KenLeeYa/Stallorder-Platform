@@ -97,7 +97,7 @@ set state = 'ACTIVE', expires_at = null
 where token = 'demo-aming-chicken-qr-2026-rotate-me';
 
 update public.stall_business_hours
-set opens_at = '00:00', closes_at = '23:59', is_closed = false
+set opens_at = '00:00', closes_at = '00:00', last_order_at = null, is_closed = false
 where stall_id = '22222222-2222-4222-8222-222222222222';
 
 update public.stall_capacity_settings

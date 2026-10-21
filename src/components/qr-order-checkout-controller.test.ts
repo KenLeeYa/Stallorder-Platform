@@ -7,6 +7,23 @@ import {
 } from "./qr-order-checkout-controller";
 
 describe("QR order checkout controller", () => {
+  it("keeps submission locked for Retry-After without discarding the cart or resubmitting", async () => {
+    vi.useFakeTimers();
+    try {
+      const effects = checkoutEffects();
+      const requestOrder = vi.fn<QrOrderCheckoutTransport>().mockResolvedValue({ ok: false, status: 429, payload: { code: "RATE_LIMITED" }, retryAfterMs: 30_000 });
+      const pending = submitQrOrderCheckout({ body: { idempotencyKey: "original" }, operationId: "original-operation", networkError: "network", localizeError: (code) => code, requestOrder, ...effects });
+      await vi.advanceTimersByTimeAsync(29_999);
+      expect(effects.onSubmittingChange).toHaveBeenLastCalledWith(true);
+      expect(effects.onMessage).toHaveBeenLastCalledWith("RATE_LIMITED");
+      expect(requestOrder).toHaveBeenCalledTimes(1);
+      expect(effects.clearPersistedCart).not.toHaveBeenCalled();
+      expect(effects.navigateToOrder).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      await pending;
+      expect(effects.onSubmittingChange).toHaveBeenLastCalledWith(false);
+    } finally { vi.useRealTimers(); }
+  });
   it("owns create-public-order transport, cart cleanup, and navigation", async () => {
     const requestOrder = vi.fn<QrOrderCheckoutTransport>().mockResolvedValue({
       ok: true,

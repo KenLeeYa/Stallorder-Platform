@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { createHash } from "node:crypto";
 import { MerchantWorkspaceHeader } from "@/components/merchant-workspace-header";
 import { requireWorkspacePage } from "@/lib/workspace";
 import { getBillingExperienceState } from "@/server/billing/billing-feature-flags";
@@ -40,6 +41,7 @@ export default async function MerchantTemplate({ children }: { children: React.R
       <MerchantWorkspaceHeader
         workspaces={workspaces}
         displayName={principal.user.displayName}
+        notificationIdentity={createHash("sha256").update(JSON.stringify([principal.user.id, principal.sessionId])).digest("hex")}
         routeContext={routeContext}
         showBilling={billingExperience.merchantBillingVisible}
         showPayments={moduleVisibility.payments}

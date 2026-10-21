@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { recordAuditEvent } from "@/lib/audit";
 import { authorizeApiRequest } from "@/lib/authorization";
 import { validateCsrf } from "@/lib/csrf";
@@ -36,6 +37,17 @@ export async function POST(request: Request, context: RouteContext) {
   const { stallSlug } = await context.params;
   const authorization = await authorizeApiRequest(request, stallSlug, "CREATE_ORDERS");
   if (!authorization.ok) return authorization.response;
+  // Optional for older clients; first-party POS binds its marker to this actor.
+  const expectedActor = request.headers.get("x-stallorder-actor-id");
+  if (expectedActor !== null) {
+    const validActor = z.string().uuid().safeParse(expectedActor);
+    if (!validActor.success || validActor.data !== authorization.principal.user.id) {
+      return NextResponse.json({ code: "STAFF_ORDER_ACTOR_CHANGED", error: "請以原建單帳號重新登入後再試。" }, {
+        status: validActor.success ? 403 : 400,
+        headers: { "cache-control": "no-store", "x-request-id": authorization.requestId },
+      });
+    }
+  }
   if (!validateCsrf(request, authorization.principal)) {
     return NextResponse.json(
       { error: "安全驗證已失效，請重新整理後再試。" },

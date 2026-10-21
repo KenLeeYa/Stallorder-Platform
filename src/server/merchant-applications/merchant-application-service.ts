@@ -43,6 +43,7 @@ export const merchantApplicationPublicSelect = {
   status: true,
   publicReviewNote: true,
   currentStep: true,
+  draftVersion: true,
   submittedAt: true,
   reviewedAt: true,
   approvedAt: true,
@@ -101,13 +102,14 @@ export type MerchantApplicationErrorCode =
   | "APPLICATION_PENDING"
   | "APPLICATION_NOT_EDITABLE"
   | "APPLICATION_NOT_FOUND"
+  | "DRAFT_VERSION_CONFLICT"
   | "APPLICATION_SOURCE_BLOCKED"
   | "REAPPLICATION_NOT_ALLOWED"
   | "PLAN_NOT_AVAILABLE"
   | "MERCHANT_APPLICATION_TRANSITION_INVALID";
 
 export class MerchantApplicationError extends Error {
-  constructor(readonly code: MerchantApplicationErrorCode) {
+  constructor(readonly code: MerchantApplicationErrorCode, readonly currentDraftVersion?: number) {
     super(code);
   }
 }
@@ -137,13 +139,17 @@ export async function getApplicantApplicationDestination(profileId: string) {
 
 export async function saveMerchantApplicationDraft(input: {
   identity: ApplicationIdentity;
+  applicationId: string | null;
+  expectedDraftVersion: number;
   currentStep: number;
   data: Partial<MerchantApplicationFields>;
   audit: AuditContext;
 }) {
-  return prisma.$transaction(async (transaction) => {
+  return applicationTransaction(async (transaction) => {
+    await lockApplicant(transaction, input.identity.profileId);
     const profile = await requireApplicantEligibility(transaction, input.identity);
     const existing = await findActiveApplication(transaction, profile.id);
+    assertDraftVersion(existing, input.applicationId, input.expectedDraftVersion);
     if (existing && !["DRAFT", "NEEDS_INFO"].includes(existing.status)) {
       throw new MerchantApplicationError("APPLICATION_PENDING");
     }
@@ -152,24 +158,34 @@ export async function saveMerchantApplicationDraft(input: {
       : await findReapplicationSource(transaction, profile.id);
 
     const data = applicationData(input.data);
-    const application = existing
-      ? await transaction.merchantApplication.update({
-          where: { id: existing.id },
-          data: { ...data, currentStep: Math.max(existing.currentStep, input.currentStep) },
-          select: merchantApplicationPublicSelect,
-        })
-      : await transaction.merchantApplication.create({
+    // Existing submission consent is canonical; draft editing cannot revoke it.
+    delete data.termsAccepted;
+    delete data.privacyAccepted;
+    delete data.dataProcessingAccepted;
+    delete data.informationConfirmed;
+    let application;
+    if (existing) {
+      const changed = await transaction.merchantApplication.updateMany({
+        where: { id: existing.id, applicantProfileId: profile.id, draftVersion: input.expectedDraftVersion, status: { in: ["DRAFT", "NEEDS_INFO"] } },
+        data: { ...data, currentStep: Math.max(existing.currentStep, input.currentStep), draftVersion: { increment: 1 } },
+      });
+      if (changed.count !== 1) throw new MerchantApplicationError("DRAFT_VERSION_CONFLICT", existing.draftVersion);
+      application = await transaction.merchantApplication.findUniqueOrThrow({ where: { id: existing.id }, select: merchantApplicationPublicSelect });
+    } else {
+      application = await transaction.merchantApplication.create({
           data: {
             applicantProfileId: profile.id,
             applicantEmail: profile.email,
             applicantDisplayName: profile.displayName,
             currentStep: input.currentStep,
+            draftVersion: 1,
             submissionDeviceHash: hashToken(`merchant-application:${input.identity.sessionId}`),
             ...copyApplicationDataForReapplication(reapplicationSource),
             ...data,
           },
           select: merchantApplicationPublicSelect,
         });
+    }
 
     await transaction.auditLog.create({
       data: {
@@ -191,15 +207,18 @@ export async function saveMerchantApplicationDraft(input: {
       },
     });
     return application;
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  });
 }
 
 export async function submitMerchantApplication(input: {
   identity: ApplicationIdentity;
+  applicationId: string;
+  expectedDraftVersion: number;
   data: MerchantApplicationFields;
   audit: AuditContext;
 }) {
-  return prisma.$transaction(async (transaction) => {
+  return applicationTransaction(async (transaction) => {
+    await lockApplicant(transaction, input.identity.profileId);
     const profile = await requireApplicantEligibility(transaction, input.identity);
     const sourceBlocked = await transaction.merchantApplication.count({
       where: {
@@ -211,23 +230,12 @@ export async function submitMerchantApplication(input: {
       },
     });
     if (sourceBlocked > 0) throw new MerchantApplicationError("APPLICATION_SOURCE_BLOCKED");
-    let application = await findActiveApplication(transaction, profile.id);
+    const application = await findActiveApplication(transaction, profile.id);
+    assertDraftVersion(application, input.applicationId, input.expectedDraftVersion);
     if (application && !["DRAFT", "NEEDS_INFO"].includes(application.status)) {
       throw new MerchantApplicationError("APPLICATION_PENDING");
     }
-    if (!application) {
-      await findReapplicationSource(transaction, profile.id);
-      application = await transaction.merchantApplication.create({
-        data: {
-          applicantProfileId: profile.id,
-          applicantEmail: profile.email,
-          applicantDisplayName: profile.displayName,
-          currentStep: 4,
-          submissionDeviceHash: hashToken(`merchant-application:${input.identity.sessionId}`),
-          ...applicationData(input.data),
-        },
-      });
-    }
+    if (!application) throw new MerchantApplicationError("APPLICATION_NOT_FOUND");
 
     const plan = await transaction.plan.findFirst({
       where: { code: input.data.requestedPlanCode, isActive: true },
@@ -252,11 +260,12 @@ export async function submitMerchantApplication(input: {
     const now = new Date();
     assertTransition(application.status, "SUBMITTED", "APPLICANT");
 
-    const submitted = await transaction.merchantApplication.update({
-      where: { id: application.id },
+    const changed = await transaction.merchantApplication.updateMany({
+      where: { id: application.id, applicantProfileId: profile.id, draftVersion: input.expectedDraftVersion, status: { in: ["DRAFT", "NEEDS_INFO"] } },
       data: {
         ...applicationData(input.data),
         status: "SUBMITTED",
+        draftVersion: { increment: 1 },
         currentStep: 4,
         riskLevel: risk.level,
         riskReasonsJson: risk.reasons,
@@ -269,10 +278,11 @@ export async function submitMerchantApplication(input: {
         reviewedByProfileId: null,
       },
     });
-    assertTransition(submitted.status, "PENDING_REVIEW", "PLATFORM_ADMIN");
+    if (changed.count !== 1) throw new MerchantApplicationError("DRAFT_VERSION_CONFLICT", application.draftVersion);
+    assertTransition("SUBMITTED", "PENDING_REVIEW", "PLATFORM_ADMIN");
     const queued = await transaction.merchantApplication.update({
-      where: { id: submitted.id },
-      data: { status: "PENDING_REVIEW" },
+      where: { id: application.id },
+      data: { status: "PENDING_REVIEW", draftVersion: { increment: 1 } },
       select: merchantApplicationPublicSelect,
     });
 
@@ -299,7 +309,7 @@ export async function submitMerchantApplication(input: {
       },
     });
     return queued;
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  });
 }
 
 export async function withdrawMerchantApplication(input: {
@@ -315,7 +325,7 @@ export async function withdrawMerchantApplication(input: {
     assertTransition(application.status, "WITHDRAWN", "APPLICANT");
     const withdrawn = await transaction.merchantApplication.update({
       where: { id: application.id },
-      data: { status: "WITHDRAWN", withdrawnAt: new Date() },
+      data: { status: "WITHDRAWN", withdrawnAt: new Date(), draftVersion: { increment: 1 } },
       select: merchantApplicationPublicSelect,
     });
     await transaction.auditLog.create({
@@ -333,6 +343,30 @@ export async function withdrawMerchantApplication(input: {
     });
     return withdrawn;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+}
+
+async function applicationTransaction<T>(operation: (transaction: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await prisma.$transaction(operation, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError)) throw error;
+      const firstSaveRace = error.code === "P2002" && error.meta?.modelName === "MerchantApplication"
+        && JSON.stringify(error.meta.target) === JSON.stringify(["applicant_profile_id"]);
+      if (error.code !== "P2034" && !firstSaveRace) throw error;
+      if (attempt === 2) throw new MerchantApplicationError("DRAFT_VERSION_CONFLICT");
+    }
+  }
+}
+
+async function lockApplicant(transaction: Prisma.TransactionClient, profileId: string) {
+  await transaction.$queryRaw`select id from public.profiles where id = ${profileId}::uuid for update`;
+}
+
+function assertDraftVersion(application: { id: string; draftVersion: number } | null, expectedId: string | null, version: number) {
+  if (!Number.isSafeInteger(version) || version < 0 || (application ? application.id !== expectedId || application.draftVersion !== version : expectedId !== null || version !== 0)) {
+    throw new MerchantApplicationError("DRAFT_VERSION_CONFLICT", application?.draftVersion);
+  }
 }
 
 async function requireApplicantEligibility(transaction: Prisma.TransactionClient, identity: ApplicationIdentity) {

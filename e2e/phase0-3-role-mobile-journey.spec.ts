@@ -1,3 +1,4 @@
+import { searchStaffOrders } from "./helpers/staff-search";
 import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -5,6 +6,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import {
   dismissStaffStartReminder,
+  openStaffMobileTools,
   qrProductSelectionControl,
 } from "./local-navigation";
 
@@ -360,17 +362,19 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
       await expect(
         staffPage.getByTestId("staff-sticky-header").getByRole("heading"),
       ).toContainText(stallName);
-      await staffPage
-        .getByRole("searchbox", { name: "搜尋桌號或訂單編號" })
-        .fill(orderNo);
-      const staffOrder = staffPage
+      await searchStaffOrders(staffPage, orderNo);
+      const staffOrder = staffPage.getByRole("main")
         .getByRole("article")
         .filter({ hasText: `訂單 ${orderNo}` });
       await expect(staffOrder).toBeVisible();
       await expect(staffOrder).toContainText(`訂單 ${orderNo}`);
       await expect(staffOrder).toContainText("外帶");
-      await expect(staffOrder).toContainText(productName);
-      const confirmOrder = staffOrder.getByRole("button", {
+      await staffOrder.getByRole("button", { name: "查看明細", exact: true }).click();
+      const staffDialog = staffPage.getByRole("dialog", { name: `訂單 ${orderNo}`, exact: true });
+      await expect(staffDialog).toBeVisible();
+      const staffDetails = staffDialog.getByTestId("staff-order-mobile-detail");
+      await expect(staffDetails).toContainText(productName);
+      const confirmOrder = staffDetails.getByTestId("staff-order-actions-pane").getByRole("button", {
         name: "確認接單",
         exact: true,
       });
@@ -393,6 +397,8 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
       });
       await expect(staffOrder).toContainText("待製作");
       await expect(confirmOrder).toHaveCount(0);
+      await staffDialog.getByRole("button", { name: "關閉", exact: true }).click();
+      await expect(staffDialog).toHaveCount(0);
 
       await expect
         .poll(async () =>
@@ -484,6 +490,7 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
       }
 
       const staffRefresh = staffPage.getByTitle("重新整理", { exact: true });
+      await openStaffMobileTools(staffPage);
       await expectActionInViewport(staffRefresh);
       await waitForReactHydration(staffRefresh);
       await staffRefresh.click({ timeout: 20_000 });
@@ -512,7 +519,12 @@ test.describe("Phase 0-3 跨角色手機旅程", () => {
 });
 
 async function login(page: Page, email: string) {
-  await page.goto("/login");
+  const next = email === "owner@stallorder.test"
+    ? `/merchant/dashboard?organizationId=${organizationId}`
+    : email === "kitchen@stallorder.test"
+      ? `/kitchen?stall=${stallSlug}`
+      : `/staff/${stallSlug}`;
+  await page.goto(`/login?next=${encodeURIComponent(next)}`);
   const emailLoginButton = page.getByRole("button", {
     name: "使用電子郵件與密碼登入",
     exact: true,

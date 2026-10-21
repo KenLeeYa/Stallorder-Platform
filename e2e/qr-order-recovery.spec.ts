@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import {
   dismissStaffStartReminder,
+  loginLocalTestAccount,
   qrProductSelectionControl,
 } from "./local-navigation";
 import { createOpenQrFixture } from "./open-qr-fixture";
@@ -56,19 +57,7 @@ test.afterAll(async () => {
 });
 
 async function login(page: Page, email: string) {
-  await page.goto("/login");
-  const origin = new URL(page.url()).origin;
-  const loginResponse = await page.context().request.post("/api/auth/login", {
-    data: { email, password },
-    headers: {
-      origin,
-      referer: page.url(),
-      "sec-fetch-site": "same-origin",
-    },
-  });
-  expect(loginResponse.status()).toBe(200);
-  const body = await loginResponse.json() as { next?: string };
-  await page.goto(body.next ?? "/");
+  await loginLocalTestAccount(page, email, password, "/staff/aming-chicken");
   await expect(page).toHaveURL(
     /\/merchant\/dashboard\?organizationId=|\/staff\//,
   );

@@ -1,9 +1,9 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHash, generateKeyPairSync } from "node:crypto";
 
-const mocks = vi.hoisted(() => ({ exec: vi.fn(), write: vi.fn(), mkdir: vi.fn(), mkdtemp: vi.fn(), exportVariable: vi.fn(), setSecret: vi.fn() }));
+const mocks = vi.hoisted(() => ({ exec: vi.fn(), write: vi.fn(), open: vi.fn(), artifactWrite: vi.fn(), close: vi.fn(), mkdir: vi.fn(), mkdtemp: vi.fn(), exportVariable: vi.fn(), setSecret: vi.fn() }));
 vi.mock("node:child_process", () => ({ execFileSync: mocks.exec }));
-vi.mock("node:fs/promises", () => ({ mkdir: mocks.mkdir, mkdtemp: mocks.mkdtemp, writeFile: mocks.write, readFile: vi.fn() }));
+vi.mock("node:fs/promises", () => ({ mkdir: mocks.mkdir, mkdtemp: mocks.mkdtemp, open: mocks.open, writeFile: mocks.write, readFile: vi.fn() }));
 vi.mock("@actions/core", () => ({ exportVariable: mocks.exportVariable, setSecret: mocks.setSecret }));
 const originalArgv = [...process.argv];
 const values = { ABUSE_HASH_SECRET: "original-abuse", TOKEN_DERIVATION_SECRET: "original-token" };
@@ -23,6 +23,10 @@ beforeEach(() => {
   vi.stubEnv("RECOVERY_RECIPIENT_PUBLIC_KEY_BASE64", publicKey);
   vi.stubEnv("RECOVERY_CONFIRMATION", "RECOVER_PUBLIC_ORDER_ORIGINAL_SECRETS");
   mocks.mkdtemp.mockResolvedValue("/tmp/test-recovery-owned");
+  mocks.open.mockImplementation(async () => {
+    if (scenario === "collision") throw Object.assign(new Error("EEXIST"), { code: "EEXIST" });
+    return { writeFile: mocks.artifactWrite, close: mocks.close };
+  });
   mocks.write.mockImplementation(async (path, data) => {
     if (String(path).endsWith("index.ts")) {
       const configSource = data.split("Deno.serve(createPublicOrderSecretRecoveryHandler(").at(-1).split(", { getEnv:")[0];
@@ -35,12 +39,18 @@ beforeEach(() => {
   });
   vi.spyOn(console, "log").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
-  vi.stubGlobal("fetch", vi.fn(async (url) => {
+  vi.stubGlobal("fetch", vi.fn(async (url, options) => {
+    if (scenario === "preparation-fails" && url.endsWith("/functions")) return new Response(null, { status: 503 });
+    if (scenario === "redirect" && options.redirect !== "error") throw new Error("unsafe redirect allowed");
     if (url.endsWith("/secrets")) return Response.json(Object.entries(values).map(([name, value]) => ({ name, value: createHash("sha256").update(value).digest("hex") })));
     if (url.endsWith("/api-keys?reveal=true")) return Response.json([{ name: "service_role", api_key: "legacy.service.jwt" }]);
     if (url.endsWith("/functions")) return Response.json([]);
     if (scenario === "invoke-fails") return new Response(null, { status: 503 });
-    return Response.json({ projectRef: deployedConfig.projectRef, recoveryId: deployedConfig.recoveryId, schemaVersion: 1, ciphertext: "encrypted-only", wrappedKey: "wrapped-key", iv: "iv" });
+    const envelope = { projectRef: deployedConfig.projectRef, recoveryId: deployedConfig.recoveryId, schemaVersion: 1,
+      ciphertext: Buffer.alloc(80).toString("base64"), wrappedKey: Buffer.alloc(512).toString("base64"), iv: Buffer.alloc(12).toString("base64") };
+    if (scenario === "extra-plaintext") envelope.plaintext = "must-never-persist";
+    if (scenario === "bad-iv") envelope.iv = Buffer.alloc(11).toString("base64");
+    return Response.json(envelope);
   }));
 });
 afterEach(() => {
@@ -83,10 +93,54 @@ describe("protected runtime recovery orchestration", () => {
     expect(deploy).not.toContain("--no-verify-jwt");
     expect(deployedConfig.serviceAuthorizationHash).toBe(createHash("sha256").update("Bearer legacy.service.jwt").digest("hex"));
     expect(JSON.stringify(deployedConfig)).not.toContain("legacy.service.jwt");
-    const artifacts = mocks.write.mock.calls.filter(call => String(call[0]).endsWith("public-order-secret-envelope.json"));
-    expect(artifacts).toHaveLength(mode === "success" ? 1 : 0);
+    expect(mocks.artifactWrite).toHaveBeenCalledTimes(mode === "success" ? 1 : 0);
     expect(JSON.stringify(console.log.mock.calls)).not.toContain("legacy.service.jwt");
     expect(JSON.stringify(console.log.mock.calls)).toContain("public_order_recovery_function_deleted");
     if (mode === "invoke-fails") expect(JSON.stringify(console.error.mock.calls)).toContain("RECOVERY_INVOKE_FAILED_HTTP_503");
+  });
+  it("rejects artifact collision before deployment and preserves the existing artifact", async () => {
+    scenario = "collision";
+    await import("./recover-public-order-runtime-secrets.mjs");
+    expect(process.exitCode).toBe(1);
+    expect(mocks.exec.mock.calls.some((call) => call[1].includes("deploy"))).toBe(false);
+    expect(mocks.exec.mock.calls.some((call) => call[1].includes("delete"))).toBe(false);
+    expect(mocks.artifactWrite).not.toHaveBeenCalled();
+    // Canonical digest retrieval is required before immutable approval verification;
+    // recover itself must make zero API requests on collision.
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual(["https://api.supabase.com/v1/projects/abcdefghijklmnopqrst/secrets"]);
+  });
+  it("closes the reservation after preparation failure without deployment or cleanup", async () => {
+    scenario = "preparation-fails";
+    await import("./recover-public-order-runtime-secrets.mjs");
+    expect(process.exitCode).toBe(1);
+    expect(mocks.close).toHaveBeenCalledOnce();
+    expect(mocks.exec.mock.calls.some((call) => call[1].includes("deploy") || call[1].includes("delete"))).toBe(false);
+    expect(mocks.artifactWrite).not.toHaveBeenCalled();
+    expect(JSON.stringify(console.error.mock.calls)).toContain("RECOVERY_MANAGEMENT_READ_FAILED");
+  });
+  it.each(["extra-plaintext", "bad-iv"])("rejects %s without persisting remote fields", async (mode) => {
+    scenario = mode;
+    await import("./recover-public-order-runtime-secrets.mjs");
+    expect(process.exitCode).toBe(1);
+    expect(mocks.artifactWrite).not.toHaveBeenCalled();
+    expect(mocks.close).toHaveBeenCalledOnce();
+    expect(JSON.stringify(console.error.mock.calls)).toContain("RECOVERY_RESPONSE_INVALID");
+  });
+  it("rejects redirects on all credential-bearing requests and reserves an exclusive private artifact", async () => {
+    scenario = "redirect";
+    await import("./recover-public-order-runtime-secrets.mjs");
+    expect(process.exitCode).not.toBe(1);
+    for (const [, options] of fetch.mock.calls) expect(options.redirect).toBe("error");
+    expect(mocks.open).toHaveBeenCalledWith("artifacts/public-order-secret-envelope.json", "wx", 0o600);
+    expect(mocks.close).toHaveBeenCalledOnce();
+  });
+  it("preserves the invocation error if owned cleanup and close also fail", async () => {
+    scenario = "invoke-fails";
+    mocks.exec.mockImplementation((_node, args) => { if (args.includes("delete")) throw new Error("cleanup"); });
+    mocks.close.mockRejectedValue(new Error("close"));
+    await import("./recover-public-order-runtime-secrets.mjs");
+    expect(process.exitCode).toBe(1);
+    expect(JSON.stringify(console.error.mock.calls)).toContain("RECOVERY_INVOKE_FAILED_HTTP_503");
+    expect(mocks.artifactWrite).not.toHaveBeenCalled();
   });
 });

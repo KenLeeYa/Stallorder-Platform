@@ -1,5 +1,8 @@
 "use client";
 
+import { MobileProgressiveRecords } from "@/components/mobile-progressive-records";
+import type { ComponentProps } from "react";
+
 import { type FormEvent, type ReactNode, useEffect, useState } from "react";
 import { Banknote, Boxes, ChevronRight, CircleDollarSign, LoaderCircle, PackageSearch, ReceiptText, TrendingDown, TrendingUp, TriangleAlert, UsersRound, WalletCards, X } from "lucide-react";
 import { ReportFilters } from "@/components/report-navigation";
@@ -24,7 +27,11 @@ const expenseLabels: Record<string, string> = {
   OTHER: "其他",
 };
 
-export function OperatingProfitDashboard({
+export function OperatingProfitDashboard(props: ComponentProps<typeof OperatingProfitDashboardWorkspace>) {
+  return <OperatingProfitDashboardWorkspace key={JSON.stringify([props.organizationId, props.initialDashboard.dateFrom, props.initialDashboard.dateTo, props.initialDashboard.stalls.map((stall) => stall.id)])} {...props} />;
+}
+
+function OperatingProfitDashboardWorkspace({
   organizationId,
   initialDashboard,
   canManageExpenses,
@@ -38,6 +45,7 @@ export function OperatingProfitDashboard({
   multiStallMode: boolean;
 }) {
   const [dashboard, setDashboard] = useState(initialDashboard);
+  const listScope = JSON.stringify([organizationId, dashboard.dateFrom, dashboard.dateTo, dashboard.stalls.map((stall) => stall.id)]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [messageKind, setMessageKind] = useState<SettingsFeedbackKind>("success");
@@ -222,15 +230,15 @@ export function OperatingProfitDashboard({
     {canManageExpenses ? <section className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
       <h2 className="text-lg font-semibold text-stone-950">已入帳支出</h2>
       <p className="mt-1 text-sm leading-6 text-stone-600">點選一筆支出即可更正。系統會保留原紀錄與更正原因，不會直接覆蓋或刪除帳務。</p>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {dashboard.expenses.map((expense) => (
+      <MobileProgressiveRecords items={dashboard.expenses} scopeKey={listScope} label="已入帳支出">{(records) => (<div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {records.map((expense) => (
           <button type="button" key={expense.id} data-testid={`correct-operating-expense-${expense.id}`} onClick={() => openExpenseCorrection(expense)} className="group flex min-h-28 w-full items-center justify-between gap-3 rounded-xl border-2 border-stone-200 p-4 text-left transition hover:border-teal-600 hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-200">
             <span className="min-w-0"><span className="block text-xs text-stone-500">{expense.expenseDate} · {expense.stallId ? dashboard.stalls.find((stall) => stall.id === expense.stallId)?.name ?? "未知攤位" : "組織共用"}</span><strong className="mt-1 block text-base text-stone-950">{expense.category === "OTHER" && expense.customCategoryName ? `其他：${expense.customCategoryName}` : expenseLabels[expense.category] ?? expense.category}</strong><span className="mt-1 block truncate text-sm text-stone-600">{expense.description}</span><span className="mt-2 block text-lg font-semibold text-stone-950">{money(expense.amount)}</span></span>
             <ChevronRight className="h-6 w-6 shrink-0 text-stone-400 group-hover:text-teal-700" aria-hidden="true" />
           </button>
         ))}
         {!dashboard.expenses.length ? <p className="text-sm text-stone-600">此區間尚無可更正的營業支出。</p> : null}
-      </div>
+      </div>)}</MobileProgressiveRecords>
     </section> : null}
 
     {correctionTarget ? <ExpenseCorrectionDialog
@@ -244,9 +252,9 @@ export function OperatingProfitDashboard({
       onSubmit={correctExpense}
     /> : null}
 
-    <section className="grid gap-4 lg:grid-cols-2"><CollapsiblePanel testId="operating-profit-expense-categories" title="支出分類"><div className="space-y-2">{dashboard.expenseCategories.map((row) => <div key={`${row.category}:${row.customCategoryName ?? ""}`} className="flex justify-between rounded-lg border border-stone-200 p-3 text-sm"><span>{row.category === "OTHER" && row.customCategoryName ? `其他：${row.customCategoryName}` : expenseLabels[row.category] ?? row.category}</span><strong>{money(row.amount)}</strong></div>)}{!dashboard.expenseCategories.length ? <p className="text-sm text-stone-600">此區間尚無其他營業支出。</p> : null}</div></CollapsiblePanel><CollapsiblePanel testId="operating-profit-daily-sales" title="每日淨營收"><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{dashboard.dailySales.map((row) => <div key={row.businessDate} className="rounded-lg border border-stone-200 p-3"><p className="text-xs text-stone-500">{row.businessDate}</p><strong className="mt-1 block">{money(row.netSales)}</strong></div>)}{!dashboard.dailySales.length ? <p className="text-sm text-stone-600">此區間尚無完成訂單。</p> : null}</div></CollapsiblePanel></section>
+    <section className="grid gap-4 lg:grid-cols-2"><CollapsiblePanel testId="operating-profit-expense-categories" title="支出分類"><MobileProgressiveRecords items={dashboard.expenseCategories} scopeKey={listScope} label="支出分類">{(records) => (<div className="space-y-2">{records.map((row) => <div key={`${row.category}:${row.customCategoryName ?? ""}`} className="flex justify-between rounded-lg border border-stone-200 p-3 text-sm"><span>{row.category === "OTHER" && row.customCategoryName ? `其他：${row.customCategoryName}` : expenseLabels[row.category] ?? row.category}</span><strong>{money(row.amount)}</strong></div>)}{!dashboard.expenseCategories.length ? <p className="text-sm text-stone-600">此區間尚無其他營業支出。</p> : null}</div>)}</MobileProgressiveRecords></CollapsiblePanel><CollapsiblePanel testId="operating-profit-daily-sales" title="每日淨營收"><MobileProgressiveRecords items={dashboard.dailySales} scopeKey={listScope} label="每日淨營收">{(records) => (<div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{records.map((row) => <div key={row.businessDate} className="rounded-lg border border-stone-200 p-3"><p className="text-xs text-stone-500">{row.businessDate}</p><strong className="mt-1 block">{money(row.netSales)}</strong></div>)}{!dashboard.dailySales.length ? <p className="text-sm text-stone-600">此區間尚無完成訂單。</p> : null}</div>)}</MobileProgressiveRecords></CollapsiblePanel></section>
 
-    <CollapsiblePanel testId="operating-profit-product-margins" title="商品毛利排行"><div className="overflow-x-auto"><table className="w-full min-w-[800px] text-left text-sm"><thead><tr className="border-b border-stone-200 text-stone-600"><th className="p-2">商品</th><th className="p-2 text-right">銷量</th><th className="p-2 text-right">營收</th><th className="p-2 text-right">食材</th><th className="p-2 text-right">一次性包材</th><th className="p-2 text-right">估計成本</th><th className="p-2 text-right">毛利</th><th className="p-2 text-right">毛利率</th></tr></thead><tbody>{dashboard.productMargins.map((row) => <tr key={`${row.productId}-${row.productName}`} className="border-b border-stone-100"><td className="p-2 font-medium">{row.productName}</td><td className="p-2 text-right">{row.quantity}</td><td className="p-2 text-right">{money(row.revenue)}</td><td className="p-2 text-right">{money(row.foodCost)}</td><td className="p-2 text-right">{money(row.packagingCost)}</td><td className="p-2 text-right">{money(row.estimatedCost)}</td><td className="p-2 text-right">{money(row.grossProfit)}</td><td className="p-2 text-right font-semibold">{percent(row.grossMarginBasisPoints)}</td></tr>)}</tbody></table>{!dashboard.productMargins.length ? <p className="py-8 text-center text-sm text-stone-600">此區間尚無可計算商品。</p> : null}</div></CollapsiblePanel>
+    <CollapsiblePanel testId="operating-profit-product-margins" title="商品毛利排行"><MobileProgressiveRecords items={dashboard.productMargins} scopeKey={listScope} label="商品毛利排行">{(records) => (<div className="overflow-x-auto"><table className="w-full min-w-[800px] text-left text-sm"><thead><tr className="border-b border-stone-200 text-stone-600"><th className="p-2">商品</th><th className="p-2 text-right">銷量</th><th className="p-2 text-right">營收</th><th className="p-2 text-right">食材</th><th className="p-2 text-right">一次性包材</th><th className="p-2 text-right">估計成本</th><th className="p-2 text-right">毛利</th><th className="p-2 text-right">毛利率</th></tr></thead><tbody>{records.map((row) => <tr key={`${row.productId}-${row.productName}`} className="border-b border-stone-100"><td className="p-2 font-medium">{row.productName}</td><td className="p-2 text-right">{row.quantity}</td><td className="p-2 text-right">{money(row.revenue)}</td><td className="p-2 text-right">{money(row.foodCost)}</td><td className="p-2 text-right">{money(row.packagingCost)}</td><td className="p-2 text-right">{money(row.estimatedCost)}</td><td className="p-2 text-right">{money(row.grossProfit)}</td><td className="p-2 text-right font-semibold">{percent(row.grossMarginBasisPoints)}</td></tr>)}</tbody></table>{!dashboard.productMargins.length ? <p className="py-8 text-center text-sm text-stone-600">此區間尚無可計算商品。</p> : null}</div>)}</MobileProgressiveRecords></CollapsiblePanel>
     {message ? <SettingsFeedbackDialog message={message} kind={messageKind} onClose={() => setMessage("")} focusAfterClose={() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()} /> : null}
   </div>;
 }

@@ -1,164 +1,62 @@
 import "server-only";
-
 import type { NotificationJob } from "@prisma/client";
-import {
-  lineIntegrationSecretsSchema,
-  lineRecipientSecretSchema,
-  type LineNotificationTemplateCode,
-} from "@/lib/line-notification-contract";
+import type { LineNotificationTemplateCode } from "@/lib/line-notification-contract";
 import { logEvent } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
-import { entitlementService } from "@/server/billing/entitlement-service";
-import { lineTemplateEnabled } from "./line-integration-service";
 import { LineMessagingProvider } from "./line-messaging-provider";
 import { NotificationProviderError } from "./notification-provider";
-import { readNotificationSecret } from "./notification-secrets";
+import {
+  authorizeLegacyEffect, claimLegacyNotificationJobs, completeLegacyNotification,
+  legacyClaimAttempt, prepareLegacyNotification, recoverLegacyNotificationJobs,
+  type LegacyNotificationClaim,
+} from "./legacy-notification-execution";
 
 const MAX_ATTEMPTS = 5;
 
-export async function processDueNotificationJobs(now = new Date(), limit = 20) {
-  await prisma.notificationJob.updateMany({
-    where: {
-      status: "PROCESSING",
-      updatedAt: { lt: new Date(now.getTime() - 10 * 60_000) },
-      attemptCount: { lt: MAX_ATTEMPTS },
-    },
-    data: {
-      status: "FAILED",
-      nextAttemptAt: now,
-      lastErrorCode: "WORKER_LEASE_EXPIRED",
-    },
-  });
-  const candidates = await prisma.notificationJob.findMany({
-    where: {
-      status: { in: ["PENDING", "FAILED"] },
-      attemptCount: { lt: MAX_ATTEMPTS },
-      OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: now } }],
-    },
-    orderBy: [{ nextAttemptAt: "asc" }, { createdAt: "asc" }],
-    take: Math.min(Math.max(limit, 1), 50),
-    select: { id: true, status: true },
-  });
-  const claimed: string[] = [];
-  for (const candidate of candidates) {
-    const result = await prisma.notificationJob.updateMany({
-      where: { id: candidate.id, status: candidate.status, attemptCount: { lt: MAX_ATTEMPTS } },
-      data: { status: "PROCESSING", attemptCount: { increment: 1 }, nextAttemptAt: null },
-    });
-    if (result.count === 1) claimed.push(candidate.id);
-  }
-  return Promise.all(claimed.map((jobId) => processClaimedNotificationJob(jobId, now)));
+export async function processDueNotificationJobs(_now = new Date(), limit = 20) {
+  void _now; // Keep the caller signature; lease authority uses the database clock.
+  await recoverLegacyNotificationJobs();
+  const claims = await claimLegacyNotificationJobs(Math.min(Math.max(limit, 1), 50));
+  return Promise.all(claims.map(processClaimedNotificationJob));
 }
 
-async function processClaimedNotificationJob(jobId: string, now: Date) {
-  const job = await prisma.notificationJob.findUnique({
-    where: { id: jobId },
-    include: {
-      integration: true,
-      contactLink: true,
-      order: { include: { stall: { select: { name: true, timezone: true } } } },
-    },
-  });
-  if (!job || job.status !== "PROCESSING") return { jobId, status: "SKIPPED" };
-  if (
-    !job.order
-    || job.integration.status !== "ACTIVE"
-    || job.contactLink.consentStatus !== "GRANTED"
-    || !lineTemplateEnabled(job.integration.settingsJson, job.templateCode as LineNotificationTemplateCode)
-  ) {
-    await prisma.notificationJob.update({
-      where: { id: job.id },
-      data: { status: "CANCELLED", lastErrorCode: "DELIVERY_NOT_ALLOWED" },
-    });
-    return { jobId, status: "CANCELLED" };
-  }
-
+async function processClaimedNotificationJob(claim: LegacyNotificationClaim) {
+  const prepared = await prepareLegacyNotification(claim, renderLineNotification);
+  if ("status" in prepared) return prepared;
+  const approved = await authorizeLegacyEffect(claim, prepared.hash);
+  if ("status" in approved) return approved;
+  // No row locks survive the committed grant. The transport is explicitly local Mock only.
+  let completion: Parameters<typeof completeLegacyNotification>[1];
   try {
-    await entitlementService.assertFeatureEnabled(job.organizationId, "LINE_NOTIFICATIONS");
-    const [integrationSecretValue, recipientSecretValue] = await Promise.all([
-      readNotificationSecret(job.integration.secretReference ?? ""),
-      readNotificationSecret(job.recipientReference),
-    ]);
-    const integrationSecret = lineIntegrationSecretsSchema.parse(JSON.parse(integrationSecretValue));
-    const recipientSecret = lineRecipientSecretSchema.parse(JSON.parse(recipientSecretValue));
-    const provider = new LineMessagingProvider(integrationSecret.channelAccessToken);
-    const result = await provider.send({
-      jobId: job.id,
-      recipient: recipientSecret.providerUserId,
-      text: renderLineNotification({
-        templateCode: job.templateCode as LineNotificationTemplateCode,
-        stallName: job.order.stall.name,
-        orderNo: job.order.orderNo,
-        fulfillmentType: job.order.fulfillmentType,
-        pickupCode: job.order.pickupCodeDisplay,
-        quotedWaitMinutes: job.order.quotedWaitMinutes,
-        total: job.order.total,
-        pendingFulfillmentAt: job.order.pendingFulfillmentAt,
-        fulfillmentTimeChangeReason: job.order.fulfillmentTimeChangeReason,
-        timezone: job.order.stall.timezone,
-        trackingToken: recipientSecret.trackingToken,
-        appUrl: requiredAppUrl(),
-      }),
-    });
-    await prisma.notificationJob.update({
-      where: { id: job.id },
-      data: {
-        status: "SENT",
-        sentAt: now,
-        providerMessageId: result.providerMessageId,
-        lastErrorCode: null,
-      },
-    });
-    logEvent("info", "LINE_NOTIFICATION_SENT", {
-      jobId: job.id,
-      organizationId: job.organizationId,
-      stallId: job.stallId,
-      templateCode: job.templateCode,
-    });
-    return { jobId, status: "SENT" };
+    const result = await new LineMessagingProvider(approved.token, approved.transport).send(prepared.message);
+    completion = { outcome: "SIMULATED", providerMessageId: result.providerMessageId };
   } catch (error) {
-    const failure = notificationFailure(error, job, now);
-    await prisma.notificationJob.update({
-      where: { id: job.id },
-      data: {
-        status: "FAILED",
-        nextAttemptAt: failure.nextAttemptAt,
-        lastErrorCode: failure.code,
-      },
-    });
-    if (!failure.nextAttemptAt) await createNotificationFailureAlert(job, failure.code, now);
-    logEvent("error", "LINE_NOTIFICATION_FAILED", {
-      jobId: job.id,
-      organizationId: job.organizationId,
-      stallId: job.stallId,
-      errorCode: failure.code,
-      retryable: Boolean(failure.nextAttemptAt),
-    });
-    return { jobId, status: "FAILED", retryAt: failure.nextAttemptAt?.toISOString() ?? null };
+    if (error instanceof NotificationProviderError && error.acceptance === "REJECTED") {
+      const retryAt = notificationRetry(await legacyClaimAttempt(claim), error.retryable);
+      completion = { outcome: retryAt ? "RETRY_SCHEDULED" : "FAILED", code: error.code, retryAt };
+    } else {
+      completion = { outcome: "MANUAL_REVIEW", code: "LEGACY_DELIVERY_OUTCOME_UNKNOWN" };
+    }
   }
+  // A lost completion is also unknown; recovery must not grant another effect.
+  let completed = false;
+  try { completed = await completeLegacyNotification(claim, completion); } catch { /* Durable IN_FLIGHT is reconciled by recovery. */ }
+  if (!completed) return { jobId: claim.id, status: "UNKNOWN", reason: "LEGACY_COMPLETION_UNCONFIRMED" };
+  if (completion.outcome === "FAILED" || completion.outcome === "MANUAL_REVIEW") {
+    const job = await prisma.notificationJob.findUniqueOrThrow({ where: { id: claim.id } });
+    await createNotificationFailureAlert(job, completion.code!, new Date());
+  }
+  logEvent(completion.outcome === "SIMULATED" ? "info" : "error", "LEGACY_NOTIFICATION_RESULT", {
+    jobId: claim.id, outcome: completion.outcome, errorCode: completion.code ?? null,
+  });
+  return { jobId: claim.id, status: completion.outcome === "MANUAL_REVIEW" ? "UNKNOWN" : completion.outcome,
+    retryAt: completion.retryAt?.toISOString() ?? null };
 }
 
 export function notificationRetry(attemptCount: number, retryable: boolean, now = new Date()) {
   if (!retryable || attemptCount >= MAX_ATTEMPTS) return null;
   const delayMinutes = Math.min(30, 2 ** Math.max(0, attemptCount - 1));
   return new Date(now.getTime() + delayMinutes * 60_000);
-}
-
-function notificationFailure(error: unknown, job: NotificationJob, now: Date) {
-  if (error instanceof NotificationProviderError) {
-    return { code: error.code, nextAttemptAt: notificationRetry(job.attemptCount, error.retryable, now) };
-  }
-  if (error instanceof TypeError || (error instanceof DOMException && error.name === "TimeoutError")) {
-    return {
-      code: "LINE_NETWORK_ERROR",
-      nextAttemptAt: notificationRetry(job.attemptCount, true, now),
-    };
-  }
-  const detail = error instanceof Error ? error.message : "UNKNOWN";
-  const code = detail.startsWith("NOTIFICATION_SECRET_")
-    ? detail.slice(0, 80)
-    : "NOTIFICATION_PROCESSING_FAILED";
-  return { code, nextAttemptAt: notificationRetry(job.attemptCount, false, now) };
 }
 
 async function createNotificationFailureAlert(job: NotificationJob, code: string, now: Date) {
@@ -227,10 +125,4 @@ export function renderLineNotification(input: {
     return `${input.stallName}：訂單 ${input.orderNo} 建議將${label}時間改為 ${proposedTime}${reason}，請確認是否接受。\n前往確認：${orderUrl}`;
   }
   return `${input.stallName}：訂單 ${input.orderNo} 已取消，請洽現場工作人員。\n查看訂單：${orderUrl}`;
-}
-
-function requiredAppUrl() {
-  const value = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "");
-  if (!value || new URL(value).protocol !== "https:") throw new Error("NOTIFICATION_APP_URL_INVALID");
-  return value;
 }

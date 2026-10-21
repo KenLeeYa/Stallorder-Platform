@@ -9,6 +9,10 @@ import { QrOrderFlowPresentation } from "@/components/qr-order-flow-presentation
 export type QrOrderFlowProps = QrOrderFlowControllerInput;
 
 export function QrOrderFlow(props: QrOrderFlowProps) {
+  return <OwnedQrOrderFlow key={`${props.platformCustomerId ?? "guest"}:${props.qrToken}`} {...props} />;
+}
+
+function OwnedQrOrderFlow(props: QrOrderFlowProps) {
   const controller = useQrOrderFlowController(props);
   return <QrOrderFlowPresentation controller={controller} />;
 }

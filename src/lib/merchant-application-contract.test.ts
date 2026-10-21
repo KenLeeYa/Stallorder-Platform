@@ -34,6 +34,8 @@ describe("merchant application contract", () => {
   it("allows a partial draft without creating merchant resources", () => {
     expect(merchantApplicationCommandSchema.safeParse({
       intent: "SAVE_DRAFT",
+      applicationId: null,
+      expectedDraftVersion: 0,
       currentStep: 1,
       data: { preferredContactMethod: "PHONE" },
     }).success).toBe(true);
@@ -42,14 +44,30 @@ describe("merchant application contract", () => {
   it("requires every legal consent before submission", () => {
     expect(merchantApplicationCommandSchema.safeParse({
       intent: "SUBMIT",
+      applicationId: "00000000-0000-4000-8000-000000000001",
+      expectedDraftVersion: 1,
       currentStep: 4,
       data: { ...completeApplication, termsAccepted: false },
     }).success).toBe(false);
   });
 
+  it.each([false, true])("keeps submission consent out of draft commands: %s", (termsAccepted) => {
+    expect(merchantApplicationCommandSchema.safeParse({
+      intent: "SAVE_DRAFT", applicationId: null, expectedDraftVersion: 0, currentStep: 4,
+      data: { requestedPlanCode: "TRIAL", termsAccepted },
+    }).success).toBe(false);
+  });
+
+  it("requires the CAS version and preserves a partial selected-plan draft", () => {
+    expect(merchantApplicationCommandSchema.safeParse({ intent: "SAVE_DRAFT", applicationId: null, currentStep: 4, data: { requestedPlanCode: "TRIAL" } }).success).toBe(false);
+    expect(merchantApplicationCommandSchema.safeParse({ intent: "SAVE_DRAFT", applicationId: null, expectedDraftVersion: 0, currentStep: 4, data: { requestedPlanCode: "TRIAL" } }).success).toBe(true);
+  });
+
   it.each(["Invalid Slug", "-test-stall", "test-stall-"])("enforces the public identifier format: %s", (requestedSlug) => {
     expect(merchantApplicationCommandSchema.safeParse({
       intent: "SUBMIT",
+      applicationId: "00000000-0000-4000-8000-000000000001",
+      expectedDraftVersion: 1,
       currentStep: 4,
       data: { ...completeApplication, requestedSlug },
     }).success).toBe(false);
@@ -58,6 +76,8 @@ describe("merchant application contract", () => {
   it("returns the field name and a specific message for an invalid draft field", () => {
     const result = merchantApplicationCommandSchema.safeParse({
       intent: "SAVE_DRAFT",
+      applicationId: null,
+      expectedDraftVersion: 0,
       currentStep: 2,
       data: { merchantName: "測" },
     });

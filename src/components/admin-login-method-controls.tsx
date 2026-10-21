@@ -210,8 +210,8 @@ function MethodCard({ icon: Icon, label, description, enabled, busy, disabled, o
           <h2 className="flex items-center gap-2 font-semibold"><Icon aria-hidden="true" className="h-4 w-4 shrink-0 text-teal-700" />{label}</h2>
           <p className="mt-2 text-sm leading-6 text-stone-600">{description}</p>
         </div>
-        <button type="button" role="switch" aria-checked={enabled} aria-label={label} disabled={disabled} onClick={onToggle} className={`relative mt-0.5 h-11 w-16 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${enabled ? "bg-teal-700" : "bg-stone-300"}`}>
-          <span className={`absolute left-1 top-2 h-7 w-7 rounded-full bg-white shadow-sm transition-transform ${enabled ? "translate-x-7" : "translate-x-0"}`} />
+        <button type="button" role="switch" aria-checked={enabled} aria-label={label} disabled={disabled} onClick={onToggle} className="setting-state-button">
+          {busy ? "…" : enabled ? enabledLabel : disabledLabel}
         </button>
       </div>
       <p className={`mt-3 text-sm font-semibold ${enabled ? "text-teal-800" : "text-stone-500"}`}>{busy ? "…" : enabled ? enabledLabel : disabledLabel}</p>

@@ -11,6 +11,7 @@ export async function OnboardingShell({ children }: { children: ReactNode }) {
         <Link href="/" className="text-sm font-semibold text-teal-800">
           {publicMessages.get(locale, "onboardingBackHome")}
         </Link>
+        <Link href="/feedback" className="ml-4 inline-flex min-h-12 items-center rounded border px-3 py-2">產品回饋</Link>
       </div>
       {children}
     </main>

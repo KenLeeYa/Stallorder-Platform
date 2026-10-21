@@ -1,3 +1,4 @@
+import { searchStaffOrders } from "./helpers/staff-search";
 import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -614,10 +615,7 @@ test.describe("分享連結 PREORDER 同單跨角色", () => {
       await login(staffPage, "staff@stallorder.test");
       await staffPage.goto("/staff/aming-chicken");
       await dismissStaffStartReminder(staffPage);
-      await staffPage
-        .getByRole("main")
-        .getByPlaceholder("搜尋桌號、訂單編號或顧客")
-        .fill(orderNo);
+      await searchStaffOrders(staffPage, orderNo);
       const staffOrderCard = staffPage
         .getByTestId("staff-order-list-pane")
         .getByRole("button")
@@ -816,10 +814,13 @@ async function resolveCreatedRecords() {
 }
 
 async function login(page: Page, email: string) {
-  await page.goto("/login");
+  const next = email === "kitchen@stallorder.test"
+    ? "/kitchen?stall=aming-chicken"
+    : "/staff/aming-chicken";
+  await page.goto(`/login?next=${encodeURIComponent(next)}`);
   const origin = new URL(page.url()).origin;
   const loginResponse = await page.context().request.post("/api/auth/login", {
-    data: { email, password },
+    data: { email, password, next },
     headers: {
       origin,
       referer: page.url(),

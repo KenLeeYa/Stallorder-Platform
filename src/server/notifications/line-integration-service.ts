@@ -27,7 +27,13 @@ export async function getLineIntegrationManagerData(organizationId: string, stal
     integrationId: integration?.id ?? null,
     status: integration?.status ?? "DISABLED",
     channelId: integration?.publicIdentifier ?? "",
-    settings: settings?.success ? settings.data : {
+    settings: settings?.success ? {
+      displayName: settings.data.displayName,
+      officialAccountUrl: settings.data.officialAccountUrl,
+      notifyConfirmed: settings.data.notifyConfirmed,
+      notifyReady: settings.data.notifyReady,
+      notifyCancelled: settings.data.notifyCancelled,
+    } : {
       displayName: "LINE 取餐通知",
       officialAccountUrl: "",
       notifyConfirmed: true,
@@ -105,10 +111,12 @@ export async function disableLineIntegration(organizationId: string, stallId: st
       where: { organizationId, stallId, provider: "LINE" },
     });
     if (!integration) return null;
-    await transaction.notificationJob.updateMany({
-      where: { integrationId: integration.id, status: { in: ["PENDING", "FAILED"] } },
-      data: { status: "CANCELLED", nextAttemptAt: null, lastErrorCode: "INTEGRATION_DISABLED" },
-    });
+    await transaction.$queryRaw`select id from public.notification_integrations where id=${integration.id}::uuid for update`;
+    await transaction.$executeRaw`update public.notification_jobs j set status='CANCELLED',outcome='SUPPRESSED',
+      next_attempt_at=null,last_error_code='INTEGRATION_DISABLED'
+      where integration_id=${integration.id}::uuid and delivery_mode='LEGACY' and status in ('PENDING','FAILED')
+      and outcome in ('QUEUED','RETRY_SCHEDULED') and first_request_at is null and legacy_intent_json is not null
+      and not exists(select 1 from public.line_platform_order_owners owner where owner.order_id=j.order_id)`;
     const updated = await transaction.notificationIntegration.update({
       where: { id: integration.id },
       data: { status: "DISABLED", publicIdentifier: null, secretReference: null },

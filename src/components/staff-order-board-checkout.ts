@@ -143,6 +143,9 @@ export function getStaffOrderCheckoutModel(input: {
   const change = usesCash && Number.isFinite(parsedCashReceived)
     ? Math.max(0, parsedCashReceived - preview.total)
     : 0;
+  const shortage = usesCash && Number.isFinite(parsedCashReceived)
+    ? Math.max(0, preview.total - parsedCashReceived)
+    : 0;
   const needsApproval = Boolean(
     discount && discount.rateBps < modules.discountApprovalThresholdBps,
   );
@@ -182,6 +185,7 @@ export function getStaffOrderCheckoutModel(input: {
     payment,
     usesCash,
     change,
+    shortage,
     needsApproval,
     operatorCanApproveDiscount,
     ready,

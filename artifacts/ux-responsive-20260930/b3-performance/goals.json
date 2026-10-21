@@ -1,0 +1,169 @@
+{
+  "createdAt": "2026-09-30T14:54:33.647Z",
+  "beforeSha256": "b35de6e47a2b3892b5011c1f7d5a96fd76b01430916af8617f6fb0c43457d8aa",
+  "method": "Exploratory goal: reduce median by at least the baseline interquartile range (nearest-rank Q3 minus Q1), without a higher p95 or invalid-attempt rate. The IQR describes observed spread, not a confidence interval; meeting this goal alone does not establish causality or statistical significance. Zero IQR permits only a strictly lower median to count as improvement.",
+  "series": {
+    "QR/cold": {
+      "baseline": {
+        "n": 30,
+        "median": 1313.5,
+        "p95": 1418,
+        "min": 542.8,
+        "max": 1781.3
+      },
+      "baselineIqr": 35.399999999999864,
+      "medianTarget": 1278.1000000000001,
+      "maximumP95": 1418,
+      "maximumInvalidRate": 0.03225806451612903
+    },
+    "QR/warm": {
+      "baseline": {
+        "n": 30,
+        "median": 516.3,
+        "p95": 761.5,
+        "min": 461.3,
+        "max": 777.7
+      },
+      "baselineIqr": 115.99999999999994,
+      "medianTarget": 400.3,
+      "maximumP95": 761.5,
+      "maximumInvalidRate": 0.09090909090909091
+    },
+    "Staff/cold": {
+      "baseline": {
+        "n": 30,
+        "median": 1029.65,
+        "p95": 1208,
+        "min": 881.4,
+        "max": 1295
+      },
+      "baselineIqr": 130.89999999999998,
+      "medianTarget": 898.7500000000001,
+      "maximumP95": 1208,
+      "maximumInvalidRate": 0
+    },
+    "Staff/warm": {
+      "baseline": {
+        "n": 30,
+        "median": 912,
+        "p95": 1142.5,
+        "min": 770.5,
+        "max": 1231.8
+      },
+      "baselineIqr": 162.39999999999998,
+      "medianTarget": 749.6,
+      "maximumP95": 1142.5,
+      "maximumInvalidRate": 0.03225806451612903
+    },
+    "KDS/cold": {
+      "baseline": {
+        "n": 30,
+        "median": 307.8,
+        "p95": 597.5,
+        "min": 265,
+        "max": 623.9
+      },
+      "baselineIqr": 47.400000000000034,
+      "medianTarget": 260.4,
+      "maximumP95": 597.5,
+      "maximumInvalidRate": 0.09090909090909091
+    },
+    "KDS/warm": {
+      "baseline": {
+        "n": 30,
+        "median": 283.95000000000005,
+        "p95": 622.4,
+        "min": 258.6,
+        "max": 624.3
+      },
+      "baselineIqr": 42.5,
+      "medianTarget": 241.45000000000005,
+      "maximumP95": 622.4,
+      "maximumInvalidRate": 0.0625
+    },
+    "Report/cold": {
+      "baseline": {
+        "n": 30,
+        "median": 290.9,
+        "p95": 339.3,
+        "min": 268.8,
+        "max": 340.7
+      },
+      "baselineIqr": 17.69999999999999,
+      "medianTarget": 273.2,
+      "maximumP95": 339.3,
+      "maximumInvalidRate": 0
+    },
+    "Report/warm": {
+      "baseline": {
+        "n": 30,
+        "median": 158.15,
+        "p95": 190.9,
+        "min": 132.6,
+        "max": 441
+      },
+      "baselineIqr": 26.69999999999999,
+      "medianTarget": 131.45000000000002,
+      "maximumP95": 190.9,
+      "maximumInvalidRate": 0
+    },
+    "API/Staff": {
+      "baseline": {
+        "n": 30,
+        "median": 36.849999999999994,
+        "p95": 76.8,
+        "min": 31.5,
+        "max": 99.3
+      },
+      "baselineIqr": 6,
+      "medianTarget": 30.849999999999994,
+      "maximumP95": 76.8,
+      "maximumInvalidRate": 0
+    },
+    "API/KDS": {
+      "baseline": {
+        "n": 30,
+        "median": 67.45,
+        "p95": 89.1,
+        "min": 52.8,
+        "max": 109.1
+      },
+      "baselineIqr": 10.000000000000007,
+      "medianTarget": 57.449999999999996,
+      "maximumP95": 89.1,
+      "maximumInvalidRate": 0
+    },
+    "API/Report": {
+      "baseline": {
+        "n": 30,
+        "median": 3.45,
+        "p95": 12.2,
+        "min": 2.5,
+        "max": 19.4
+      },
+      "baselineIqr": 1.1999999999999997,
+      "medianTarget": 2.2500000000000004,
+      "maximumP95": 12.2,
+      "maximumInvalidRate": 0
+    }
+  },
+  "bundle": [
+    {
+      "route": "q/[qrToken]/page",
+      "maximumEntryBytes": 84586
+    },
+    {
+      "route": "staff/[stallSlug]/page",
+      "maximumEntryBytes": 97830
+    },
+    {
+      "route": "kitchen/page",
+      "maximumEntryBytes": 85094
+    },
+    {
+      "route": "merchant/reports/overview/page",
+      "maximumEntryBytes": 136033
+    }
+  ],
+  "maximumSharedBytes": 79827
+}

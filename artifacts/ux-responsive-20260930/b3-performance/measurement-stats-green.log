@@ -1,0 +1,11 @@
+✔ summary uses average middle values and nearest-rank p95, retaining empty samples (1.602ms)
+✔ CLS uses maximum session window and INP uses worst observed interaction for short lab rounds (0.3712ms)
+✔ no event over reporting threshold remains censored, never invented as zero INP (0.1706ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 300.9142

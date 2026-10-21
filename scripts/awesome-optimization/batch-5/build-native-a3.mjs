@@ -1,0 +1,11 @@
+import {spawn,execFileSync} from 'node:child_process';
+import {writeFileSync,appendFileSync} from 'node:fs';
+const e='.superpowers/sdd/2026-10-01-awesome-optimization/batch-5';
+const wrapperLog=e+'/native-a3-wrapper.log';writeFileSync(wrapperLog,'',{flag:'wx'});
+const child=spawn('powershell',['-NoProfile','-ExecutionPolicy','Bypass','-File','scripts/awesome-optimization/batch-5/build-native-a3.ps1'],{windowsHide:true,stdio:['ignore','pipe','pipe'],env:process.env});
+child.stdout.on('data',data=>{appendFileSync(wrapperLog,data);process.stdout.write(data);});child.stderr.on('data',data=>{appendFileSync(wrapperLog,data);process.stderr.write(data);});
+let timedOut=false;
+const timer=setTimeout(()=>{timedOut=true;execFileSync('taskkill',['/PID',String(child.pid),'/T','/F'],{stdio:'pipe'});},1200000);
+const code=await new Promise((resolve,reject)=>{child.once('error',reject);child.once('exit',resolve);});clearTimeout(timer);
+writeFileSync(e+'/native-a3-build-outer.exit.json',JSON.stringify({childPid:child.pid,exitCode:code,timedOut,deadlineMs:1200000},null,2),{flag:'wx'});
+process.exitCode=code??1;

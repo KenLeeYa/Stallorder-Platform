@@ -3,6 +3,33 @@ import "server-only";
 import { Prisma, type PaymentMethod, type PrismaClient } from "@prisma/client";
 import { buildOperationsPageMeta, type OperationsPageRequest } from "@/lib/operations-pagination";
 import { withDatabaseRead } from "@/server/database/read-router";
+import { historyRowSchema } from "@/lib/operations-read-contract";
+
+function historyReadWhere(organizationId: string, stallIds: string[], dateFrom: string, dateTo: string) {
+  return Prisma.sql`order_record.organization_id = ${organizationId}::uuid and order_record.stall_id in (${Prisma.join(stallIds.map((id) => Prisma.sql`${id}::uuid`))}) and not order_record.is_test and public.stall_business_date(stall.id, order_record.created_at) between ${dateFrom}::date and ${dateTo}::date`;
+}
+export async function getOperationsOrderHistoryPage(organizationId: string, stallIds: string[], dateFrom: string, dateTo: string, request: OperationsPageRequest & { sort: "createdAtDesc" | "createdAtAsc" }) {
+  if (!stallIds.length) return { rows: [], pagination: buildOperationsPageMeta(0, request) };
+  const where = historyReadWhere(organizationId, stallIds, dateFrom, dateTo);
+  const direction = request.sort === "createdAtAsc" ? Prisma.sql`asc` : Prisma.sql`desc`;
+  return withDatabaseRead({ policy: "DR_PREFERRED_EVENTUAL", operation: "operations_order_history_page", maxLagSeconds: 30 }, (database) => database.$transaction(async (transaction) => {
+    const [count] = await transaction.$queryRaw<Array<{ total: bigint }>>(Prisma.sql`select count(*)::bigint as total from public.orders order_record join public.stalls stall on stall.id = order_record.stall_id where ${where}`);
+    const pagination = buildOperationsPageMeta(Number(count?.total ?? 0), request);
+    const ids = await transaction.$queryRaw<Array<{ id: string }>>(Prisma.sql`select order_record.id from public.orders order_record join public.stalls stall on stall.id = order_record.stall_id where ${where} order by order_record.created_at ${direction}, order_record.id ${direction} limit ${pagination.pageSize} offset ${(pagination.page - 1) * pagination.pageSize}`);
+    const rows = await transaction.order.findMany({ where: { organizationId, id: { in: ids.map((r) => r.id) } }, orderBy: [{ createdAt: request.sort === "createdAtAsc" ? "asc" : "desc" }, { id: request.sort === "createdAtAsc" ? "asc" : "desc" }], select: { id: true, orderNo: true, createdAt: true, stall: { select: { id: true, name: true } }, fulfillmentType: true, status: true, paymentStatus: true, total: true } });
+    return { rows: rows.map((row) => historyRowSchema.parse({ ...row, createdAt: row.createdAt.toISOString() })), pagination };
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead }));
+}
+export async function getOperationsOrderHistoryDetail(organizationId: string, stallIds: string[], dateFrom: string, dateTo: string, orderId: string) {
+  if (!stallIds.length) return null;
+  return withDatabaseRead({ policy: "DR_PREFERRED_EVENTUAL", operation: "operations_order_history_detail", maxLagSeconds: 30 }, (database) => database.$transaction(async (transaction) => {
+    const ids = await transaction.$queryRaw<Array<{ id: string }>>(Prisma.sql`select order_record.id from public.orders order_record join public.stalls stall on stall.id = order_record.stall_id where ${historyReadWhere(organizationId, stallIds, dateFrom, dateTo)} and order_record.id = ${orderId}::uuid limit 1`);
+    if (!ids.length) return null;
+    const [row] = await queryOrderHistoryRows(transaction, organizationId, [orderId]);
+    if (!row) return null;
+    return { ...row, createdAt: row.createdAt.toISOString(), confirmedAt: row.confirmedAt?.toISOString() ?? null, completedAt: row.completedAt?.toISOString() ?? null, cancelledAt: row.cancelledAt?.toISOString() ?? null, payment: row.payment ? { ...row.payment, paidAt: row.payment.paidAt?.toISOString() ?? null } : null };
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead }));
+}
 
 type ProductRow = { stall_id: string; stall_name: string; product_name: string; quantity: bigint; revenue: bigint };
 type ProductGroupRow = { stall_id: string; stall_name: string; category_name: string; group_name: string; quantity: bigint; revenue: bigint };
@@ -223,7 +250,7 @@ export async function getPaginatedOrderHistoryReport(
   );
 }
 
-function queryOrderHistoryRows(database: PrismaClient, organizationId: string, orderIds: string[]) {
+function queryOrderHistoryRows(database: Pick<PrismaClient, "order">, organizationId: string, orderIds: string[]) {
   return database.order.findMany({
     where: { organizationId, id: { in: orderIds } },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],

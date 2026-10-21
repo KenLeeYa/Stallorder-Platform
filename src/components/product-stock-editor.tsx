@@ -45,19 +45,30 @@ export function ProductStockEditor({ stallId, stallName, products, onSaved, onCl
         method: "PATCH", headers: csrfHeaders(), body: JSON.stringify({ operation: "BULK_STOCK", items: changes }),
       });
       const payload = await response.json();
-      if (!response.ok) { setError(label(payload.error ?? "庫存儲存失敗，請稍後再試。")); return; }
+      if (!response.ok) {
+        setError(label(payload.error ?? "庫存儲存失敗，請稍後再試。"));
+        if (response.status === 409 && payload.code === "STOCK_CHANGED") await refresh(true);
+        return;
+      }
       onSaved(payload.products); onClose();
     } catch { setError(label("庫存儲存失敗，請稍後再試。")); }
     finally { setBusy(false); }
   }
-  async function refresh() {
+  async function refresh(preserveValidDrafts = false) {
     setBusy(true);
     try {
       const response = await fetch("/api/merchant/stalls/" + stallId + "/products", { cache: "no-store" });
       if (!response.ok) throw new Error();
       const payload = await response.json() as { products: StockAssignment[] };
+      const unchangedIds = new Set(payload.products.filter((item) => rows.some((row) => (
+        row.productId === item.productId && row.stockVersion === item.stockVersion
+      ))).map((item) => item.productId));
       setRows((current) => current.map((row) => ({ ...row, ...payload.products.find((item) => item.productId === row.productId) })));
-      onSaved(payload.products); setDrafts({}); setError("");
+      onSaved(payload.products);
+      setDrafts((current) => preserveValidDrafts
+        ? Object.fromEntries(Object.entries(current).filter(([id]) => unchangedIds.has(id)))
+        : {});
+      if (!preserveValidDrafts) setError("");
     } catch { setError(label("目前無法更新庫存，請稍後再試。")); }
     finally { setBusy(false); }
   }

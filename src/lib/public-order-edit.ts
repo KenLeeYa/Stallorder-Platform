@@ -36,9 +36,22 @@ export type PublicOrderEditEligibility = {
 const editableSources = new Set(["QR_MENU", "LINE_DELIVERY"]);
 
 export class PublicOrderEditError extends Error {
-  constructor(public readonly code: PublicOrderEditFailure) {
+  constructor(public readonly code: string) {
     super(code);
   }
+}
+
+export function publicOrderEditAddsFulfillment(
+  previous: Array<{ productId: string | null; quantity: number }>,
+  requested: Array<{ productId: string; quantity: number }>,
+) {
+  const previousQuantities = new Map<string, number>();
+  for (const item of previous) {
+    if (item.productId) previousQuantities.set(item.productId, (previousQuantities.get(item.productId) ?? 0) + item.quantity);
+  }
+  const requestedQuantities = new Map<string, number>();
+  for (const item of requested) requestedQuantities.set(item.productId, (requestedQuantities.get(item.productId) ?? 0) + item.quantity);
+  return [...requestedQuantities].some(([productId, quantity]) => quantity > (previousQuantities.get(productId) ?? 0));
 }
 
 export function getPublicOrderEditFailure(order: PublicOrderEditEligibility): PublicOrderEditFailure | null {
@@ -113,13 +126,16 @@ export async function editTrackedPublicOrder(input: {
           total: true,
           note: true,
           scheduledPickupAt: true,
+          requestedFulfillmentAt: true,
           orderSession: {
             select: {
               orderingMode: true,
+              createdAt: true,
               qrCode: {
                 select: {
                   diningTableId: true,
                   fulfillmentTypeContext: true,
+                  token: true,
                 },
               },
             },
@@ -127,6 +143,10 @@ export async function editTrackedPublicOrder(input: {
           items: {
             select: {
               id: true,
+              productId: true,
+              quantity: true,
+              createdAt: true,
+              noteOptions: { select: { noteOptionId: true, groupName: true, optionName: true } },
               status: true,
               productionTask: { select: { status: true } },
             },
@@ -169,7 +189,56 @@ export async function editTrackedPublicOrder(input: {
         order.organizationId,
         order.stallId,
         { items: input.request.items, customerNote: input.request.customerNote },
+        orderingMode === "PREORDER" ? order.requestedFulfillmentAt ?? order.scheduledPickupAt ?? undefined : undefined,
+        true,
+        order.items,
       );
+      if (publicOrderEditAddsFulfillment(order.items, input.request.items) || prepared.addsBundleFulfillment) {
+        const qrToken = order.orderSession?.qrCode.token;
+        if (!qrToken) throw new PublicOrderEditError("QR_NOT_ACTIVE");
+        const tableId = order.orderSession?.qrCode.diningTableId;
+        if (tableId) {
+          const tables = await transaction.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+            select id from public.dining_tables
+            where id = ${tableId}::uuid and stall_id = ${order.stallId}::uuid
+              and organization_id = ${order.organizationId}::uuid for share
+          `);
+          if (tables.length !== 1) throw new PublicOrderEditError("TABLE_UNAVAILABLE");
+        }
+        const rows = await transaction.$queryRaw<Array<{ code: string | null }>>(Prisma.sql`
+          select coalesce(
+            case
+              when qr.state <> 'ACTIVE' or (qr.expires_at is not null and qr.expires_at <= clock_timestamp()) then 'QR_NOT_ACTIVE'
+              when tenant.status::text not in ('TRIALING', 'ACTIVE', 'GRACE_PERIOD') then 'TENANT_INACTIVE'
+              when not stall.is_active then 'STALL_CLOSED'
+              when stall.ordering_state::text = 'PAUSED' or stall.business_status::text = 'PAUSED' then 'ORDERING_PAUSED'
+              when stall.is_sold_out or stall.business_status::text = 'SOLD_OUT' then 'STALL_SOLD_OUT'
+              when ${orderingMode}::text = 'DELIVERY' and not settings.delivery_module_enabled then 'DELIVERY_UNAVAILABLE'
+              when qr.dining_table_id is not null and (not settings.dine_in_enabled or not coalesce(dining.is_active, false)) then 'TABLE_UNAVAILABLE'
+            end,
+            public.validate_ordering_schedule_context(qr.id, ${orderingMode}::text),
+            case when ${orderingMode}::text in ('DEFAULT', 'DELIVERY')
+              then public.public_order_calendar_code(qr.token, clock_timestamp())
+              when ${orderingMode}::text = 'PREORDER' then public.validate_takeout_preorder_slot(
+                stall.id,
+                ${order.requestedFulfillmentAt ?? order.scheduledPickupAt}::timestamptz,
+                ${order.orderSession?.createdAt ?? null}::timestamptz
+              ) end
+          ) as code
+          from public.qr_codes qr
+          join public.stalls stall on stall.id = qr.stall_id
+          join public.tenants tenant on tenant.id = qr.tenant_id
+          join public.stall_ordering_settings settings on settings.stall_id = stall.id
+          left join public.dining_tables dining on dining.id = qr.dining_table_id
+          where qr.token = ${qrToken} and qr.stall_id = ${order.stallId}::uuid
+            and qr.organization_id = ${order.organizationId}::uuid
+            and qr.dining_table_id is not distinct from ${tableId ?? null}::uuid
+          for share of qr, stall, tenant, settings
+        `);
+        if (!rows.length) throw new PublicOrderEditError("QR_NOT_ACTIVE");
+        if (rows[0].code) throw new PublicOrderEditError(rows[0].code);
+      }
+
       const previousStatus = order.status;
       const previousItems = order.items.length;
 

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
@@ -8,22 +8,26 @@ import {
   gotoLocalPath,
   openSharedCatalogProductActions,
 } from "./local-navigation";
+import { assertResponsiveQaTarget } from "../scripts/responsive-qa-target.mjs";
 
 loadLocalEnv();
 assertLocalDatabase();
 
 const prisma = new PrismaClient();
+const responsiveMode = process.env.RESPONSIVE_QA_RUN === "true";
+const responsiveSuffix = `-${randomUUID().slice(0, 8)}`;
 const ownerEmail = "owner@stallorder.test";
 const staffEmail = "staff@stallorder.test";
 const kitchenEmail = "kitchen@stallorder.test";
-const financeEmail = "finance.e2e@stallorder.test";
+const financeEmail = `finance.e2e${responsiveSuffix}@stallorder.test`;
 const password = "StallOrderDemo!2026";
 const googleAuthUserId = "11111111-1111-4111-8111-111111111111";
-const secondStallSlug = "e2e-night-market-two";
-const authorizedOrganizationSlug = "e2e-authorized-organization-two";
-const authorizedOrganizationEmail = "authorized-two.e2e@stallorder.test";
-const authorizedStallSlug = "e2e-authorized-stall-two";
-const otherOrganizationSlug = "e2e-isolated-organization";
+const secondStallSlug = `e2e-night-market-two${responsiveSuffix}`;
+const authorizedOrganizationSlug = `e2e-authorized-organization-two${responsiveSuffix}`;
+const authorizedOrganizationEmail = `authorized-two.e2e${responsiveSuffix}@stallorder.test`;
+const authorizedStallSlug = `e2e-authorized-stall-two${responsiveSuffix}`;
+const otherOrganizationSlug = `e2e-isolated-organization${responsiveSuffix}`;
+const isolatedOrganizationEmail = `isolated.e2e${responsiveSuffix}@stallorder.test`;
 const sharedProductName = "香酥雞排";
 
 let organization: { id: string; businessName: string; operatingMode: string };
@@ -33,6 +37,10 @@ let authorizedOrganization: { id: string; businessName: string };
 let authorizedStall: { id: string; name: string; slug: string };
 let otherStall: { id: string; name: string; slug: string };
 let businessDate: Date;
+let createdGoogleAuthUser = false;
+let sharedProductId = "";
+let sharedAssignmentSnapshotAt: Date | null = null;
+let sharedAssignmentIds: string[] = [];
 
 test.describe("多攤位商戶關鍵流程", () => {
   test.describe.configure({ mode: "serial" });
@@ -46,7 +54,18 @@ test.describe("多攤位商戶關鍵流程", () => {
       where: { slug: "aming-chicken" },
       select: { id: true, name: true, slug: true },
     });
+    if (responsiveMode) {
+      const sharedProduct = await prisma.product.findFirstOrThrow({
+        where: { organizationId: organization.id, name: sharedProductName }, select: { id: true },
+      });
+      sharedProductId = sharedProduct.id;
+      sharedAssignmentSnapshotAt = new Date();
+      sharedAssignmentIds = (await prisma.stallProduct.findMany({
+        where: { productId: sharedProductId }, select: { id: true },
+      })).map((row) => row.id);
+    }
 
+    if (!responsiveMode) {
     await prisma.authSession.deleteMany({
       where: {
         profile: {
@@ -64,33 +83,34 @@ test.describe("多攤位商戶關鍵流程", () => {
     await prisma.publicRateLimitBucket.deleteMany({
       where: { organizationId: organization.id },
     });
-    await prisma.stall.deleteMany({ where: { slug: secondStallSlug } });
+    }
+    if (!responsiveMode) await prisma.stall.deleteMany({ where: { auditLogs: { none: {} }, slug: secondStallSlug } });
     await prisma.organization.update({
       where: { id: organization.id },
       data: { operatingMode: "MULTI_STALL" },
     });
-    await deleteTestOrganizations({
+    if (!responsiveMode) await deleteTestOrganizations({
       where: {
         OR: [
           { slug: authorizedOrganizationSlug },
           { email: authorizedOrganizationEmail },
           { slug: otherOrganizationSlug },
-          { email: "isolated.e2e@stallorder.test" },
+          { email: isolatedOrganizationEmail },
         ],
       },
     });
-    await prisma.profile.deleteMany({ where: { email: financeEmail } });
+    if (!responsiveMode) await prisma.profile.deleteMany({ where: { auditLogs: { none: {} }, email: financeEmail } });
 
     const owner = await prisma.profile.findUniqueOrThrow({
       where: { email: ownerEmail },
     });
     if (!owner.passwordHash) throw new Error("示範 owner 缺少密碼雜湊");
-
+    if (!responsiveMode) {
     await prisma.profile.update({
       where: { id: owner.id },
       data: { authUserId: null },
     });
-    await prisma.$executeRaw`delete from auth.users where email = ${ownerEmail}`;
+    if (!responsiveMode) await prisma.$executeRaw`delete from auth.users where email = ${ownerEmail}`;
     await prisma.$executeRaw`
       insert into auth.users (
         instance_id, id, aud, role, email, email_confirmed_at,
@@ -108,10 +128,12 @@ test.describe("多攤位商戶關鍵流程", () => {
         now()
       )
     `;
+    createdGoogleAuthUser = true;
     await prisma.profile.update({
       where: { id: owner.id },
       data: { authUserId: googleAuthUserId },
     });
+    }
 
     const finance = await prisma.profile.create({
       data: {
@@ -135,7 +157,7 @@ test.describe("多攤位商戶關鍵流程", () => {
         businessName: "E2E 隔離組織",
         slug: otherOrganizationSlug,
         status: "ACTIVE",
-        email: "isolated.e2e@stallorder.test",
+        email: isolatedOrganizationEmail,
         phone: "0900-000-099",
       },
     });
@@ -164,7 +186,7 @@ test.describe("多攤位商戶關鍵流程", () => {
       data: {
         organizationId: isolatedOrganization.id,
         name: "隔離測試攤位",
-        slug: "e2e-isolated-stall",
+        slug: `e2e-isolated-stall${responsiveSuffix}`,
         code: "E2E-ISO",
         address: "隔離測試地址",
         location: "隔離測試地址",
@@ -174,12 +196,16 @@ test.describe("多攤位商戶關鍵流程", () => {
   });
 
   test.afterAll(async () => {
+    const ownedAuditRows = await prisma.auditLog.findMany({ where: { OR: [{ stall: { slug: secondStallSlug } }, { organization: { slug: { in: [authorizedOrganizationSlug, otherOrganizationSlug] } } }, { actor: { email: financeEmail } }] }, orderBy: { id: "asc" } });
+    const retainedAuditIds = ownedAuditRows.map(row => row.id);
+    const retainedAuditEvidence = auditFingerprint(ownedAuditRows);
     try {
       const currentOrganization = await prisma.organization.findUnique({
         where: { email: ownerEmail },
         select: { id: true },
       });
       if (currentOrganization) {
+        if (!responsiveMode) {
         await prisma.publicOrderAttempt.deleteMany({
           where: { organizationId: currentOrganization.id },
         });
@@ -189,13 +215,14 @@ test.describe("多攤位商戶關鍵流程", () => {
         await prisma.publicRateLimitBucket.deleteMany({
           where: { organizationId: currentOrganization.id },
         });
-        if (businessDate) {
+        }
+        if (businessDate && !responsiveMode) {
           await prisma.dailyStallSummary.deleteMany({
             where: { organizationId: currentOrganization.id, businessDate },
           });
         }
-        await prisma.stall.deleteMany({
-          where: {
+        await prisma.stallMembership.deleteMany({ where: { stall: { organizationId: currentOrganization.id, slug: secondStallSlug } } });
+        await prisma.stall.deleteMany({ where: { auditLogs: { none: {} },
             organizationId: currentOrganization.id,
             slug: secondStallSlug,
           },
@@ -211,29 +238,51 @@ test.describe("多攤位商戶關鍵流程", () => {
             { slug: authorizedOrganizationSlug },
             { email: authorizedOrganizationEmail },
             { slug: otherOrganizationSlug },
-            { email: "isolated.e2e@stallorder.test" },
+            { email: isolatedOrganizationEmail },
           ],
         },
       });
-      await prisma.profile.deleteMany({ where: { email: financeEmail } });
-      await prisma.authSession.deleteMany({
+      await prisma.profile.deleteMany({ where: { auditLogs: { none: {} }, email: financeEmail } });
+      if (!responsiveMode) await prisma.authSession.deleteMany({
         where: {
           profile: { email: { in: [ownerEmail, staffEmail, kitchenEmail] } },
         },
       });
-      await prisma.profile.updateMany({
+      if (!responsiveMode) await prisma.profile.updateMany({
         where: { email: ownerEmail },
         data: { authUserId: null, avatarUrl: null },
       });
-      await prisma.$executeRaw`delete from auth.users where id = ${googleAuthUserId}::uuid`;
-      await prisma.rateLimitBucket.deleteMany();
+      if (!responsiveMode || createdGoogleAuthUser) await prisma.$executeRaw`delete from auth.users where id = ${googleAuthUserId}::uuid`;
+      if (!responsiveMode) await prisma.rateLimitBucket.deleteMany();
     } finally {
-      await prisma.$disconnect();
+      try {
+        if (responsiveMode && sharedProductId && sharedAssignmentSnapshotAt) {
+          const addedAssignments = await prisma.stallProduct.findMany({
+            where: { productId: sharedProductId, id: { notIn: sharedAssignmentIds } },
+            select: { id: true, organizationId: true, createdAt: true },
+          });
+          if (addedAssignments.some((row) => row.organizationId !== organization.id || row.createdAt < sharedAssignmentSnapshotAt!)) {
+            throw new Error("RESPONSIVE_SHARED_ASSIGNMENT_OWNERSHIP_DRIFT");
+          }
+          if (addedAssignments.length) {
+            const removed = await prisma.stallProduct.deleteMany({ where: { id: { in: addedAssignments.map((row) => row.id) }, productId: sharedProductId } });
+            if (removed.count !== addedAssignments.length) throw new Error("RESPONSIVE_SHARED_ASSIGNMENT_CLEANUP_DRIFT");
+          }
+        }
+      } finally {
+        try {
+        expect(auditFingerprint(await prisma.auditLog.findMany({ where: { id: { in: retainedAuditIds } }, orderBy: { id: "asc" } }))).toEqual(retainedAuditEvidence);
+      } finally {
+        await prisma.$disconnect();
+      }
+      }
     }
   });
 
-  test("Google 登入 owner 並建立第二攤位", async ({ page }) => {
-    await page.goto("/auth/google?next=%2Fmerchant%2Fdashboard");
+  test(responsiveMode ? "本機 owner 登入並建立第二攤位" : "Google 登入 owner 並建立第二攤位", async ({ page }) => {
+    const next = `/merchant/dashboard?organizationId=${organization.id}`;
+    if (responsiveMode) await loginWithPassword(page, ownerEmail, next);
+    else await page.goto(`/auth/google?next=${encodeURIComponent(next)}`);
     await expect(page).toHaveURL(/\/merchant\/dashboard/, { timeout: 20_000 });
     await expect(
       page.getByRole("heading", {
@@ -246,7 +295,7 @@ test.describe("多攤位商戶關鍵流程", () => {
         prisma.auditLog.count({
           where: {
             organizationId: organization.id,
-            action: "GOOGLE_LOGIN_SUCCESS",
+            action: responsiveMode ? "LOGIN_SUCCESS" : "GOOGLE_LOGIN_SUCCESS",
           },
         }),
       )
@@ -296,7 +345,7 @@ test.describe("多攤位商戶關鍵流程", () => {
 
     businessDate = new Date(`${taipeiToday()}T00:00:00.000Z`);
     await prisma.$transaction([
-      prisma.dailyStallSummary.upsert({
+      ...(!responsiveMode ? [prisma.dailyStallSummary.upsert({
         where: {
           stallId_businessDate: { stallId: firstStall.id, businessDate },
         },
@@ -327,7 +376,7 @@ test.describe("多攤位商戶關鍵流程", () => {
           averageOrderValue: 111,
           lastOrderAt: new Date(),
         },
-      }),
+      })] : []),
       prisma.dailyStallSummary.upsert({
         where: {
           stallId_businessDate: { stallId: secondStall.id, businessDate },
@@ -364,7 +413,7 @@ test.describe("多攤位商戶關鍵流程", () => {
   });
 
   test("共用商品分派、攤位覆寫價格與顧客菜單一致", async ({ page }) => {
-    await loginWithPassword(page, ownerEmail);
+    await loginWithPassword(page, ownerEmail, `/merchant/dashboard?organizationId=${organization.id}`);
     await expectDashboardOrganization(page, organization.id);
     const sharedProduct = await prisma.product.findFirstOrThrow({
       where: { organizationId: organization.id, name: sharedProductName },
@@ -456,7 +505,7 @@ test.describe("多攤位商戶關鍵流程", () => {
     );
     await saveProduct.click();
     expect((await saveProductResponse).status()).toBe(200);
-    await expect(page.getByRole("status")).toContainText(
+    await expect(page.getByRole("dialog").getByRole("status")).toContainText(
       `「${sharedProductName}」設定已儲存`,
     );
     await expect
@@ -482,14 +531,10 @@ test.describe("多攤位商戶關鍵流程", () => {
     });
 
     await openCustomerMenu(page, firstQr.token, firstStall.name);
-    await expect(
-      page.getByRole("article").filter({ hasText: sharedProductName }),
-    ).toContainText(/95/);
+    await expect(page.locator(`article#qr-product-${sharedProduct.id}`)).toContainText(/95/);
     await page.context().clearCookies();
     await openCustomerMenu(page, secondQr.token, secondStall.name);
-    await expect(
-      page.getByRole("article").filter({ hasText: sharedProductName }),
-    ).toContainText(/109/);
+    await expect(page.locator(`article#qr-product-${sharedProduct.id}`)).toContainText(/109/);
   });
 
   test("儀表板範圍、staff、finance、kitchen 與跨組織 URL 權限", async ({
@@ -540,9 +585,15 @@ test.describe("多攤位商戶關鍵流程", () => {
       page,
       `/merchant/dashboard?organizationId=${organization.id}`,
     );
+    const expectedSales = responsiveMode
+      ? (await prisma.dailyStallSummary.aggregate({
+        where: { organizationId: organization.id, businessDate },
+        _sum: { netSales: true },
+      }))._sum.netSales ?? 0
+      : 1_500;
     await expect(
       page.locator("#main-content").getByLabel("營運摘要"),
-    ).toContainText("1,500");
+    ).toContainText(new Intl.NumberFormat("en-US").format(expectedSales));
     await expect(page.getByRole("heading", { name: "攤位比較" })).toBeVisible();
     await expect(
       page.getByRole("link", { name: firstStall.name, exact: true }),
@@ -931,7 +982,7 @@ test.describe("多攤位商戶關鍵流程", () => {
 });
 
 async function createAuthorizedSecondaryWorkspace() {
-  await deleteTestOrganizations({
+  if (!responsiveMode) await deleteTestOrganizations({
     where: {
       OR: [
         { slug: authorizedOrganizationSlug },
@@ -1010,8 +1061,9 @@ async function deleteTestOrganizations(args: {
   await prisma.usageEvent.deleteMany({
     where: { organizationId: { in: organizationIds } },
   });
-  await prisma.organization.deleteMany({
-    where: { id: { in: organizationIds } },
+  await prisma.stall.deleteMany({ where: { auditLogs: { none: {} }, organizationId: { in: organizationIds } },
+  });
+  await prisma.organization.deleteMany({ where: { auditLogs: { none: {} }, stalls: { none: { auditLogs: { some: {} } } }, id: { in: organizationIds } },
   });
 }
 
@@ -1113,8 +1165,8 @@ async function selectCompactOption(
     .click();
 }
 
-async function loginWithPassword(page: Page, email: string) {
-  await gotoLocalPath(page, "/login");
+async function loginWithPassword(page: Page, email: string, next?: string) {
+  await gotoLocalPath(page, next ? `/login?next=${encodeURIComponent(next)}` : "/login");
   await page
     .getByRole("button", { name: "使用電子郵件與密碼登入", exact: true })
     .click();
@@ -1214,6 +1266,10 @@ function taipeiToday() {
 }
 
 function assertLocalDatabase() {
+  if (process.env.RESPONSIVE_QA_RUN === "true") {
+    assertResponsiveQaTarget(process.env);
+    return;
+  }
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("E2E 必須設定 DATABASE_URL");
   const hostname = new URL(databaseUrl).hostname;
@@ -1237,4 +1293,9 @@ function loadLocalEnv() {
     process.env[match[1]] =
       value.startsWith('"') && value.endsWith('"') ? value.slice(1, -1) : value;
   }
+}
+
+// Compare fingerprints only; failed assertions never disclose audit payloads.
+function auditFingerprint(rows: unknown[]) {
+  return { count: rows.length, hash: createHash("sha256").update(JSON.stringify(rows)).digest("hex") };
 }

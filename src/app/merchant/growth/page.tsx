@@ -28,7 +28,6 @@ export default async function GrowthPage({ searchParams }: PageProps) {
       <header className="border-b border-stone-200 pb-5">
         <p className="text-sm font-semibold text-teal-800">{workspace.businessName}</p>
         <h1 className="mt-1 flex items-center gap-3 text-3xl font-semibold text-stone-950"><Sparkles className="h-7 w-7 text-teal-700" />會員與成長</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-600">建立有預算、期限、通路與每客上限的優惠活動；集點、推薦、RFM 與自動化共用同意治理。</p>
       </header>
       <div className="py-6"><GrowthCenter organizationId={workspace.id} initialDashboard={dashboard} /></div>
     </main>

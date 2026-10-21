@@ -3,6 +3,7 @@
 import { CalendarOff, Clock3, Pencil, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import { SettingsFeedbackDialog } from "@/components/settings-feedback-dialog";
+import { useClientReady } from "@/components/use-client-ready";
 import { csrfHeaders } from "@/lib/csrf-client";
 import type { AppLocale } from "@/lib/app-locale";
 import { formatAppDate } from "@/lib/locale-format";
@@ -57,6 +58,7 @@ export function StallSpecialClosuresManager({
   initialClosures: SpecialClosureView[];
 }) {
   const { locale, label } = useMerchantMessages();
+  const clientReady = useClientReady();
   const [closures, setClosures] = useState(initialClosures);
   const [draft, setDraft] = useState(emptyDraft);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -202,7 +204,7 @@ export function StallSpecialClosuresManager({
           <h2 id="special-closures-heading" className="text-lg font-semibold">{label("特殊營業日與公休公告")}</h2>
           <p className="mt-1 text-sm text-stone-600">{label("可設定整日公休，或指定單日、多日的特殊營業時間。")}</p>
         </div>
-        <button type="button" onClick={openCreateEditor} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 text-sm font-semibold text-white">
+        <button type="button" disabled={!clientReady || busy} onClick={openCreateEditor} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-40">
           <Plus className="h-5 w-5" aria-hidden="true" />
           {label("新增特殊營業日")}
         </button>
@@ -211,7 +213,7 @@ export function StallSpecialClosuresManager({
       <div className="mt-3 grid gap-3">
         {closures.map((closure) => (
           <article key={closure.id}>
-            <button type="button" disabled={busy} onClick={() => openEditor(closure)} className="flex min-h-20 w-full items-center gap-3 rounded-xl border border-stone-200 bg-white p-4 text-left shadow-sm transition hover:border-teal-500 disabled:opacity-40">
+            <button type="button" disabled={!clientReady || busy} onClick={() => openEditor(closure)} className="flex min-h-20 w-full items-center gap-3 rounded-xl border border-stone-200 bg-white p-4 text-left shadow-sm transition hover:border-teal-500 disabled:opacity-40">
               <span className={`h-3 w-3 shrink-0 rounded-full ${closure.opensAt && closure.closesAt ? "bg-emerald-600" : "bg-red-600"}`} aria-hidden="true" />
               <span className="min-w-0 flex-1">
                 <span className="block font-semibold">{closure.title}</span>

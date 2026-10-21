@@ -1,7 +1,8 @@
-import { randomInt, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomInt, randomUUID } from "node:crypto";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { dismissStaffStartReminder, gotoLocalPath } from "./local-navigation";
+import { assertResponsiveQaTarget } from "../scripts/responsive-qa-target.mjs";
 
 const prisma = new PrismaClient();
 const stallId = "22222222-2222-4222-8222-222222222222";
@@ -22,13 +23,18 @@ function publicHeaders(ip = `198.18.${randomInt(0, 256)}.${randomInt(1, 255)}`) 
 }
 
 test.beforeAll(async ({ playwright }) => {
-  for (const [value, port] of [[process.env.DATABASE_URL, process.env.CI ? "54322" : "55722"], [process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.CI ? "54321" : "55721"]]) {
+  if (process.env.RESPONSIVE_QA_RUN === "true") assertResponsiveQaTarget(process.env);
+  else for (const [value, port] of [[process.env.DATABASE_URL, process.env.CI ? "54322" : "55722"], [process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.CI ? "54321" : "55721"]]) {
     const url = new URL(value ?? "");
     if (!["localhost", "127.0.0.1"].includes(url.hostname) || url.port !== port) throw new Error("DEDICATED_FUNCTIONAL_QA_LAB_REQUIRED");
   }
   originalHours = await prisma.stallBusinessHour.findMany({ where: { stallId } });
   const flag = await prisma.resilienceFeatureFlag.findUniqueOrThrow({ where: { code: "DUAL_ORDER_INTAKE_ENABLED" }, select: { id: true } });
-  circuitFlagOverrideId = (await prisma.resilienceFeatureFlagOverride.create({ data: {
+  const existingOverride = process.env.RESPONSIVE_QA_RUN === "true"
+    ? await prisma.resilienceFeatureFlagOverride.findFirst({ where: { flagId: flag.id, scopeType: "GLOBAL" }, select: { enabled: true, expiresAt: true } })
+    : null;
+  if (existingOverride && (!existingOverride.enabled || (existingOverride.expiresAt && existingOverride.expiresAt <= new Date()))) throw new Error("RESPONSIVE_CIRCUIT_OVERRIDE_UNAVAILABLE");
+  if (!existingOverride) circuitFlagOverrideId = (await prisma.resilienceFeatureFlagOverride.create({ data: {
     flagId: flag.id, scopeType: "GLOBAL", enabled: true,
     reason: "Isolated functional Circuit B regression",
     expiresAt: new Date(Date.now() + 15 * 60_000),
@@ -71,7 +77,7 @@ test.afterAll(async () => {
   } finally { await staff?.dispose(); await prisma.$disconnect(); }
 });
 
-async function createOrder(request: APIRequestContext) {
+async function createOrder(request: APIRequestContext, verifyTracking = true) {
   const headers = publicHeaders(), deviceId = randomUUID(), id = randomUUID();
   orderIds.push(id);
   const issued = await request.post("/api/public/order-session", { headers, data: {
@@ -89,6 +95,22 @@ async function createOrder(request: APIRequestContext) {
   } });
   expect(created.status(), (await created.json()).code).toBe(201);
   const trackingToken = (await created.json()).trackingToken as string;
+  if (process.env.RESPONSIVE_QA_RUN === "true" && verifyTracking) {
+    const stored = await prisma.order.findUniqueOrThrow({
+      where: { trackingTokenHash: createHash("sha256").update(trackingToken).digest("hex") },
+      select: { deviceHash: true },
+    });
+    expect(stored.deviceHash).toBe(createHmac("sha256", process.env.ABUSE_HASH_SECRET!.trim())
+      .update(`device:${deviceId}`).digest("hex"));
+    const nodeRead = await request.get(`/api/public/orders/${trackingToken}`, {
+      headers: { ...headers, "x-stallorder-device-id": deviceId },
+    });
+    expect(nodeRead.status(), "Node should read its created order").toBe(200);
+    const edgeRead = await request.post(process.env.NEXT_PUBLIC_SUPABASE_URL + "/functions/v1/get-public-order", {
+      headers, data: { trackingToken, deviceId },
+    });
+    expect(edgeRead.status(), "Edge should read the Node-created order").toBe(200);
+  }
   return { id, deviceId, slots, trackingToken, headers, path: "/api/public/orders/" + trackingToken };
 }
 type OrderFixture = Awaited<ReturnType<typeof createOrder>>;
@@ -275,7 +297,8 @@ test("expiry, response loss, duplicate commands and a cancelled order keep autho
 
 test("Node and Edge share one tracking budget without starving other orders or mutations on shared Wi-Fi", async ({ request }) => {
   test.setTimeout(120_000);
-  const first = await createOrder(request), second = await createOrder(request), third = await createOrder(request);
+  // The readback diagnostic itself consumes the shared tracking budget.
+  const first = await createOrder(request, false), second = await createOrder(request, false), third = await createOrder(request, false);
   await propose(first, 1);
   const headers = publicHeaders();
   const edge = process.env.NEXT_PUBLIC_SUPABASE_URL + "/functions/v1/get-public-order";

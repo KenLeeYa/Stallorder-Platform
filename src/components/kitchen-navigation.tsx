@@ -14,6 +14,7 @@ import {
   VolumeX,
 } from "lucide-react";
 import { LocaleSelector } from "@/components/locale-selector";
+import { useClientReady } from "@/components/use-client-ready";
 import { LogoutButton } from "@/components/logout-button";
 import { MobileSeniorActionMenu } from "@/components/mobile-senior-action-menu";
 import { useOperationsLocale } from "@/components/operations-locale";
@@ -44,6 +45,7 @@ type Props = {
 
 export function KitchenNavigation({ active, stall, canManage, workModeDestinations, boardControls }: Props) {
   const { t } = useOperationsLocale();
+  const clientReady = useClientReady();
   const switcherVisibility = getOperationalSwitcherVisibility(
     workModeDestinations,
     "KITCHEN",
@@ -76,6 +78,7 @@ export function KitchenNavigation({ active, stall, canManage, workModeDestinatio
                   title={label}
                   aria-label={label}
                   aria-pressed={boardControls.mode === key}
+                  disabled={!clientReady}
                   onClick={() => boardControls.onModeChange(key)}
                   className={`grid h-11 w-11 place-items-center border-r border-stone-300 text-sm font-semibold last:border-r-0 ${boardControls.mode === key ? "bg-teal-50 text-teal-800" : "bg-white text-stone-600"}`}
                 >
@@ -154,11 +157,11 @@ export function KitchenNavigation({ active, stall, canManage, workModeDestinatio
               </Link>
             </> : null}
             {boardControls ? <>
-              <button data-testid="kitchen-alert-control" data-senior-action-tile="true" type="button" role="switch" aria-checked={boardControls.alertsEnabled} onClick={boardControls.onToggleAlerts} title={boardControls.alertsEnabled ? t("kitchen.alert.disable") : t("kitchen.alert.enable")} className={`grid h-11 w-11 place-items-center rounded-md border ${boardControls.alertsEnabled ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600"}`}>
+              <button data-testid="kitchen-alert-control" data-senior-action-tile="true" type="button" role="switch" disabled={!clientReady} aria-checked={boardControls.alertsEnabled} onClick={boardControls.onToggleAlerts} title={boardControls.alertsEnabled ? t("kitchen.alert.disable") : t("kitchen.alert.enable")} className={`grid h-11 w-11 place-items-center rounded-md border ${boardControls.alertsEnabled ? "border-teal-700 bg-teal-50 text-teal-800" : "border-stone-300 bg-white text-stone-600"}`}>
                 {boardControls.alertsEnabled ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
                 <span className="sr-only">{boardControls.alertsEnabled ? t("kitchen.alert.enabledSr") : t("kitchen.alert.disabledSr")}</span>
               </button>
-              <button data-testid="kitchen-refresh-control" data-senior-action-tile="true" type="button" title={t("common.refresh")} disabled={boardControls.disabled} onClick={boardControls.onRefresh} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white disabled:opacity-50">
+              <button data-testid="kitchen-refresh-control" data-senior-action-tile="true" type="button" title={t("common.refresh")} disabled={!clientReady || boardControls.disabled} onClick={boardControls.onRefresh} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white disabled:opacity-50">
                 <RefreshCw className={`h-5 w-5 ${boardControls.refreshing ? "animate-spin" : ""}`} />
                 <span className="sr-only">{t("common.refresh")}</span>
               </button>

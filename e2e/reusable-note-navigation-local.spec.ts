@@ -1,9 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
-import { establishLocalTestSession, gotoLocalPath } from "./local-navigation";
+import { randomUUID } from "node:crypto";
+import { loginLocalTestAccount, openSharedCatalogManagement } from "./local-navigation";
 import { prepareCatalogNavigationFixture } from "./catalog-navigation-fixture";
 
 const prisma = new PrismaClient();
+let actorId = "", actorEmail = "";
 let restoreNavigation: (() => Promise<void>) | undefined;
 const catalogPath = "/merchant/catalog?organizationId=11111111-1111-4111-8111-111111111111";
 
@@ -14,14 +16,37 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { try { await restoreNavigation?.(); } finally { await prisma.$disconnect(); } });
 
+test.beforeEach(async () => {
+  const owner = await prisma.profile.findUniqueOrThrow({ where: { email: "owner@stallorder.test" } });
+  const membership = await prisma.organizationMembership.findFirstOrThrow({
+    where: { organizationId: "11111111-1111-4111-8111-111111111111", profileId: owner.id, role: "ORGANIZATION_OWNER", isActive: true },
+  });
+  if (!owner.isActive || !owner.passwordHash || !membership.allStalls) throw new Error("NAVIGATION_SEED_OWNER_REQUIRED");
+  actorEmail = `note-navigation-${randomUUID()}@stallorder.test`;
+  actorId = (await prisma.profile.create({ data: {
+    email: actorEmail, displayName: "註記導覽隔離測試", passwordHash: owner.passwordHash,
+    emailVerified: owner.emailVerified, authMigrationRequired: owner.authMigrationRequired,
+    organizationMemberships: { create: { organizationId: membership.organizationId, role: "ORGANIZATION_OWNER", allStalls: true, isPrimaryOwner: false } },
+  } })).id;
+});
+
+test.afterEach(async () => {
+  if (!actorId) return;
+  try {
+    await prisma.authSession.updateMany({ where: { profileId: actorId, revokedAt: null }, data: { revokedAt: new Date(), revokeReason: "E2E_FIXTURE_CLEANUP" } });
+    expect((await prisma.organizationMembership.updateMany({ where: { profileId: actorId, isPrimaryOwner: false, role: "ORGANIZATION_OWNER", organizationId: "11111111-1111-4111-8111-111111111111" }, data: { isActive: false } })).count).toBe(1);
+    expect((await prisma.profile.updateMany({ where: { id: actorId, email: actorEmail }, data: { isActive: false, sessionVersion: { increment: 1 } } })).count).toBe(1);
+  } finally { actorId = ""; actorEmail = ""; }
+});
+
 for (const width of [1440, 768, 390, 320]) {
   test(`單一註記保留清單、搜尋及子視窗返回位置 ${width}`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
-    const owner = await prisma.profile.findUniqueOrThrow({ where: { email: "owner@stallorder.test" } });
-    await establishLocalTestSession(page, prisma, owner.id);
-    await gotoLocalPath(page, catalogPath);
-    await page.waitForLoadState("networkidle");
-    await page.getByTestId("open-reusable-note-navigator").filter({ visible: true }).click();
+    await loginLocalTestAccount(page, actorEmail, "StallOrderDemo!2026", catalogPath);
+    await openSharedCatalogManagement(page);
+    const navigatorEntry = page.getByTestId("open-reusable-note-navigator").filter({ visible: true });
+    await expect(navigatorEntry).toBeEnabled();
+    await navigatorEntry.click();
     const navigator = page.getByTestId("reusable-note-navigator-dialog");
     const search = navigator.getByPlaceholder("搜尋單一註記");
     await search.fill("不加胡椒");

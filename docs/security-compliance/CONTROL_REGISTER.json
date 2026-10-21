@@ -1,0 +1,2765 @@
+{
+  "version": 2,
+  "interpretation": "PASS is the stated isolated test scope, not legal approval, full certification or hosted rollout.",
+  "controls": [
+    {
+      "id": "T01",
+      "requirement": "A 使用者以 B 訂單 ID 查詢／修改／取消／重印，被拒絕且不洩漏存在性",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E03,E08",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.406Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "supabase/tests/database/multi_stall_rls.test.sql",
+          "sha256": "2bb157ba6c8f60ccef9e75f6e7c6700825765a08eb85a046560b03277ba84cdf",
+          "localResult": "PASS",
+          "assertions": 13
+        },
+        {
+          "file": "src/lib/manager-authorization.test.ts",
+          "sha256": "30002060e2f13f3a80f54dd0a1846596ef9c3b04117955ab38e79b78d8fde004",
+          "localResult": "PASS",
+          "assertions": 7
+        }
+      ],
+      "residualRisk": "本機scope/RLS及manager測試通過；尚未逐角色重跑所有hosted查改取消重印入口。",
+      "externalPrerequisites": [
+        "E03",
+        "E08"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T02",
+      "requirement": "A 門市 1 員工查 A 門市 2 的受限資料，被拒絕",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E03,E08",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.415Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "supabase/tests/database/multi_stall_rls.test.sql",
+          "sha256": "2bb157ba6c8f60ccef9e75f6e7c6700825765a08eb85a046560b03277ba84cdf",
+          "localResult": "PASS",
+          "assertions": 13
+        },
+        {
+          "file": "src/lib/manager-authorization.test.ts",
+          "sha256": "30002060e2f13f3a80f54dd0a1846596ef9c3b04117955ab38e79b78d8fde004",
+          "localResult": "PASS",
+          "assertions": 7
+        }
+      ],
+      "residualRisk": "本機scope/RLS及manager測試通過；尚未逐角色重跑所有hosted查改取消重印入口。",
+      "externalPrerequisites": [
+        "E03",
+        "E08"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T03",
+      "requirement": "搜尋／排序／日期／分頁／object spread 不能覆寫 tenant 與 stall 條件",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E03,E08",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.418Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "supabase/tests/database/multi_stall_rls.test.sql",
+          "sha256": "2bb157ba6c8f60ccef9e75f6e7c6700825765a08eb85a046560b03277ba84cdf",
+          "localResult": "PASS",
+          "assertions": 13
+        },
+        {
+          "file": "src/lib/manager-authorization.test.ts",
+          "sha256": "30002060e2f13f3a80f54dd0a1846596ef9c3b04117955ab38e79b78d8fde004",
+          "localResult": "PASS",
+          "assertions": 7
+        }
+      ],
+      "residualRisk": "本機scope/RLS及manager測試通過；尚未逐角色重跑所有hosted查改取消重印入口。",
+      "externalPrerequisites": [
+        "E03",
+        "E08"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T04",
+      "requirement": "改 body 的 organization_id／stall_id 或更新 ownership 不能移轉資料",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E03,E08",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.420Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "supabase/tests/database/multi_stall_rls.test.sql",
+          "sha256": "2bb157ba6c8f60ccef9e75f6e7c6700825765a08eb85a046560b03277ba84cdf",
+          "localResult": "PASS",
+          "assertions": 13
+        },
+        {
+          "file": "src/lib/manager-authorization.test.ts",
+          "sha256": "30002060e2f13f3a80f54dd0a1846596ef9c3b04117955ab38e79b78d8fde004",
+          "localResult": "PASS",
+          "assertions": 7
+        }
+      ],
+      "residualRisk": "本機scope/RLS及manager測試通過；尚未逐角色重跑所有hosted查改取消重印入口。",
+      "externalPrerequisites": [
+        "E03",
+        "E08"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T05",
+      "requirement": "同租戶外鍵、連結表與唯一鍵不能建立跨組織非法關係",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E03,E12",
+      "codeStatus": "IMPLEMENTED",
+      "verification": "PASS",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.422Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "supabase/tests/database/workforce_supply_tenant_integrity.test.sql",
+          "sha256": "87fba3dc5ae6d23d64559195bdcea16065ca9fcdb0b4e0a9cfccde3c7398a6ab",
+          "localResult": "PASS",
+          "assertions": 3
+        },
+        {
+          "file": "supabase/tests/database/security_privacy_governance.test.sql",
+          "sha256": "294e6510ebfc76657abbaa0afafc797eda956760ae0d6e8478945b1cb4979a6f",
+          "localResult": "PASS",
+          "assertions": 15
+        }
+      ],
+      "residualRisk": "本機實際複合FK拒絕跨租戶；Production migration尚未套用。",
+      "externalPrerequisites": [
+        "E03",
+        "E12"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T06",
+      "requirement": "anon／authenticated／實際 Prisma role／worker 分別驗證 GRANT 與 RLS",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E03,E08",
+      "codeStatus": "PARTIAL",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.424Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "supabase/tests/database/security_hardening.test.sql",
+          "sha256": "6d6a5992a8a84c689564e6d72aa6031bf104ea2869b657af952297b44b9794be",
+          "localResult": "PASS",
+          "assertions": 20
+        },
+        {
+          "file": "supabase/tests/database/security_privacy_governance.test.sql",
+          "sha256": "294e6510ebfc76657abbaa0afafc797eda956760ae0d6e8478945b1cb4979a6f",
+          "localResult": "PASS",
+          "assertions": 15
+        }
+      ],
+      "residualRisk": "實際本機postgres/service_role為BYPASSRLS；不能將service-role操作當成RLS有效性證明；全view/RPC/policy組合與雲端角色另驗。",
+      "externalPrerequisites": [
+        "E03",
+        "E08"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T07",
+      "requirement": "view、materialized view、SECURITY DEFINER／RPC 不提供旁路",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E03,E08",
+      "codeStatus": "PARTIAL",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.425Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "supabase/tests/database/security_hardening.test.sql",
+          "sha256": "6d6a5992a8a84c689564e6d72aa6031bf104ea2869b657af952297b44b9794be",
+          "localResult": "PASS",
+          "assertions": 20
+        },
+        {
+          "file": "supabase/tests/database/security_privacy_governance.test.sql",
+          "sha256": "294e6510ebfc76657abbaa0afafc797eda956760ae0d6e8478945b1cb4979a6f",
+          "localResult": "PASS",
+          "assertions": 15
+        }
+      ],
+      "residualRisk": "實際本機postgres/service_role為BYPASSRLS；不能將service-role操作當成RLS有效性證明；全view/RPC/policy組合與雲端角色另驗。",
+      "externalPrerequisites": [
+        "E03",
+        "E08"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T08",
+      "requirement": "多個 RLS policy 的 OR 組合沒有放寬原應拒絕路徑",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E03,E08",
+      "codeStatus": "PARTIAL",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.426Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "supabase/tests/database/security_hardening.test.sql",
+          "sha256": "6d6a5992a8a84c689564e6d72aa6031bf104ea2869b657af952297b44b9794be",
+          "localResult": "PASS",
+          "assertions": 20
+        },
+        {
+          "file": "supabase/tests/database/security_privacy_governance.test.sql",
+          "sha256": "294e6510ebfc76657abbaa0afafc797eda956760ae0d6e8478945b1cb4979a6f",
+          "localResult": "PASS",
+          "assertions": 15
+        }
+      ],
+      "residualRisk": "實際本機postgres/service_role為BYPASSRLS；不能將service-role操作當成RLS有效性證明；全view/RPC/policy組合與雲端角色另驗。",
+      "externalPrerequisites": [
+        "E03",
+        "E08"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T09",
+      "requirement": "連線池併發／rollback／重試後不殘留前一租戶 context",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E03",
+      "codeStatus": "IMPLEMENTED",
+      "verification": "PASS",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.427Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/server/compliance/governance.integration.test.ts",
+          "sha256": "0d9059a6f7df15ec99c5d6db39c2faed0ebfd17767130ae8908a98e6ea93d489",
+          "localResult": "PASS",
+          "assertions": 6
+        }
+      ],
+      "residualRisk": "真實Prisma pool交錯/rollback後SET LOCAL context未殘留；只涵蓋新增治理交易入口。",
+      "externalPrerequisites": [
+        "E03"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T10",
+      "requirement": "Storage list／download／upload／upsert／delete 全部受正確 scope 控制",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E08",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.428Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "supabase/tests/database/operational_realtime.test.sql",
+          "sha256": "bf988ae9a750c7f0e9f8d34f234da99baed75e5510c3059bcbdbace2c41ad401",
+          "localResult": "PASS",
+          "assertions": 18
+        },
+        {
+          "file": "src/server/realtime/sse-admission.test.ts",
+          "sha256": "ca8ed568cd3bce9307045e6b5a8c55dcaf6a1771cd4de85c31849a8875d3aacc",
+          "localResult": "PASS",
+          "assertions": 3
+        },
+        {
+          "file": "src/server/catalog/catalog-image-upload-service.test.ts",
+          "sha256": "b79b74d84937a1906db5481526d9f9817e491961bdbf473af94fe341d9bfab8c",
+          "localResult": "PASS",
+          "assertions": 5
+        }
+      ],
+      "residualRisk": "SQL與本機service控制通過；Storage CRUD、broadcast/presence與撤權重連尚缺hosted使用者證據。",
+      "externalPrerequisites": [
+        "E08"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T11",
+      "requirement": "Realtime 的訂閱／broadcast／presence、撤權與重連不越租戶",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E08",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.431Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "supabase/tests/database/operational_realtime.test.sql",
+          "sha256": "bf988ae9a750c7f0e9f8d34f234da99baed75e5510c3059bcbdbace2c41ad401",
+          "localResult": "PASS",
+          "assertions": 18
+        },
+        {
+          "file": "src/server/realtime/sse-admission.test.ts",
+          "sha256": "ca8ed568cd3bce9307045e6b5a8c55dcaf6a1771cd4de85c31849a8875d3aacc",
+          "localResult": "PASS",
+          "assertions": 3
+        },
+        {
+          "file": "src/server/catalog/catalog-image-upload-service.test.ts",
+          "sha256": "b79b74d84937a1906db5481526d9f9817e491961bdbf473af94fe341d9bfab8c",
+          "localResult": "PASS",
+          "assertions": 5
+        }
+      ],
+      "residualRisk": "SQL與本機service控制通過；Storage CRUD、broadcast/presence與撤權重連尚缺hosted使用者證據。",
+      "externalPrerequisites": [
+        "E08"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T12",
+      "requirement": "成本、完整電話、地址等欄位依角色保護，CSV／報表同樣受控",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E03,E07",
+      "codeStatus": "PARTIAL",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.433Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/lib/catalog-csv.test.ts",
+          "sha256": "a38880396af971e5312952b0a0f06a1b9990ffe1c784dcbf88d459b6efbf7a5b",
+          "localResult": "PASS",
+          "assertions": 5
+        },
+        {
+          "file": "src/server/compliance/governance.integration.test.ts",
+          "sha256": "0d9059a6f7df15ec99c5d6db39c2faed0ebfd17767130ae8908a98e6ea93d489",
+          "localResult": "PASS",
+          "assertions": 6
+        }
+      ],
+      "residualRisk": "本人profile投影及CSV控制本機通過；所有角色/報表欄位負矩陣未全部重跑。",
+      "externalPrerequisites": [
+        "E03",
+        "E07"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T13",
+      "requirement": "Supplier 只能看明確共享交易，不能看買方全部顧客與他方價格",
+      "applicability": "CONDITIONAL",
+      "owner": "工程/資安；外部核定owner見 E16",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.434Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/server/supply-lite/supply-service.test.ts",
+          "sha256": "15bfe7e47988dd63aecabbd2082fd21b62f257fa4aafe94c53fb02bc81e92bef",
+          "localResult": "PASS",
+          "assertions": 4
+        },
+        {
+          "file": "src/server/supply-lite/supply-management-safety.contract.test.ts",
+          "sha256": "f764e3285786147e96d838c36cf46c6f0261a372029009964cb58630b00fca55",
+          "localResult": "PASS",
+          "assertions": 3
+        },
+        {
+          "file": "supabase/tests/database/workforce_supply_tenant_integrity.test.sql",
+          "sha256": "87fba3dc5ae6d23d64559195bdcea16065ca9fcdb0b4e0a9cfccde3c7398a6ab",
+          "localResult": "PASS",
+          "assertions": 3
+        }
+      ],
+      "residualRisk": "沿用Supply Lite scope與收貨；沒有新增完整跨企業OMO。Supplier共享/撤銷實際商用關係仍須依已存在能力驗證。",
+      "externalPrerequisites": [
+        "E16"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T14",
+      "requirement": "撤銷 TradingRelationship 後停止新共享，合法歷史售後可按權限處理",
+      "applicability": "CONDITIONAL",
+      "owner": "工程/資安；外部核定owner見 E16",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.436Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/server/supply-lite/supply-service.test.ts",
+          "sha256": "15bfe7e47988dd63aecabbd2082fd21b62f257fa4aafe94c53fb02bc81e92bef",
+          "localResult": "PASS",
+          "assertions": 4
+        },
+        {
+          "file": "src/server/supply-lite/supply-management-safety.contract.test.ts",
+          "sha256": "f764e3285786147e96d838c36cf46c6f0261a372029009964cb58630b00fca55",
+          "localResult": "PASS",
+          "assertions": 3
+        },
+        {
+          "file": "supabase/tests/database/workforce_supply_tenant_integrity.test.sql",
+          "sha256": "87fba3dc5ae6d23d64559195bdcea16065ca9fcdb0b4e0a9cfccde3c7398a6ab",
+          "localResult": "PASS",
+          "assertions": 3
+        }
+      ],
+      "residualRisk": "沿用Supply Lite scope與收貨；沒有新增完整跨企業OMO。Supplier共享/撤銷實際商用關係仍須依已存在能力驗證。",
+      "externalPrerequisites": [
+        "E16"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T15",
+      "requirement": "修改 user_metadata／前端 role／entitlement 不取得權限",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E04",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "PASS",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.438Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/lib/auth-principal.test.ts",
+          "sha256": "53c5b0afab868ac182292abe6fab7bd31cece5418ca56a59674f24fa6993d83b",
+          "localResult": "PASS",
+          "assertions": 5
+        },
+        {
+          "file": "src/lib/session-lifetime.test.ts",
+          "sha256": "baa6820bbce2fb3b8451999c94da5e30cae668ab85ccc06172bbfd121528975b",
+          "localResult": "PASS",
+          "assertions": 8
+        },
+        {
+          "file": "supabase/tests/database/oauth_identity_session_foundation.test.sql",
+          "sha256": "2e8201bbe57099c51c1e4739e5d8327b44fb5004530e977f86cc864f18fcaa22",
+          "localResult": "PASS",
+          "assertions": 39
+        }
+      ],
+      "residualRisk": "本機session/metadata/撤權與到期負案通過；provider端撤權通知另列外部。",
+      "externalPrerequisites": [
+        "E04"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T16",
+      "requirement": "JWT／session 過期、使用者停權／刪除／撤權後，敏感請求不能繼續",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E04",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "PASS",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.440Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/lib/auth-principal.test.ts",
+          "sha256": "53c5b0afab868ac182292abe6fab7bd31cece5418ca56a59674f24fa6993d83b",
+          "localResult": "PASS",
+          "assertions": 5
+        },
+        {
+          "file": "src/lib/session-lifetime.test.ts",
+          "sha256": "baa6820bbce2fb3b8451999c94da5e30cae668ab85ccc06172bbfd121528975b",
+          "localResult": "PASS",
+          "assertions": 8
+        },
+        {
+          "file": "supabase/tests/database/oauth_identity_session_foundation.test.sql",
+          "sha256": "2e8201bbe57099c51c1e4739e5d8327b44fb5004530e977f86cc864f18fcaa22",
+          "localResult": "PASS",
+          "assertions": 39
+        }
+      ],
+      "residualRisk": "本機session/metadata/撤權與到期負案通過；provider端撤權通知另列外部。",
+      "externalPrerequisites": [
+        "E04"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T17",
+      "requirement": "OAuth state／nonce／issuer／audience／簽章錯誤被拒絕",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E04",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "PASS",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.441Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/server/auth/oauth/oidc-adapter.test.ts",
+          "sha256": "bf9f6d92ed2183815640d4c133028da637c49e98c42d08b8958ed4fcb1a1b2cf",
+          "localResult": "PASS",
+          "assertions": 3
+        },
+        {
+          "file": "src/lib/oauth-linking.test.ts",
+          "sha256": "ff5f07d304e02b98355983a80c527f545331d8826dc9bb1fadc2a91695f2a752",
+          "localResult": "PASS",
+          "assertions": 8
+        },
+        {
+          "file": "src/server/auth/oauth/config.test.ts",
+          "sha256": "0a5efd18bf86f2e975ee8c50e608931f01833f6149f1775a4c9489e8355863cb",
+          "localResult": "PASS",
+          "assertions": 9
+        },
+        {
+          "file": "supabase/tests/database/oauth_identity_session_foundation.test.sql",
+          "sha256": "2e8201bbe57099c51c1e4739e5d8327b44fb5004530e977f86cc864f18fcaa22",
+          "localResult": "PASS",
+          "assertions": 39
+        }
+      ],
+      "residualRisk": "驗證簽章/claims/顯式linking/return URL本機契約；正式provider client設定尚未驗證。",
+      "externalPrerequisites": [
+        "E04"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T18",
+      "requirement": "相同 Email／電話、Apple relay、不同 LINE scope 不會未驗證自動合併",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E04",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "PASS",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.444Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/server/auth/oauth/oidc-adapter.test.ts",
+          "sha256": "bf9f6d92ed2183815640d4c133028da637c49e98c42d08b8958ed4fcb1a1b2cf",
+          "localResult": "PASS",
+          "assertions": 3
+        },
+        {
+          "file": "src/lib/oauth-linking.test.ts",
+          "sha256": "ff5f07d304e02b98355983a80c527f545331d8826dc9bb1fadc2a91695f2a752",
+          "localResult": "PASS",
+          "assertions": 8
+        },
+        {
+          "file": "src/server/auth/oauth/config.test.ts",
+          "sha256": "0a5efd18bf86f2e975ee8c50e608931f01833f6149f1775a4c9489e8355863cb",
+          "localResult": "PASS",
+          "assertions": 9
+        },
+        {
+          "file": "supabase/tests/database/oauth_identity_session_foundation.test.sql",
+          "sha256": "2e8201bbe57099c51c1e4739e5d8327b44fb5004530e977f86cc864f18fcaa22",
+          "localResult": "PASS",
+          "assertions": 39
+        }
+      ],
+      "residualRisk": "驗證簽章/claims/顯式linking/return URL本機契約；正式provider client設定尚未驗證。",
+      "externalPrerequisites": [
+        "E04"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T19",
+      "requirement": "OAuth return URL／deep link 不能轉向任意網域",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E04",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "PASS",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.446Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/server/auth/oauth/oidc-adapter.test.ts",
+          "sha256": "bf9f6d92ed2183815640d4c133028da637c49e98c42d08b8958ed4fcb1a1b2cf",
+          "localResult": "PASS",
+          "assertions": 3
+        },
+        {
+          "file": "src/lib/oauth-linking.test.ts",
+          "sha256": "ff5f07d304e02b98355983a80c527f545331d8826dc9bb1fadc2a91695f2a752",
+          "localResult": "PASS",
+          "assertions": 8
+        },
+        {
+          "file": "src/server/auth/oauth/config.test.ts",
+          "sha256": "0a5efd18bf86f2e975ee8c50e608931f01833f6149f1775a4c9489e8355863cb",
+          "localResult": "PASS",
+          "assertions": 9
+        },
+        {
+          "file": "supabase/tests/database/oauth_identity_session_foundation.test.sql",
+          "sha256": "2e8201bbe57099c51c1e4739e5d8327b44fb5004530e977f86cc864f18fcaa22",
+          "localResult": "PASS",
+          "assertions": 39
+        }
+      ],
+      "residualRisk": "驗證簽章/claims/顯式linking/return URL本機契約；正式provider client設定尚未驗證。",
+      "externalPrerequisites": [
+        "E04"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T20",
+      "requirement": "管理員缺 MFA／step-up、已過新鮮度或自我升權時拒絕敏感操作",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E04",
+      "codeStatus": "PARTIAL",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.447Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/server/compliance/step-up.test.ts",
+          "sha256": "67f805397bddf274a12414dd066f0f80e188a64a8f7fe7d58af9280e4873d6b2",
+          "localResult": "PASS",
+          "assertions": 1
+        },
+        {
+          "file": "src/server/compliance/governance.integration.test.ts",
+          "sha256": "0d9059a6f7df15ec99c5d6db39c2faed0ebfd17767130ae8908a98e6ea93d489",
+          "localResult": "PASS",
+          "assertions": 6
+        }
+      ],
+      "residualRisk": "新增privacy/support有signed proof/action/content/session/單次與5分鐘限制；未全面套用所有既有管理/收款異動入口；真實MFA綁定仍待整合。",
+      "externalPrerequisites": [
+        "E04"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T21",
+      "requirement": "支援 grant 到期／撤銷即失效；同時保留真實與代理 actor",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E04",
+      "codeStatus": "IMPLEMENTED",
+      "verification": "PASS",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.448Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/server/compliance/governance.integration.test.ts",
+          "sha256": "0d9059a6f7df15ec99c5d6db39c2faed0ebfd17767130ae8908a98e6ea93d489",
+          "localResult": "PASS",
+          "assertions": 6
+        }
+      ],
+      "residualRisk": "實際support無grant拒絕、期限/撤銷立即失效、禁MANAGE、自批拒絕、actual/effective actor均保持支援人員。",
+      "externalPrerequisites": [
+        "E04"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T22",
+      "requirement": "MFA 恢復、最後 owner 移轉／刪除不產生任意接管",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E04",
+      "codeStatus": "PARTIAL",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.448Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/app/api/auth/identities/[provider]/route.test.ts",
+          "sha256": "04587e20a5fa4acce58a83a72399b4aec1066e196b1bdaf8eaaa525857abfad4",
+          "localResult": "PASS",
+          "assertions": 4
+        },
+        {
+          "file": "supabase/tests/database/oauth_identity_session_foundation.test.sql",
+          "sha256": "2e8201bbe57099c51c1e4739e5d8327b44fb5004530e977f86cc864f18fcaa22",
+          "localResult": "PASS",
+          "assertions": 39
+        }
+      ],
+      "residualRisk": "沿用既有帳戶link/unlink控制；新MFA的供應商recovery/最後owner實際恢復演練未完成。",
+      "externalPrerequisites": [
+        "E04"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T23",
+      "requirement": "匿名猜訂單號／取餐碼受限制，不返回完整顧客資訊",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E08,E13",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "PASS",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.449Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "supabase/tests/database/qr_order_abuse.test.sql",
+          "sha256": "59fdf8fd0276f19aa022ae949c8ca8a324156a676dae23dc878ff605856e8bdd",
+          "localResult": "PASS",
+          "assertions": 35
+        },
+        {
+          "file": "src/app/api/public/order-session/route.test.ts",
+          "sha256": "35b7172313c043dadc297bca25a9461f202ae2ce2e287ec189c2017c7c7c6dc9",
+          "localResult": "PASS",
+          "assertions": 1
+        },
+        {
+          "file": "supabase/tests/database/public_tracking_polling.test.sql",
+          "sha256": "3d1f0dd55ba9d78258e2efb79df2c38f3bbf2d40b212528ade55d0643b0f10b5",
+          "localResult": "PASS",
+          "assertions": 17
+        }
+      ],
+      "residualRisk": "本機訪客canonical token/device/限流/最小回應與狀態權限契約通過；實際origin部署驗證另列。",
+      "externalPrerequisites": [
+        "E08",
+        "E13"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T24",
+      "requirement": "複製的 QR／追蹤 token 不取得支付、完成、退款或其他門市權限",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E08,E13",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "PASS",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.452Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "supabase/tests/database/qr_order_abuse.test.sql",
+          "sha256": "59fdf8fd0276f19aa022ae949c8ca8a324156a676dae23dc878ff605856e8bdd",
+          "localResult": "PASS",
+          "assertions": 35
+        },
+        {
+          "file": "src/app/api/public/order-session/route.test.ts",
+          "sha256": "35b7172313c043dadc297bca25a9461f202ae2ce2e287ec189c2017c7c7c6dc9",
+          "localResult": "PASS",
+          "assertions": 1
+        },
+        {
+          "file": "supabase/tests/database/public_tracking_polling.test.sql",
+          "sha256": "3d1f0dd55ba9d78258e2efb79df2c38f3bbf2d40b212528ade55d0643b0f10b5",
+          "localResult": "PASS",
+          "assertions": 17
+        }
+      ],
+      "residualRisk": "本機訪客canonical token/device/限流/最小回應與狀態權限契約通過；實際origin部署驗證另列。",
+      "externalPrerequisites": [
+        "E08",
+        "E13"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T25",
+      "requirement": "行銷未同意、已拒絕／撤回或用途不符時不可發送；佇列同樣停止",
+      "applicability": "CONDITIONAL",
+      "owner": "工程/資安；外部核定owner見 E01,E10",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.453Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "supabase/tests/database/crm_loyalty_consent_foundation.test.sql",
+          "sha256": "49b10ac11cfc243d4c1597f1d8a7360dab29bdb9365ff864772910aac65b980f",
+          "localResult": "PASS",
+          "assertions": 36
+        },
+        {
+          "file": "src/server/notifications/line-security.test.ts",
+          "sha256": "c8ed0fd38e8845b617fac52f3136a248359f991b311beddf7162a25c43b33362",
+          "localResult": "PASS",
+          "assertions": 2
+        }
+      ],
+      "residualRisk": "purpose/consent SQL與發送邊界本機通過；真實已送/待送provider撤回及跨用途盤點待驗。",
+      "externalPrerequisites": [
+        "E01",
+        "E10"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T26",
+      "requirement": "條款與告知版本可回查，更新不篡改舊交易與同意事件",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E01",
+      "codeStatus": "IMPLEMENTED",
+      "verification": "PASS",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.454Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "supabase/tests/database/security_privacy_governance.test.sql",
+          "sha256": "294e6510ebfc76657abbaa0afafc797eda956760ae0d6e8478945b1cb4979a6f",
+          "localResult": "PASS",
+          "assertions": 15
+        },
+        {
+          "file": "supabase/tests/database/crm_loyalty_consent_foundation.test.sql",
+          "sha256": "49b10ac11cfc243d4c1597f1d8a7360dab29bdb9365ff864772910aac65b980f",
+          "localResult": "PASS",
+          "assertions": 36
+        }
+      ],
+      "residualRisk": "版本不可改寫與approved/effective policy gate本機通過；正式政策未核定/未seed。",
+      "externalPrerequisites": [
+        "E01"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T27",
+      "requirement": "個資請求正確核對主體，匯出沒有其他顧客或其他租戶資料",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E01,E04,E07",
+      "codeStatus": "PARTIAL",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.455Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/server/compliance/governance.integration.test.ts",
+          "sha256": "0d9059a6f7df15ec99c5d6db39c2faed0ebfd17767130ae8908a98e6ea93d489",
+          "localResult": "PASS",
+          "assertions": 6
+        },
+        {
+          "file": "e2e/security-privacy.spec.ts",
+          "sha256": "d5adf013bb087a40d784d0190f169b19bc7663e5142764815d98e70adcd00bed",
+          "localResult": "PASS",
+          "assertions": 4
+        }
+      ],
+      "residualRisk": "可用本人profile/單筆核對order範圍；不等於全帳戶所有資料與所有來源的權利履行。",
+      "externalPrerequisites": [
+        "E01",
+        "E04",
+        "E07"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T28",
+      "requirement": "權利請求不同法定期限／書面延長／拒絕／到期提醒行為正確",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E01,E15",
+      "codeStatus": "PARTIAL",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.456Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/server/compliance/contracts.test.ts",
+          "sha256": "13a1c0518f0409826242f88c288e1826d125b482c07d784407b58b30d73e4996",
+          "localResult": "PASS",
+          "assertions": 8
+        },
+        {
+          "file": "src/server/compliance/governance.integration.test.ts",
+          "sha256": "0d9059a6f7df15ec99c5d6db39c2faed0ebfd17767130ae8908a98e6ea93d489",
+          "localResult": "PASS",
+          "assertions": 6
+        }
+      ],
+      "residualRisk": "15/30日、延長上限、書面證據及complaint不得展延均通過；自動提醒dispatcher/實際送達尚未接通。",
+      "externalPrerequisites": [
+        "E01",
+        "E15"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T29",
+      "requirement": "刪除涵蓋主庫、檔案、cache、index、待送資料，失敗可重試",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E02,E07",
+      "codeStatus": "PARTIAL",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.458Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/server/compliance/governance.integration.test.ts",
+          "sha256": "0d9059a6f7df15ec99c5d6db39c2faed0ebfd17767130ae8908a98e6ea93d489",
+          "localResult": "PASS",
+          "assertions": 6
+        },
+        {
+          "file": "supabase/tests/database/security_privacy_governance.test.sql",
+          "sha256": "294e6510ebfc76657abbaa0afafc797eda956760ae0d6e8478945b1cb4979a6f",
+          "localResult": "PASS",
+          "assertions": 15
+        }
+      ],
+      "residualRisk": "終態order聯絡/print/notification/export四類實際執行、hold保全/財務保留通過；其餘五類及全帳戶明確BLOCKED，保留政策待法務會計核准。",
+      "externalPrerequisites": [
+        "E02",
+        "E07"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T30",
+      "requirement": "法定帳務留存與 legal hold 保留必要資料，無關個資仍按政策處理",
+      "applicability": "CONDITIONAL",
+      "owner": "工程/資安；外部核定owner見 E02,E07",
+      "codeStatus": "PARTIAL",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.459Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/server/compliance/governance.integration.test.ts",
+          "sha256": "0d9059a6f7df15ec99c5d6db39c2faed0ebfd17767130ae8908a98e6ea93d489",
+          "localResult": "PASS",
+          "assertions": 6
+        },
+        {
+          "file": "supabase/tests/database/security_privacy_governance.test.sql",
+          "sha256": "294e6510ebfc76657abbaa0afafc797eda956760ae0d6e8478945b1cb4979a6f",
+          "localResult": "PASS",
+          "assertions": 15
+        }
+      ],
+      "residualRisk": "終態order聯絡/print/notification/export四類實際執行、hold保全/財務保留通過；其餘五類及全帳戶明確BLOCKED，保留政策待法務會計核准。",
+      "externalPrerequisites": [
+        "E02",
+        "E07"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T31",
+      "requirement": "還原備份後重套刪除、session／device／key 撤銷，不讓資料或權限復活",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E05,E11",
+      "codeStatus": "PARTIAL",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.460Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "scripts/verify-isolated-restore.mjs",
+          "sha256": "5c43b5fa0c62e046eb123e8f4e0333ba68ef08efbb70a36024dcd1b3f691351c",
+          "localResult": "PASS",
+          "assertions": null
+        },
+        {
+          "file": "src/server/resilience/storage-replication-deletion.test.ts",
+          "sha256": "1a1daa622f8eb77186809664d1d50ddd3f5240f4cbd1d2c0a41959cb7f3704a5",
+          "localResult": "PASS",
+          "assertions": 3
+        }
+      ],
+      "residualRisk": "11筆合成訂單還原、4個tombstone/1筆erasure保留並撤銷應用session/device/grant；較新的獨立feed、檔案、外部key未驗。",
+      "externalPrerequisites": [
+        "E05",
+        "E11"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T32",
+      "requirement": "高風險業務變更與必要 audit 原子提交；失敗不留無稽核交易",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E06,E17",
+      "codeStatus": "PARTIAL",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.461Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/server/compliance/governance.integration.test.ts",
+          "sha256": "0d9059a6f7df15ec99c5d6db39c2faed0ebfd17767130ae8908a98e6ea93d489",
+          "localResult": "PASS",
+          "assertions": 6
+        },
+        {
+          "file": "supabase/tests/database/persisted_audit_evidence.test.sql",
+          "sha256": "69ebb70a4930c8da7a6ad09b54da63d1c82d5f6b5bfe25ef4d8b836dc622cbfd",
+          "localResult": "PASS",
+          "assertions": 5
+        }
+      ],
+      "residualRisk": "新增治理actual DB失敗回滾通過；既有其他高風險service尚須逐共享路徑證明全部audit原子性，不把一般best-effort log改稱強保證。",
+      "externalPrerequisites": [
+        "E06",
+        "E17"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T33",
+      "requirement": "runtime／一般管理介面不能任意改寫或刪除 audit",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E03,E06",
+      "codeStatus": "IMPLEMENTED",
+      "verification": "PASS",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.463Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "supabase/tests/database/persisted_audit_evidence.test.sql",
+          "sha256": "69ebb70a4930c8da7a6ad09b54da63d1c82d5f6b5bfe25ef4d8b836dc622cbfd",
+          "localResult": "PASS",
+          "assertions": 5
+        },
+        {
+          "file": "supabase/tests/database/targeted_stall_schedule_catch_up.test.sql",
+          "sha256": "b7e4fc361dc1f1a5ba2d35322261771eac019efe38a2f948d8d551d045fc8d0e",
+          "localResult": "PASS",
+          "assertions": 17
+        }
+      ],
+      "residualRisk": "提交後不可UPDATE/DELETE/TRUNCATE；同交易含subtransaction合法補快照不被誤擋；DB owner關閉trigger風險仍需獨立封存。",
+      "externalPrerequisites": [
+        "E03",
+        "E06"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T34",
+      "requirement": "偵測 audit 缺失／竄改／封存延遲；同庫 hash 限制有如實記錄",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E06,E15",
+      "codeStatus": "PARTIAL",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.465Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/server/compliance/archive.test.ts",
+          "sha256": "6eb604866832375b88dd6f89fbd7e15631e8079d36641033ff670834b13b67a3",
+          "localResult": "PASS",
+          "assertions": 1
+        }
+      ],
+      "residualRisk": "真實Ed25519批次簽章/順序/重複/截斷驗證通過；dispatcher、獨立checkpoint/WORM與延遲告警未配置及未實作外部串接。",
+      "externalPrerequisites": [
+        "E06",
+        "E15"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T35",
+      "requirement": "repo／bundle／source map／log／CI／error report 不包含實際秘密或完整個資",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E05,E16,E17",
+      "codeStatus": "PARTIAL",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.465Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "scripts/security-compliance-check.mjs",
+          "sha256": "8ff6c23389b4da036a8f1f79e5d8e3e8f7403c74f11ed04797f206b70a0cf6f2",
+          "localResult": "SOURCE_REVIEW",
+          "assertions": null
+        },
+        {
+          "file": "src/lib/audit-redaction.test.ts",
+          "sha256": "6c8d46766497eb5b3cd906036555f36da05f1888adb00cfb508e17edb0dd824d",
+          "localResult": "PASS",
+          "assertions": 3
+        }
+      ],
+      "residualRisk": "repo/本機bundle掃描及必要metadata遮罩；11個PEM標頭literal另有逐筆誤報判定。外部CI/runtime/error平台、完整PII與歷史Git objects未覆蓋。",
+      "externalPrerequisites": [
+        "E05",
+        "E16",
+        "E17"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T36",
+      "requirement": "QA 任一 DB／Storage／Edge／支付／通知正式 endpoint 混入時，副作用前停止",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E13",
+      "codeStatus": "PARTIAL",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.466Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "scripts/local-qa-runtime.test.mjs",
+          "sha256": "42c6508674f181fc145c54b8bf4615ff48e04688825b9527dffd85213eef76db",
+          "localResult": "PASS",
+          "assertions": 12
+        },
+        {
+          "file": "scripts/run-isolated-check.mjs",
+          "sha256": "cf5d671df73f00641af0f9bfa92d9a87a0ab87fc54c6be1c7df4a3ba3022e164",
+          "localResult": "SOURCE_REVIEW",
+          "assertions": null
+        }
+      ],
+      "residualRisk": "本次入口完整destinations負案與credential allowlist通過；其他歷史launcher未全面轉換，基建egress非此env helper可保證。",
+      "externalPrerequisites": [
+        "E13"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T37",
+      "requirement": "直接 Vercel／Supabase／Edge 路徑仍有授權和限流，不靠 custom-domain WAF",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E08,E13",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.467Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/lib/public-order-proxy-headers.test.ts",
+          "sha256": "d3f1c5a8fbaf9ee1b0e2bb28565152ae13e2b2dbe5543a031669ef9063e3003f",
+          "localResult": "PASS",
+          "assertions": 3
+        },
+        {
+          "file": "src/lib/security.test.ts",
+          "sha256": "0a62abc798154c20bd7e398c95a310a62c58481d2bd186bbfe46cce30bdae0d4",
+          "localResult": "PASS",
+          "assertions": 14
+        },
+        {
+          "file": "src/app/api/public/order-session/route.test.ts",
+          "sha256": "35b7172313c043dadc297bca25a9461f202ae2ce2e287ec189c2017c7c7c6dc9",
+          "localResult": "PASS",
+          "assertions": 1
+        }
+      ],
+      "residualRisk": "本機Origin/proxy header/canonical service保護通過；direct Vercel/Edge/Cloudflare真實路徑負案尚未做。",
+      "externalPrerequisites": [
+        "E08",
+        "E13"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T38",
+      "requirement": "偽造 Origin／forwarded IP／host／proto 不能繞過控制",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E08,E13",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.469Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/lib/public-order-proxy-headers.test.ts",
+          "sha256": "d3f1c5a8fbaf9ee1b0e2bb28565152ae13e2b2dbe5543a031669ef9063e3003f",
+          "localResult": "PASS",
+          "assertions": 3
+        },
+        {
+          "file": "src/lib/security.test.ts",
+          "sha256": "0a62abc798154c20bd7e398c95a310a62c58481d2bd186bbfe46cce30bdae0d4",
+          "localResult": "PASS",
+          "assertions": 14
+        },
+        {
+          "file": "src/app/api/public/order-session/route.test.ts",
+          "sha256": "35b7172313c043dadc297bca25a9461f202ae2ce2e287ec189c2017c7c7c6dc9",
+          "localResult": "PASS",
+          "assertions": 1
+        }
+      ],
+      "residualRisk": "本機Origin/proxy header/canonical service保護通過；direct Vercel/Edge/Cloudflare真實路徑負案尚未做。",
+      "externalPrerequisites": [
+        "E08",
+        "E13"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T39",
+      "requirement": "CSRF、XSS、SQL／command／template injection、mass assignment 相關入口受控",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E17",
+      "codeStatus": "PARTIAL",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.471Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/lib/security.test.ts",
+          "sha256": "0a62abc798154c20bd7e398c95a310a62c58481d2bd186bbfe46cce30bdae0d4",
+          "localResult": "PASS",
+          "assertions": 14
+        },
+        {
+          "file": "src/server/compliance/contracts.test.ts",
+          "sha256": "13a1c0518f0409826242f88c288e1826d125b482c07d784407b58b30d73e4996",
+          "localResult": "PASS",
+          "assertions": 8
+        },
+        {
+          "file": "e2e/security-privacy.spec.ts",
+          "sha256": "d5adf013bb087a40d784d0190f169b19bc7663e5142764815d98e70adcd00bed",
+          "localResult": "PASS",
+          "assertions": 4
+        }
+      ],
+      "residualRisk": "strict body/CSRF及新API實際越權負案通過；不是全站XSS/SQL/command/template injection掃描證明。",
+      "externalPrerequisites": [
+        "E17"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T40",
+      "requirement": "SSRF 的 redirect、DNS 重綁、IPv6／私網／metadata 路徑受控",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E13",
+      "codeStatus": "PARTIAL",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.473Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/server/developer-platform/webhook-destination.test.ts",
+          "sha256": "6db7d058d9b87d77a8bcafc00aec9667bd761238613769ac24d03c2419616c71",
+          "localResult": "PASS",
+          "assertions": 7
+        }
+      ],
+      "residualRisk": "私網/metadata/IPv6映射IP/CGNAT分類已修補；現有developer dispatcher disabled，DNS pinning/redirect實際出站仍待完整dispatcher實測。",
+      "externalPrerequisites": [
+        "E13"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T41",
+      "requirement": "不合法 MIME／巨大圖片／壓縮炸彈／路徑穿越的 upload 或 import 被拒絕",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E08",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "PASS",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.473Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/lib/image-upload.test.ts",
+          "sha256": "fe695b1992706e0eec7176c0621dcca539ec728e4742ffdef0d28e6afee4c524",
+          "localResult": "PASS",
+          "assertions": 2
+        },
+        {
+          "file": "src/server/catalog/catalog-image-upload-service.test.ts",
+          "sha256": "b79b74d84937a1906db5481526d9f9817e491961bdbf473af94fe341d9bfab8c",
+          "localResult": "PASS",
+          "assertions": 5
+        }
+      ],
+      "residualRisk": "本機MIME/大小/像素/解碼與圖片流程負案通過；hosted Storage授權見T10。",
+      "externalPrerequisites": [
+        "E08"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T42",
+      "requirement": "CSV 公式注入及匯入欄位越權被防止，正常內容未被破壞",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E17",
+      "codeStatus": "IMPLEMENTED",
+      "verification": "PASS",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.474Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/lib/csv.test.ts",
+          "sha256": "305865e5a35bd76902a0327bb8879930111210cc6eeb215c13e1e5709ee495be",
+          "localResult": "PASS",
+          "assertions": 6
+        },
+        {
+          "file": "src/lib/catalog-csv.test.ts",
+          "sha256": "a38880396af971e5312952b0a0f06a1b9990ffe1c784dcbf88d459b6efbf7a5b",
+          "localResult": "PASS",
+          "assertions": 5
+        }
+      ],
+      "residualRisk": "LF/VT/BOM等前綴formula注入先紅後綠，正常CSV/匯入契約回歸通過。",
+      "externalPrerequisites": [
+        "E17"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T43",
+      "requirement": "共用 cache、Preview、RSC／ISR、Service Worker 與 tenant host 不洩漏資料",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E08,E14",
+      "codeStatus": "PARTIAL",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.475Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/lib/public-cache-policy.test.ts",
+          "sha256": "0e13de2918f5d998197a49740a01cd8ce5ac8b674e03d4ad9856b551c51adcd7",
+          "localResult": "PASS",
+          "assertions": 4
+        },
+        {
+          "file": "src/lib/cache-tags.test.ts",
+          "sha256": "72589e49d9dac501cf66087e077a1e2ca963d88bc680789f216a54eeb237df8f",
+          "localResult": "PASS",
+          "assertions": 2
+        },
+        {
+          "file": "e2e/security-privacy.spec.ts",
+          "sha256": "d5adf013bb087a40d784d0190f169b19bc7663e5142764815d98e70adcd00bed",
+          "localResult": "PASS",
+          "assertions": 4
+        }
+      ],
+      "residualRisk": "新增privacy實際HTTP no-store與existing cache策略通過；hosted CDN/RSC/Preview及裝置SW全組合未驗。",
+      "externalPrerequisites": [
+        "E08",
+        "E14"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T44",
+      "requirement": "敏感匯出過期／撤權後不能下載；測試實際撤銷能力而非僅短 TTL",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E04,E07",
+      "codeStatus": "IMPLEMENTED",
+      "verification": "PASS",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.476Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/server/compliance/governance.integration.test.ts",
+          "sha256": "0d9059a6f7df15ec99c5d6db39c2faed0ebfd17767130ae8908a98e6ea93d489",
+          "localResult": "PASS",
+          "assertions": 6
+        },
+        {
+          "file": "src/server/compliance/export-service.ts",
+          "sha256": "bda93a3d4ea62a5a324cf0cfca5f9b24320fb41639bf5e38138dbc553cd0be55",
+          "localResult": "SOURCE_REVIEW",
+          "assertions": null
+        }
+      ],
+      "residualRisk": "DB當次授權/TTL/撤銷查核與實際撤銷後讀取拒絕；複本只限已實作投影，不提供無法撤銷的外部signed URL。",
+      "externalPrerequisites": [
+        "E04",
+        "E07"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T45",
+      "requirement": "同 NAT 的正常商家可用；單租戶濫用不耗盡其他商家配額",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E06,E13,E15",
+      "codeStatus": "PARTIAL",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.478Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/lib/rate-limit.test.ts",
+          "sha256": "9d8ecfa2e710a12fef16817fde55c85882d084ff41cd9c0b88e97af0846a4174",
+          "localResult": "PASS",
+          "assertions": 6
+        },
+        {
+          "file": "src/server/realtime/sse-admission.test.ts",
+          "sha256": "ca8ed568cd3bce9307045e6b5a8c55dcaf6a1771cd4de85c31849a8875d3aacc",
+          "localResult": "PASS",
+          "assertions": 3
+        },
+        {
+          "file": "src/server/outbox/outbox-dispatcher.failure.test.ts",
+          "sha256": "8850cff13e762e0755a2e4f099dc59186c4347e4629f5dcd4c4120d6a536f8ae",
+          "localResult": "PASS",
+          "assertions": 5
+        }
+      ],
+      "residualRisk": "本機配額/依賴故障分級與dispatcher負案通過；真實同NAT負載、封存告警與provider outage演練待驗。",
+      "externalPrerequisites": [
+        "E06",
+        "E13",
+        "E15"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T46",
+      "requirement": "驗證服務／限流依賴／audit 封存故障時按明確分級策略處理",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E06,E13,E15",
+      "codeStatus": "PARTIAL",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.480Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/lib/rate-limit.test.ts",
+          "sha256": "9d8ecfa2e710a12fef16817fde55c85882d084ff41cd9c0b88e97af0846a4174",
+          "localResult": "PASS",
+          "assertions": 6
+        },
+        {
+          "file": "src/server/realtime/sse-admission.test.ts",
+          "sha256": "ca8ed568cd3bce9307045e6b5a8c55dcaf6a1771cd4de85c31849a8875d3aacc",
+          "localResult": "PASS",
+          "assertions": 3
+        },
+        {
+          "file": "src/server/outbox/outbox-dispatcher.failure.test.ts",
+          "sha256": "8850cff13e762e0755a2e4f099dc59186c4347e4629f5dcd4c4120d6a536f8ae",
+          "localResult": "PASS",
+          "assertions": 5
+        }
+      ],
+      "residualRisk": "本機配額/依賴故障分級與dispatcher負案通過；真實同NAT負載、封存告警與provider outage演練待驗。",
+      "externalPrerequisites": [
+        "E06",
+        "E13",
+        "E15"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T47",
+      "requirement": "webhook 驗簽錯誤／錯環境／錯 merchant／錯金額／幣別不更新付款",
+      "applicability": "CONDITIONAL",
+      "owner": "工程/資安；外部核定owner見 E04,E09",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.481Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/server/payment-providers/payment-provider.test.ts",
+          "sha256": "6d409666521d7efa552e2c171fe4c9f9f85f5c00ec91f75db9c806e7472b88b7",
+          "localResult": "PASS",
+          "assertions": 7
+        },
+        {
+          "file": "src/server/online-payments/online_order_payment_service.test.ts",
+          "sha256": "956053ab00b4682cf6f9347c94a8b7a5799a1fdc28676999dce2b7d822af2711",
+          "localResult": "PASS",
+          "assertions": 9
+        },
+        {
+          "file": "supabase/tests/database/online_order_payment_reconciliation.test.sql",
+          "sha256": "5f9c5fae54b5de71d1d59e5b609488daaee147bba48f337bbfc2459cb4210c65",
+          "localResult": "PASS",
+          "assertions": 46
+        }
+      ],
+      "residualRisk": "沿用provider-specific/mock、canonical交易/退款/冪等/ambiguous狀態機；各支付商資格、sandbox、簽章/查單/收款變更step-up不能用mock替代。",
+      "externalPrerequisites": [
+        "E04",
+        "E09"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T48",
+      "requirement": "相同付款／退款事件重送、同 key 不同 payload、併發請求不重複執行",
+      "applicability": "CONDITIONAL",
+      "owner": "工程/資安；外部核定owner見 E04,E09",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.484Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/server/payment-providers/payment-provider.test.ts",
+          "sha256": "6d409666521d7efa552e2c171fe4c9f9f85f5c00ec91f75db9c806e7472b88b7",
+          "localResult": "PASS",
+          "assertions": 7
+        },
+        {
+          "file": "src/server/online-payments/online_order_payment_service.test.ts",
+          "sha256": "956053ab00b4682cf6f9347c94a8b7a5799a1fdc28676999dce2b7d822af2711",
+          "localResult": "PASS",
+          "assertions": 9
+        },
+        {
+          "file": "supabase/tests/database/online_order_payment_reconciliation.test.sql",
+          "sha256": "5f9c5fae54b5de71d1d59e5b609488daaee147bba48f337bbfc2459cb4210c65",
+          "localResult": "PASS",
+          "assertions": 46
+        }
+      ],
+      "residualRisk": "沿用provider-specific/mock、canonical交易/退款/冪等/ambiguous狀態機；各支付商資格、sandbox、簽章/查單/收款變更step-up不能用mock替代。",
+      "externalPrerequisites": [
+        "E04",
+        "E09"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T49",
+      "requirement": "provider 逾時但已扣款，查單／對帳後恢復，不重新扣款",
+      "applicability": "CONDITIONAL",
+      "owner": "工程/資安；外部核定owner見 E04,E09",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.486Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/server/payment-providers/payment-provider.test.ts",
+          "sha256": "6d409666521d7efa552e2c171fe4c9f9f85f5c00ec91f75db9c806e7472b88b7",
+          "localResult": "PASS",
+          "assertions": 7
+        },
+        {
+          "file": "src/server/online-payments/online_order_payment_service.test.ts",
+          "sha256": "956053ab00b4682cf6f9347c94a8b7a5799a1fdc28676999dce2b7d822af2711",
+          "localResult": "PASS",
+          "assertions": 9
+        },
+        {
+          "file": "supabase/tests/database/online_order_payment_reconciliation.test.sql",
+          "sha256": "5f9c5fae54b5de71d1d59e5b609488daaee147bba48f337bbfc2459cb4210c65",
+          "localResult": "PASS",
+          "assertions": 46
+        }
+      ],
+      "residualRisk": "沿用provider-specific/mock、canonical交易/退款/冪等/ambiguous狀態機；各支付商資格、sandbox、簽章/查單/收款變更step-up不能用mock替代。",
+      "externalPrerequisites": [
+        "E04",
+        "E09"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T50",
+      "requirement": "亂序回調、部分退款與多次部分退款累計的狀態與總額正確",
+      "applicability": "CONDITIONAL",
+      "owner": "工程/資安；外部核定owner見 E04,E09",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.488Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/server/payment-providers/payment-provider.test.ts",
+          "sha256": "6d409666521d7efa552e2c171fe4c9f9f85f5c00ec91f75db9c806e7472b88b7",
+          "localResult": "PASS",
+          "assertions": 7
+        },
+        {
+          "file": "src/server/online-payments/online_order_payment_service.test.ts",
+          "sha256": "956053ab00b4682cf6f9347c94a8b7a5799a1fdc28676999dce2b7d822af2711",
+          "localResult": "PASS",
+          "assertions": 9
+        },
+        {
+          "file": "supabase/tests/database/online_order_payment_reconciliation.test.sql",
+          "sha256": "5f9c5fae54b5de71d1d59e5b609488daaee147bba48f337bbfc2459cb4210c65",
+          "localResult": "PASS",
+          "assertions": 46
+        }
+      ],
+      "residualRisk": "沿用provider-specific/mock、canonical交易/退款/冪等/ambiguous狀態機；各支付商資格、sandbox、簽章/查單/收款變更step-up不能用mock替代。",
+      "externalPrerequisites": [
+        "E04",
+        "E09"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T51",
+      "requirement": "使用者改收款資訊或退款對象須正確授權，不能以 client input 蓋過",
+      "applicability": "CONDITIONAL",
+      "owner": "工程/資安；外部核定owner見 E04,E09",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.490Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/server/payment-providers/payment-provider.test.ts",
+          "sha256": "6d409666521d7efa552e2c171fe4c9f9f85f5c00ec91f75db9c806e7472b88b7",
+          "localResult": "PASS",
+          "assertions": 7
+        },
+        {
+          "file": "src/server/online-payments/online_order_payment_service.test.ts",
+          "sha256": "956053ab00b4682cf6f9347c94a8b7a5799a1fdc28676999dce2b7d822af2711",
+          "localResult": "PASS",
+          "assertions": 9
+        },
+        {
+          "file": "supabase/tests/database/online_order_payment_reconciliation.test.sql",
+          "sha256": "5f9c5fae54b5de71d1d59e5b609488daaee147bba48f337bbfc2459cb4210c65",
+          "localResult": "PASS",
+          "assertions": 46
+        }
+      ],
+      "residualRisk": "沿用provider-specific/mock、canonical交易/退款/冪等/ambiguous狀態機；各支付商資格、sandbox、簽章/查單/收款變更step-up不能用mock替代。",
+      "externalPrerequisites": [
+        "E04",
+        "E09"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T52",
+      "requirement": "Inbox／Outbox 在 crash／重試／DLQ 重跑後不遺失或重做外部效果",
+      "applicability": "CONDITIONAL",
+      "owner": "工程/資安；外部核定owner見 E09,E10",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.492Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "supabase/tests/database/p1_outbox_dispatch.test.sql",
+          "sha256": "eb08e63bbafb67df5ca3a20a6ce60c4b0916ddc782475291a61ab4ecdf91a4f1",
+          "localResult": "PASS",
+          "assertions": 39
+        },
+        {
+          "file": "src/server/outbox/outbox-dispatcher.failure.test.ts",
+          "sha256": "8850cff13e762e0755a2e4f099dc59186c4347e4629f5dcd4c4120d6a536f8ae",
+          "localResult": "PASS",
+          "assertions": 5
+        }
+      ],
+      "residualRisk": "本機durable outbox/重試/lease失敗測試通過；供應商接收後process crash與真實DLQ重放仍需sandbox證據。",
+      "externalPrerequisites": [
+        "E09",
+        "E10"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T53",
+      "requirement": "最後一件、組合餐／贈品、庫存／點數／優惠併發不超賣或重扣",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E17",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.494Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "supabase/tests/database/stall_product_stock.test.sql",
+          "sha256": "7106d2913a028a7d257a9272ebe30ce66d19f11e58d9f322f703abacd6b7ed86",
+          "localResult": "PASS",
+          "assertions": 16
+        },
+        {
+          "file": "supabase/tests/database/order_discount_eligibility.test.sql",
+          "sha256": "c9811a0605d9282fff65061edce4dfec76dc6d073c60497a4d04af891f9fbd08",
+          "localResult": "PASS",
+          "assertions": 10
+        },
+        {
+          "file": "supabase/tests/database/lottery_free_product_campaigns.test.sql",
+          "sha256": "90bf734c6256ecb54b64ce3d2c8ae463b7403f67c2a330f2557476367854c13a",
+          "localResult": "PASS",
+          "assertions": 23
+        }
+      ],
+      "residualRisk": "庫存/優惠/贈品canonical SQL回歸通過；完整多端最後一件競爭與真實跨程序壓測尚未重跑。",
+      "externalPrerequisites": [
+        "E17"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T54",
+      "requirement": "列印、開櫃、付款與交付不互相標記訂單完成",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E14",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "PASS",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.496Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "e2e/qr-manual-pickup-cash-checkout.spec.ts",
+          "sha256": "e71a1ebaa47d4140471f72b5d99914488b4cf2d1e6bd387ec3001fc1d2c8a5b3",
+          "localResult": "PASS",
+          "assertions": 1
+        },
+        {
+          "file": "supabase/tests/database/integrated_print_center.test.sql",
+          "sha256": "5c4da58e7585aca19ec08100e23c7732c9f7a33efd7e0aeccee83807926629ce",
+          "localResult": "PASS",
+          "assertions": 22
+        },
+        {
+          "file": "src/server/printing/streamlined-order-completion.test.ts",
+          "sha256": "cbecea212811f99cf0c6ef2e974a70aa3c70075d1422fb788408f87155a1e6fd",
+          "localResult": "PASS",
+          "assertions": 18
+        }
+      ],
+      "residualRisk": "真實本機QR→現金確認仍不完成→人工交付E2E通過；列印/付款/交付獨立語義的SQL與unit通過。硬體效果另列。",
+      "externalPrerequisites": [
+        "E14"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T55",
+      "requirement": "B2B／fulfillment／provider mirror 不重算 B2C 平台費",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E02,E09",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "PASS",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.497Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/server/billing/payg-contract.test.ts",
+          "sha256": "e0c22d4ea55177b6010de6054e0b01bfd3ae52714cedd4b5330ae2da11d4481e",
+          "localResult": "PASS",
+          "assertions": 2
+        },
+        {
+          "file": "src/server/billing/payg-pricing.test.ts",
+          "sha256": "5a9ba1f0396be73664340eda5259a912d5f7f682267906715c8a4822f50ff323",
+          "localResult": "PASS",
+          "assertions": 11
+        },
+        {
+          "file": "supabase/tests/database/payg_open_beta_billing.test.sql",
+          "sha256": "2fc2683c8e040a88aa5ef7d8e450cd9662771383f130071b2072402cfa9b5ad7",
+          "localResult": "PASS",
+          "assertions": 39
+        },
+        {
+          "file": "supabase/tests/database/payg_contract_runtime_gaps.test.sql",
+          "sha256": "19b24ac1898b41d37d363f075ab9278ddd8af5e989ee99940a729882fd5f61b8",
+          "localResult": "PASS",
+          "assertions": 21
+        }
+      ],
+      "residualRisk": "B2C計量/排除mirror與B2B、每攤月界/封頂/含稅/版本及退款契約本機回歸通過；商業及會計簽核另列。",
+      "externalPrerequisites": [
+        "E02",
+        "E09"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T56",
+      "requirement": "每攤月界、封頂、含稅及跨月退款維持原 PlanVersion；歷史帳單不被改寫",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E02,E09",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "PASS",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.500Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/server/billing/payg-contract.test.ts",
+          "sha256": "e0c22d4ea55177b6010de6054e0b01bfd3ae52714cedd4b5330ae2da11d4481e",
+          "localResult": "PASS",
+          "assertions": 2
+        },
+        {
+          "file": "src/server/billing/payg-pricing.test.ts",
+          "sha256": "5a9ba1f0396be73664340eda5259a912d5f7f682267906715c8a4822f50ff323",
+          "localResult": "PASS",
+          "assertions": 11
+        },
+        {
+          "file": "supabase/tests/database/payg_open_beta_billing.test.sql",
+          "sha256": "2fc2683c8e040a88aa5ef7d8e450cd9662771383f130071b2072402cfa9b5ad7",
+          "localResult": "PASS",
+          "assertions": 39
+        },
+        {
+          "file": "supabase/tests/database/payg_contract_runtime_gaps.test.sql",
+          "sha256": "19b24ac1898b41d37d363f075ab9278ddd8af5e989ee99940a729882fd5f61b8",
+          "localResult": "PASS",
+          "assertions": 21
+        }
+      ],
+      "residualRisk": "B2C計量/排除mirror與B2B、每攤月界/封頂/含稅/版本及退款契約本機回歸通過；商業及會計簽核另列。",
+      "externalPrerequisites": [
+        "E02",
+        "E09"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T57",
+      "requirement": "印表機跨門市 claim／download／ack 被拒絕，token hash 不供無權者讀取",
+      "applicability": "CONDITIONAL",
+      "owner": "工程/資安；外部核定owner見 E14",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.502Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/app/api/cloudprnt/v1/[printerId]/route.test.ts",
+          "sha256": "89b74c81472f73ad81479c167e5c12a3cf1b69b6dac4895f705d4090f7481838",
+          "localResult": "PASS",
+          "assertions": 17
+        },
+        {
+          "file": "supabase/tests/database/integrated_print_center.test.sql",
+          "sha256": "5c4da58e7585aca19ec08100e23c7732c9f7a33efd7e0aeccee83807926629ce",
+          "localResult": "PASS",
+          "assertions": 22
+        },
+        {
+          "file": "src/lib/print-queue.test.ts",
+          "sha256": "5f3d9ade4e5fe6fad49f59bad1220fe177da083b0cdd429451c211dc4f0162c9",
+          "localResult": "PASS",
+          "assertions": 8
+        }
+      ],
+      "residualRisk": "hash/scope/lease/ACK/列印queue本機通過；實機憑證rotation、掉線、開櫃權限與回讀待驗。",
+      "externalPrerequisites": [
+        "E14"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T58",
+      "requirement": "裝置 token 輪替／撤銷／併發 poll、ACK 遺失有清楚且安全的工作狀態",
+      "applicability": "CONDITIONAL",
+      "owner": "工程/資安；外部核定owner見 E14",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.503Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/app/api/cloudprnt/v1/[printerId]/route.test.ts",
+          "sha256": "89b74c81472f73ad81479c167e5c12a3cf1b69b6dac4895f705d4090f7481838",
+          "localResult": "PASS",
+          "assertions": 17
+        },
+        {
+          "file": "supabase/tests/database/integrated_print_center.test.sql",
+          "sha256": "5c4da58e7585aca19ec08100e23c7732c9f7a33efd7e0aeccee83807926629ce",
+          "localResult": "PASS",
+          "assertions": 22
+        },
+        {
+          "file": "src/lib/print-queue.test.ts",
+          "sha256": "5f3d9ade4e5fe6fad49f59bad1220fe177da083b0cdd429451c211dc4f0162c9",
+          "localResult": "PASS",
+          "assertions": 8
+        }
+      ],
+      "residualRisk": "hash/scope/lease/ACK/列印queue本機通過；實機憑證rotation、掉線、開櫃權限與回讀待驗。",
+      "externalPrerequisites": [
+        "E14"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T59",
+      "requirement": "手動開櫃須獨立權限與理由，重印／匿名下單不能開櫃",
+      "applicability": "CONDITIONAL",
+      "owner": "工程/資安；外部核定owner見 E14",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.507Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/app/api/cloudprnt/v1/[printerId]/route.test.ts",
+          "sha256": "89b74c81472f73ad81479c167e5c12a3cf1b69b6dac4895f705d4090f7481838",
+          "localResult": "PASS",
+          "assertions": 17
+        },
+        {
+          "file": "supabase/tests/database/integrated_print_center.test.sql",
+          "sha256": "5c4da58e7585aca19ec08100e23c7732c9f7a33efd7e0aeccee83807926629ce",
+          "localResult": "PASS",
+          "assertions": 22
+        },
+        {
+          "file": "src/lib/print-queue.test.ts",
+          "sha256": "5f3d9ade4e5fe6fad49f59bad1220fe177da083b0cdd429451c211dc4f0162c9",
+          "localResult": "PASS",
+          "assertions": 8
+        }
+      ],
+      "residualRisk": "hash/scope/lease/ACK/列印queue本機通過；實機憑證rotation、掉線、開櫃權限與回讀待驗。",
+      "externalPrerequisites": [
+        "E14"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T60",
+      "requirement": "POS 斷線／重開／多分頁／同步重送不重單，衝突可處理",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E14,E18",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.509Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "supabase/tests/database/offline_operations.test.sql",
+          "sha256": "068d3fc3d41b23f2a6dccda94bf10ccb348192b343008c47df71cbe0328218e1",
+          "localResult": "PASS",
+          "assertions": 32
+        },
+        {
+          "file": "supabase/tests/database/offline_pwa_foundation.test.sql",
+          "sha256": "e9f832ed45f5897ddeb30f190d0f735c129c0f289b32e69281eee34c66da4551",
+          "localResult": "PASS",
+          "assertions": 34
+        },
+        {
+          "file": "src/server/offline/offline-sync-replay.test.ts",
+          "sha256": "4a0c00c5505702213988577ff8e106eaa000a67e839d76fd8d2a509328125095",
+          "localResult": "PASS",
+          "assertions": 4
+        },
+        {
+          "file": "src/offline/offline-db.test.ts",
+          "sha256": "4b362cde60afa510b50d56232b915f5fdf6abb1f1a1c00351d059a2d37b04db8",
+          "localResult": "PASS",
+          "assertions": 3
+        }
+      ],
+      "residualRisk": "既有PWA/offline scope/permit/重送本機回歸通過；真機多分頁/OS儲存/換店/待同步保全需實測。無本次新增native App。",
+      "externalPrerequisites": [
+        "E14",
+        "E18"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T61",
+      "requirement": "登出／換店／撤銷裝置不顯示前租戶資料，也不靜默丟棄待同步交易",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E14,E18",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.511Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "supabase/tests/database/offline_operations.test.sql",
+          "sha256": "068d3fc3d41b23f2a6dccda94bf10ccb348192b343008c47df71cbe0328218e1",
+          "localResult": "PASS",
+          "assertions": 32
+        },
+        {
+          "file": "supabase/tests/database/offline_pwa_foundation.test.sql",
+          "sha256": "e9f832ed45f5897ddeb30f190d0f735c129c0f289b32e69281eee34c66da4551",
+          "localResult": "PASS",
+          "assertions": 34
+        },
+        {
+          "file": "src/server/offline/offline-sync-replay.test.ts",
+          "sha256": "4a0c00c5505702213988577ff8e106eaa000a67e839d76fd8d2a509328125095",
+          "localResult": "PASS",
+          "assertions": 4
+        },
+        {
+          "file": "src/offline/offline-db.test.ts",
+          "sha256": "4b362cde60afa510b50d56232b915f5fdf6abb1f1a1c00351d059a2d37b04db8",
+          "localResult": "PASS",
+          "assertions": 3
+        }
+      ],
+      "residualRisk": "既有PWA/offline scope/permit/重送本機回歸通過；真機多分頁/OS儲存/換店/待同步保全需實測。無本次新增native App。",
+      "externalPrerequisites": [
+        "E14",
+        "E18"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T62",
+      "requirement": "App push／deep link／WebView bridge／OS storage 按已存在能力安全運作",
+      "applicability": "CONDITIONAL",
+      "owner": "工程/資安；外部核定owner見 E14,E18",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.515Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "supabase/tests/database/offline_operations.test.sql",
+          "sha256": "068d3fc3d41b23f2a6dccda94bf10ccb348192b343008c47df71cbe0328218e1",
+          "localResult": "PASS",
+          "assertions": 32
+        },
+        {
+          "file": "supabase/tests/database/offline_pwa_foundation.test.sql",
+          "sha256": "e9f832ed45f5897ddeb30f190d0f735c129c0f289b32e69281eee34c66da4551",
+          "localResult": "PASS",
+          "assertions": 34
+        },
+        {
+          "file": "src/server/offline/offline-sync-replay.test.ts",
+          "sha256": "4a0c00c5505702213988577ff8e106eaa000a67e839d76fd8d2a509328125095",
+          "localResult": "PASS",
+          "assertions": 4
+        },
+        {
+          "file": "src/offline/offline-db.test.ts",
+          "sha256": "4b362cde60afa510b50d56232b915f5fdf6abb1f1a1c00351d059a2d37b04db8",
+          "localResult": "PASS",
+          "assertions": 3
+        }
+      ],
+      "residualRisk": "既有PWA/offline scope/permit/重送本機回歸通過；真機多分頁/OS儲存/換店/待同步保全需實測。無本次新增native App。",
+      "externalPrerequisites": [
+        "E14",
+        "E18"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T63",
+      "requirement": "隔離還原含 DB 與檔案，啟動前沒有真實通知、付款、外送或印單副作用",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E11",
+      "codeStatus": "PARTIAL",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.517Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "scripts/verify-isolated-restore.mjs",
+          "sha256": "5c43b5fa0c62e046eb123e8f4e0333ba68ef08efbb70a36024dcd1b3f691351c",
+          "localResult": "PASS",
+          "assertions": null
+        }
+      ],
+      "residualRisk": "合成DB還原與應用側撤權通過，檔案bytes/Auth設定/新撤銷feed未驗；不稱完整恢復。",
+      "externalPrerequisites": [
+        "E11"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T64",
+      "requirement": "Primary／DR 分區或舊 Primary 回復，stale writer 仍被拒絕",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E12",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.517Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "supabase/tests/database/governance_dr_fence.test.sql",
+          "sha256": "9b3614a5155b9623b42c645a147585786c1152928cb97cfd69d3133361d103fd",
+          "localResult": "PASS",
+          "assertions": 5
+        },
+        {
+          "file": "supabase/tests/database/backend_failover_operations.test.sql",
+          "sha256": "a8703a7fc5b609a19068b27c27c2efb9f96005a37256491688607a21d4563c27",
+          "localResult": "PASS",
+          "assertions": 13
+        },
+        {
+          "file": "scripts/lib/dr-operator-entry.test.mjs",
+          "sha256": "13561bd8cffcb30b5859d56d6cdfbb5bb62e296eeb0e0de3140e6122c7cbd3dd",
+          "localResult": "PASS",
+          "assertions": 26
+        },
+        {
+          "file": "scripts/lib/dr-failover-operations.test.mjs",
+          "sha256": "c653f3f8f895b268ef631a0f3fb19c7d7d644fb7d42373dba0debc7143d79c24",
+          "localResult": "PASS",
+          "assertions": 7
+        }
+      ],
+      "residualRisk": "本機origin fence/replica apply及project身份、rollback拒絕契約通過；全新tree真實DR schema/publication/single-worker/failback/Plan未執行。",
+      "externalPrerequisites": [
+        "E12"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T65",
+      "requirement": "DR replication apply 可運作，本地 seed／backfill／cron 不會繞過 fence",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E12",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.521Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "supabase/tests/database/governance_dr_fence.test.sql",
+          "sha256": "9b3614a5155b9623b42c645a147585786c1152928cb97cfd69d3133361d103fd",
+          "localResult": "PASS",
+          "assertions": 5
+        },
+        {
+          "file": "supabase/tests/database/backend_failover_operations.test.sql",
+          "sha256": "a8703a7fc5b609a19068b27c27c2efb9f96005a37256491688607a21d4563c27",
+          "localResult": "PASS",
+          "assertions": 13
+        },
+        {
+          "file": "scripts/lib/dr-operator-entry.test.mjs",
+          "sha256": "13561bd8cffcb30b5859d56d6cdfbb5bb62e296eeb0e0de3140e6122c7cbd3dd",
+          "localResult": "PASS",
+          "assertions": 26
+        },
+        {
+          "file": "scripts/lib/dr-failover-operations.test.mjs",
+          "sha256": "c653f3f8f895b268ef631a0f3fb19c7d7d644fb7d42373dba0debc7143d79c24",
+          "localResult": "PASS",
+          "assertions": 7
+        }
+      ],
+      "residualRisk": "本機origin fence/replica apply及project身份、rollback拒絕契約通過；全新tree真實DR schema/publication/single-worker/failback/Plan未執行。",
+      "externalPrerequisites": [
+        "E12"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T66",
+      "requirement": "DR 接管只啟用一套 side-effect worker，回切有事件與帳務對帳",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E12",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.523Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "supabase/tests/database/governance_dr_fence.test.sql",
+          "sha256": "9b3614a5155b9623b42c645a147585786c1152928cb97cfd69d3133361d103fd",
+          "localResult": "PASS",
+          "assertions": 5
+        },
+        {
+          "file": "supabase/tests/database/backend_failover_operations.test.sql",
+          "sha256": "a8703a7fc5b609a19068b27c27c2efb9f96005a37256491688607a21d4563c27",
+          "localResult": "PASS",
+          "assertions": 13
+        },
+        {
+          "file": "scripts/lib/dr-operator-entry.test.mjs",
+          "sha256": "13561bd8cffcb30b5859d56d6cdfbb5bb62e296eeb0e0de3140e6122c7cbd3dd",
+          "localResult": "PASS",
+          "assertions": 26
+        },
+        {
+          "file": "scripts/lib/dr-failover-operations.test.mjs",
+          "sha256": "c653f3f8f895b268ef631a0f3fb19c7d7d644fb7d42373dba0debc7143d79c24",
+          "localResult": "PASS",
+          "assertions": 7
+        }
+      ],
+      "residualRisk": "本機origin fence/replica apply及project身份、rollback拒絕契約通過；全新tree真實DR schema/publication/single-worker/failback/Plan未執行。",
+      "externalPrerequisites": [
+        "E12"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T67",
+      "requirement": "部署 metadata／project／SHA／DB environment 不符時拒絕發布／切換",
+      "applicability": "REQUIRED",
+      "owner": "工程/資安；外部核定owner見 E12",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.526Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "supabase/tests/database/governance_dr_fence.test.sql",
+          "sha256": "9b3614a5155b9623b42c645a147585786c1152928cb97cfd69d3133361d103fd",
+          "localResult": "PASS",
+          "assertions": 5
+        },
+        {
+          "file": "supabase/tests/database/backend_failover_operations.test.sql",
+          "sha256": "a8703a7fc5b609a19068b27c27c2efb9f96005a37256491688607a21d4563c27",
+          "localResult": "PASS",
+          "assertions": 13
+        },
+        {
+          "file": "scripts/lib/dr-operator-entry.test.mjs",
+          "sha256": "13561bd8cffcb30b5859d56d6cdfbb5bb62e296eeb0e0de3140e6122c7cbd3dd",
+          "localResult": "PASS",
+          "assertions": 26
+        },
+        {
+          "file": "scripts/lib/dr-failover-operations.test.mjs",
+          "sha256": "c653f3f8f895b268ef631a0f3fb19c7d7d644fb7d42373dba0debc7143d79c24",
+          "localResult": "PASS",
+          "assertions": 7
+        }
+      ],
+      "residualRisk": "本機origin fence/replica apply及project身份、rollback拒絕契約通過；全新tree真實DR schema/publication/single-worker/failback/Plan未執行。",
+      "externalPrerequisites": [
+        "E12"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T68",
+      "requirement": "法規條件／合約不同的 incident deadline、補報與通知草稿正確",
+      "applicability": "CONDITIONAL",
+      "owner": "工程/資安；外部核定owner見 E01,E15",
+      "codeStatus": "IMPLEMENTED",
+      "verification": "PASS",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.529Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/server/compliance/contracts.test.ts",
+          "sha256": "13a1c0518f0409826242f88c288e1826d125b482c07d784407b58b30d73e4996",
+          "localResult": "PASS",
+          "assertions": 8
+        },
+        {
+          "file": "src/server/compliance/governance.integration.test.ts",
+          "sha256": "0d9059a6f7df15ec99c5d6db39c2faed0ebfd17767130ae8908a98e6ea93d489",
+          "localResult": "PASS",
+          "assertions": 6
+        }
+      ],
+      "residualRisk": "conditional72h、未知待評、知悉時間不可延後、人工receipt及狀態機本機通過；依法適用/真實通知尚需簽核。",
+      "externalPrerequisites": [
+        "E01",
+        "E15"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T69",
+      "requirement": "餐飲／生鮮／一般零售退貨、申訴、帳戶刪除與資料移轉流程正常",
+      "applicability": "CONDITIONAL",
+      "owner": "工程/資安；外部核定owner見 E01,E02,E07",
+      "codeStatus": "PARTIAL",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.530Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/server/compliance/governance.integration.test.ts",
+          "sha256": "0d9059a6f7df15ec99c5d6db39c2faed0ebfd17767130ae8908a98e6ea93d489",
+          "localResult": "PASS",
+          "assertions": 6
+        },
+        {
+          "file": "docs/security-compliance/MERCHANT_TERMS_DPA_DRAFT.md",
+          "sha256": "312805dede92d4fc75fafeba60b4d4beeb2320024a390504cb1d426cf94188f9",
+          "localResult": "SOURCE_REVIEW",
+          "assertions": null
+        }
+      ],
+      "residualRisk": "complaint15日與人工結果證據流程已實作；食品/零售適用、完整帳戶刪除與資料移轉非僅文案能完成。",
+      "externalPrerequisites": [
+        "E01",
+        "E02",
+        "E07"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T70",
+      "requirement": "若使用 AI／新增敏感資料：跨租戶檢索、惡意指令與未授權工具副作用被拒絕",
+      "applicability": "CONDITIONAL",
+      "owner": "工程/資安；外部核定owner見 E16,E18",
+      "codeStatus": "REUSED_VERIFIED",
+      "verification": "BLOCKED",
+      "rollout": "OFF",
+      "environment": "ISOLATED_SYNTHETIC_LOCAL",
+      "observedAt": "2026-09-13T07:29:13.531Z",
+      "baseCommit": "4ab57b62965f52dceff0d83b11f6895990806e0a",
+      "candidateSource": "SOURCE_INVENTORY.json",
+      "sources": [
+        {
+          "file": "src/server/localization/openai-catalog-translation-provider.test.ts",
+          "sha256": "6586e4c9941eba5ff456973b6b1cc0093929865b666d934ed94ed8d6f7a06d54",
+          "localResult": "PASS",
+          "assertions": 22
+        }
+      ],
+      "residualRisk": "既有商品翻譯provider本機契約通過；hosted跨租戶AI輸入/供應商保留與惡意資料測試待核，沒有新增任意工具agent。",
+      "externalPrerequisites": [
+        "E16",
+        "E18"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T71",
+      "requirement": "平台 webhook 必須核對簽章、destination、environment 與 active binding；事件不得跨租戶更新訂單或觸發通知，錯簽章及停用被拒。",
+      "applicability": "REQUIRED_WHEN_CAPABILITY_EXISTS",
+      "owner": "工程/資安；外部 owner 待 E19-E22 核定",
+      "codeStatus": "INTEGRATION_REVIEW_REQUIRED",
+      "verification": "NOT_RUN",
+      "rollout": "OFF",
+      "environment": "NO_RUNTIME_VERIFICATION_THIS_REFRESH",
+      "observedAt": "2026-09-30T07:01:00.403Z",
+      "baseCommit": "c31a5d9b379086b04360430aa71564b083a99292",
+      "candidateSource": "ASSESSMENT_REFRESH_20260930.json",
+      "sources": [],
+      "residualRisk": "新增需求尚未完成整合、正負案例及真實渠道驗證；本輪只修復 QA 環境檔隔離。",
+      "externalPrerequisites": [
+        "E19",
+        "E20",
+        "E21",
+        "E22"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T72",
+      "requirement": "商家或支援帳號不可讀取、借用平台 OA token／secret，也不可套用另一店 Pay merchant；輪替後舊版本停止生效。",
+      "applicability": "REQUIRED_WHEN_CAPABILITY_EXISTS",
+      "owner": "工程/資安；外部 owner 待 E19-E22 核定",
+      "codeStatus": "INTEGRATION_REVIEW_REQUIRED",
+      "verification": "NOT_RUN",
+      "rollout": "OFF",
+      "environment": "NO_RUNTIME_VERIFICATION_THIS_REFRESH",
+      "observedAt": "2026-09-30T07:01:00.406Z",
+      "baseCommit": "c31a5d9b379086b04360430aa71564b083a99292",
+      "candidateSource": "ASSESSMENT_REFRESH_20260930.json",
+      "sources": [],
+      "residualRisk": "新增需求尚未完成整合、正負案例及真實渠道驗證；本輪只修復 QA 環境檔隔離。",
+      "externalPrerequisites": [
+        "E19",
+        "E20",
+        "E21",
+        "E22"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T73",
+      "requirement": "平台管理者讀取遠端 Webhook、測試、套用、狀態核對與遠端失敗各有正確權限、差異、稽核及可回復狀態；惡意 URL 不可 SSRF。",
+      "applicability": "REQUIRED_WHEN_CAPABILITY_EXISTS",
+      "owner": "工程/資安；外部 owner 待 E19-E22 核定",
+      "codeStatus": "INTEGRATION_REVIEW_REQUIRED",
+      "verification": "NOT_RUN",
+      "rollout": "OFF",
+      "environment": "NO_RUNTIME_VERIFICATION_THIS_REFRESH",
+      "observedAt": "2026-09-30T07:01:00.406Z",
+      "baseCommit": "c31a5d9b379086b04360430aa71564b083a99292",
+      "candidateSource": "ASSESSMENT_REFRESH_20260930.json",
+      "sources": [],
+      "residualRisk": "新增需求尚未完成整合、正負案例及真實渠道驗證；本輪只修復 QA 環境檔隔離。",
+      "externalPrerequisites": [
+        "E19",
+        "E20",
+        "E21",
+        "E22"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T74",
+      "requirement": "OA 通知、Mini Store、LINE Pay 三開關的八種組合及撤銷均不破壞其他能力或既有訂單。",
+      "applicability": "REQUIRED_WHEN_CAPABILITY_EXISTS",
+      "owner": "工程/資安；外部 owner 待 E19-E22 核定",
+      "codeStatus": "INTEGRATION_REVIEW_REQUIRED",
+      "verification": "NOT_RUN",
+      "rollout": "OFF",
+      "environment": "NO_RUNTIME_VERIFICATION_THIS_REFRESH",
+      "observedAt": "2026-09-30T07:01:00.406Z",
+      "baseCommit": "c31a5d9b379086b04360430aa71564b083a99292",
+      "candidateSource": "ASSESSMENT_REFRESH_20260930.json",
+      "sources": [],
+      "residualRisk": "新增需求尚未完成整合、正負案例及真實渠道驗證；本輪只修復 QA 環境檔隔離。",
+      "externalPrerequisites": [
+        "E19",
+        "E20",
+        "E21",
+        "E22"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T75",
+      "requirement": "通知 worker 的延遲、重送、額度不足、封鎖、退訂、換綁與停用 sender 不跨店、不雙發，且不重做訂單／計費。",
+      "applicability": "REQUIRED_WHEN_CAPABILITY_EXISTS",
+      "owner": "工程/資安；外部 owner 待 E19-E22 核定",
+      "codeStatus": "INTEGRATION_REVIEW_REQUIRED",
+      "verification": "NOT_RUN",
+      "rollout": "OFF",
+      "environment": "NO_RUNTIME_VERIFICATION_THIS_REFRESH",
+      "observedAt": "2026-09-30T07:01:00.406Z",
+      "baseCommit": "c31a5d9b379086b04360430aa71564b083a99292",
+      "candidateSource": "ASSESSMENT_REFRESH_20260930.json",
+      "sources": [],
+      "residualRisk": "新增需求尚未完成整合、正負案例及真實渠道驗證；本輪只修復 QA 環境檔隔離。",
+      "externalPrerequisites": [
+        "E19",
+        "E20",
+        "E21",
+        "E22"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T76",
+      "requirement": "不同 OA／Login channel 的相同表面 user ID、email、電話不自動合併；切換 sender 前確認收件資格，歷史事件仍可追溯。",
+      "applicability": "REQUIRED_WHEN_CAPABILITY_EXISTS",
+      "owner": "工程/資安；外部 owner 待 E19-E22 核定",
+      "codeStatus": "INTEGRATION_REVIEW_REQUIRED",
+      "verification": "NOT_RUN",
+      "rollout": "OFF",
+      "environment": "NO_RUNTIME_VERIFICATION_THIS_REFRESH",
+      "observedAt": "2026-09-30T07:01:00.406Z",
+      "baseCommit": "c31a5d9b379086b04360430aa71564b083a99292",
+      "candidateSource": "ASSESSMENT_REFRESH_20260930.json",
+      "sources": [],
+      "residualRisk": "新增需求尚未完成整合、正負案例及真實渠道驗證；本輪只修復 QA 環境檔隔離。",
+      "externalPrerequisites": [
+        "E19",
+        "E20",
+        "E21",
+        "E22"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T77",
+      "requirement": "平台 OA rollout 與回退只能在明確授權、環境 binding 和功能旗標下執行；未具資格停止新平台發送，不以任意商家 OA 代發，過渡不雙發、不洩漏。",
+      "applicability": "CONDITIONAL_FUTURE_PLATFORM_OA",
+      "owner": "工程/資安；外部 owner 待 E19-E22 核定",
+      "codeStatus": "INTEGRATION_REVIEW_REQUIRED",
+      "verification": "NOT_RUN",
+      "rollout": "OFF",
+      "environment": "NO_RUNTIME_VERIFICATION_THIS_REFRESH",
+      "observedAt": "2026-09-30T07:01:00.406Z",
+      "baseCommit": "c31a5d9b379086b04360430aa71564b083a99292",
+      "candidateSource": "ASSESSMENT_REFRESH_20260930.json",
+      "sources": [],
+      "residualRisk": "新增需求尚未完成整合、正負案例及真實渠道驗證；本輪只修復 QA 環境檔隔離。",
+      "externalPrerequisites": [
+        "E19",
+        "E20",
+        "E21",
+        "E22"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T78",
+      "requirement": "A 店的 LINE Pay return、Confirm、退款及對帳不能變更 B 店付款；未知狀態及重送不重複扣款。",
+      "applicability": "REQUIRED_WHEN_CAPABILITY_EXISTS",
+      "owner": "工程/資安；外部 owner 待 E19-E22 核定",
+      "codeStatus": "INTEGRATION_REVIEW_REQUIRED",
+      "verification": "NOT_RUN",
+      "rollout": "OFF",
+      "environment": "NO_RUNTIME_VERIFICATION_THIS_REFRESH",
+      "observedAt": "2026-09-30T07:01:00.406Z",
+      "baseCommit": "c31a5d9b379086b04360430aa71564b083a99292",
+      "candidateSource": "ASSESSMENT_REFRESH_20260930.json",
+      "sources": [],
+      "residualRisk": "新增需求尚未完成整合、正負案例及真實渠道驗證；本輪只修復 QA 環境檔隔離。",
+      "externalPrerequisites": [
+        "E19",
+        "E20",
+        "E21",
+        "E22"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T79",
+      "requirement": "顧客轉發取餐卡／QR、跨店掃描、重掃或並行核銷都不能越權；付款、核銷、列印、配送各自獨立。",
+      "applicability": "REQUIRED_WHEN_CAPABILITY_EXISTS",
+      "owner": "工程/資安；外部 owner 待 E19-E22 核定",
+      "codeStatus": "INTEGRATION_REVIEW_REQUIRED",
+      "verification": "NOT_RUN",
+      "rollout": "OFF",
+      "environment": "NO_RUNTIME_VERIFICATION_THIS_REFRESH",
+      "observedAt": "2026-09-30T07:01:00.406Z",
+      "baseCommit": "c31a5d9b379086b04360430aa71564b083a99292",
+      "candidateSource": "ASSESSMENT_REFRESH_20260930.json",
+      "sources": [],
+      "residualRisk": "新增需求尚未完成整合、正負案例及真實渠道驗證；本輪只修復 QA 環境檔隔離。",
+      "externalPrerequisites": [
+        "E19",
+        "E20",
+        "E21",
+        "E22"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    },
+    {
+      "id": "T80",
+      "requirement": "第三方 POS／供應商／承運者只能操作明確授權交易；離線任務重派後，舊裝置補傳及 ePOD 附件須拒絕。",
+      "applicability": "REQUIRED_WHEN_CAPABILITY_EXISTS",
+      "owner": "工程/資安；外部 owner 待 E19-E22 核定",
+      "codeStatus": "INTEGRATION_REVIEW_REQUIRED",
+      "verification": "NOT_RUN",
+      "rollout": "OFF",
+      "environment": "NO_RUNTIME_VERIFICATION_THIS_REFRESH",
+      "observedAt": "2026-09-30T07:01:00.406Z",
+      "baseCommit": "c31a5d9b379086b04360430aa71564b083a99292",
+      "candidateSource": "ASSESSMENT_REFRESH_20260930.json",
+      "sources": [],
+      "residualRisk": "新增需求尚未完成整合、正負案例及真實渠道驗證；本輪只修復 QA 環境檔隔離。",
+      "externalPrerequisites": [
+        "E19",
+        "E20",
+        "E21",
+        "E22"
+      ],
+      "existingRuntimeRollout": "UNKNOWN"
+    }
+  ],
+  "requirementsRefresh": "20260930"
+}

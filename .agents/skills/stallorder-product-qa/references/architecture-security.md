@@ -129,3 +129,7 @@ For each finding:
 6. classify as `fixed`, `no_change` (not reproducible/false positive with evidence), `accepted_exception` (owner-authorized and time-bounded), or `blocked`.
 
 Never change production data, weaken validation, suppress a scanner, or perform destructive dependency downgrades merely to clear a finding.
+
+## 2026-09-13 privacy candidate
+
+Read `docs/security-compliance/CONTROL_REGISTER.md` before claiming whole-system enforcement. Local PostgreSQL runtime roles can have BYPASSRLS; a successful service-role test does not prove RLS. New governance reads/writes require their same-transaction audit. Preserve committed-event immutability without blocking canonical same-transaction/subtransaction snapshot completion. Encryption rotation must keep a separately stable subject/receipt HMAC key and old readable key versions. Partial erasure, a signature library, or a database-only restore must not be reported as complete erasure, independent archive delivery, or full DR recovery.

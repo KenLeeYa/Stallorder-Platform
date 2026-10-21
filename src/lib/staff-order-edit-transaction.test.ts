@@ -111,8 +111,9 @@ describe("merchant order amendments", () => {
     await expect(run()).rejects.toThrow("NOT_FOUND");
     expect(mocks.itemUpdate).not.toHaveBeenCalled();
   });
-  it("requires and records the customer notice for public takeout", async () => {
-    order.source = "QR_MENU";
+  it.each([["QR_MENU", "TAKEOUT"], ["QR_MENU", "DINE_IN"], ["QR_MENU", "DELIVERY"], ["LINE_DELIVERY", "DELIVERY"]])("requires and records the customer notice for %s %s", async (source, fulfillmentType) => {
+    order.source = source;
+    order.fulfillmentType = fulfillmentType;
     await expect(run()).rejects.toThrow("CUSTOMER_NOTICE_REQUIRED");
     await run(request({ publicAmendment: { reason: "SOLD_OUT_REMOVE", customerMessage: "已依您的要求減少一份。" } }));
     expect(mocks.eventCreate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({

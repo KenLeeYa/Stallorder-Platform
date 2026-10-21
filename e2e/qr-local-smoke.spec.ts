@@ -46,7 +46,8 @@ test("手機 QR 點餐使用固定訂單摘要且不產生水平溢位", async (
     await expect(memberDialog).toHaveCount(0);
   }
 
-  const firstProduct = page.getByRole("article").first();
+  // Retained local QA categories may sort first and contain required customization.
+  const firstProduct = page.getByRole("article").filter({ hasText: "香酥雞排" });
   const firstProductName = await firstProduct.getByRole("heading").innerText();
   await qrProductSelectionControl(firstProduct, firstProductName).click();
   await firstProduct

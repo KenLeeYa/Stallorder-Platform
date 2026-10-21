@@ -23,6 +23,13 @@ async function login(page: Page, email: string) {
   await page.waitForURL((url) => url.pathname !== "/login", { waitUntil: "load", timeout: 30_000 });
 }
 
+async function selectOrderFromQueue(page: Page) {
+  const queueOrder = page.getByTestId("kitchen-order-queue-button")
+    .filter({ hasText: `#${orderNo}`, visible: true });
+  await expect(queueOrder).toHaveCount(1);
+  await queueOrder.click();
+}
+
 async function waitForReactHydration(control: Locator) {
   await expect.poll(() => control.evaluate((element) => (
     Object.keys(element).some((key) => (
@@ -95,6 +102,120 @@ test("KDS 即時事件流使用獨立權限邊界", async ({ page }) => {
   expect(generalStreamStatus).toBe(403);
 });
 
+test("KDS ready 補讀快照時不套用延遲舊回應", async ({ page }) => {
+  let releaseOld!: () => void;
+  const oldResponseHeld = new Promise<void>((resolve) => { releaseOld = resolve; });
+  let boardReads = 0;
+  await page.route("**/api/stalls/aming-chicken/kitchen/board", async (route) => {
+    boardReads += 1;
+    if (boardReads !== 1) return route.continue();
+    const response = await route.fetch();
+    const stale = await response.json();
+    await oldResponseHeld;
+    await route.fulfill({ response, json: { ...stale, tasks: [], futureReservations: [], alertOrderIds: [] } });
+  });
+  await login(page, "kitchen@stallorder.test");
+  await selectOrderFromQueue(page);
+  const orderCard = page.getByRole("article").filter({ hasText: `#${orderNo}` });
+  await expect(orderCard).toBeVisible();
+  await expect(page.getByText("即時連線", { exact: true })).toBeVisible();
+  await expect.poll(() => boardReads, { timeout: 3_000 }).toBe(1);
+  await page.evaluate((orderNumber) => {
+    (window as Window & { lostKitchenOrder?: boolean }).lostKitchenOrder = false;
+    const observer = new MutationObserver(() => {
+      if (!document.body.textContent?.includes(`#${orderNumber}`)) {
+        (window as Window & { lostKitchenOrder?: boolean }).lostKitchenOrder = true;
+      }
+    });
+    observer.observe(document.body, { subtree: true, childList: true });
+  }, orderNo);
+  releaseOld();
+  await expect.poll(() => boardReads).toBeGreaterThanOrEqual(2);
+  await expect(orderCard).toBeVisible();
+  expect(await page.evaluate(() => (window as Window & { lostKitchenOrder?: boolean }).lostKitchenOrder)).toBe(false);
+});
+
+test("KDS 慢舊回應不能覆寫較新的廚房事件快照", async ({ page }) => {
+  await page.addInitScript(() => {
+    const listeners = new Map<string, Array<(event: Event) => void>>();
+    const emit = (type: string) => listeners.get(type)?.forEach((listener) => listener(new Event(type)));
+    (window as Window & { emitKitchenTestEvent?: (type: string) => void }).emitKitchenTestEvent = emit;
+    Object.defineProperty(window, "EventSource", { configurable: true, value: class {
+      onerror: ((event: Event) => void) | null = null;
+      constructor() { window.setTimeout(() => emit("ready"), 0); }
+      addEventListener(type: string, listener: (event: Event) => void) {
+        listeners.set(type, [...(listeners.get(type) ?? []), listener]);
+      }
+      close() { listeners.clear(); }
+    } });
+  });
+  let releaseOld!: () => void;
+  const oldResponseHeld = new Promise<void>((resolve) => { releaseOld = resolve; });
+  let boardReads = 0;
+  await page.route("**/api/stalls/aming-chicken/kitchen/board", async (route) => {
+    boardReads += 1;
+    if (boardReads !== 1) return route.continue();
+    const response = await route.fetch();
+    const stale = await response.json();
+    await oldResponseHeld;
+    await route.fulfill({ response, json: { ...stale, tasks: [], futureReservations: [], alertOrderIds: [] } });
+  });
+  await login(page, "kitchen@stallorder.test");
+  await selectOrderFromQueue(page);
+  const orderCard = page.getByRole("article").filter({ hasText: `#${orderNo}` });
+  await expect(orderCard).toBeVisible();
+  await page.evaluate((orderNumber) => {
+    (window as Window & { lostKitchenOrder?: boolean }).lostKitchenOrder = false;
+    new MutationObserver(() => {
+      if (!document.body.textContent?.includes(`#${orderNumber}`)) {
+        (window as Window & { lostKitchenOrder?: boolean }).lostKitchenOrder = true;
+      }
+    }).observe(document.body, { subtree: true, childList: true });
+  }, orderNo);
+  const refresh = page.locator("header:visible").filter({ has: page.locator('[data-testid="kitchen-primary-navigation"]:visible') }).last().getByTitle("重新整理");
+  await refresh.click();
+  await expect.poll(() => boardReads).toBe(1);
+  await page.evaluate(() => (window as Window & { emitKitchenTestEvent?: (type: string) => void }).emitKitchenTestEvent?.("kitchen"));
+  await page.waitForTimeout(300); // Allow the old implementation's independent event fetch to race.
+  releaseOld();
+  await expect.poll(() => boardReads).toBeGreaterThanOrEqual(2);
+  await expect(refresh).toBeEnabled();
+  await expect(orderCard).toBeVisible();
+  expect(await page.evaluate(() => (window as Window & { lostKitchenOrder?: boolean }).lostKitchenOrder)).toBe(false);
+});
+
+for (const viewport of [{ name: "平板", width: 768, height: 1024 }, { name: "桌機", width: 1440, height: 900 }]) {
+test(`KDS ${viewport.name} board GET 撤權後移除舊卡與命令，授權新快照才恢復`, async ({ page }) => {
+  await page.setViewportSize({ width: viewport.width, height: viewport.height });
+  await login(page, "kitchen@stallorder.test");
+  await selectOrderFromQueue(page);
+  const orderCard = page.getByRole("article").filter({ hasText: `#${orderNo}` });
+  await expect(orderCard).toBeVisible();
+  let revoked = true;
+  await page.route("**/api/stalls/aming-chicken/kitchen/board", (route) => (
+    revoked ? route.fulfill({ status: 403, contentType: "application/json", body: '{"code":"FORBIDDEN"}' }) : route.continue()
+  ));
+  const refresh = page.locator("header:visible").filter({ has: page.locator('[data-testid="kitchen-primary-navigation"]:visible') }).last().getByTitle("重新整理");
+  await refresh.click();
+  await expect(page.getByRole("alert").filter({
+    has: page.getByRole("link", { name: "重新開啟看板確認操作權限", exact: true }),
+    hasText: "廚房看板權限已失效",
+  })).toBeVisible();
+  await expect(orderCard).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "開始製作", exact: true })).toHaveCount(0);
+  revoked = false;
+  const authorizedResponse = page.waitForResponse((response) => (
+    response.url().endsWith("/api/stalls/aming-chicken/kitchen/board") && response.status() === 200
+  ));
+  await refresh.click();
+  await authorizedResponse;
+  const restoredQueueOrder = page.getByTestId("kitchen-order-queue-button").filter({ hasText: `#${orderNo}`, visible: true });
+  await expect(restoredQueueOrder).toBeVisible();
+  await restoredQueueOrder.click();
+  await expect(orderCard).toBeVisible();
+});
+}
+
 test("廚房角色可在手機 KDS 操作且只取得安全欄位", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => {
@@ -144,6 +265,7 @@ test("廚房角色可在手機 KDS 操作且只取得安全欄位", async ({ pag
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   blockKitchenStream = false;
   await expect(page.getByText("即時連線", { exact: true })).toBeVisible({ timeout: 10_000 });
+  await selectOrderFromQueue(page);
   const orderCard = page.getByRole("article").filter({ hasText: "#" + orderNo });
   await expect(orderCard.getByText("等候警示", { exact: true })).toBeVisible();
   await expect(orderCard.getByText("取餐 738", { exact: true })).toBeVisible();
@@ -261,6 +383,7 @@ test("攤位管理者可進入工作站與 KDS 設定", async ({ page }) => {
   await login(page, "owner@stallorder.test");
   await page.setViewportSize({ width: 320, height: 360 });
   await page.goto("/kitchen?stall=aming-chicken");
+  await selectOrderFromQueue(page);
   const orderCard = page.getByRole("article").filter({ hasText: `#${orderNo}` });
   const cancelButton = orderCard.getByRole("button", { name: "取消", exact: true });
   await cancelButton.focus();

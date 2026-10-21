@@ -1,20 +1,23 @@
 import { expect, test, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { establishLocalTestSession, gotoLocalPath } from "./local-navigation";
+import { prepareLocalLegacyLineEntitlement } from "./line-legacy-entitlement-fixture";
 
 const prisma = new PrismaClient();
+let restoreEntitlement: (() => Promise<void>) | undefined;
 const stallId = "22222222-2222-4222-8222-222222222222";
 const apiPath = `/api/merchant/stalls/${stallId}/line`;
 const path = `/merchant/stalls/${stallId}/line`;
 const dummySecret = "local-test-placeholder-only";
 const appOrigin = new URL(process.env.PLAYWRIGHT_APP_URL ?? "http://localhost:3001").origin;
 
-test.beforeAll(() => {
+test.beforeAll(async () => {
   const database = new URL(process.env.DATABASE_URL ?? "");
   const app = new URL(appOrigin);
   if (!['localhost', '127.0.0.1'].includes(database.hostname) || !['localhost', '127.0.0.1'].includes(app.hostname) || app.protocol !== "http:") throw new Error("LOCAL_TEST_RUNTIME_REQUIRED");
+  restoreEntitlement = await prepareLocalLegacyLineEntitlement(prisma);
 });
-test.afterAll(async () => { await prisma.$disconnect(); });
+test.afterAll(async () => { try { await restoreEntitlement?.(); } finally { await prisma.$disconnect(); } });
 test.beforeEach(async ({ page }) => {
   const owner = await prisma.profile.findUniqueOrThrow({ where: { email: "owner@stallorder.test" } });
   await establishLocalTestSession(page, prisma, owner.id);

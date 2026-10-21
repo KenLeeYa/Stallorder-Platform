@@ -1,0 +1,35 @@
+✔ summary uses average middle values and nearest-rank p95, retaining empty samples (0.9866ms)
+✔ CLS uses maximum session window and INP uses worst observed interaction for short lab rounds (0.2279ms)
+✔ no event over reporting threshold remains censored, never invented as zero INP (0.0856ms)
+✖ CLS starts at the first shift and resets at exact one-second gaps (0.6366ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 3
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 271.9683
+
+✖ failing tests:
+
+test at scripts\responsive-performance-stats.test.mjs:18:1
+✖ CLS starts at the first shift and resets at exact one-second gaps (0.6366ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  0.5 !== 0.3
+  
+      at TestContext.<anonymous> (file:///C:/Users/KY/.codex/worktrees/responsive-cross-device/Stallorder-Platform/scripts/responsive-performance-stats.test.mjs:19:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1325:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:911:18)
+      at Test.postRun (node:internal/test_runner/test:1465:19)
+      at Test.run (node:internal/test_runner/test:1390:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:911:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0.5,
+    expected: 0.3,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

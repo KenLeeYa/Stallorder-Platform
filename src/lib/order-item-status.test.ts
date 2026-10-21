@@ -18,4 +18,10 @@ describe("餐點製作與出餐狀態", () => {
     expect(deriveOrderStatusFromItems("CONFIRMED", ["PREPARING", "PENDING"])).toBe("PREPARING");
     expect(deriveOrderStatusFromItems("PREPARING", ["READY", "SERVED"])).toBe("READY");
   });
+  it("部分完成或仍在打包時不提早把整單標為可取餐", () => {
+    expect(deriveOrderStatusFromItems("PREPARING", ["READY", "PENDING"])).toBe("PREPARING");
+    expect(deriveOrderStatusFromItems("PACKING", ["READY", "PREPARING"])).toBe("PACKING");
+    expect(deriveOrderStatusFromItems("PACKING", ["READY", "SERVED"])).toBe("READY");
+    expect(deriveOrderStatusFromItems("CONFIRMED", [])).toBe("CONFIRMED");
+  });
 });

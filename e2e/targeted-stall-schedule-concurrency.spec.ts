@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { Prisma, PrismaClient } from "@prisma/client";
 
@@ -5,14 +6,14 @@ loadLocalEnv();
 assertLocalDatabase();
 
 const control = new PrismaClient();
-const organizationId = "a5000000-0000-4000-8000-000000000001";
-const stallId = "a5000000-0000-4000-8000-000000000002";
-const locationId = "a5000000-0000-4000-8000-000000000003";
-const scheduleId = "a5000000-0000-4000-8000-000000000004";
-const qrCodeId = "a5000000-0000-4000-8000-000000000005";
-const orderSessionId = "a5000000-0000-4000-8000-000000000006";
-const qrToken = "targeted-stall-schedule-concurrency-qr-2026";
-const sessionTokenHash = "s".repeat(64);
+const organizationId = randomUUID();
+const stallId = randomUUID();
+const locationId = randomUUID();
+const scheduleId = randomUUID();
+const qrCodeId = randomUUID();
+const orderSessionId = randomUUID();
+const qrToken = `targeted-stall-schedule-${randomUUID()}`;
+const sessionTokenHash = randomUUID().replaceAll("-", "").repeat(2);
 const deviceHash = "d".repeat(64);
 
 type BackendPidRow = { pid: number };
@@ -30,7 +31,7 @@ test.describe.serial("targeted stall schedule lock order", () => {
         data: {
           id: organizationId,
           name: "Targeted schedule concurrency",
-          slug: "targeted-schedule-concurrency",
+          slug: `targeted-schedule-concurrency-${organizationId.slice(0, 8)}`,
           businessName: "Targeted schedule concurrency",
           status: "ACTIVE",
           email: "targeted-schedule-concurrency@stallorder.test",
@@ -61,8 +62,8 @@ test.describe.serial("targeted stall schedule lock order", () => {
           id: stallId,
           organizationId,
           name: "Targeted schedule stall",
-          slug: "targeted-schedule-concurrency-stall",
-          code: "TARGET-SCHEDULE-CONCURRENCY",
+          slug: `targeted-schedule-concurrency-stall-${organizationId.slice(0, 8)}`,
+          code: `TARGET-SCHEDULE-CONCURRENCY-${stallId.slice(0, 8)}`,
           address: "Local database only",
           location: "Local database only",
           businessStatus: "OPEN",
@@ -320,7 +321,7 @@ function expectStallFirst(definition: string, laterLock: RegExp) {
 }
 
 async function removeFixture() {
-  await control.organization.deleteMany({ where: { id: organizationId } });
+  await control.organization.deleteMany({ where: { id: organizationId, auditLogs: { none: {} }, stalls: { none: { auditLogs: { some: {} } } } } });
 }
 
 function assertLocalDatabase() {

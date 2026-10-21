@@ -26,6 +26,15 @@ for (const [role, destination] of quickLoginDestinations) {
 
     expect((await responsePromise).status()).toBe(200);
     await expect(page).toHaveURL(destination);
+    // A protected route may keep its URL while rendering a disabled-module 404.
+    const content = role === "平台管理者"
+      ? page.getByTestId("admin-billing-dashboard")
+      : page.getByRole("heading", {
+        name: role === "商家" ? "StallOrder 示範商戶" : role === "店員" ? "阿明鹽酥雞" : "廚房生產系統",
+        exact: true,
+      });
+    await expect(content).toBeVisible();
+    await expect(page.getByRole("heading", { name: "找不到此頁面", exact: true })).toHaveCount(0);
   });
 }
 

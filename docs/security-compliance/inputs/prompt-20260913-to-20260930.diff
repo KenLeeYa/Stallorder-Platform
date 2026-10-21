@@ -1,0 +1,87 @@
+diff --git a/docs/security-compliance/inputs/prompt-20260913.recovered.md b/docs/security-compliance/inputs/prompt-20260930.received.md
+index f75cde3..544a02e 100644
+--- a/docs/security-compliance/inputs/prompt-20260913.recovered.md
++++ b/docs/security-compliance/inputs/prompt-20260930.received.md
+@@ -1,6 +1,6 @@
+ # Stallorder／Stellorder 攤點通：個資、資安、稽核與法遵完整 Codex Prompt
+ 
+-版本：1.0｜日期：2026-09-13（Asia/Taipei）  
++版本：2.0｜原版：2026-09-13｜架構更新：2026-09-30（Asia/Taipei）  
+ 預期專案：`KenLeeYa/Stallorder-Platform`；以使用者目前開啟且授權的 repository 為準。  
+ 任務：在現有點餐、OMO 與供應商架構上完成安全補強，包含程式、資料庫、驗收、操作及法遵證據。
+ 
+@@ -8,6 +8,60 @@
+ 
+ ---
+ 
++## 2026-09-30 架構校正與執行優先規則（v2.0）
++
++本節是本版的最新業務契約；原文若寫「平台單一 LINE OA 已為現行通知模式」，以本節取代。2026-09-29 安全評估中描述的平台單一 OA 是先前規格，不能因此認定已實作、已啟用或仍為近期發訊方案。每一項仍須由當前 repository、環境與商家實際設定驗證。
++
++| 能力 | 現階段目標 | 未來保留能力 | 狀態判定 |
++|---|---|---|---|
++| LINE 訂單與取餐通知 | **各合作商家以自身 LINE 官方帳號發訊**；攤點通共用後端接收、驗證、排程、發送及狀態核對 | 平台管理者可按安全遷移方案切換至平台 OA 發訊 | 需求，須查程式及各店設定 |
++| OA Webhook | 平台後台集中管理各店 Webhook URL：讀取遠端、測試、套用、比對遠端與本機狀態 | 平台 OA 可走相同受控管理介面 | 需求，非已完成證據 |
++| LINE MINI App／Mini Store | 商家可獨立選擇是否啟用，依實際 LINE 渠道與資格綁定 | 支援日後平台入口與多店體驗 | 需求，不能與通知綁死 |
++| LINE Pay | 各店自行選擇、以各店簽約的商戶收款；和 OA／Mini Store 開關分離 | 擴充其他合規支付方式 | 不得推定已取得正式資格 |
++| 第三方 OMO／POS、共餐、配送 | 對保留既有系統的商家提供授權介接契約；新模式依實際 Phase 導入 | 跨系統聚合、透明運費及供應鏈 | 未實作能力只建安全邊界 |
++
++核心設計為「通知 sender／provider 的受控選擇」，且切換模式不重建訂單、顧客、支付或同意資料。帳號身分、好友關係與 LINE user ID 必須按 provider、channel、subject、目的和授權範圍建模；**不同 OA／Login channel 的 user ID 不可當成相同主體或任意互換**。從各店 OA 改為平台 OA 前，盤點加好友／收件資格、告知與同意、渠道識別映射、訊息額度、過渡雙發及失敗回復。禁止為了節省額度而繞過收件資格或跨店發訊。
++
++本版依據：同名 2026-09-29 安全評估、OMO／SCM v2、Agency Agents 接力 Prompt，以及 2026-09-29 的各店 OA 最新管理需求。它們是架構輸入，不是 code audit；真正的現況以固定 HEAD、設定及測試證據為準。法律生效日期、LINE／支付平台規則與 SDK 版本必須在執行當日查官方來源。若來源不能取得，列 BLOCKED／NEEDS_LEGAL_REVIEW，不能沿用舊日期宣稱已核定。
++
++### LINE OA 與商家選配模組的必要實作契約
++
++1. 建立商家／門市與 OA channel 的明確綁定及狀態機；區分 Login、Messaging、MINI App 與 LINE Pay 的 channel、secret、token 和 merchant credential。敏感設定用秘密管理儲存，UI 僅顯示遮蔽識別、版本、狀態與輪替資訊；商家和平台支援人員不得讀回明文。
++2. Webhook 以該 channel 的 secret 驗證**未修改的 raw body**與簽章，再核對 destination／商家綁定、事件 ID 冪等、時間與重放策略。不得用 URL path 或未驗簽 body 自稱商家。重複、錯 channel、已停用 channel 與跨店事件要安全拒絕且不更新訂單。
++3. 平台後台遠端讀取、測試、套用 Webhook URL 必須走伺服器端供應商 API 與最小權限憑證；測試與套用分離，套用前再驗證當前版本與目標環境。紀錄操作者、商家、遮蔽差異、遠端回應、版本與時間；錯誤時不得把本機狀態冒充遠端成功。對 URL 設精確允許範圍及 SSRF 防護，不能把管理介面當任意 URL 探測器。
++4. 通知 Outbox 將 order、stall、channel、sender、recipient、template version、consent／service-purpose、delivery attempt、provider response 綁定；worker 送出前重新核對店家及收件資格、開關、sender 版本、訂單狀態、退訂與撤權。服務型訂單通知與行銷目的分開；沒有收件資格則提供站內查單／商家作業補救，不影響交易真相。
++5. 商家獨立設定 OA 通知、Mini Store、LINE Pay，開關和授權可單獨撤銷。關閉其中一項不得破壞其他兩項或既有訂單。每店額度／節流及平台整體保護、訊息模板最小個資、重送冪等和 provider 失敗狀態需有可見證據；HTTP 接受不等於已送達或顧客已閱讀。
++6. LINE Pay 的商家憑證、PaymentAttempt、金額／幣別／環境、退款和對帳獨立於 OA Webhook。前端 return 不是付款證明；未知結果查詢後才推進狀態。不得以 OA 簽章驗證 Pay，不得將 A 店款項導向 B 店 merchant。
++7. 預留 `sender_mode = MERCHANT_OA | PLATFORM_OA` 之類的受控策略，並提供不可同時雙發的切換與回退檢查。資料 migration 採 additive；每筆事件保留當時 sender 與收件渠道，不追溯改寫歷史訊息與同意。
++8. 取餐 QR、顧客訂單卡、掃碼核銷與付款／交付為各自授權事件。掃碼 GET 僅預覽，員工確認 POST 再查店、角色、狀態及版本並原子核銷；QR 洩漏不可取得付款、退款或跨店權限。
++9. OMO／SCM 的買賣企業、承運者、批次與庫存、ePOD、離線裝置及第三方 POS 各有 scope。只共享授權交易的必要欄位；GPS、照片／簽名和配送地址依任務存取及保存；重派或撤權後離線補傳須重新授權。來源系統訂單 ID 不能作跨平台唯一鍵。
++10. 已存在的部署與功能先查證並重用；尚未存在的 LINE、OMO 或配送 Phase 不因本安全任務被宣稱完成，也不為了填表擴大成完整產品開發。與本次安全控制直接相關的程式、migration、測試及文檔要做到可執行，不只生成規格。
++
++### 補充 Phase 與驗收（與原 T01–T70 一起執行）
++
++- Phase 00/01：列出每個商家 OA 的連接方式、功能開關、資料角色、通知目的、訂單收件識別及其實作證據；另畫當前／目標 sender 路徑，記錄以往平台單一 OA 規格被取代之處。
++- Phase 02/03：測試各店憑證隔離、Webhook raw body 驗簽、destination 綁定、跨店資料與通知隔離；測試 Preview／staging 絕不連正式 OA／Pay／通知目的地。
++- Phase 04/06：驗證 LINE channel subject 不因相同電話或 email 自動合併；通知告知、行銷同意與解除綁定能阻止排隊中的不當發訊。
++- Phase 08/09/10：驗證 Webhook 管理操作的 SSRF／權限、Pay 商戶綁定、取餐 QR 原子核銷、配送離線重派、裝置撤權及錯誤回復。
++- Phase 11–15：把 OA 管理、商家選配及 sender 切換放入控制登錄、事故應變、外部設定清單與發布 gate；只以實際環境證據標記 RELEASED。
++
++| ID | 需執行的補充情境 |
++|---|---|
++| T71 | A 店簽章有效的 webhook 不得以 B 店 destination／order 更新或觸發通知；錯簽章、重播、停用 channel 被拒。 |
++| T72 | A 店 token／secret／Pay merchant 不可被 B 店或支援帳號讀取、借用、套用；輪替後舊版本停止生效。 |
++| T73 | 平台管理者讀取遠端 Webhook、測試、套用、狀態核對與遠端失敗各有正確權限、差異、稽核及可回復狀態；惡意 URL 不可 SSRF。 |
++| T74 | OA 通知、Mini Store、LINE Pay 三開關的八種組合及撤銷均不破壞其他能力或既有訂單。 |
++| T75 | 通知 worker 的延遲、重送、額度不足、封鎖、退訂、換綁與停用 sender 不跨店、不雙發，且不重做訂單／計費。 |
++| T76 | 不同 OA／Login channel 的相同表面 user ID、email、電話不自動合併；切換 sender 前確認收件資格，歷史事件仍可追溯。 |
++| T77 | 平台 OA 試點切換與回退只能在明確授權和功能旗標下執行；未具資格時保持各店 OA，過渡不雙發、不洩漏。 |
++| T78 | A 店的 LINE Pay return、Confirm、退款及對帳不能變更 B 店付款；未知狀態及重送不重複扣款。 |
++| T79 | 顧客轉發取餐卡／QR、跨店掃描、重掃或並行核銷都不能越權；付款、核銷、列印、配送各自獨立。 |
++| T80 | 第三方 POS／供應商／承運者只能操作明確授權交易；離線任務重派後，舊裝置補傳及 ePOD 附件須拒絕。 |
++
++每個 T71–T80 都要正向與拒絕路徑、實際入口和角色、命令／環境、結果與證據；未有商家正式渠道、LINE Pay sandbox 或實機時標 BLOCKED，Mock 只證明本地控制。同步把 CONTROL_REGISTER、SECURITY_TEST_MATRIX、ARCHITECTURE_AND_BOUNDARIES、AUTHORIZATION_MATRIX、DATA_INVENTORY_AND_PURPOSES、VENDOR_AND_TRANSFER_REGISTER、EXTERNAL_SETUP_CHECKLIST 及 RELEASE_READINESS 更新到此版本。
++
++---
++
+ ## 0. 執行目標、範圍與完成標準
+ 
+ 你擔任本專案的系統、安全、個資與交易工程師。請直接做必要開發及驗證，不要只產生建議、空介面或待辦清單。法律適用與契約可以產出供專業審查的完整草稿，但不得冒稱律師核定、法遵認證或正式支付資格。
+@@ -100,7 +154,7 @@ CI／release／migration／QA scripts、監控、備份與跨區切換腳本
+ 
+ ## 2. 法規與標準基準
+ 
+-執行時查官方來源，記錄查核日期、版本、生效狀態與適用理由。以下為 2026-09-13 編寫基準；本次相關法規頁顯示整編截止至 2026-09-04，須交叉查主管機關及行政院最新施行公告。不能把修法公布、草案或外國規則直接當作台灣已生效義務。
++執行時查官方來源，記錄查核日期、版本、生效狀態與適用理由。以下為原版 2026-09-13 的查核基準，不能視為本版對法律現況的重新查核；須交叉查主管機關及行政院最新施行公告。不能把修法公布、草案或外國規則直接當作台灣已生效義務。
+ 
+ | 規範 | 本任務控制重點 | 適用邊界與來源 |
+ |---|---|---|
+@@ -651,4 +705,3 @@ Phase 可按依賴調整，但所有適用交付要完成。缺外部依賴不
+ ---
+ 
+ **開始執行：先讀適用 AGENTS.md 與本檔全文，固定實際版本，從 Phase 00 連續完成所有適用且可執行工作；完成實作、必要測試、證據、文件與具體外部設定清單後再做最終交付。**
+-

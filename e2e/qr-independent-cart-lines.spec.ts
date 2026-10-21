@@ -297,6 +297,9 @@ test("QR 同商品可加入兩個不同註記列，報價低頻更新且返回�
     "hidden",
   );
   await page.setViewportSize({ width: 900, height: 700 });
+  await expect(cartPanel).toHaveAttribute("aria-modal", "true");
+  expect(await page.evaluate(() => document.body.style.overflow)).toBe("hidden");
+  await page.setViewportSize({ width: 1024, height: 700 });
   const desktopCart = page.getByTestId("qr-cart-panel");
   await expect(desktopCart).toBeVisible();
   await expect(desktopCart).not.toHaveAttribute("aria-modal");

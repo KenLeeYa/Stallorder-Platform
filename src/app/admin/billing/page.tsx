@@ -1,3 +1,4 @@
+import { workspaceNavigationMessage } from "@/lib/messages/workspace-navigation";
 import Link from "next/link";
 import { Banknote, CircleAlert, CirclePause, Clock3, CreditCard, FileCheck2, ReceiptText, ShieldCheck, TrendingUp, WalletCards } from "lucide-react";
 import { AdditionalStallApprovalAction, AdminInvoiceCreateForm, AdminPaymentReviewActions, BillingRequestRejectAction } from "@/components/admin-billing-actions";
@@ -18,6 +19,14 @@ export default async function AdminBillingPage() {
   return (
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-7xl px-4 py-7 md:px-8">
       <header><p className="text-sm font-semibold text-teal-800">{m("Phase 1 manual billing")}</p><h1 className="mt-1 text-3xl font-semibold">{m("Platform billing overview")}</h1><p className="mt-2 text-sm text-stone-600">{m("Plans, invoices, payment confirmation, and subscription status are determined by the StallOrder database.")}</p></header>
+      <section aria-labelledby="admin-review-title" className="mt-6 rounded-xl border border-teal-200 bg-teal-50 p-4">
+        <h2 id="admin-review-title" className="font-semibold text-teal-950">{workspaceNavigationMessage(locale, "tasks")}</h2>
+        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+          <Link href="#pending-requests" className="flex min-h-14 items-center justify-between gap-3 rounded-lg border border-stone-200 bg-white p-3 font-semibold">{m("Plan and stall requests")}<span className="tabular-nums">{overview.pendingRequests.length}</span></Link>
+          {moduleVisibility.payments ? <Link href="#pending-payments" className="flex min-h-14 items-center justify-between gap-3 rounded-lg border border-stone-200 bg-white p-3 font-semibold">{m("Payments pending confirmation")}<span className="tabular-nums">{overview.pendingPayments.length}</span></Link> : null}
+          <Link href="#payg-status" className="flex min-h-14 items-center justify-between gap-3 rounded-lg border border-stone-200 bg-white p-3 font-semibold">{m("PAYG automatic close status")}<span>{m(paygClose.alert ? "Attention required" : "Normal")}</span></Link>
+        </div>
+      </section>
       <dl data-testid="admin-billing-dashboard" className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-5">
         <Metric icon={ShieldCheck} label={m("Active subscriptions")} value={formatAppNumber(locale, overview.metrics.activeSubscriptions)} />
         <Metric icon={Clock3} label={m("Trialing")} value={formatAppNumber(locale, overview.metrics.trialingSubscriptions)} />
@@ -30,9 +39,11 @@ export default async function AdminBillingPage() {
         <Metric icon={TrendingUp} label={m("Trial conversions")} value={formatAppNumber(locale, overview.metrics.trialConversions)} />
         {moduleVisibility.payments ? <Metric icon={WalletCards} label={m("Payments pending review")} value={formatAppNumber(locale, overview.pendingPayments.length)} /> : null}
       </dl>
-      <AdminBillingFeatureFlagControls flags={catalog.featureFlags} />
-      <AdminModuleVisibilityControls initialVisibility={moduleVisibility} />
-      <section className="border-t border-stone-200 py-6">
+      <details className="mt-6 rounded-lg border border-stone-300" data-testid="admin-system-settings">
+        <summary className="min-h-11 cursor-pointer px-4 py-3 font-semibold">{m("System settings")}</summary>
+        <div className="border-t border-stone-200 px-4 pb-4"><AdminBillingFeatureFlagControls flags={catalog.featureFlags} /><AdminModuleVisibilityControls initialVisibility={moduleVisibility} /></div>
+      </details>
+      <section id="payg-status" className="scroll-mt-40 border-t border-stone-200 py-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div><h2 className="text-xl font-semibold">{m("PAYG automatic close status")}</h2><p className="mt-1 text-sm text-stone-600">{m("This dashboard is read-only. Charging and automatic close remain controlled by separate audited feature flags.")}</p></div>
           <span className={`rounded-md px-3 py-1 text-sm font-semibold ${paygClose.alert ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`}>{m(paygClose.alert ? "Attention required" : "Normal")}</span>
@@ -50,7 +61,7 @@ export default async function AdminBillingPage() {
           <PaygStatus label={m("Scheduler alert")} value={m(paygClose.stale ? "Stale" : "Normal")} />
         </dl>
       </section>
-      <section className="py-7">
+      <section id="pending-requests" className="scroll-mt-40 py-7">
         <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-semibold">{m("Plan and stall requests")}</h2><Link href="/admin/subscriptions" className="text-sm font-semibold text-teal-800">{m("View all subscriptions")}</Link></div>
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
           {overview.pendingRequests.map((request) => (
@@ -70,7 +81,7 @@ export default async function AdminBillingPage() {
           {overview.pendingRequests.length === 0 ? <p className="py-6 text-sm text-stone-500">{m("There are no requests pending review.")}</p> : null}
         </div>
       </section>
-      {moduleVisibility.payments ? <section className="border-t border-stone-200 py-7">
+      {moduleVisibility.payments ? <section id="pending-payments" className="scroll-mt-40 border-t border-stone-200 py-7">
         <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-semibold">{m("Payments pending confirmation")}</h2><Link href="/admin/payments" className="text-sm font-semibold text-teal-800">{m("View all payment records")}</Link></div>
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
           {overview.pendingPayments.map((payment) => <article id={payment.id} key={payment.id} className="rounded-md border border-stone-200 p-5"><div className="flex justify-between gap-3"><div><h3 className="font-semibold">{payment.organization.businessName}</h3><Link href={`/admin/invoices/${payment.invoiceId}`} className="mt-1 block text-sm font-semibold text-teal-800">{payment.invoice.invoiceNumber}</Link></div><strong>{formatAppCurrency(locale, payment.amount, payment.currency)}</strong></div><p className="mt-2 text-sm text-stone-600">{getAdminCodeLabel(locale, payment.paymentMethod)} · {payment.recordedBy.displayName}</p><div className="mt-4"><AdminPaymentReviewActions paymentId={payment.id} /></div></article>)}

@@ -143,6 +143,7 @@ async function callback(
 
   let claimed: ClaimedOAuthTransaction | null = null;
   try {
+    const adapter = await getEnabledOAuthProviderAdapter(provider);
     claimed = await claimOAuthTransaction({
       provider,
       state: input.state,
@@ -157,7 +158,6 @@ async function callback(
       return NextResponse.redirect(`${appOrigin}${destination}`);
     }
 
-    const adapter = await getEnabledOAuthProviderAdapter(provider);
     const claims = await adapter.exchangeAndVerify({
       code: input.code,
       codeVerifier: claimed.codeVerifier,

@@ -56,3 +56,11 @@ QrCode.state = PAUSED
 - 測試訂單由 database trigger 排除，不產生 `BILLABLE_ORDER_COMPLETED`。
 - Go-live 後的非測試完成訂單依既有 Trial hard limit 或 paid soft limit 執行。
 - Invoice、manual payment、activation、suspension 與 reactivation 沿用 PR #5，沒有第二套狀態來源。
+
+## 2026-10-01 本機候選：草稿版本與表單
+
+- SAVE_DRAFT／SUBMIT 必須提交 applicationId 與 expectedDraftVersion；首次建立限定 null／0。接受的儲存與內容／可編輯性變更皆原子遞增，既有過期 SQL 函式也遞增。舊版本回409，保留輸入，讀取本人目前草稿後明確載入或勾選差異。
+- 既有四步表單採 RHF7.89.0／Zod4；有效編輯750ms 自動儲存，單一請求與最新待存快照。下一步與送出等候確認版本。離線顯示未儲存警告，無共享 localStorage 草稿。
+- NEEDS_INFO 保留公開補件說明與同一申請 ID、顯示本次差異。送出逾時透過本人 GET 確認原申請；核准仍由原交易建立 CLOSED 攤位、PAUSED QR，Owner 完成既有設定／測試訂單才可明確 Go-live。
+- 現行沒有附件上傳 consumer；AW19 附件與外部表單維持 unavailable／DEFERRED_GATE，未加入上傳或商用外部表單套件。
+- 本段為未提交本機候選；不表示远端遷移、真實 OAuth、實體裝置或正式環境已驗證。具體 scoped QA／審核狀態以 Batch3 報告為準。

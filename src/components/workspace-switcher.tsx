@@ -39,7 +39,7 @@ export function WorkspaceSwitcher({
         if (!destination) return;
         const nextOrganizationId = kind === "ORGANIZATION" ? destination.value : organizationId;
         if (nextOrganizationId) {
-          window.localStorage.setItem(ORGANIZATION_STORAGE_KEY, nextOrganizationId);
+          try { window.localStorage.setItem(ORGANIZATION_STORAGE_KEY, nextOrganizationId); } catch { /* The authorized destination remains usable without a remembered workspace. */ }
         }
         window.location.assign(destination.href);
       }}

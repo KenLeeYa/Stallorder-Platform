@@ -123,6 +123,22 @@ describe("Next public preorder menu", () => {
     expect(query.where.AND).toBeUndefined();
   });
 
+  it.each(["DEFAULT", "DELIVERY"] as const)("uses the current SQL intake calendar for %s, including shared-link delivery", async (mode) => {
+    const context = await qrCodeFindUnique();
+    qrCodeFindUnique.mockResolvedValue({ ...context, fulfillmentTypeContext: null,
+      stall: { ...context.stall, businessStatus: "OPEN", orderingState: "OPEN",
+        businessHours: [], orderingSettings: { ...context.stall.orderingSettings, deliveryModuleEnabled: true } } });
+    queryRaw.mockImplementation((template: TemplateStringsArray) => {
+      const sql = String(template);
+      if (sql.includes("public_order_calendar_code")) return [{ code: "STALL_CLOSED" }];
+      if (sql.includes("get_takeout_preorder_slots")) return [{ slots: ["2099-08-03T05:00:00.000Z"] }];
+      return [];
+    });
+    const { getCachedPublicMenuForQrToken } = await import("./public-menu");
+    expect(await getCachedPublicMenuForQrToken("calendar-qr", mode)).toMatchObject({ orderingOpenNow: false });
+    expect(queryRaw.mock.calls.some(([sql]) => String(sql).includes("public_order_calendar_code"))).toBe(true);
+  });
+
   it("turning off lottery also suppresses saved spend and active festival eligibility", async () => {
     const context = await qrCodeFindUnique();
     qrCodeFindUnique.mockResolvedValue({

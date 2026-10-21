@@ -4,6 +4,28 @@ import { Prisma, type MerchantApplicationRiskLevel, type MerchantApplicationStat
 import { prisma } from "@/lib/prisma";
 import type { MerchantApplicationAdminCommand } from "@/lib/merchant-application-contract";
 import { assertMerchantApplicationTransition } from "./application-state";
+import { buildOperationsPageMeta } from "@/lib/operations-pagination";
+import { zonedCalendarDayUtcRange } from "@/lib/date-time";
+import { applicationRowSchema, applicationDetailSchema, type ApplicationReadInput } from "@/lib/operations-read-contract";
+import { merchantApplicationRiskReasons } from "./application-risk";
+
+const safeRiskReasons = (value: unknown) => Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && merchantApplicationRiskReasons.some((code) => code === item)) : [];
+export async function listPaginatedMerchantApplications(input: ApplicationReadInput) {
+  const where: Prisma.MerchantApplicationWhereInput = {};
+  if (input.status) where.status = input.status;
+  if (input.riskLevel) where.riskLevel = input.riskLevel;
+  if (input.reviewer) where.assignedReviewerProfileId = input.reviewer === "ASSIGNED" ? { not: null } : null;
+  if (input.reviewerId) where.assignedReviewerProfileId = input.reviewerId;
+  if (input.duplicateReason) where.riskReasonsJson = { array_contains: [input.duplicateReason] };
+  if (input.submitted === "TODAY") { const range = zonedCalendarDayUtcRange(new Date(), "Asia/Taipei"); where.submittedAt = { gte: range.from, lt: range.to }; }
+  if (input.submitted === "OLDER_THAN_2_DAYS") { where.submittedAt = { lt: new Date(Date.now() - 2 * 86400000) }; where.status = input.status ?? { in: ["PENDING_REVIEW", "NEEDS_INFO"] }; }
+  return prisma.$transaction(async (database) => {
+    const pagination = buildOperationsPageMeta(await database.merchantApplication.count({ where }), input);
+    const direction = input.sort === "submittedAtDesc" ? "desc" : "asc";
+    const rows = await database.merchantApplication.findMany({ where, orderBy: input.sort === "review" ? [{ riskLevel: "desc" }, { submittedAt: "asc" }, { createdAt: "asc" }, { id: "asc" }] : [{ submittedAt: direction }, { createdAt: direction }, { id: direction }], skip: (pagination.page - 1) * pagination.pageSize, take: pagination.pageSize, select: { id: true, applicationNumber: true, merchantName: true, businessType: true, city: true, status: true, submittedAt: true, riskLevel: true, riskReasonsJson: true, assignedReviewer: { select: { id: true, displayName: true } } } });
+    return { rows: rows.map(({ riskReasonsJson, ...row }) => applicationRowSchema.parse({ ...row, merchantName: row.merchantName ?? "", businessType: row.businessType ?? "", submittedAt: row.submittedAt?.toISOString() ?? null, riskReasonCodes: safeRiskReasons(riskReasonsJson) })), pagination };
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+}
 
 type ReviewContext = { actorProfileId: string; requestId: string; ipHash: string };
 
@@ -50,46 +72,16 @@ export async function listMerchantApplications(filters: MerchantApplicationListF
 }
 
 export async function getMerchantApplicationForAdmin(applicationId: string) {
-  return prisma.merchantApplication.findUnique({
-    where: { id: applicationId },
-    include: {
-      applicant: {
-        select: {
-          id: true,
-          displayName: true,
-          email: true,
-          isActive: true,
-          authUserId: true,
-          authIdentities: {
-            where: { revokedAt: null },
-            orderBy: { createdAt: "asc" },
-            select: { provider: true },
-          },
-          merchantApplications: {
-            orderBy: { createdAt: "desc" },
-            take: 20,
-            select: {
-              id: true,
-              applicationNumber: true,
-              merchantName: true,
-              status: true,
-              createdAt: true,
-            },
-          },
-        },
-      },
-      assignedReviewer: { select: { id: true, displayName: true } },
-      reviewedBy: { select: { id: true, displayName: true } },
-      approvedOrganization: {
-        select: {
-          id: true,
-          businessName: true,
-          status: true,
-          subscription: { select: { id: true, status: true, trialEndsAt: true, planVersion: { select: { displayName: true, version: true } } } },
-          merchantSetupProgress: { select: { testOrderCompleted: true, goLiveCompleted: true } },
-        },
-      },
-    },
+  const application = await prisma.merchantApplication.findUnique({ where: { id: applicationId }, select: {
+    id: true, applicationNumber: true, status: true, riskLevel: true, riskReasonsJson: true, applicantDisplayName: true, applicantEmail: true, phone: true, lineId: true, preferredContactMethod: true, merchantName: true, businessType: true, businessRegistrationNumber: true, contactName: true, businessPhone: true, city: true, businessAddress: true, merchantDescription: true, stallName: true, stallLocation: true, requestedSlug: true, estimatedDailyOrders: true, expectedStartDate: true, requestedPlanCode: true, needsMultipleStaff: true, needsKitchenView: true, submittedAt: true, reviewedAt: true, publicReviewNote: true, internalReviewNote: true,
+    applicant: { select: { authUserId: true, authIdentities: { where: { revokedAt: null }, orderBy: { createdAt: 'asc' }, select: { provider: true } }, merchantApplications: { orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 20, select: { id: true, applicationNumber: true, merchantName: true, status: true, createdAt: true } } } },
+    assignedReviewer: { select: { id: true, displayName: true } },
+    approvedOrganization: { select: { id: true, businessName: true, status: true, subscription: { select: { id: true, status: true, trialEndsAt: true, planVersion: { select: { displayName: true, version: true } } } }, merchantSetupProgress: { select: { testOrderCompleted: true, goLiveCompleted: true } } } },
+  } });
+  if (!application) return null;
+  return applicationDetailSchema.parse({ ...application, riskReasonsJson: safeRiskReasons(application.riskReasonsJson), submittedAt: application.submittedAt?.toISOString() ?? null, reviewedAt: application.reviewedAt?.toISOString() ?? null, expectedStartDate: application.expectedStartDate?.toISOString() ?? null,
+    applicant: { providerDisplayKinds: [...(application.applicant.authUserId ? ['LEGACY_GOOGLE'] : []), ...application.applicant.authIdentities.map((identity) => identity.provider)], merchantApplications: application.applicant.merchantApplications.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() })) },
+    approvedOrganization: application.approvedOrganization ? { ...application.approvedOrganization, subscription: application.approvedOrganization.subscription ? { ...application.approvedOrganization.subscription, trialEndsAt: application.approvedOrganization.subscription.trialEndsAt?.toISOString() ?? null } : null } : null,
   });
 }
 
@@ -97,7 +89,7 @@ export async function listPlatformReviewers() {
   return prisma.profile.findMany({
     where: { platformRole: "PLATFORM_ADMIN", isActive: true },
     orderBy: { displayName: "asc" },
-    select: { id: true, displayName: true, email: true },
+    select: { id: true, displayName: true },
   });
 }
 
@@ -106,7 +98,9 @@ export async function applyMerchantApplicationReviewAction(
   command: Exclude<MerchantApplicationAdminCommand, { action: "APPROVE" }>,
   context: ReviewContext,
 ) {
-  return prisma.$transaction(async (transaction) => {
+  for (let attempt = 0; ; attempt += 1) {
+  try {
+  return await prisma.$transaction(async (transaction) => {
     await transaction.$queryRaw`
       select id from public.merchant_applications
       where id = ${applicationId}::uuid
@@ -202,7 +196,7 @@ export async function applyMerchantApplicationReviewAction(
         break;
     }
 
-    const updated = await transaction.merchantApplication.update({ where: { id: application.id }, data });
+    const updated = await transaction.merchantApplication.update({ where: { id: application.id }, data: { ...data, draftVersion: { increment: 1 } } });
     if (notification) {
       await transaction.merchantApplicationNotification.create({
         data: { applicationId: application.id, profileId: application.applicantProfileId, ...notification },
@@ -223,6 +217,14 @@ export async function applyMerchantApplicationReviewAction(
     });
     return updated;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === "P2034" || (error.code === "P2010" && error.meta?.code === "40001"))) {
+      if (attempt < 2) continue;
+      throw new MerchantApplicationReviewError("APPLICATION_STATE_CONFLICT");
+    }
+    throw error;
+  }
+  }
 }
 
 function assertAdminTransition(current: MerchantApplicationStatus, next: MerchantApplicationStatus) {

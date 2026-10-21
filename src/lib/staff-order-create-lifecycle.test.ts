@@ -56,7 +56,7 @@ vi.mock("@/lib/security", () => ({
   hashToken: () => "a".repeat(64),
 }));
 
-import { createStaffOrder } from "./staff-order-create";
+import { createStaffOrder, prepareStaffOrderItems } from "./staff-order-create";
 
 const organizationId = "10000000-0000-4000-8000-000000000001";
 const stallId = "20000000-0000-4000-8000-000000000001";
@@ -136,5 +136,18 @@ describe("staff order persistence lifecycle", () => {
     expect(mocks.orderCreate.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.orderUpdate.mock.invocationCallOrder[0]!,
     );
+  });
+
+  it("evaluates public preorder product supply at fulfillment rather than submission", async () => {
+    const fulfillmentAt = new Date("2026-10-09T04:00:00Z");
+    const availableUntil = new Date("2026-10-08T04:00:00Z");
+    mocks.stallProductFindMany.mockImplementation(async ({ where }) => (
+      where.AND[0].OR[1].availableUntil.gt < availableUntil
+        ? [{ productId, priceOverride: null, product: { organizationId, name: "冬瓜茶", defaultPrice: 35, kind: "SINGLE", isOrderDiscountEligible: true, bundleChoiceGroups: [], noteGroupAssignments: [] } }]
+        : []
+    ));
+    const request = { customerNote: "", items: [{ productId, quantity: 1, note: "", noteOptionIds: [], bundleChoiceIds: [] }] };
+    await expect(prepareStaffOrderItems(mocks.transaction as never, organizationId, stallId, request, fulfillmentAt)).rejects.toThrow("PRODUCT_UNAVAILABLE");
+    await expect(prepareStaffOrderItems(mocks.transaction as never, organizationId, stallId, request, new Date("2026-10-07T04:00:00Z"))).resolves.toMatchObject({ subtotal: 35 });
   });
 });

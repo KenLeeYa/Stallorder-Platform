@@ -201,7 +201,7 @@ export function ReportScheduleManager({
         </div>
       ) : null}
       <div className="flex flex-wrap items-end justify-between gap-4 border-b border-stone-200 pb-5">
-        <div><div className="flex items-center gap-2 text-teal-800"><CalendarClock className="h-5 w-5" /><span className="text-sm font-semibold">{t("schedule.eyebrow")}</span></div><h1 className="mt-2 text-3xl font-semibold">{t("schedule.title")}</h1><p className="mt-2 text-sm text-stone-600">{t("schedule.description")}</p></div>
+        <div><div className="flex items-center gap-2 text-teal-800"><CalendarClock className="h-5 w-5" /><span className="text-sm font-semibold">{t("schedule.eyebrow")}</span></div><h1 className="mt-2 text-3xl font-semibold">{t("schedule.title")}</h1></div>
         {!editing ? <button type="button" onClick={() => { setDraft(newDraft()); setEditingId(null); setFieldErrors({}); }} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white"><Plus className="h-4 w-4" />{t("schedule.new")}</button> : null}
       </div>
       <div className={`border-b py-3 text-sm font-medium ${deliveryMode === "CONFIGURED" ? "border-emerald-200 text-emerald-800" : deliveryMode === "SIMULATED" ? "border-amber-200 text-amber-900" : "border-red-200 text-red-800"}`}>

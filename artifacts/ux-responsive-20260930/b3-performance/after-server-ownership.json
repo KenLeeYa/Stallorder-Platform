@@ -1,0 +1,8 @@
+{
+  "source": "C:\\Users\\KY\\.codex\\worktrees\\responsive-cross-device\\Stallorder-Platform",
+  "command": "\"C:\\Program Files\\nodejs\\node.exe\" node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3026",
+  "pid": 5652,
+  "parentPid": 50932,
+  "phase": "after",
+  "port": 3026
+}

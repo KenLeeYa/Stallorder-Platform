@@ -1,4 +1,7 @@
 const sensitivePathPatterns = [
+  { pattern: /^\/mini(?:\/.*)?$/, replacement: "/mini/:private" },
+  { pattern: /^\/api\/line-platform\/media\/[^/]+/, replacement: "/api/line-platform/media/:redacted" },
+  { pattern: /^\/api\/payments\/line-pay\/(return|cancel)/, replacement: "/api/payments/line-pay/:callback" },
   { pattern: /^\/q\/[^/]+/, replacement: "/q/:qrToken" },
   { pattern: /^\/order\/[^/]+/, replacement: "/order/:trackingToken" },
   { pattern: /^\/invite\/[^/]+/, replacement: "/invite/:invitationToken" },

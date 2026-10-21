@@ -52,7 +52,7 @@ export default async function AccountSecurityPage() {
 
   return (
     <main className="mx-auto min-h-[calc(100vh-76px)] max-w-4xl px-4 py-8 md:px-8">
-      <header className="mb-7 border-b border-stone-200 pb-5"><h1 className="text-3xl font-semibold">{copy.title}</h1><p className="mt-2 text-sm text-stone-600">{copy.description}</p></header>
+      <header className="mb-7 border-b border-stone-200 pb-5"><h1 className="text-3xl font-semibold">{copy.title}</h1></header>
       <AccountSecurityPanel
         initialProviders={availability.map(({ provider, availability: state }) => {
           const identity = identities.find((candidate) => candidate.provider === provider);

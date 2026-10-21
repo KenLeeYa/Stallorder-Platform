@@ -28,7 +28,6 @@ export default async function EventGrowthPage({ searchParams }: PageProps) {
       <header className="border-b border-stone-200 pb-5">
         <p className="text-sm font-semibold text-teal-800">{workspace.businessName}</p>
         <h1 className="mt-1 flex items-center gap-3 text-3xl font-semibold text-stone-950"><Megaphone className="h-7 w-7 text-teal-700" />活動推廣與成效</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-600">建立市集推廣代碼、簽章點餐連結與活動費用，並保留可稽核的成效資料基礎。</p>
       </header>
       <div className="py-6"><EventGrowthCenter organizationId={workspace.id} initialDashboard={dashboard} /></div>
     </main>

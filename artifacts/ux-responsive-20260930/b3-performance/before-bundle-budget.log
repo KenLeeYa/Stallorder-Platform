@@ -1,0 +1,5 @@
+
+> stallorder-platform@0.1.0 performance:bundles
+> node scripts/audit-client-bundles.mjs
+
+{"event":"client_bundle_budget_checked","unit":"uncompressed_entry_js_bytes","results":[{"route":"/kitchen","totalBytes":85094,"maxBytes":130000,"passed":true},{"route":"/onboarding","totalBytes":93240,"maxBytes":130000,"passed":true},{"route":"/q/[qrToken]","totalBytes":84586,"maxBytes":180000,"passed":true},{"route":"/display/[stallSlug]","totalBytes":85072,"maxBytes":140000,"passed":true},{"route":"/staff/[stallSlug]","totalBytes":97830,"maxBytes":200000,"passed":true},{"route":"/merchant/dashboard","totalBytes":113622,"maxBytes":150000,"passed":true},{"route":"/merchant/report-schedules","totalBytes":95362,"maxBytes":140000,"passed":true},{"route":"/merchant/catalog","totalBytes":86961,"maxBytes":210000,"passed":true}]}

@@ -1,3 +1,4 @@
+import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
@@ -9,11 +10,12 @@ loadLocalEnv();
 assertLocalDatabase();
 
 const prisma = new PrismaClient();
+const runSuffix = randomUUID().slice(0, 8);
 const password = "BillingPhase1!2026";
-const ownerEmail = "billing.owner.e2e@stallorder.test";
-const adminEmail = "billing.admin.e2e@stallorder.test";
-const organizationSlug = "billing-phase1-e2e";
-const qrToken = "billing-phase1-e2e-qr-token";
+const ownerEmail = `billing.owner.e2e.${runSuffix}@stallorder.test`;
+const adminEmail = `billing.admin.e2e.${runSuffix}@stallorder.test`;
+const organizationSlug = `billing-phase1-e2e-${runSuffix}`;
+const qrToken = `billing-phase1-e2e-qr-token-${runSuffix}`;
 
 let organizationId = "";
 let subscriptionId = "";
@@ -118,6 +120,9 @@ test.describe("Phase 1 商業帳務完整流程", () => {
   });
 
   test.afterAll(async () => {
+    const ownedAuditRows = await prisma.auditLog.findMany({ where: { OR: [{ organizationId: organizationId || "00000000-0000-4000-8000-000000000000" }, { actor: { email: { in: [ownerEmail, adminEmail] } } }] }, orderBy: { id: "asc" } });
+    const retainedAuditIds = ownedAuditRows.map(row => row.id);
+    const retainedAuditEvidence = auditFingerprint(ownedAuditRows);
     try {
       await cleanup();
       await setBillingFlags(Object.fromEntries(originalBillingFlags.map((flag) => [flag.code, flag.isEnabled])));
@@ -128,7 +133,11 @@ test.describe("Phase 1 商業帳務完整流程", () => {
         });
       }
     } finally {
-      await prisma.$disconnect();
+      try {
+        expect(auditFingerprint(await prisma.auditLog.findMany({ where: { id: { in: retainedAuditIds } }, orderBy: { id: "asc" } }))).toEqual(retainedAuditEvidence);
+      } finally {
+        await prisma.$disconnect();
+      }
     }
   });
 
@@ -148,8 +157,12 @@ test.describe("Phase 1 商業帳務完整流程", () => {
       await page.context().clearCookies();
       await login(page, adminEmail);
       await page.goto("/admin/billing");
-      await expect(page.getByRole("switch", { name: "開放測試免費模式" })).toBeChecked();
-      await expect(page.getByRole("switch", { name: "向商家顯示訂閱與付款" })).not.toBeChecked();
+      const systemSettings = page.getByTestId("admin-system-settings");
+      await expect(systemSettings).not.toHaveAttribute("open");
+      await systemSettings.getByText("系統設定", { exact: true }).click();
+      await expect(systemSettings).toHaveAttribute("open", "");
+      await expect(systemSettings.getByRole("switch", { name: "開放測試免費模式" })).toBeChecked();
+      await expect(systemSettings.getByRole("switch", { name: "向商家顯示訂閱與付款" })).not.toBeChecked();
     } finally {
       await setBillingFlags({
         OPEN_BETA_FREE_ACCESS_ENABLED: false,
@@ -321,11 +334,11 @@ async function cleanup() {
     await prisma.authSession.deleteMany({ where: { profile: { email: { in: [ownerEmail, adminEmail] } } } });
     await prisma.stallMembership.deleteMany({ where: { organizationId: { in: organizationIds } } });
     await prisma.organizationMembership.deleteMany({ where: { organizationId: { in: organizationIds } } });
-    await prisma.stall.deleteMany({ where: { organizationId: { in: organizationIds } } });
+    await prisma.stall.deleteMany({ where: { auditLogs: { none: {} }, organizationId: { in: organizationIds } } });
     await prisma.usageEvent.deleteMany({ where: { organizationId: { in: organizationIds } } });
-    await prisma.organization.deleteMany({ where: { id: { in: organizationIds } } });
+    await prisma.organization.deleteMany({ where: { auditLogs: { none: {} }, stalls: { none: { auditLogs: { some: {} } } }, id: { in: organizationIds } } });
   }
-  await prisma.profile.deleteMany({ where: { email: { in: [ownerEmail, adminEmail] } } });
+  await prisma.profile.deleteMany({ where: { auditLogs: { none: {} }, email: { in: [ownerEmail, adminEmail] } } });
 }
 
 function monthStart(value: Date) { return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), 1)); }
@@ -344,4 +357,9 @@ function loadLocalEnv() {
     throw error;
   }
   for (const line of content.split(/\r?\n/)) { const match = line.match(/^([A-Z0-9_]+)=(.*)$/); if (!match || process.env[match[1]]) continue; const value = match[2].trim(); process.env[match[1]] = value.startsWith('"') && value.endsWith('"') ? value.slice(1, -1) : value; }
+}
+
+// Compare fingerprints only; failed assertions never disclose audit payloads.
+function auditFingerprint(rows: unknown[]) {
+  return { count: rows.length, hash: createHash("sha256").update(JSON.stringify(rows)).digest("hex") };
 }

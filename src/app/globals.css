@@ -7,6 +7,9 @@
   --field-border: #d6d3d1;
   --field-border-invalid: #b91c1c;
   --field-background: #ffffff;
+  --control-target: 2.75rem;
+  --radius-panel: 0.75rem;
+  --font-cjk: "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
   --cds-surface-overlay: rgba(250, 250, 249, 0.94);
 }
 
@@ -34,17 +37,64 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-geist-sans), var(--font-cjk);
   --font-mono: var(--font-geist-mono);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), var(--font-cjk);
   overflow-wrap: anywhere;
   text-rendering: optimizeLegibility;
   -webkit-text-size-adjust: 100%;
+}
+
+.merchant-module-link[aria-current="page"] {
+  width: auto;
+  gap: 0.5rem;
+  padding-inline: 0.75rem;
+  background: var(--color-teal-50);
+  color: var(--color-teal-900);
+  box-shadow: inset 0 -3px var(--focus-ring);
+}
+
+.merchant-module-link[aria-current="page"] > span {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  clip-path: none;
+  white-space: normal;
+  font-weight: 600;
+}
+
+/* Large text includes the working data, not just toolbar icons. */
+:root[data-interface-mode="senior"] {
+  font-size: 112.5%;
+}
+
+:root[data-interface-mode="senior"] :where(
+  [data-testid="staff-order-list-pane"],
+  [data-testid="staff-order-items-pane"],
+  [data-testid="staff-order-actions-pane"],
+  [data-testid="staff-order-mobile-list"],
+  [data-testid="catalog-management-row"],
+  [data-testid="qr-checkout-panel"]
+) :where(p, span, label, button, input, textarea, select) {
+  font-size: max(1rem, 1em);
+  line-height: 1.65;
+}
+
+:root[data-interface-mode="senior"] :where(
+  [data-testid="staff-order-master-detail"],
+  [data-testid="staff-order-mobile-list"],
+  [data-testid="catalog-management-row"],
+  [data-testid="qr-checkout-panel"]
+) :where(button, input:not([type="checkbox"]):not([type="radio"]), select) {
+  min-height: 3rem;
 }
 
 @media (max-width: 1023px) {
@@ -65,8 +115,6 @@ body {
   }
 
   :root[data-interface-mode="senior"] :where(
-    [data-testid="merchant-function-navigation-mobile"],
-    [data-testid="staff-function-grid"],
     [data-testid="kitchen-primary-navigation"]
   ) :where(a, button, [role="button"], span[title])[title] {
     display: inline-flex !important;
@@ -83,8 +131,6 @@ body {
   }
 
   :root[data-interface-mode="senior"] :where(
-    [data-testid="merchant-function-navigation-mobile"],
-    [data-testid="staff-function-grid"],
     [data-testid="kitchen-primary-navigation"]
   ) :where(a, button, [role="button"], span[title])[title]::after {
     content: attr(title);
@@ -99,15 +145,12 @@ body {
   }
 
   :root[data-interface-mode="senior"] :where(
-    [data-testid="merchant-function-navigation-mobile"],
-    [data-testid="staff-function-grid"],
     [data-testid="kitchen-primary-navigation"]
   ) svg {
     width: 1.75rem !important;
     height: 1.75rem !important;
   }
 
-  :root[data-interface-mode="senior"] [data-testid="staff-function-grid"],
   :root[data-interface-mode="senior"] [data-testid="kitchen-primary-navigation"] {
     min-height: 6rem;
     padding-block: 0.5rem;
@@ -363,6 +406,18 @@ body {
   background-color: #4c0519 !important;
 }
 
+/* Pressed queue filters need paired foreground/background in both themes. */
+:root[data-theme="dark"] [data-testid="staff-queue-filters"] button[aria-pressed="true"] {
+  background-color: #134e4a !important;
+  color: #ccfbf1;
+  border-color: #5eead4;
+}
+
+:root[data-theme="dark"] .merchant-module-link[aria-current="page"] {
+  background-color: #042f2e !important;
+  color: #5eead4;
+}
+
 :root[data-theme="dark"] .theme-switch-to-dark {
   display: none;
 }
@@ -410,39 +465,25 @@ input[type="radio"] {
   accent-color: var(--focus-ring);
 }
 
-/* Settings retain their switch presentation; ordering selections are scoped below. */
+/* Selection fields use native checks; enable/disable actions use labelled buttons. */
 input[type="checkbox"] {
-  --toggle-track: #78716c;
-  --toggle-thumb: #ffffff;
-  --toggle-position: 0.875rem;
-  -webkit-appearance: none;
-  appearance: none;
+  -webkit-appearance: auto;
+  appearance: auto;
   box-sizing: border-box;
-  width: 3.5rem;
-  min-width: 3.5rem;
-  height: 2.75rem;
-  min-height: 2.75rem;
+  width: 1.25rem;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  min-height: 1.25rem;
   flex-shrink: 0;
-  border: 0.5rem solid transparent;
-  border-inline-width: 0.125rem;
-  border-radius: 999px;
+  border: 0;
+  border-radius: 0;
   padding: 0;
-  background: radial-gradient(circle at var(--toggle-position) center, var(--toggle-thumb) 0.625rem, transparent calc(0.625rem + 1px)) var(--toggle-track);
-  background-origin: padding-box;
-  background-clip: padding-box;
+  background: none;
+  accent-color: var(--focus-ring);
   cursor: pointer;
   touch-action: manipulation;
   vertical-align: middle;
-}
-
-input[type="checkbox"]:checked {
-  --toggle-track: #0f766e;
-  --toggle-position: calc(100% - 0.875rem);
-}
-
-input[type="checkbox"]:indeterminate {
-  --toggle-track: #0f766e;
-  --toggle-position: 50%;
+  forced-color-adjust: auto;
 }
 
 input[type="checkbox"]:disabled {
@@ -460,31 +501,56 @@ label:has(> input[type="checkbox"]) {
   min-height: 2.75rem;
 }
 
-:root[data-theme="dark"] input[type="checkbox"]:checked,
-:root[data-theme="dark"] input[type="checkbox"]:indeterminate {
-  --toggle-track: #2dd4bf;
-  --toggle-thumb: #134e4a;
-}
-
 :root[data-interface-mode="senior"] input[type="checkbox"] {
-  width: 4rem;
-  min-width: 4rem;
-  min-height: 3.5rem;
-  border-block-width: 0.75rem;
+  width: 1.5rem;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  min-height: 1.5rem;
 }
 
-@media (forced-colors: active) {
-  input[type="checkbox"] {
-    forced-color-adjust: none;
-    --toggle-track: ButtonText !important;
-    --toggle-thumb: ButtonFace !important;
-  }
+:root[data-interface-mode="senior"] label:has(> input[type="checkbox"]) {
+  min-height: 3.5rem;
+}
 
-  :root input[type="checkbox"]:checked,
-  :root input[type="checkbox"]:indeterminate {
-    --toggle-track: Highlight !important;
-    --toggle-thumb: HighlightText !important;
-  }
+.selection-chip {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--color-stone-300);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+}
+
+.selection-chip:has(input:checked) {
+  border-color: var(--focus-ring);
+  background: color-mix(in srgb, var(--focus-ring) 12%, transparent);
+}
+
+.selection-chip:focus-within {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.setting-state-button {
+  min-height: 2.75rem;
+  flex-shrink: 0;
+  border: 1px solid var(--color-stone-300);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.setting-state-button[aria-checked="true"] {
+  border-color: var(--focus-ring);
+  background: color-mix(in srgb, var(--focus-ring) 12%, transparent);
+}
+
+.setting-state-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 /* Compact native checkboxes keep the whole label as their touch target. */
@@ -618,5 +684,94 @@ textarea.form-input {
     background-color: transparent !important;
     color: #1c1917 !important;
     box-shadow: none !important;
+  }
+}
+
+/* Shared workspace navigation: keep daily actions visible and settings searchable. */
+.workspace-function-link {
+  display: inline-flex; align-items: center; gap: .5rem;
+  min-height: var(--control-target); padding: .5rem .75rem;
+  border-radius: .5rem; font-size: .875rem; font-weight: 600;
+  color: var(--foreground); flex-shrink: 0;
+}
+.workspace-function-link[aria-current="page"] {
+  background: var(--color-teal-50); color: var(--color-teal-900);
+  box-shadow: inset 3px 0 var(--focus-ring);
+}
+@media (hover: hover) {
+  .workspace-function-link:hover { background: var(--color-stone-100); }
+}
+.workspace-sidebar .workspace-function-link { white-space: normal; }
+.workspace-responsive-navigation .workspace-function-link {
+  min-width: var(--control-target); justify-content: center; padding: .5rem;
+}
+.workspace-responsive-navigation .workspace-function-link > span { display: none; }
+:root[data-interface-mode="senior"] .workspace-responsive-navigation .workspace-function-link {
+  min-width: 3rem; min-height: 3rem;
+}
+:root[data-interface-mode="senior"] .workspace-responsive-navigation svg { width: 1.5rem; height: 1.5rem; }
+@media (min-width: 768px) {
+  .workspace-responsive-navigation .workspace-all-functions { display: none; }
+  .workspace-responsive-navigation > div { flex-wrap: wrap; }
+}
+@media (max-width: 767px) {
+  .workspace-responsive-navigation .workspace-toolbar-function[data-primary="false"] { display: none; }
+}
+@media (forced-colors: active) {
+  .workspace-function-link[aria-current="page"] { outline: 2px solid Highlight; }
+}
+
+/* Semantic tokens shared by native controls and workflow components. */
+:root {
+  --ui-brand: var(--color-teal-800);
+  --ui-surface: var(--field-background);
+  --ui-text: var(--foreground);
+  --ui-muted: var(--color-stone-600);
+  --ui-border: var(--field-border);
+  --ui-info: var(--color-sky-800);
+  --ui-success: var(--color-teal-800);
+  --ui-warning: var(--color-amber-900);
+  --ui-danger: var(--field-border-invalid);
+  --ui-space-1: .25rem; --ui-space-2: .5rem; --ui-space-3: .75rem; --ui-space-4: 1rem;
+  --ui-radius-control: .5rem; --ui-radius-panel: .75rem;
+  --ui-shadow-panel: 0 1px 3px rgb(0 0 0 / .08);
+  --ui-layer-nav: 30; --ui-layer-dialog: 76;
+  --ui-motion-fast: 120ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace-function-link { transition: none; }
+}
+
+/* Desktop/tablet retain the full icon row; phones expand secondary tools on demand. */
+@media (max-width: 767px) {
+  [data-compact-tools="true"] [data-extra-tool="true"],
+  [data-compact-tools="true"] [data-testid="staff-function-identity-group"],
+  [data-compact-tools="true"] [data-testid="staff-function-status-group"],
+  [data-compact-tools="true"] [data-testid="staff-function-offline"],
+  [data-compact-tools="true"] [data-testid="staff-function-logout"],
+  [data-compact-tools="true"] [data-secondary-tool="true"] { display: none; }
+}
+
+:root[data-interface-mode="senior"] :is([data-testid="staff-function-grid"], [data-testid="staff-common-controls"])
+:where(a, button, label, span[title]) {
+  min-height: 3.5rem;
+  min-width: 3.5rem;
+}
+
+/* Large touch targets need their own scrollable row below the phone identity. */
+@media (max-width: 767px) {
+  :root[data-interface-mode="senior"] [data-testid="staff-toolbar-identity"] {
+    padding-right: 0;
+    padding-bottom: 4.5rem;
+  }
+  :root[data-interface-mode="senior"] [data-testid="staff-common-controls"] {
+    top: 3.5rem;
+    left: 1rem;
+    right: 1rem;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+  :root[data-interface-mode="senior"] [data-testid="staff-common-controls"] > * {
+    flex-shrink: 0;
   }
 }

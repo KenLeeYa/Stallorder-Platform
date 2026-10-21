@@ -15,7 +15,7 @@ update public.stall_ordering_settings set dine_in_enabled = true,
 where stall_id = '22222222-2222-4222-8222-222222222222';
 delete from public.stall_lottery_campaigns
 where stall_id = '22222222-2222-4222-8222-222222222222';
-update public.stall_business_hours set opens_at = '00:00', closes_at = '23:59', is_closed = false
+update public.stall_business_hours set opens_at = '00:00', closes_at = '00:00', last_order_at = null, is_closed = false
 where stall_id = '22222222-2222-4222-8222-222222222222';
 update public.stall_capacity_settings set pause_source = 'NONE', auto_pause_enabled = false
 where stall_id = '22222222-2222-4222-8222-222222222222';

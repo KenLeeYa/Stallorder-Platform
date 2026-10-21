@@ -1,0 +1,390 @@
+{
+  "fullSettings": {
+    "stallId": "22222222-2222-4222-8222-222222222222",
+    "organizationId": "11111111-1111-4111-8111-111111111111",
+    "orderSessionTtlSeconds": 600,
+    "unconfirmedOrderTimeoutSeconds": 600,
+    "maxItemQuantity": 20,
+    "maxUniqueProducts": 20,
+    "maxTotalQuantity": 40,
+    "maxNoteLength": 200,
+    "maxPendingOrdersPerDevice": 3,
+    "maxOrdersPerWindow": 5,
+    "orderWindowSeconds": 300,
+    "maxSessionsPerIpWindow": 20,
+    "maxSessionsPerDeviceWindow": 10,
+    "maxSessionsPerQrWindow": 100,
+    "maxSessionsPerStallWindow": 500,
+    "maxBehaviorFrequency": 4,
+    "dineInEnabled": true,
+    "deliveryModuleEnabled": true,
+    "deliveryCustomerNotice": "",
+    "staffDeliveryEnabled": true,
+    "printModuleEnabled": false,
+    "kdsModuleEnabled": true,
+    "paymentModuleEnabled": true,
+    "discountModuleEnabled": true,
+    "discountApprovalThresholdBps": 8000,
+    "takeoutPreorderEnabled": true,
+    "checkoutUpsellEnabled": false,
+    "checkoutUpsellProductIds": [],
+    "preorderMinLeadMinutes": 5,
+    "preorderMaxDays": 7,
+    "preorderSlotMinutes": 5,
+    "preorderReminderMinutes": 30,
+    "orderAlertSoundPreset": "URGENT",
+    "orderAlertSoundObjectPath": null,
+    "orderAlertVolume": 100,
+    "orderAlertRepeatCount": 2,
+    "managerAuthorizationCodeHash": "MISSING",
+    "managerAuthorizationCodeUpdatedAt": null,
+    "lotteryEnabled": true,
+    "lotteryCampaignName": "抽抽樂",
+    "lotteryProductIds": [],
+    "lotteryDiscountOptionId": null,
+    "lotteryDiscountWinRateBps": 0,
+    "lotterySpendRewardEnabled": false,
+    "lotterySpendThresholdAmount": 666,
+    "lotteryFestivalRewardEnabled": false,
+    "lotteryFestivalStartsOn": null,
+    "lotteryFestivalEndsOn": null,
+    "lotteryBirthdayRewardEnabled": false,
+    "estimatedWaitMinutes": 15,
+    "businessDayCutoffHour": 0,
+    "enabledLocales": [
+      "zh-TW",
+      "en",
+      "ja",
+      "ko",
+      "vi",
+      "th"
+    ],
+    "kdsWarningMinutes": 5,
+    "kdsCriticalMinutes": 10,
+    "kdsDefaultView": "ORDER",
+    "createdAt": "2026-09-30T00:13:26.719Z",
+    "updatedAt": "2026-09-30T12:03:42.520Z"
+  },
+  "flagDefaults": [
+    {
+      "code": "AUTH_PASSKEYS_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "CRM_LOYALTY_CONSENT_FOUNDATION_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "DELIVERY_EXTERNAL_ORDER_IMPORT_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "DELIVERY_MENU_SYNC_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "DELIVERY_MOCK_PROVIDER_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "DELIVERY_PLATFORM_FOUNDATION_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "DELIVERY_PLATFORM_UI_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "DELIVERY_PROVIDER_ACTIONS_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "DIGITAL_WAITLIST_FOUNDATION_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "DR_FAILOVER_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "DR_READ_ROUTING_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "DUAL_ORDER_INTAKE_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "DYNAMIC_ORDERING_QR_FOUNDATION_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "EMERGENCY_QR_DEGRADED_MODE",
+      "defaultEnabled": false
+    },
+    {
+      "code": "FOODPANDA_CATALOG_READ_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "FOODPANDA_CATALOG_WRITE_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "FOODPANDA_INTEGRATION_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "FOODPANDA_ORDERS_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "FOODPANDA_OUTLET_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "FOODPANDA_PARTNER_API_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "FOODPANDA_PRODUCT_CREATE_BETA_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "FOODPANDA_WEBHOOK_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "JKOPAY_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "LINE_PAY_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "LOCAL_EDGE_GATEWAY_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "MODULE_ADVANCED_ANALYTICS_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "MODULE_CORE_OPS_ENABLED",
+      "defaultEnabled": true
+    },
+    {
+      "code": "MODULE_EVENT_GROWTH_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "MODULE_GROWTH_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "MODULE_HQ_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "MODULE_OMNI_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "MODULE_PUBLIC_API_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "MODULE_SUPPLY_LITE_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "OAUTH_APPLE_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "OAUTH_GOOGLE_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "OAUTH_IDENTITY_FOUNDATION_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "OAUTH_IDENTITY_LINKING_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "OAUTH_LINE_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "OAUTH_MICROSOFT_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "OAUTH_MOCK_PROVIDER_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "OAUTH_ONLY_LOGIN_UI_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "OFFLINE_MANUAL_PAYMENT_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "OFFLINE_POS_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "OFFLINE_SINGLE_DEVICE_ONLY",
+      "defaultEnabled": true
+    },
+    {
+      "code": "ONLINE_ORDER_PAYMENT_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "PAYMENTS_ADMIN_UI_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "PAYMENTS_EASY_WALLET_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "PAYMENTS_FOUNDATION_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "PAYMENTS_GAMA_PAY_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "PAYMENTS_GATEWAY_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "PAYMENTS_ICASH_PAY_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "PAYMENTS_IPASS_MONEY_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "PAYMENTS_JKO_PAY_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "PAYMENTS_LINE_PAY_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "PAYMENTS_MOCK_PROVIDER_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "PAYMENTS_OPAY_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "PAYMENTS_PLUS_PAY_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "PAYMENTS_PX_PAY_PLUS_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "PAYMENTS_RECONCILIATION_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "PAYMENTS_REFUNDS_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "PAYMENTS_TAIWAN_PAY_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "PAYMENTS_TWQR_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "QR_DEGRADED_MENU_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "RESERVATION_PREORDER_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "ROLLING_RELEASE_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "UBER_EATS_API_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "UBER_EATS_FULFILLMENT_ISSUES_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "UBER_EATS_HOLIDAY_HOURS_WRITE_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "UBER_EATS_INTEGRATION_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "UBER_EATS_MENU_FULL_WRITE_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "UBER_EATS_MENU_ITEM_WRITE_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "UBER_EATS_MENU_READ_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "UBER_EATS_OAUTH_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "UBER_EATS_ORDER_READY_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "UBER_EATS_ORDER_READY_TIME_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "UBER_EATS_ORDERS_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "UBER_EATS_REPORTS_READ_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "UBER_EATS_STORE_ACTIVATION_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "UBER_EATS_STORE_READ_ENABLED",
+      "defaultEnabled": false
+    },
+    {
+      "code": "UBER_EATS_STORE_STATUS_WRITE_ENABLED",
+      "defaultEnabled": false
+    }
+  ]
+}

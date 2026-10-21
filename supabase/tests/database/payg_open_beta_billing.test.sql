@@ -306,6 +306,7 @@ select lives_ok(
 select is((
   select count(*)::integer from public.billing_stall_usage_summaries
   where organization_id = '11111111-1111-4111-8111-111111111111' and billing_period = '2026-07-01'
+    and stall_id in ('22222222-2222-4222-8222-222222222222','ca000000-0000-4000-8000-000000000001')
 ), 2, 'idempotent rebuild keeps one row per stall and period');
 select is((
   select sum(final_charge)::integer from public.billing_stall_usage_summaries
@@ -337,6 +338,7 @@ select is((
   select count(*)::integer from public.billing_stall_usage_summaries
   where organization_id = '11111111-1111-4111-8111-111111111111'
     and billing_period = '2026-07-01'
+    and stall_id in ('22222222-2222-4222-8222-222222222222','ca000000-0000-4000-8000-000000000001')
 ), 2, 'organization owner can read own PAYG financial summaries');
 select set_config('request.jwt.claim.sub', 'eb000000-0000-4000-8000-000000000002', true);
 select is((
@@ -349,6 +351,7 @@ select is((
   select count(*)::integer from public.billing_stall_usage_summaries
   where organization_id = '11111111-1111-4111-8111-111111111111'
     and billing_period = '2026-07-01'
+    and stall_id in ('22222222-2222-4222-8222-222222222222','ca000000-0000-4000-8000-000000000001')
 ), 2, 'finance viewer can read own PAYG financial summaries');
 select set_config('request.jwt.claim.sub', 'eb000000-0000-4000-8000-000000000004', true);
 select is((

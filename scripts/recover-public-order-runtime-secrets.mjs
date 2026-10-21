@@ -1,6 +1,6 @@
 import { createHash, createPublicKey, randomBytes, randomUUID, generateKeyPairSync, privateDecrypt, constants, createDecipheriv } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, open, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { exportVariable, setSecret } from "@actions/core";
@@ -55,6 +55,10 @@ try {
 }
 
 async function recover(projectRef, recipientPublicKey, digests) {
+  await mkdir("artifacts", { recursive: true });
+  const artifact = await open("artifacts/public-order-secret-envelope.json", "wx", 0o600);
+  let primaryError;
+  try {
   const recoveryId = randomUUID();
   const functionName = `recover-public-order-${randomBytes(8).toString("hex")}`;
   const functions = await management(`/v1/projects/${projectRef}/functions`);
@@ -74,24 +78,61 @@ async function recover(projectRef, recipientPublicKey, digests) {
   await writeFile(join(sourceDirectory, "index.ts"), `// @ts-nocheck\n${createPublicOrderSecretRecoveryHandler.toString()}\nDeno.serve(createPublicOrderSecretRecoveryHandler(${JSON.stringify(config)}, { getEnv: (name) => Deno.env.get(name) }));\n`);
   const cli = resolve("node_modules/supabase/dist/supabase.js");
   let envelope;
-  try {
+   try {
     runNode(cli, ["functions", "deploy", functionName, "--project-ref", projectRef, "--workdir", directory, "--use-api"], 150_000);
     const response = await fetch(`https://${projectRef}.supabase.co/functions/v1/${functionName}`, {
-      method: "POST", headers: { authorization: `Bearer ${serviceKey}`, "x-recovery-nonce": nonce }, signal: AbortSignal.timeout(30_000),
+      method: "POST", redirect: "error", headers: { authorization: `Bearer ${serviceKey}`, "x-recovery-nonce": nonce }, signal: AbortSignal.timeout(30_000),
     });
     if (!response.ok) throw new Error(`RECOVERY_INVOKE_FAILED_HTTP_${response.status}`);
-    envelope = await response.json();
-    if (envelope.projectRef !== projectRef || envelope.recoveryId !== recoveryId || envelope.schemaVersion !== 1) throw new Error("RECOVERY_RESPONSE_INVALID");
+    envelope = validateEnvelope(await response.json(), projectRef, recoveryId);
+   } catch (error) {
+    primaryError = error;
   } finally {
+    try {
     // Delete only this random function, including after an uncertain deploy response.
     runNode(cli, ["functions", "delete", functionName, "--project-ref", projectRef, "--yes"], 60_000);
     const remaining = await management(`/v1/projects/${projectRef}/functions`);
     if (remaining.some((fn) => (fn.slug ?? fn.name) === functionName)) throw new Error("RECOVERY_FUNCTION_CLEANUP_FAILED");
     console.log(JSON.stringify({ event: "public_order_recovery_function_deleted", projectRef, functionName, functionDeleted: true }));
+    } catch (error) {
+      console.error(JSON.stringify({ event: "public_order_recovery_cleanup_failed", projectRef, functionName,
+        reason: "RECOVERY_FUNCTION_CLEANUP_FAILED" }));
+      if (!primaryError) primaryError = error;
+      else primaryError.cleanupFailed = true;
+    }
   }
-  await mkdir("artifacts", { recursive: true });
-  await writeFile("artifacts/public-order-secret-envelope.json", JSON.stringify({ ...envelope, functionName, functionDeleted: true, digests, recoveredAt: new Date().toISOString() }, null, 2));
+  if (primaryError) throw primaryError;
+  await artifact.writeFile(JSON.stringify({ schemaVersion: envelope.schemaVersion, projectRef: envelope.projectRef,
+    recoveryId: envelope.recoveryId, iv: envelope.iv, wrappedKey: envelope.wrappedKey, ciphertext: envelope.ciphertext,
+    functionName, functionDeleted: true, digests, recoveredAt: new Date().toISOString() }, null, 2));
   console.log(JSON.stringify({ event: "encrypted_public_order_recovery_complete", projectRef, functionName, functionDeleted: true }));
+  } catch (error) {
+    primaryError = error;
+    throw error;
+  } finally {
+    try { await artifact.close(); }
+    catch (error) {
+      console.error(JSON.stringify({ event: "public_order_recovery_artifact_close_failed", reason: "RECOVERY_ARTIFACT_CLOSE_FAILED" }));
+      if (!primaryError) throw error;
+    }
+  }
+}
+
+function validateEnvelope(value, projectRef, recoveryId) {
+  const fields = ["schemaVersion", "projectRef", "recoveryId", "iv", "ciphertext", "wrappedKey"];
+  if (!value || typeof value !== "object" || Array.isArray(value)
+    || Object.keys(value).sort().join(",") !== fields.sort().join(",")
+    || value.schemaVersion !== 1 || value.projectRef !== projectRef || value.recoveryId !== recoveryId) {
+    throw new Error("RECOVERY_RESPONSE_INVALID");
+  }
+  for (const [name, minimum, maximum] of [["iv", 12, 12], ["wrappedKey", 512, 512], ["ciphertext", 17, 65_536]]) {
+    const encoded = value[name];
+    if (typeof encoded !== "string" || encoded.length > Math.ceil(maximum / 3) * 4
+      || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded)) throw new Error("RECOVERY_RESPONSE_INVALID");
+    const bytes = Buffer.from(encoded, "base64");
+    if (bytes.length < minimum || bytes.length > maximum || bytes.toString("base64") !== encoded) throw new Error("RECOVERY_RESPONSE_INVALID");
+  }
+  return value;
 }
 
 async function expectedDigests(projectRef) {
@@ -103,7 +144,7 @@ async function expectedDigests(projectRef) {
   }));
 }
 async function management(path) {
-  const response = await fetch(`https://api.supabase.com${path}`, { headers: { authorization: `Bearer ${required("SUPABASE_ACCESS_TOKEN")}` }, signal: AbortSignal.timeout(30_000) });
+  const response = await fetch(`https://api.supabase.com${path}`, { redirect: "error", headers: { authorization: `Bearer ${required("SUPABASE_ACCESS_TOKEN")}` }, signal: AbortSignal.timeout(30_000) });
   if (!response.ok) throw new Error("RECOVERY_MANAGEMENT_READ_FAILED");
   return response.json();
 }

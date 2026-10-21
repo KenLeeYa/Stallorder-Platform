@@ -1,8 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  resolveStorefront: vi.fn(),
+  resolveStorefront: vi.fn(), runtime:vi.fn(), principal:vi.fn(), pilots:vi.fn(), member:vi.fn(),
   getDisplayMenu: vi.fn(),
   getLiveDisplayMenu: vi.fn(),
   getOrderMenu: vi.fn(),
@@ -11,6 +11,10 @@ const mocks = vi.hoisted(() => ({
   redirect: vi.fn(),
 }));
 
+vi.mock("@/server/line-platform/runtime",()=>({getLinePlatformRuntime:mocks.runtime}));
+vi.mock("@/lib/auth",()=>({getPagePrincipal:mocks.principal}));
+vi.mock("@/lib/prisma",()=>({prisma:{$queryRaw:mocks.pilots}}));
+vi.mock("@/server/line-platform/member-service",()=>({getPlatformMember:mocks.member}));
 vi.mock("@/components/qr-order-flow", () => ({
   QrOrderFlow: (props: {
     qrToken: string;
@@ -80,8 +84,10 @@ function resolution(overrides: Record<string, unknown> = {}) {
 }
 
 describe("public storefront page", () => {
+  afterEach(()=>{vi.unstubAllEnvs();});
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv("LINE_PLATFORM_ENABLED","false");mocks.runtime.mockReturnValue({environment:"local",termsVersion:"current"});mocks.principal.mockResolvedValue(null);mocks.pilots.mockResolvedValue([{stall_id:"stall-1"}]);mocks.member.mockResolvedValue({profile_id:"member-a",terms_version:"current"});
     mocks.getRequestLocale.mockResolvedValue({ locale: "zh-TW", hasLocaleCookie: false });
     mocks.resolveStorefront.mockResolvedValue(resolution());
     mocks.getDisplayMenu.mockResolvedValue({
@@ -265,4 +271,23 @@ describe("public storefront page", () => {
     expect(menuMetadata.robots).toBeUndefined();
     expect(pickupMetadata.robots).toEqual({ index: false, follow: false });
   });
+  it.each(['pickup','delivery'])('redirects a current pilot member to the same canonical MINI %s before restoring a public draft',async view=>{
+    vi.stubEnv('LINE_PLATFORM_ENABLED','true');mocks.principal.mockResolvedValue({user:{id:'member-a'}});mocks.redirect.mockImplementationOnce(()=>{throw new Error('REDIRECT');});
+    await expect(PublicStorefrontPage({params:Promise.resolve({identifier:'viet-food-yc'}),searchParams:Promise.resolve({view,locale:'vi',next:'https://evil.test'})})).rejects.toThrow('REDIRECT');
+    expect(mocks.redirect).toHaveBeenCalledWith(`/mini/store/viet-food-yc?locale=vi&view=${view}`);
+  });
+  it.each(['anonymous','menu','nonpilot','invalid','disabled'])('keeps the original public storefront for %s',async mode=>{
+    vi.stubEnv('LINE_PLATFORM_ENABLED',mode==='disabled'?'false':'true');mocks.principal.mockResolvedValue(mode==='anonymous'?null:{user:{id:'member-a'}});
+    if(mode==='nonpilot')mocks.pilots.mockResolvedValue([]);
+    if(mode==='invalid')mocks.runtime.mockImplementationOnce(()=>{throw new Error('CONFIG_INVALID');});
+    const html=renderToStaticMarkup(await PublicStorefrontPage({params:Promise.resolve({identifier:'viet-food-yc'}),searchParams:Promise.resolve({view:mode==='menu'?'menu':'pickup'})}));
+    expect(mocks.redirect).not.toHaveBeenCalled();expect(html).toContain(mode==='menu'?'mock-public-menu':'mock-qr-order-flow');
+  });
+
+  it('routes a pilot member with old terms to the existing MINI acceptance gate',async()=>{
+    vi.stubEnv('LINE_PLATFORM_ENABLED','true');mocks.principal.mockResolvedValue({user:{id:'member-a'}});mocks.member.mockResolvedValue({profile_id:'member-a',terms_version:'old'});mocks.redirect.mockImplementationOnce(()=>{throw new Error('REDIRECT');});
+    await expect(PublicStorefrontPage({params:Promise.resolve({identifier:'viet-food-yc'}),searchParams:Promise.resolve({view:'pickup'})})).rejects.toThrow('REDIRECT');
+    expect(mocks.redirect).toHaveBeenCalledWith('/mini/store/viet-food-yc?view=pickup');
+  });
+
 });

@@ -1,0 +1,93 @@
+{
+  "build": {
+    "head": "e7449e842ffb73804f72d7859944cb4a2aa3e801",
+    "tree": "dfbd80027731570329298bc4d7a6d9d01703ecca",
+    "productSourceClean": true,
+    "worktreeDirty": true,
+    "workingTreePatchSha256": "50f69651c2cc365cd8fd7a00e3d2bd1c6567192f9ba237e52b95d98417a0785a",
+    "buildId": "2-HhrI6laJm9WPEbjMD3V",
+    "builtAt": "2026-09-30T01:27:53.774Z",
+    "runtimeWorktreeDirty": true,
+    "runtimeWorkingTreePatchSha256": "50f69651c2cc365cd8fd7a00e3d2bd1c6567192f9ba237e52b95d98417a0785a"
+  },
+  "startedAt": "2026-09-30T01:28:13.702Z",
+  "finishedAt": "2026-09-30T01:28:34.898Z",
+  "runId": "0e96ebe6-cb37-4263-b45f-bcfbaa5cfbfc",
+  "edgeSessionStatuses": [
+    201
+  ],
+  "edgeOrderStatus": 201,
+  "orderId": "5a39009c-0bcf-458b-913f-ae60214fb337",
+  "orderNo": "260930-011",
+  "total": 130,
+  "quantity": 2,
+  "observed": [
+    {
+      "step": "customer checkout",
+      "status": "WAITING_CONFIRMATION",
+      "at": "2026-09-30T01:28:16.729Z"
+    },
+    {
+      "step": "staff confirmed",
+      "status": "CONFIRMED",
+      "at": "2026-09-30T01:28:28.384Z"
+    },
+    {
+      "step": "KDS started",
+      "status": "PREPARING",
+      "at": "2026-09-30T01:28:29.695Z"
+    },
+    {
+      "step": "KDS ready",
+      "status": "READY",
+      "at": "2026-09-30T01:28:29.962Z"
+    },
+    {
+      "step": "desktop staff handoff",
+      "status": "COMPLETED",
+      "at": "2026-09-30T01:28:34.002Z"
+    }
+  ],
+  "events": [
+    {
+      "type": "PUBLIC_ORDER_CREATED",
+      "at": "2026-09-30T01:28:16.547Z"
+    },
+    {
+      "type": "PRODUCTION_TASK_CREATED",
+      "at": "2026-09-30T01:28:28.316Z"
+    },
+    {
+      "type": "STAFF_STATUS_CHANGED",
+      "at": "2026-09-30T01:28:28.349Z"
+    },
+    {
+      "type": "PRODUCTION_TASK_UPDATED",
+      "at": "2026-09-30T01:28:29.602Z"
+    },
+    {
+      "type": "PRODUCTION_TASK_UPDATED",
+      "at": "2026-09-30T01:28:29.672Z"
+    },
+    {
+      "type": "PRODUCTION_TASK_UPDATED",
+      "at": "2026-09-30T01:28:29.873Z"
+    },
+    {
+      "type": "PRODUCTION_TASK_UPDATED",
+      "at": "2026-09-30T01:28:29.943Z"
+    },
+    {
+      "type": "QR_PAYMENT_COMPLETED_PENDING_FULFILLMENT",
+      "at": "2026-09-30T01:28:33.746Z"
+    },
+    {
+      "type": "PICKUP_CODE_VERIFIED",
+      "at": "2026-09-30T01:28:33.874Z"
+    },
+    {
+      "type": "ORDER_COMPLETED_AFTER_PREPAYMENT",
+      "at": "2026-09-30T01:28:33.961Z"
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+QR/cold: 10/30
+QR/cold genuine rate window: waiting 301s
+QR/cold: 20/30
+QR/cold: 30/30
+QR/warm genuine rate window: waiting 301s
+QR/warm: 10/30
+QR/warm genuine rate window: waiting 301s
+QR/warm: 20/30
+QR/warm genuine rate window: waiting 301s
+QR/warm: 30/30
+Staff/cold: 10/30
+Staff/cold: 20/30
+Staff/cold: 30/30
+Staff/warm: 10/30
+Staff/warm genuine rate window: waiting 197s
+Staff/warm: 20/30
+Staff/warm: 30/30
+KDS/cold: 10/30
+KDS/cold genuine rate window: waiting 61s
+KDS/cold: 10/30
+KDS/cold genuine rate window: waiting 61s
+KDS/cold: 20/30
+KDS/cold genuine rate window: waiting 61s
+KDS/cold: 30/30
+KDS/warm genuine rate window: waiting 61s
+KDS/warm: 10/30
+KDS/warm: 20/30
+KDS/warm genuine rate window: waiting 61s
+KDS/warm: 20/30
+KDS/warm: 30/30
+Report/cold: 10/30
+Report/cold: 20/30
+Report/cold: 30/30
+Report/warm: 10/30
+Report/warm: 20/30
+Report/warm: 30/30

@@ -2,6 +2,10 @@
 
 This is a fail-closed sequence. A green earlier run cannot substitute for evidence on the exact released revision.
 
+For ordering fixture restoration, preserve the saved row version and five-flag compare-and-set. Catalog edits also advance that shared settings row's Prisma `updatedAt`, even with unchanged upsell values, so start the ordering snapshot after catalog cases and before POS; persist its POS descriptor for later hours/preorder processes. A zero-row restore does not by itself prove external concurrency. See `docs/releases/PR366_ORDERING_FIXTURE_CAS_20261021.md` for the real PostgreSQL regression and evidence limits.
+
+For PR366, follow `docs/releases/PR366_RELEASE_CONTRACT_20261019.md`. Session revocation requires a bound ordered receipt proving authorized auth/me 200 and mounted private list/detail before logout 200, auth/me 401 and denial/private-state clearing. A summary PASS alone is insufficient. The selected reuse of DR as a fixed test environment remains Proposed until inventory, backup/restore and replacement recovery coverage are verified; test evidence never substitutes for the existing DR schema Apply gate.
+
 ## Authorization boundary
 
 - A current user request to release authorizes the normal release workflow for the specified change and environments.
@@ -106,3 +110,11 @@ Release is complete only when all are reconciled:
 - no unresolved functional or responsive regression.
 
 Report every `not evaluated` area. Workflow success alone is insufficient.
+
+## Exact Web audit acceptance is deferred until evidence exists
+
+- The single GHSA-vfj7-8cjw-p6xm window ends at 2026-10-22T14:00:00Z; no sliding extension, Native waiver, new advisory or dependency/lock drift is allowed. Raw audit stays NON_PASS; no vulnerability is marked fixed.
+- Exact finding checks alone are PENDING_EXCEPTION_ACTIVATION. Only fresh exact-candidate artifact/SBOM, successful controlled lint and isolated hosted-runner evidence can activate; each new commit needs new external bindings. Plan rejects missing/stale activation. Never put a candidate's own SHA/evidence inside its tracked policy.
+- Windows unit/local evidence is preparation only. Preserve runtimeLoaderSafety NOT_PROVEN and the narrow literal-import/NFT proof scope; do not claim deployed artifact verification. See docs/releases/PR366_EXACT_AUDIT_WINDOW_20261019.md.
+
+- Clean Linux Web proof uses a fresh reusable job before required verify; failure/skips must produce failed verify, never remove the audit gate. PR evidence binds the runner event head SHA separately from its merge workflow SHA. The registered web-scope-proof route permits only the approved existing branch with external approval false and no provider environment/secrets. See docs/releases/PR366_CLEAN_LINUX_PROOF_20261020.md.

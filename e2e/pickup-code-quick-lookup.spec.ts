@@ -320,7 +320,7 @@ async function placeTakeoutOrder(
 }
 
 async function loginAsStaff(page: Page) {
-  await page.goto("/login");
+  await page.goto(`/login?next=${encodeURIComponent("/staff/aming-chicken")}`);
   await page
     .getByRole("button", { name: "使用電子郵件與密碼登入", exact: true })
     .click();

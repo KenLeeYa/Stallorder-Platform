@@ -1,0 +1,92 @@
+diff --git "a/C:\\Users\\KY\\Documents\\Codex projects\\Stallorder-Platform-security-compliance-20260913\\docs\\security-compliance\\inputs\\assessment-20260913.recovered.md" "b/C:\\Users\\KY\\Documents\\Codex projects\\Stallorder-Platform-security-compliance-20260913\\docs\\security-compliance\\inputs\\assessment-20260929.md"
+index 39fd9c3..4cb0e24 100644
+--- "a/C:\\Users\\KY\\Documents\\Codex projects\\Stallorder-Platform-security-compliance-20260913\\docs\\security-compliance\\inputs\\assessment-20260913.recovered.md"	
++++ "b/C:\\Users\\KY\\Documents\\Codex projects\\Stallorder-Platform-security-compliance-20260913\\docs\\security-compliance\\inputs\\assessment-20260929.md"	
+@@ -1,14 +1,14 @@
+ # 攤點通 Stallorder／Stellorder：安全架構與法遵補強分析
+ 
+-評估日期：2026-09-13（Asia/Taipei）  
+-範圍：點餐、商家與平台管理、Supply Lite／供應商協作、OMO、支付、列印、備援，以及後續 App。  
++原評估日期：2026-09-13；架構更新：2026-09-29（Asia/Taipei）  
++範圍：點餐、商家與平台管理、Supply Lite／OMO／供應鏈、平台 LINE 官方帳號與 MINI App、各店 LINE Pay、列印、配送、備援，以及後續 App。  
+ 用途：工程改善與法律審查準備；本文件不代表已完成程式碼稽核、滲透測試、法律意見或任何認證。
+ 
+ ## 1. 判斷與證據範圍
+ 
+ **建議沿用現有模組化單體，優先補齊資料、權限、交易與維運邊界，不必為此全面重寫或拆成微服務。** 跨商家資料外洩、管理權限濫用、支付重送及備援雙寫，應列為最高優先的查核項目。
+ 
+-本次實際取得並檢視先前的 `Stallorder_OMO_Full_Architecture_Codex_Prompt.md`。其中記載曾對 `KenLeeYa/Stallorder-Platform` 選定檔案做有限讀取，技術基線包含 Next.js／TypeScript、Supabase／PostgreSQL、Prisma，並以 Organization／Stall 區分租戶與門市。該文件不是本次對最新 repository 的直接讀取，不能推定全部目標已實作或發布。
++本次比對原評估依據的 `Stallorder_OMO_Full_Architecture_Codex_Prompt.md`，以及 2026-09-09 的 OMO／SCM v2 架構、2026-09-24 的接力流程與 2026-09-27 的平台 LINE OA v2 規格。其中記載曾對 `KenLeeYa/Stallorder-Platform` 選定檔案做有限讀取，技術基線包含 Next.js／TypeScript、Supabase／PostgreSQL、Prisma，並以 Organization／Stall 區分租戶與門市。該文件不是本次對最新 repository 的直接讀取，不能推定全部目標已實作或發布。
+ 
+ | 依據 | 可以支持的判斷 | 本次不能據此宣稱 |
+ |---|---|---|
+@@ -16,10 +16,21 @@
+ | 歷史部署與 review 脈絡 | 曾使用 Vercel、Supabase Edge、DR；有應回查的安全議題 | 歷史缺失仍存在，或部署 Ready 就表示安全驗收通過 |
+ | 本次查核的官方法規與技術文件 | 可建立法規適用判斷及工程控制基準 | 已簽署有效委外契約、已取得支付資格或已通過認證 |
+ 
+-目前沒有最新 commit、正式環境設定、商家契約、資料存放區域、掃描報告及復原演練證據，因此不給虛構的合規百分比。附帶的 Codex Prompt 會先固定版本與環境，再把每項要求分成「已驗證、部分完成、缺少、待確認、不適用」。
++這些後續文件仍屬需求與歷史線索，並非最新 repository 或部署稽核。目前沒有最新 commit、正式環境設定、商家契約、資料存放區域、掃描報告及復原演練證據，因此不給虛構的合規百分比。後續執行的 Codex 應先固定版本與環境，再把每項要求分成「已驗證、部分完成、缺少、待確認、不適用」。
+ 
+ 必須延續的業務契約：Google／LINE／Apple 登入方向、訪客點餐、既有 iPad／Star 列印、原 QR 路徑、單一交易與庫存帳本、每淨完成訂單 NT$1／每攤每月 NT$1,499 上限。此次安全補強不授權改價、開啟真實收費或新增平台保管顧客資金。
+ 
++## 1.1 2026-09-29 架構增量與實作狀態
++
++| 架構來源 | 目前目標契約 | 安全與法遵影響 | 現況證據 |
++|---|---|---|---|
++| OMO／SCM v2（09-09） | 保留點餐與 Supply Lite，擴充網店／POS、供應商、PO／SO、WMS／批次品質、TMS Lite、ePOD、配送離線、AP／AR | 每一企業、門市、供應商、承運者與買方的資料共享需明確授權；庫存、簽收、驗收、請款與付款各有權威事件 | 只取得規格；各 Phase 與 243 項驗收不能視為已通過 |
++| LINE 平台 OA v2（09-27） | 平台單一 LINE Login／MINI App／Messaging OA，多店訂單及取餐通知在同一聊天室；各店各自 LINE Pay 收款 | 平台顧客身分、店家訂單所有權、通知收件者及商家收款憑證須分離 | 只取得規格；未核對 LINE 控制台、正式資格或現行程式 |
++| Agent 接力（09-24） | 依 QR、OAuth、交易或 OMO 切片驗收，記錄來源版本及證據 | 安全審查不能以角色清單、測試名稱或歷史 review 代替本次運行證據 | 只取得工作流程；未執行本次 repository 測試 |
++| 跨系統共餐／平台入口方向 | 商家可保留既有 POS／點餐系統，未來透過授權介接聚合需求與配送 | 僅作條件式威脅模型；需另核資料共享、委託、同意與第三方 API 契約 | 方向性需求，未認定已實作或已批准支付／配送模式 |
++
++原文提及的 NT$1／每攤每月 NT$1,499 是 09-13 所依據的歷史計費契約；真正有效費率、上限與稅務政策須以現行 `PlanVersion`、契約及 repo 驗證，不在本文件調整或宣稱已啟用。
++
+ ## 2. 建議的安全邊界
+ 
+ ```mermaid
+@@ -83,6 +94,22 @@ P0＝若確認缺失即優先處理並阻擋相關高風險功能擴大發布；
+ 
+ 歷史 review 曾提到：報表 entitlement、OAuth 帳號連結、CloudPRNT 發放／輪替、QA process environment 明文輸出、僅檢查 DATABASE_URL 的測試隔離、DR seed／backfill 與部署 metadata。Codex 必須建立回查清單，比對最新 commit 後再認定狀態，不能把歷史訊息直接寫成現存漏洞。
+ 
++## 3.1 新增跨模組威脅與驗收切片
++
++| 優先 | 現行架構邊界 | 必要控制與可測試拒絕路徑 |
++|---|---|---|
++| P0 | 平台 LINE 身分與多店訂單 | 以 provider＋channel＋subject 唯一映射；Google／Apple 不因同 email 自動併入 LINE；每筆訂單固定 `platformCustomerId`、店家與收件者；換綁／合併須證明雙方所有權，舊待發任務作廢。測 A 顧客、B 店、換帳號與延遲 worker。 |
++| P0 | OA Webhook 與通知 | 平台 Messaging Secret 對未修改 raw body 驗 `x-line-signature`，再確認 destination、持久化 eventId 去重；單一 OA Token 限後端。收件資格以後端可信資料判斷，封鎖、解除綁定或額度不足時訂單仍可查；200 僅代表 API 接受，不能宣稱送達。 |
++| P0 | 取餐 QR／LINE 訂單卡 | 卡片只揭露必要資訊；詳情頁重新驗證本人；QR 是短效、可撤銷、用途與訂單綁定的能力憑證。掃描 GET 只預覽，店員確認 POST 再核對所屬店、付款／履約狀態與版本，原子核銷；重掃、轉發、跨店掃碼拒絕。 |
++| P0 | 各店 LINE Pay | 各 PaymentAttempt 鎖定商家、環境、憑證版本、精確金額與幣別；return state 防重放，但瀏覽器回跳不能證明已付款。Confirm／退款未知狀態先查詢及對帳；不得以 OA Webhook 簽章當 Pay 驗證或假設通用付款成功 Webhook。測逾時、亂序、退款並行與商家憑證切換。 |
++| P0 | 平台共用 OA 與多租戶資源 | 商家不能指定任意 `to`、sender、模板或讀平台 Token；通知 Outbox 固定事件、收件人與 payload，按平台總配額及各店節流，避免 A 店耗盡 B 店資源；受控補發不能重做 READY、核銷或計費。 |
++| P1 | 供應鏈與品質 | 買賣關係及 VMI 授權只開最低必要欄位；FEFO 不足、過期及隔離批次應拒絕出庫；收貨不自動解除隔離；批號／品質／召回與不可變 ledger 互相核對。測跨供應商、跨店、撤權與批次競態。 |
++| P1 | TMS／第三方承運與 ePOD | 委託、指派版本與 custody 逐段授權；駕駛只看該任務必需地址與聯絡方式，不得讀買賣成本或其他顧客。GPS、送達、簽收、品質驗收、入庫與付款各自成立；交接照片／簽名採私有儲存、短效授權與保存期限。 |
++| P1 | 配送離線／POS 裝置 | 裝置綁定人員與任務版本，事件 queue 加密、可撤銷、重放冪等；重派後舊裝置不得提交，附件補傳再授權；共用 iPad 登出或換店清除本機個資與可用憑證。 |
++| P1 | 第三方 POS／入口串接 | 每家合作夥伴獨立憑證、最小 scope、撤銷、頻率與成本限制；不要把來源系統訂單號當跨平台唯一身份。Webhook 驗證、事件去重及付款／履約權威分工以實際契約確立，未核准的資料不得跨商家聚合。 |
++
++**驗收記錄格式：**逐項列 repo HEAD、migration／路由、測試環境、正向與拒絕測試、PASS／FAIL／BLOCKED／NOT_RUN、外部 Sandbox 或實機證據。LINE OA、MINI App、Pay、印表機及承運服務的 Mock 結果不得冒充正式串接。安全敏感變更完成後，獨立檢查固定 diff，再核對完整交易路徑。
++
+ ## 4. 法規適用與容易忽略的義務
+ 
+ ### 4.1 個人資料保護法：適用於實際蒐集與處理個資的流程
+@@ -91,7 +118,7 @@ P0＝若確認缺失即優先處理並阻擋相關高風險功能擴大發布；
+ 
+ 實作重點：資料最小化、合法蒐集與利用、告知、權利請求、行銷拒絕與安全維護。查詢／閱覽／複製本請求原則為 15 日內准駁，必要時可延長最多 15 日並書面說明；更正、停止或刪除類請求對照第 11、13 條，原則為 30 日，必要延長最多 30 日。這是准駁期限，不能偷換成「到期限前一律不用處理」。[目前有效條文對照](https://law.moj.gov.tw/LawClass/LawOldVer.aspx?pcode=I0050021)。
+ 
+-**新舊法要分開：**2025-11-11 公布修法的部分條文，包含第 12、20-1 條及刪除第 27 條等，本次官方頁仍標示施行日期未定。因此現行安全維護不得直接改以未生效的新條文取代；系統可先預留新法的通報／管理資料欄位，生效狀態由法遵規則版本管理。[修正與生效狀態](https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=I0050021)。本次相關法規頁顯示整編資料截止至 2026-09-04；正式上線或再次使用本檔時，應交叉核對主管機關及行政院最新施行公告。
++**新舊法要分開：**2025-11-11 公布修法的部分條文，包含第 12、20-1 條及刪除第 27 條等，本次官方頁仍標示施行日期未定。因此現行安全維護不得直接改以未生效的新條文取代；系統可先預留新法的通報／管理資料欄位，生效狀態由法遵規則版本管理。[修正與生效狀態](https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=I0050021)。2026-09-29 複核全國法規資料庫仍標示上述修法施行日期未定；正式上線或再次使用本檔時，仍應核對最新施行公告。
+ 
+ ### 4.2 數位經濟產業安維辦法：本系統應優先評估納入
+ 
+@@ -165,11 +192,12 @@ B2C 下單需提供可閱讀與儲存的商家資訊、費用、履約與申訴
+ - 每季：權限複核、風險清單、還原或事件桌上演練。
+ - 至少年度：安維計畫檢討、適用的稽核與訓練、商家／受託者教育與委外評估；重大變更後加做必要檢查。
+ 
+-附帶的 Codex Prompt 要求交付：實際程式與 migration、跨租戶及交易安全測試、個資中心、稽核事件與查詢、法遵適用矩陣、保存／刪除策略、事故應變與 DR 文件、委外／商家條款草稿、外部設定清單及證據包。
++後續實作的 Codex 驗收應交付：實際程式與 migration、跨租戶及交易安全測試、個資中心、稽核事件與查詢、法遵適用矩陣、保存／刪除策略、事故應變與 DR 文件、委外／商家條款草稿、外部設定清單及證據包。
+ 
+ 正式法律責任歸屬、營業類別、契約與特殊支付模式應交台灣律師核對；稅務與帳務分類交會計確認。工程端可先完成可審查的設計、實作與草稿，再集中處理這些決策。
+ 
+ ## 7. 對應檔案
+ 
+-`Stallorder_Security_Privacy_Compliance_Codex_Prompt_20260913.md` 是獨立可讀的完整實作 Prompt。它補強現有 OMO 契約，不要求重新開發整套 OMO，也不把未取得的外部設定或法律核定標成已完成。
++`Stallorder_Security_Privacy_Compliance_Codex_Prompt_20260913.md` 是先前的獨立實作 Prompt；若再次執行，先與本版新增的 LINE OA、OMO／SCM 與外部入口控制核對，不能將 2026-09-13 的範圍當成現行完整驗收表。
+ 
++架構參照：`Stallorder_OMO_SCM_Full_Architecture_Codex_Prompt_v2.md`（2026-09-09）、`StallOrder_Agency_Agents_zh_Integrated_Relay_Prompt_20260924.md`、`QIDAIGO_LINE_PLATFORM_OA_CODEX_PROMPT_v2_20260927.md`。均為規格或工作流程文件，不能證明實際完成。

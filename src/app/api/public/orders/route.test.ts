@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  createOrderThroughCircuitB: vi.fn(),
+  createOrderThroughCircuitB: vi.fn(), principal:vi.fn(), member:vi.fn(), context:vi.fn(),
 }));
+vi.mock("@/lib/auth",()=>({getRequestPrincipal:mocks.principal}));
+vi.mock("@/server/line-platform/member-service",()=>({getPlatformMember:mocks.member}));
+vi.mock("@/server/line-platform/public-intake",()=>({resolvePublicPlatformOrderContext:mocks.context}));
 const testOrigin = "https://app.qidaigo.com";
 const operationId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
@@ -62,6 +65,7 @@ function orderRequest(body: unknown, headers: Record<string, string> = {}) {
 describe("POST /api/public/orders", () => {
   beforeEach(() => {
     vi.stubEnv("TRUSTED_APP_ORIGINS", testOrigin);
+    vi.stubEnv("LINE_PLATFORM_ENABLED","false");mocks.principal.mockReset().mockResolvedValue(null);mocks.member.mockReset().mockResolvedValue(null);mocks.context.mockReset().mockResolvedValue(null);
     vi.spyOn(console, "info").mockImplementation(() => undefined);
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
     vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -137,4 +141,26 @@ describe("POST /api/public/orders", () => {
     expect(payload.error).toBe("請選擇預約取餐時間。");
     expect(mocks.createOrderThroughCircuitB).not.toHaveBeenCalled();
   });
+  it("preserves the original committed guest success when optional platform configuration is invalid",async()=>{
+    vi.stubEnv("LINE_PLATFORM_ENABLED","true");vi.stubEnv("LINE_PLATFORM_BINDING_JSON","invalid");
+    const route=await import("./route");const response=await route.POST(orderRequest(validOrder));
+    expect(response.status).toBe(201);expect(await response.json()).toEqual({trackingToken:"sto_result"});
+    expect(response.headers.get("set-cookie")).toBeNull();expect(mocks.createOrderThroughCircuitB).toHaveBeenCalledOnce();
+  });
+  it.each(['member','anonymous','nonpilot','owner-conflict'])('handles an authenticated public B context for %s without replacing intake',async mode=>{
+    vi.stubEnv('LINE_PLATFORM_ENABLED','true');vi.stubEnv('LINE_PLATFORM_ENVIRONMENT','local');vi.stubEnv('NODE_ENV','test');vi.stubEnv('VERCEL_ENV','');
+    vi.stubEnv('LINE_PLATFORM_BINDING_JSON',JSON.stringify({environment:'local',providerId:'1234567',channelId:'1234568',liffId:'1234568-fixture',internalChannel:'developing',endpointUrl:'https://public.local.test/mini',oaDestination:`U${'a'.repeat(32)}`,oaChannelId:'1234569',oaAccessTokenReference:'11111111-1111-4111-8111-111111111111',oaSecretReference:'22222222-2222-4222-8222-222222222222',termsVersion:'test-v1'}));
+    const {getLinePlatformRuntime}=await import('@/server/line-platform/runtime');const runtime=getLinePlatformRuntime()!;
+    const principal={user:{id:'server-member'}},member={profile_id:'server-member',terms_version:'test-v1'};
+    if(mode!=='anonymous'){mocks.principal.mockResolvedValue(principal);mocks.member.mockResolvedValue(member);}
+    if(mode==='member')mocks.context.mockResolvedValue({profileId:member.profile_id,runtime});
+    if(mode==='owner-conflict'){const {PublicOrderCircuitError}=await import('@/server/public-order/circuit-b-service');mocks.context.mockRejectedValue(new PublicOrderCircuitError('LINE_PLATFORM_OWNER_CONFLICT',403));}
+    const {POST}=await import('./route');const response=await POST(orderRequest(validOrder));
+    expect(response.status).toBe(mode==='owner-conflict'?403:201);
+    expect(mocks.context).toHaveBeenCalledWith(validOrder,mode==='anonymous'?null:member,runtime);
+    if(mode==='owner-conflict')expect(mocks.createOrderThroughCircuitB).not.toHaveBeenCalled();
+    else if(mode==='member')expect(mocks.createOrderThroughCircuitB.mock.calls[0][1].platformContext).toEqual({profileId:member.profile_id,runtime});
+    else expect(mocks.createOrderThroughCircuitB.mock.calls[0][1].platformContext).toBeUndefined();
+  });
+
 });

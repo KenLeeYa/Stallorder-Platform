@@ -35,7 +35,6 @@ export default async function MerchantDeliveryIntegrationsPage({ searchParams }:
       <header className="mt-4 border-b border-stone-200 pb-5">
         <p className="text-sm font-semibold text-teal-800">{scope.workspace.businessName} · {scope.stall.name}</p>
         <h1 className="mt-1 flex items-center gap-3 text-3xl font-semibold"><Truck className="h-7 w-7 text-teal-700" />{m("外送平台整合")}</h1>
-        <p className="mt-2 text-sm text-stone-600">{m("管理外送平台申請、門市對應、商品對應與訂單匯入狀態。")}</p>
       </header>
 
       <section className="py-7">

@@ -23,12 +23,14 @@ export function StorefrontModeNav({
   availability,
   searchParams,
   locale,
+  basePath = "",
 }: {
   identifier: string;
   currentView: PublicStorefrontView;
   availability: ModeAvailability;
   searchParams: PublicStorefrontSearchParams;
   locale: AppLocale;
+  basePath?: "" | "/mini";
 }) {
   const headerRef = useRef<HTMLElement>(null);
 
@@ -72,7 +74,7 @@ export function StorefrontModeNav({
             return mode.enabled ? (
               <Link
                 key={view}
-                href={buildPublicStorefrontPath(identifier, view, searchParams)}
+                href={basePath + buildPublicStorefrontPath(identifier, view, searchParams)}
                 aria-current={currentView === view ? "page" : undefined}
                 className={classes}
               >

@@ -1,0 +1,10 @@
+import { z } from "zod";
+export const feedbackKindSchema = z.enum(["ISSUE", "SUGGESTION"]);
+export const feedbackStatusSchema = z.enum(["NEW", "REVIEWED", "CLOSED"]);
+export const feedbackCommandSchema = z.object({ organizationId: z.uuid().nullable(), kind: feedbackKindSchema, message: z.string().trim().min(1).max(2000), requestId: z.uuid().optional() }).strict();
+export const feedbackUpdateSchema = z.object({ expectedVersion: z.number().int().positive(), status: feedbackStatusSchema }).strict();
+export const feedbackQuerySchema = z.object({ from: z.iso.datetime(), to: z.iso.datetime(), organizationId: z.uuid().optional(), status: feedbackStatusSchema.optional(), limit: z.coerce.number().int().min(1).max(50).default(25), cursor: z.uuid().optional() }).strict().refine(q => { const duration = Date.parse(q.to) - Date.parse(q.from); return duration > 0 && duration <= 90 * 86400000; }, "回饋查詢範圍最多 90 天。");
+export const feedbackReceiptSchema = z.object({ id: z.uuid(), status: feedbackStatusSchema, version: z.number().int().positive(), createdAt: z.iso.datetime() }).strict();
+export const feedbackItemSchema = feedbackReceiptSchema.extend({ organizationId: z.uuid().nullable(), kind: feedbackKindSchema, surface: z.enum(["MERCHANT", "ADMIN", "NATIVE"]), message: z.string(), requestId: z.uuid().nullable(), updatedAt: z.iso.datetime(), expiresAt: z.iso.datetime() }).strict();
+export const feedbackPageSchema = z.object({ items: z.array(feedbackItemSchema), nextCursor: z.uuid().nullable(), from: z.iso.datetime(), to: z.iso.datetime() }).strict();
+export type FeedbackItem = z.infer<typeof feedbackItemSchema>;

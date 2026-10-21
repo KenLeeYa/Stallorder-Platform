@@ -1,5 +1,6 @@
 import { isIP } from "node:net";
 import { z } from "zod";
+import { isPrivateWebhookAddress } from "./webhook-address";
 
 export const publicApiScopeSchema = z.enum([
   "catalog:read",
@@ -35,26 +36,7 @@ export function isSafeWebhookUrl(value: string) {
       || hostname.endsWith(".local")
       || hostname.endsWith(".internal")
     ) return false;
-    if (isIP(hostname) === 4) {
-      const octets = hostname.split(".").map(Number);
-      return !(
-        octets[0] === 10
-        || octets[0] === 127
-        || octets[0] === 0
-        || (octets[0] === 169 && octets[1] === 254)
-        || (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31)
-        || (octets[0] === 192 && octets[1] === 168)
-      );
-    }
-    if (isIP(hostname) === 6) {
-      return hostname !== "::1"
-        && !hostname.startsWith("fc")
-        && !hostname.startsWith("fd")
-        && !hostname.startsWith("fe8")
-        && !hostname.startsWith("fe9")
-        && !hostname.startsWith("fea")
-        && !hostname.startsWith("feb");
-    }
+    if (isIP(hostname)) return !isPrivateWebhookAddress(hostname);
     return hostname.includes(".");
   } catch {
     return false;

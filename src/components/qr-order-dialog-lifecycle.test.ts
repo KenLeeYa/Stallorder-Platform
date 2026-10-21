@@ -29,6 +29,7 @@ describe("QR order dialog lifecycle", () => {
       onClose,
     });
 
+    expect(browser.matchMedia).toHaveBeenCalledWith("(min-width: 1024px)");
     expect(browser.bodyStyle.overflow).toBe("hidden");
     browser.flushFrames();
     expect(closeButton.focus).toHaveBeenCalledOnce();

@@ -76,6 +76,10 @@ export function publicOrderNeedsPickupCode(order: StoredPublicOrderContract) {
     || (order.pickup_required === undefined && fulfillmentType === "TAKEOUT");
 }
 
+export function publicOrderNeedsPickupCodeWrite(order: StoredPublicOrderContract, pickupCode: string) {
+  return publicOrderNeedsPickupCode(order) && order.pickup_code_display !== pickupCode;
+}
+
 export function resolveStoredPickupCode(
   order: Pick<StoredPublicOrderContract, "pickup_code_display">,
   fallbackPickupCode: string,

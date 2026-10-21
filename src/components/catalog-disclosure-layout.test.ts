@@ -27,7 +27,8 @@ describe("catalog hierarchy layout", () => {
     );
 
     expect(createToolbar).toMatch(/新增套餐[\s\S]*data-testid="catalog-versions-action"/);
-    expect(createToolbar).toContain("inline-grid h-11 w-11");
+    expect(createToolbar).toContain("inline-grid h-12 w-12");
+    expect(createToolbar).not.toMatch(/\b[hw]-11\b/);
   });
 
   it("opens note groups and their options in the same large-button hierarchy", () => {

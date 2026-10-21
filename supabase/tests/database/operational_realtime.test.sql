@@ -4,12 +4,10 @@ create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 select plan(18);
 
-delete from public.operational_alerts;
-delete from public.operational_events;
-delete from public.payments;
-delete from public.cash_shifts;
-delete from public.order_sessions;
-delete from public.orders;
+-- Keep existing lab orders and LINE owners intact. This test creates fixed IDs
+-- inside the transaction and rolls them back at the end.
+create temp table operation_baseline on commit drop as
+select (select count(*) from public.operational_events where event_type = 'PAYMENT_RECORDED') as payment_events;
 
 insert into public.orders (
   id, tenant_id, organization_id, stall_id, order_no, tracking_token_hash,
@@ -64,7 +62,7 @@ insert into public.cash_shifts (
   '22222222-2222-4222-8222-222222222222',
   0,
   '55555555-5555-4555-8555-555555555551'
-);
+) on conflict do nothing;
 
 insert into public.payments (
   organization_id, stall_id, order_id, cash_shift_id, amount, method, status, paid_at
@@ -72,10 +70,12 @@ insert into public.payments (
   '11111111-1111-4111-8111-111111111111',
   '22222222-2222-4222-8222-222222222222',
   '70000000-0000-4000-8000-000000000051',
-  '74000000-0000-4000-8000-000000000051', 180, 'CASH', 'PAID', now()
+  (select id from public.cash_shifts where stall_id = '22222222-2222-4222-8222-222222222222'
+   and status = 'OPEN' order by opened_at desc limit 1), 180, 'CASH', 'PAID', now()
 );
 select is(
-  (select count(*)::integer from public.operational_events where event_type = 'PAYMENT_RECORDED'),
+  (select count(*)::integer from public.operational_events where event_type = 'PAYMENT_RECORDED')
+    - (select payment_events::integer from operation_baseline),
   1,
   '付款紀錄會產生 PAYMENT_RECORDED 事件'
 );
@@ -139,7 +139,8 @@ select
 from generate_series(1, 9) series;
 select public.refresh_operational_alerts('11111111-1111-4111-8111-111111111111');
 select is(
-  (select count(*)::integer from public.operational_alerts where alert_type = 'EXCESSIVE_PENDING_ORDERS' and status = 'ACTIVE'),
+  (select count(*)::integer from public.operational_alerts where stall_id = '22222222-2222-4222-8222-222222222222'
+   and alert_type = 'EXCESSIVE_PENDING_ORDERS' and status = 'ACTIVE'),
   1,
   '十筆待處理訂單會建立重大警示'
 );

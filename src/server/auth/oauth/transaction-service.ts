@@ -100,7 +100,7 @@ export async function claimOAuthTransaction(input: {
   const existing = await prisma.oAuthTransaction.findUnique({
     where: { stateHash },
   });
-  if (!existing || existing.provider !== input.provider) {
+  if (!existing || existing.provider !== input.provider || existing.flow !== "OAUTH") {
     throw new Error("OAUTH_TRANSACTION_NOT_FOUND");
   }
   if (existing.status === "CONSUMED") {

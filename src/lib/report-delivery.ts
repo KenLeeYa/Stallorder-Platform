@@ -2,7 +2,10 @@ import "server-only";
 
 import type { PaymentMethod, ReportSchedule, ReportScheduleType } from "@prisma/client";
 import { Prisma } from "@prisma/client";
-import { logEvent } from "@/lib/audit";
+import { randomUUID } from "node:crypto";
+import { reportEnvelopeSchema, reportIntentSchema, ReportExecutionError } from "@/lib/report-delivery-contract";
+import { claimReportDeliveries, recoverReportDeliveries, createReportIntent, lockReportClaim, assertCurrentReportEligibility, authorizeReportEffect, type ReportClaim } from "@/server/reports/report-execution";
+import { reportProviderBinding, sendReportEnvelope, type ReportProviderOutcome } from "@/server/reports/report-email";
 import { formatMoney } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import {
@@ -60,137 +63,101 @@ type ReportPayload = {
   }>;
 };
 
-export async function processDueReportSchedules(now = new Date(), limit = 20) {
+export async function processDueReportSchedules(now = new Date(), limit = 20, requestId: string = randomUUID()) {
+  if (!Number.isInteger(limit) || limit < 1 || limit > 20) throw new ReportExecutionError("REPORT_BATCH_LIMIT_INVALID", 400);
+  await recoverReportDeliveries();
   const schedules = await prisma.reportSchedule.findMany({
     where: { isEnabled: true, archivedAt: null, nextRunAt: { lte: now } },
-    include: { organization: { select: { businessName: true } } },
-    orderBy: { nextRunAt: "asc" },
-    take: Math.min(Math.max(limit, 1), 50),
+    include: { organization: { select: { businessName: true } } }, orderBy: { nextRunAt: "asc" }, take: limit,
   });
-  const results: Array<{ deliveryId: string; status: string }> = [];
-
   for (const schedule of schedules) {
-    const scheduledFor = schedule.nextRunAt;
-    const nextRunAt = nextScheduledRun(scheduleTime(schedule), scheduledFor);
-    const period = reportPeriodForRun(schedule.reportType, scheduledFor, schedule.timezone);
-    const subject = reportSubject(schedule.organization.businessName, schedule.reportType, period.periodStart, period.periodEnd);
-    const delivery = await prisma.$transaction(async (transaction) => {
-      const claim = await transaction.reportSchedule.updateMany({
-        where: {
-          id: schedule.id,
-          isEnabled: true,
-          archivedAt: null,
-          nextRunAt: scheduledFor,
-        },
-        data: { nextRunAt, lastRunAt: scheduledFor },
-      });
-      if (claim.count !== 1) return null;
-      return transaction.reportDelivery.create({
-        data: {
-          organizationId: schedule.organizationId,
-          reportScheduleId: schedule.id,
-          reportType: schedule.reportType,
-          status: "PROCESSING",
-          scheduledFor,
-          periodStart: new Date(`${period.periodStart}T00:00:00.000Z`),
-          periodEnd: new Date(`${period.periodEnd}T00:00:00.000Z`),
-          recipients: schedule.recipients,
-          subject,
-        },
-      });
+    const scheduledFor = schedule.nextRunAt, period = reportPeriodForRun(schedule.reportType, scheduledFor, schedule.timezone), id = randomUUID();
+    await prisma.$transaction(async tx => {
+      const result = await tx.reportSchedule.updateMany({ where: { id: schedule.id, isEnabled: true, archivedAt: null, nextRunAt: scheduledFor }, data: { nextRunAt: nextScheduledRun(scheduleTime(schedule), scheduledFor), lastRunAt: scheduledFor } });
+      if (result.count !== 1) return;
+      await tx.reportDelivery.create({ data: {
+        id, organizationId: schedule.organizationId, reportScheduleId: schedule.id, reportType: schedule.reportType,
+        status: "PROCESSING", scheduledFor, periodStart: new Date(period.periodStart), periodEnd: new Date(period.periodEnd),
+        recipients: schedule.recipients, subject: reportSubject(schedule.organization.businessName, schedule.reportType, period.periodStart, period.periodEnd),
+        attemptCount: 0, effectState: "NOT_STARTED", nextAttemptAt: now, intentJson: createReportIntent(schedule, id), originRequestId: requestId,
+      } });
     });
-    if (!delivery) continue;
-    results.push(await processReportDelivery(delivery.id));
   }
-  return results;
+  const claims = await claimReportDeliveries(limit);
+  return Promise.all(claims.map(processClaimedReport));
 }
 
-export async function createTestReportDelivery(scheduleId: string, organizationId: string, now = new Date()) {
-  const schedule = await prisma.reportSchedule.findFirst({
-    where: { id: scheduleId, organizationId, archivedAt: null },
-    include: { organization: { select: { businessName: true } } },
-  });
+export async function createTestReportDelivery(scheduleId: string, organizationId: string, now = new Date(), requestId: string = randomUUID()) {
+  const schedule = await prisma.reportSchedule.findFirst({ where: { id: scheduleId, organizationId, archivedAt: null, isEnabled: true }, include: { organization: { select: { businessName: true } } } });
   if (!schedule) throw new Error("REPORT_SCHEDULE_NOT_FOUND");
-  const period = reportPeriodForRun(schedule.reportType, now, schedule.timezone);
-  const delivery = await prisma.reportDelivery.create({
-    data: {
-      organizationId,
-      reportScheduleId: schedule.id,
-      reportType: schedule.reportType,
-      status: "PROCESSING",
-      scheduledFor: now,
-      periodStart: new Date(`${period.periodStart}T00:00:00.000Z`),
-      periodEnd: new Date(`${period.periodEnd}T00:00:00.000Z`),
-      recipients: schedule.recipients,
-      subject: `[測試] ${reportSubject(schedule.organization.businessName, schedule.reportType, period.periodStart, period.periodEnd)}`,
-    },
-  });
-  return processReportDelivery(delivery.id);
+  const period = reportPeriodForRun(schedule.reportType, now, schedule.timezone), id = randomUUID();
+  await prisma.reportDelivery.create({ data: {
+    id, organizationId, reportScheduleId: schedule.id, reportType: schedule.reportType, status: "PROCESSING", scheduledFor: now,
+    periodStart: new Date(period.periodStart), periodEnd: new Date(period.periodEnd), recipients: schedule.recipients,
+    subject: "[測試] " + reportSubject(schedule.organization.businessName, schedule.reportType, period.periodStart, period.periodEnd),
+    attemptCount: 0, effectState: "NOT_STARTED", nextAttemptAt: now, intentJson: createReportIntent(schedule, id), originRequestId: requestId,
+  } });
+  return processReportDelivery(id);
 }
 
 export async function processReportDelivery(deliveryId: string) {
-  const delivery = await prisma.reportDelivery.findUnique({
-    where: { id: deliveryId },
-    include: {
-      organization: { select: { businessName: true, defaultCurrency: true } },
-      reportSchedule: true,
-    },
-  });
-  if (!delivery || delivery.status !== "PROCESSING") {
-    throw new Error("REPORT_DELIVERY_NOT_PROCESSABLE");
-  }
+  const [claim] = await claimReportDeliveries(1, deliveryId);
+  if (!claim) throw new ReportExecutionError("REPORT_DELIVERY_NOT_PROCESSABLE");
+  return processClaimedReport(claim);
+}
+
+export async function processClaimedReport(claim: ReportClaim) {
+  let effectClaim: ReportClaim | undefined;
   try {
-    const periodStart = delivery.periodStart.toISOString().slice(0, 10);
-    const periodEnd = delivery.periodEnd.toISOString().slice(0, 10);
-    const payload = await buildReportPayload({
-      organizationId: delivery.organizationId,
-      organizationName: delivery.organization.businessName,
-      currency: delivery.organization.defaultCurrency,
-      reportType: delivery.reportType,
-      stallIds: delivery.reportSchedule.stallIds,
-      periodStart,
-      periodEnd,
-    });
-    const content = renderReport(payload);
-    const sendResult = await sendReportEmail({
-      deliveryId: delivery.id,
-      recipients: delivery.recipients,
-      subject: delivery.subject,
-      html: content.html,
-      text: content.text,
-    });
-    const status = sendResult.simulated ? "SIMULATED" : "SENT";
-    await prisma.reportDelivery.update({
-      where: { id: delivery.id },
-      data: {
-        status,
-        payload: payload as unknown as Prisma.InputJsonObject,
-        providerMessageId: sendResult.messageId,
-        sentAt: new Date(),
-        errorCode: null,
-      },
-    });
-    logEvent("info", "SCHEDULED_REPORT_DELIVERED", {
-      deliveryId: delivery.id,
-      scheduleId: delivery.reportScheduleId,
-      organizationId: delivery.organizationId,
-      status,
-    });
-    return { deliveryId: delivery.id, status };
+    let delivery = await prisma.$transaction(async tx => { const row = await lockReportClaim(tx, claim); await assertCurrentReportEligibility(tx, row); return row; });
+    const intent = reportIntentSchema.parse(delivery.intentJson);
+    if (!delivery.snapshotJson) {
+      const organization = await prisma.organization.findUniqueOrThrow({ where: { id: delivery.organizationId } });
+      const payload = await buildReportPayload({ organizationId: delivery.organizationId, organizationName: organization.businessName, currency: organization.defaultCurrency,
+        reportType: delivery.reportType, stallIds: intent.stallIds, periodStart: delivery.periodStart.toISOString().slice(0, 10), periodEnd: delivery.periodEnd.toISOString().slice(0, 10) });
+      const content = renderReport(payload), envelope = { from: reportProviderBinding().from, to: delivery.recipients, subject: delivery.subject, ...content };
+      const snapshot = JSON.stringify({ version: 1, intent, envelope, payload });
+      delivery = await prisma.$transaction(async tx => {
+        await lockReportClaim(tx, claim);
+        await tx.$executeRaw(Prisma.sql`update public.report_deliveries set snapshot_json=${snapshot}::jsonb,snapshot_hash=encode(extensions.digest((${snapshot}::jsonb)::text,'sha256'),'hex'),payload=${JSON.stringify(payload)}::jsonb,updated_at=clock_timestamp() where id=${claim.id}::uuid and snapshot_json is null`);
+        return tx.reportDelivery.findUniqueOrThrow({ where: { id: claim.id } });
+      });
+    }
+    const snapshot = delivery.snapshotJson as { envelope: unknown };
+    const envelope = reportEnvelopeSchema.parse(snapshot.envelope);
+    effectClaim = await authorizeReportEffect(claim, delivery.snapshotHash!);
+    const outcome = await sendReportEnvelope({ envelope, key: intent.key, hash: delivery.snapshotHash!, binding: intent.binding });
+    return completeReportEffect(effectClaim, outcome);
   } catch (error) {
-    const errorCode = sanitizeErrorCode(error);
-    await prisma.reportDelivery.updateMany({
-      where: { id: delivery.id, status: "PROCESSING" },
-      data: { status: "FAILURE", errorCode },
+    if (error instanceof ReportExecutionError && error.code === "REPORT_LEASE_STALE") throw error;
+    if (effectClaim) return completeReportEffect(effectClaim, { kind: "UNKNOWN", code: "EFFECT_OUTCOME_UNKNOWN" });
+    await prisma.$transaction(async tx => {
+      await lockReportClaim(tx, claim);
+      await tx.reportDelivery.update({ where: { id: claim.id }, data: { status: "FAILURE", effectState: "SUPPRESSED", errorCode: "REPORT_PRE_EFFECT_DENIED", nextAttemptAt: null, leaseToken: null, leaseExpiresAt: null, executionVersion: { increment: 1 } } });
     });
-    logEvent("error", "SCHEDULED_REPORT_FAILED", {
-      deliveryId: delivery.id,
-      scheduleId: delivery.reportScheduleId,
-      organizationId: delivery.organizationId,
-      errorCode,
-    });
-    return { deliveryId: delivery.id, status: "FAILURE" };
+    return { deliveryId: claim.id, status: "FAILURE" };
   }
+}
+
+export async function completeReportEffect(claim: ReportClaim, outcome: ReportProviderOutcome) {
+  return prisma.$transaction(async tx => {
+    const delivery = await lockReportClaim(tx, claim);
+    if (delivery.effectState !== "IN_FLIGHT") throw new ReportExecutionError("REPORT_LEASE_STALE");
+    const accepted = outcome.kind === "ACCEPTED" || outcome.kind === "SIMULATED";
+    const retry = outcome.kind === "REJECTED" && outcome.grantClosed && outcome.retryable && delivery.attemptCount < 5;
+    const backoff = [60, 300, 900, 3600][Math.min(delivery.attemptCount - 1, 3)] + Math.floor(Math.random() * 15);
+    const seconds = outcome.kind === "REJECTED" ? Math.max(backoff, Math.min(outcome.retryAfterSeconds ?? 0, 3600)) : backoff;
+    const result = await tx.reportDelivery.update({ where: { id: claim.id }, data: {
+      status: accepted ? (outcome.kind === "SIMULATED" ? "SIMULATED" : "SENT") : retry ? "PROCESSING" : "FAILURE",
+      effectState: accepted ? "ACCEPTED" : outcome.kind === "REJECTED" ? "REJECTED" : "UNKNOWN",
+      errorCode: accepted ? null : outcome.kind === "REJECTED" && delivery.attemptCount >= 5 ? "WORKER_ATTEMPTS_EXHAUSTED" : "code" in outcome ? outcome.code : null,
+      providerMessageId: accepted ? outcome.messageId : null, sentAt: accepted ? new Date() : null,
+      nextAttemptAt: retry ? new Date(Date.now() + seconds * 1000) : null,
+      reconciliationEvidence: outcome.kind === "REJECTED" ? { version: 1, source: "REPORT_ADAPTER", kind: "REJECTED", grantClosed: true, binding: reportIntentSchema.parse(delivery.intentJson).binding, hash: delivery.snapshotHash, code: outcome.code } : Prisma.DbNull,
+      leaseToken: null, leaseExpiresAt: null, executionVersion: { increment: 1 },
+    } });
+    return { deliveryId: result.id, status: result.status };
+  });
 }
 
 async function buildReportPayload({
@@ -313,42 +280,6 @@ function renderReport(payload: ReportPayload) {
   return { html, text: lines.join("\n") };
 }
 
-async function sendReportEmail({
-  deliveryId,
-  recipients,
-  subject,
-  html,
-  text,
-}: {
-  deliveryId: string;
-  recipients: string[];
-  subject: string;
-  html: string;
-  text: string;
-}) {
-  const apiKey = process.env.RESEND_API_KEY?.trim();
-  const from = process.env.REPORT_FROM_EMAIL?.trim();
-  const simulate = process.env.REPORT_DELIVERY_MODE === "simulate" || (!apiKey && process.env.NODE_ENV !== "production");
-  if (simulate) {
-    logEvent("info", "SCHEDULED_REPORT_SIMULATED", { deliveryId, recipientCount: recipients.length });
-    return { simulated: true, messageId: `simulated:${deliveryId}` };
-  }
-  if (!apiKey || !from) throw new Error("EMAIL_PROVIDER_NOT_CONFIGURED");
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${apiKey}`,
-      "content-type": "application/json",
-      "idempotency-key": `stallorder-report-${deliveryId}`,
-    },
-    body: JSON.stringify({ from, to: recipients, subject, html, text }),
-    signal: AbortSignal.timeout(15_000),
-  });
-  const payload = await response.json() as { id?: string };
-  if (!response.ok || !payload.id) throw new Error(`EMAIL_PROVIDER_${response.status}`);
-  return { simulated: false, messageId: payload.id };
-}
-
 function scheduleTime(schedule: ReportSchedule) {
   return {
     reportType: schedule.reportType,
@@ -361,11 +292,6 @@ function scheduleTime(schedule: ReportSchedule) {
 
 function reportSubject(organizationName: string, reportType: ReportScheduleType, periodStart: string, periodEnd: string) {
   return `${organizationName}｜${reportScheduleTypeLabels[reportType]}｜${periodStart}${periodStart === periodEnd ? "" : ` - ${periodEnd}`}`;
-}
-
-function sanitizeErrorCode(error: unknown) {
-  const message = error instanceof Error ? error.message : "UNKNOWN_ERROR";
-  return message.replace(/[^A-Z0-9_-]/gi, "_").slice(0, 80) || "UNKNOWN_ERROR";
 }
 
 function escapeHtml(value: string) {

@@ -9,7 +9,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/components/logout-button", () => ({ LogoutButton: () => null }));
 
 describe("AdminBillingHeader responsive navigation", () => {
-  it("keeps accessible labels while showing compact icon buttons on mobile", () => {
+  it("keeps readable primary links and a searchable grouped desktop sidebar", () => {
     const html = renderToStaticMarkup(
       <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
         <AdminBillingHeader displayName="平台管理員" />
@@ -20,9 +20,9 @@ describe("AdminBillingHeader responsive navigation", () => {
     expect(html).toContain("overflow-x-hidden");
     expect(html).toContain("min-w-0");
     expect(html).toContain("overflow-x-auto");
-    expect(html).toContain("h-11 w-11");
-    expect(html).toContain("md:w-auto");
-    expect(html).toContain("sr-only md:not-sr-only md:inline");
+    expect(html).toContain("workspace-function-link");
+    expect(html).toContain('data-testid="admin-function-sidebar"');
+    expect(html).toContain('type="search"');
     expect(html).toContain('aria-current="page"');
     expect(html).toContain('title="帳務總覽"');
     expect(html).not.toContain('title="付款審核"');

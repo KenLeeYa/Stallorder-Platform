@@ -3,6 +3,9 @@
 import { ArrowLeft } from "lucide-react";
 import type { ReactNode } from "react";
 import {
+  readNavigationState,
+  writeNavigationState,
+  removeNavigationState,
   navigationRestoreKey,
   navigationReturnKey,
   normalizeInternalNavigationPath,
@@ -22,12 +25,12 @@ export function ContextualBackButton({
       `${window.location.pathname}${window.location.search}${window.location.hash}`,
     );
     const storedPath = currentPath
-      ? normalizeInternalNavigationPath(window.sessionStorage.getItem(navigationReturnKey(currentPath)))
+      ? normalizeInternalNavigationPath(readNavigationState(navigationReturnKey(currentPath)))
       : null;
     const targetPath = storedPath ?? normalizeInternalNavigationPath(fallbackHref);
     if (!targetPath) return;
-    if (currentPath) window.sessionStorage.removeItem(navigationReturnKey(currentPath));
-    window.sessionStorage.setItem(navigationRestoreKey(targetPath), "1");
+    if (currentPath) removeNavigationState(navigationReturnKey(currentPath));
+    writeNavigationState(navigationRestoreKey(targetPath), "1");
     window.location.assign(targetPath);
   }
 

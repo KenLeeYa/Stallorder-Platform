@@ -101,7 +101,10 @@ test("本機 QR 外帶可修改原訂單並由顧客取消", async ({ page }) =>
       ) && response.request().method() === "POST",
   );
   await page.goto(`/q/${qrToken}`);
-  expect((await sessionResponse).status()).toBe(201);
+  const issuedSession = await sessionResponse;
+  // Circuit B returns 200 for an idempotent session replay after transport retry.
+  expect([200, 201]).toContain(issuedSession.status());
+  expect((await issuedSession.json()).orderSessionToken).toMatch(/^stos_/);
   await expect(
     page.getByRole("heading", { name: "阿明鹽酥雞", exact: true }),
   ).toBeVisible();
@@ -393,7 +396,13 @@ test("本機外帶自取修改訂單會保留顧客姓名與手機", async ({ pa
 
   const customerName = "外帶修改測試";
   const customerPhone = "0912345678";
+  const blocker = page.getByTestId("qr-checkout-blocker");
+  await blocker.getByRole("button", { name: "顧客稱呼", exact: true }).click();
+  await expect(page.getByLabel("顧客稱呼")).toBeFocused();
+  await expect(page.getByLabel("顧客稱呼")).toHaveAttribute("aria-invalid", "true");
   await page.getByLabel("顧客稱呼").fill(customerName);
+  await blocker.getByRole("button", { name: "聯絡電話", exact: true }).click();
+  await expect(page.getByLabel("聯絡電話")).toBeFocused();
   await page.getByLabel("聯絡電話").fill(customerPhone);
 
   const createResponsePromise = page.waitForResponse(
@@ -405,7 +414,15 @@ test("本機外帶自取修改訂單會保留顧客姓名與手機", async ({ pa
   const submit = page.getByRole("button", { name: "送出訂單", exact: true });
   await expect(submit).toBeEnabled({ timeout: 20_000 });
   await submit.click();
-  const createResponse = await createResponsePromise;
+  let createResponse = await createResponsePromise;
+  if (createResponse.status() === 422) {
+    await expect(createResponse.json()).resolves.toMatchObject({ code: "WAIT_ACKNOWLEDGMENT_REQUIRED" });
+    await page.getByRole("alertdialog").getByRole("button", { name: "我知道了", exact: true }).click();
+    await page.getByRole("checkbox", { name: /我已了解目前預估等候時間/ }).check();
+    const retry = page.waitForResponse((response) => response.request().method() === "POST" && ["/create-public-order", "/api/public/orders"].some((suffix) => new URL(response.url()).pathname.endsWith(suffix)));
+    await submit.click();
+    createResponse = await retry;
+  }
   expect([200, 201]).toContain(createResponse.status());
   const createRequest = createResponse.request().postDataJSON() as {
     clientOrderId?: string;

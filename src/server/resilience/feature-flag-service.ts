@@ -20,6 +20,11 @@ const flagSnapshotCache = new Map<string, {
 }>();
 
 export const resilienceFeatureFlagCodes = [
+  "MOBILE_APP_ENABLED",
+  "MOBILE_PLATFORM_ADMIN_ENABLED",
+  "MOBILE_PUSH_ENABLED",
+  "MOBILE_OFFLINE_POS_ENABLED",
+  "MOBILE_DIRECT_PRINT_ENABLED",
   "DUAL_ORDER_INTAKE_ENABLED",
   "DR_READ_ROUTING_ENABLED",
   "DR_FAILOVER_ENABLED",
@@ -31,6 +36,7 @@ export const resilienceFeatureFlagCodes = [
   "JKOPAY_ENABLED",
   "TWQR_ENABLED",
   "ROLLING_RELEASE_ENABLED",
+  "STAFF_WORKSPACE_REDESIGN_ENABLED",
   "LOCAL_EDGE_GATEWAY_ENABLED",
   "EMERGENCY_QR_DEGRADED_MODE",
   "OAUTH_IDENTITY_FOUNDATION_ENABLED",
@@ -128,6 +134,11 @@ export function assertResilienceFeatureFlagActivationAllowed(
 }
 
 export const resilienceFeatureFlagDefaults: Record<ResilienceFeatureFlagCode, boolean> = {
+  MOBILE_APP_ENABLED: false,
+  MOBILE_PLATFORM_ADMIN_ENABLED: false,
+  MOBILE_PUSH_ENABLED: false,
+  MOBILE_OFFLINE_POS_ENABLED: false,
+  MOBILE_DIRECT_PRINT_ENABLED: false,
   DUAL_ORDER_INTAKE_ENABLED: false,
   DR_READ_ROUTING_ENABLED: false,
   DR_FAILOVER_ENABLED: false,
@@ -139,6 +150,7 @@ export const resilienceFeatureFlagDefaults: Record<ResilienceFeatureFlagCode, bo
   JKOPAY_ENABLED: false,
   TWQR_ENABLED: false,
   ROLLING_RELEASE_ENABLED: false,
+  STAFF_WORKSPACE_REDESIGN_ENABLED: false,
   LOCAL_EDGE_GATEWAY_ENABLED: false,
   EMERGENCY_QR_DEGRADED_MODE: false,
   OAUTH_IDENTITY_FOUNDATION_ENABLED: false,

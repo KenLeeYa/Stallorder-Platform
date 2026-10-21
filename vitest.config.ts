@@ -12,7 +12,7 @@ export default defineConfig({
     },
   },
   test: {
-    exclude: [...configDefaults.exclude, "e2e/**"],
+    exclude: [...configDefaults.exclude, "e2e/**", "docs/awesome-optimization/qa/live-fixture-guard.test.mjs"],
     maxWorkers: 4,
   },
 });

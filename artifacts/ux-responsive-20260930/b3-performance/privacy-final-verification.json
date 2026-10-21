@@ -1,0 +1,19 @@
+{
+  "at": "2026-09-30T15:33:25.795Z",
+  "phases": [
+    {
+      "phase": "before",
+      "sampleAndNonDiagnosticFieldsEqual": true,
+      "diagnosticCountEqual": true,
+      "algorithmSha256": "9fb5e0d1e27ecbdee40855c917503c98b9092529f3c86edeb22950d02e3f5295"
+    },
+    {
+      "phase": "after",
+      "sampleAndNonDiagnosticFieldsEqual": true,
+      "diagnosticCountEqual": true,
+      "algorithmSha256": "9fb5e0d1e27ecbdee40855c917503c98b9092529f3c86edeb22950d02e3f5295"
+    }
+  ],
+  "scannedFiles": 53,
+  "findings": []
+}

@@ -184,7 +184,7 @@ test.afterAll(async () => {
     });
   }
   if (otherOrganizationId) {
-    await prisma.organization.deleteMany({ where: { id: otherOrganizationId } });
+    await prisma.organization.deleteMany({ where: { id: otherOrganizationId, auditLogs: { none: {} }, stalls: { none: { auditLogs: { some: {} } } } } });
   }
   await prisma.$disconnect();
 });

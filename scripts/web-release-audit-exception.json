@@ -1,0 +1,98 @@
+{
+  "id": "WEB-20261019-ONE-WINDOW-BRACES",
+  "expiresAt": "2026-10-22T14:00:00Z",
+  "advisory": "GHSA-vfj7-8cjw-p6xm",
+  "authorization": "Owner approved this exact five-HIGH advisory and locked Web dependency set for one fixed window. Activation requires fresh exact-candidate artifact/SBOM, controlled lint and isolated runner evidence. Raw audit remains NON_PASS; no Native, new advisory, deployment or paid acceptance authorization.",
+  "scope": "WEB_ONLY_ONE_ACCEPTANCE_WINDOW",
+  "lockSha256": "72ef791033d591a4495d3d14f42fb467d2894558b0d33fe86dbf5e028dba827a",
+  "counts": {
+    "info": 0,
+    "low": 0,
+    "moderate": 0,
+    "high": 5,
+    "critical": 0,
+    "total": 5
+  },
+  "packages": {
+    "@next/eslint-plugin-next": {
+      "node": "node_modules/@next/eslint-plugin-next",
+      "version": "16.3.6",
+      "isDirect": false,
+      "range": ">=14.3.0-canary.0",
+      "effects": [
+        "eslint-config-next"
+      ],
+      "via": [
+        "fast-glob"
+      ]
+    },
+    "braces": {
+      "node": "node_modules/braces",
+      "version": "3.0.3",
+      "isDirect": false,
+      "range": "*",
+      "effects": [
+        "micromatch"
+      ]
+    },
+    "eslint-config-next": {
+      "node": "node_modules/eslint-config-next",
+      "version": "16.3.6",
+      "isDirect": true,
+      "range": ">=14.3.0-canary.0",
+      "effects": [],
+      "via": [
+        "@next/eslint-plugin-next"
+      ]
+    },
+    "fast-glob": {
+      "node": "node_modules/fast-glob",
+      "version": "3.3.1",
+      "isDirect": false,
+      "range": "*",
+      "effects": [
+        "@next/eslint-plugin-next"
+      ],
+      "via": [
+        "micromatch"
+      ]
+    },
+    "micromatch": {
+      "node": "node_modules/micromatch",
+      "version": "4.0.8",
+      "isDirect": false,
+      "range": ">=0.2.0",
+      "effects": [
+        "fast-glob"
+      ],
+      "via": [
+        "braces"
+      ]
+    }
+  },
+  "authorizedAt": "2026-10-19T15:53:58Z",
+  "authorizationMessage": "Sentinel_2859b6c9b0908191a8647cc7508aa2bc",
+  "preparationBase": "980309944db37379906c44714387ff65fa22fc0c",
+  "lintConfigSha256": "8fd517247f4021feb4bfeb4edb33d14e1579084e0ff413ab7c3bc6d31e587313",
+  "activation": "REQUIRED_AFTER_EACH_COMMIT_EXTERNAL_EVIDENCE_ONLY",
+  "lockBytesSha256": "115b0966e3ef571f968ad50dc7f9c54634a8c3e5b45f8fd574b642c7384a141a",
+  "hashByteContract": "COMMITTED_GIT_BLOB_LF_BYTES_FOR_HOSTED_LINUX_CHECKOUT",
+  "lockRebind": {
+    "authorizationMessage": "Sentinel_a4cb747e08008191a8ca1859de6f791a",
+    "candidateBase": "86bd17f450d32cf69f8560102150d91656edc5af",
+    "package": "follow-redirects",
+    "from": "1.16.0",
+    "to": "1.16.1",
+    "previousLockSha256": "00f3c2b4363f58e2485fb9139142ac9d611671ad04e8561150cf35be8015bc6c",
+    "previousLockBytesSha256": "d284d352264e152619d134d21c5323005e2727f314672e74ff3dff54e91379ef"
+  },
+  "viteLockRebind": {
+    "authorizationMessage": "Sentinel_4667d21038ec81918e0646b937fc3b15",
+    "candidateBase": "c9ff9c6de43cd660797156f1fbd44a3dcc60dbac",
+    "package": "vite",
+    "from": "8.2.2",
+    "to": "8.2.4",
+    "previousLockSha256": "7273203027bb3e4c194cedcc5890bcc9d164c9d41a0b8dee9ae3e1f081c62f97",
+    "previousLockBytesSha256": "51d616877d27acbb72a1c788fad7ea6c80abdcd045f99c6254b29b6eaa978732"
+  }
+}

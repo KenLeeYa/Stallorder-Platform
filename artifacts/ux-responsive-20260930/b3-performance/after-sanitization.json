@@ -1,0 +1,17 @@
+{
+  "phase": "after",
+  "at": "2026-09-30T15:26:10.828Z",
+  "algorithmSha256": "9fb5e0d1e27ecbdee40855c917503c98b9092529f3c86edeb22950d02e3f5295",
+  "privateDirectory": "C:\\Users\\KY\\.codex\\worktrees\\responsive-cross-device\\b3-performance-private-raw-20260930\\after-1790781970827",
+  "policy": "Known environment key/token/secret/password and credential-bearing URL values redacted; original evidence preserved outside the repository. Samples and diagnostic observations retained.",
+  "files": [
+    {
+      "name": "after-full.json",
+      "matchedKeys": [
+        "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"
+      ],
+      "originalSha256": "d277ce4f772906ac8379ec15f9e88b2e361be4c993c1ce48dc51a27634b9d774",
+      "sanitizedSha256": "dd27545ac5da6dfeb59df35dfdd6734444b6722c2e12e80548d0f9e9a27ea15a"
+    }
+  ]
+}

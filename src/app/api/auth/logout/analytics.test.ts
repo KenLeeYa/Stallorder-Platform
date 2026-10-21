@@ -1,0 +1,12 @@
+import {beforeEach,expect,it,vi} from "vitest";
+const h=vi.hoisted(()=>({principal:null as unknown,csrf:true,revoke:vi.fn(),invalidate:vi.fn()}));
+vi.mock("@/lib/auth",()=>({getRequestPrincipal:async()=>h.principal,revokeRequestSession:h.revoke,clearSessionCookies:vi.fn()}));
+vi.mock("@/lib/csrf",()=>({validateCsrf:()=>h.csrf}));
+vi.mock("@/lib/audit",()=>({recordAuditEvent:vi.fn()}));
+vi.mock("@/lib/security",()=>({createRequestId:()=>"test",hashClientIp:()=>"test"}));
+vi.mock("@/lib/supabase-auth",()=>({isSupabaseAuthConfigured:()=>false,createSupabaseAuthClient:vi.fn()}));
+vi.mock("@/server/analytics/product-analytics",()=>({productAnalytics:{invalidate:h.invalidate}}));
+import {POST} from "./route";
+beforeEach(()=>{vi.clearAllMocks();h.principal={user:{id:"actor-a"}};h.csrf=true;h.revoke.mockResolvedValue(true);});
+it("clears only the authenticated actor after normal Web revoke",async()=>{expect((await POST(new Request("http://localhost/api/auth/logout",{method:"POST"}))).status).toBe(200);expect(h.invalidate).toHaveBeenCalledWith("actor-a");expect(h.revoke.mock.invocationCallOrder[0]).toBeLessThan(h.invalidate.mock.invocationCallOrder[0]);});
+it("does not invalidate another actor for a denied logout",async()=>{h.csrf=false;expect((await POST(new Request("http://localhost/api/auth/logout",{method:"POST"}))).status).toBe(403);expect(h.invalidate).not.toHaveBeenCalled();expect(h.revoke).not.toHaveBeenCalled();});
