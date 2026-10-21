@@ -50,7 +50,18 @@ only, plus a non-sensitive verification receipt. An archive listing or successfu
 upload alone is not restore proof. Full provider/configuration/credential recovery
 is not claimed by this data-restore check.
 
-Pending: execute and verify backup workflow; separately retire file replication;
+Run `39612421419` captured and encrypted 239 tables and all 42 files. Artifact
+`12350673658` (9,432,858 bytes) was retained; archive SHA-256
+`fda9a0020826d94c06b502b22a1573225c63b304e65efe2cdf7ca5f32715cb0d`.
+The data-restore step failed with a missing database object before validation;
+this is NOT a passing backup gate and permits no DR deletion. A corrected runner
+schema setup is under verification.
+
+Local regression: 26 tests across seven Storage/catalog/asset consumer files and
+four encryption/target tests pass; typecheck and focused ESLint pass. These tests
+do not establish deployed Primary cleanup or Staging readiness.
+
+Pending: pass actual backup restoration; separately retire file replication;
 prove effective permissions and synthetic seed isolation; convert Preview runtime,
 domain and Access; real Staging user flows; final Primary identity and flow checks.
 No Staging readiness or release completion is claimed.

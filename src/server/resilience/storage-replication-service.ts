@@ -56,6 +56,7 @@ export async function enqueueStorageReplication(input: StorageReplicationInput) 
   if (!/^[a-f0-9]{64}$/.test(input.primaryChecksum)) {
     throw new Error("STORAGE_CHECKSUM_INVALID");
   }
+  if (!process.env.DR_SUPABASE_URL?.trim()) return null;
 
   return prisma.$transaction(async (transaction) => {
     const existing = await transaction.storageObjectManifest.findUnique({
@@ -186,7 +187,7 @@ async function enqueueStorageDeletionWithTransaction(
     data: {
       manifestId: manifest.id,
       sourceBackendCode: "PRIMARY",
-      targetBackendCode: "DR",
+      targetBackendCode: process.env.DR_SUPABASE_URL?.trim() ? "DR" : "PRIMARY",
     },
   });
   return manifest.id;
@@ -315,7 +316,7 @@ function safeReplicationErrorCode(error: unknown) {
 
 export async function processStorageReplicationJobs(limit = 10) {
   const clients = storageClients();
-  if (!clients.primary || !clients.dr) {
+  if (!clients.primary || (process.env.DR_SUPABASE_URL?.trim() && !clients.dr)) {
     return { processed: 0, mirrored: 0, failed: 0, status: "NOT_CONFIGURED" as const };
   }
 
@@ -343,6 +344,7 @@ export async function processStorageReplicationJobs(limit = 10) {
   let mirrored = 0;
   let deleted = 0;
   let failed = 0;
+  let cancelled = 0;
   for (const candidate of candidates) {
     const claimedAt = new Date();
     const claim = await prisma.storageReplicationJob.updateMany({
@@ -366,6 +368,23 @@ export async function processStorageReplicationJobs(limit = 10) {
     try {
       const isDeletion = Boolean(candidate.manifest.deletedAt);
       let drChecksum: string | null = null;
+      if (!isDeletion && !clients.dr) {
+        const committed = await prisma.$transaction(async (transaction) => {
+          const job = await transaction.storageReplicationJob.updateMany({
+            where: { id: candidate.id, status: "PROCESSING", claimedAt },
+            data: { status: "CANCELLED", completedAt: new Date(), nextAttemptAt: null,
+              lastErrorCode: "DR_REPLICATION_DISABLED" },
+          });
+          if (job.count !== 1) return false;
+          await transaction.storageObjectManifest.update({
+            where: { id: candidate.manifestId },
+            data: { replicationStatus: "FAILED", lastErrorCode: "DR_REPLICATION_DISABLED" },
+          });
+          return true;
+        });
+        if (committed) cancelled += 1;
+        continue;
+      }
       if (isDeletion) {
         await deleteObject(
           clients.primary,
@@ -373,13 +392,15 @@ export async function processStorageReplicationJobs(limit = 10) {
           candidate.manifest.objectPath,
           "PRIMARY_DELETE_FAILED",
         );
-        await deleteObject(
-          clients.dr,
-          candidate.manifest.bucket,
-          candidate.manifest.objectPath,
-          "DR_DELETE_FAILED",
-        );
-      } else {
+        if (clients.dr) {
+          await deleteObject(
+            clients.dr,
+            candidate.manifest.bucket,
+            candidate.manifest.objectPath,
+            "DR_DELETE_FAILED",
+          );
+        }
+      } else if (clients.dr) {
         if (!candidate.manifest.primaryChecksum) throw new Error("SOURCE_CHECKSUM_CHANGED");
         drChecksum = await mirrorObject(
           clients.primary,
@@ -454,10 +475,11 @@ export async function processStorageReplicationJobs(limit = 10) {
   }
 
   return {
-    processed: mirrored + deleted + failed,
+    processed: mirrored + deleted + failed + cancelled,
     mirrored,
     deleted,
     failed,
+    cancelled,
     status: "PROCESSED" as const,
   };
 }

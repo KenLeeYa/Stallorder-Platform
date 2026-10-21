@@ -70,6 +70,18 @@ Report:
 
 Use Taiwan Traditional Chinese for StallOrder user-facing text and status, while preserving technical identifiers.
 
+## DR retirement into independent Staging (2026-10-21)
+
+For environment/release work, read `docs/adr/ADR-006-dr-retirement-independent-staging.md`
+and `docs/qa/dr-to-staging-20261021.md` before using historical DR rules. The owner
+approved backup + actual restore proof, then only-DR replica cleanup and synthetic
+Staging. Until acceptance is complete, the old DR remains fenced, not ready Staging.
+Never recreate replication into the test project or copy Production credentials/data.
+Preserve Primary-only Storage cleanup when retiring mirroring. Keep Cloudflare
+Access and Standard Vercel protection; the historical paid-All-Deployments
+provisioning paragraph is superseded by ADR-005, not permission to buy an add-on.
+An independent Staging environment cannot satisfy a Production DR-readiness gate.
+
 ## LINE Web authentication
 
 For LINE Web authentication or live PR testing, read `docs/OAUTH_IDENTITY_ARCHITECTURE.md` and `docs/GITHUB_PREVIEW_ENVIRONMENT.md`; run `QA-AUTH-LINE-01` and `QA-AUTH-LINE-02`. Keep strict Web HS256 verification, exact-branch deployment-only TEST credentials, a data-less paired backend, atomic prepared SQL fixtures, real callback/session evidence and verified temporary-resource cleanup. DR is not a test runtime and this workflow does not activate Production.

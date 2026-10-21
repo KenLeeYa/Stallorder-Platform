@@ -1,0 +1,61 @@
+# ADR-006: Retire the old DR into independent Staging
+
+- Date: 2026-10-21
+- Status: Owner approved; implementation and restore qualification in progress.
+- Supersedes: ADR-005 decisions 2–6 and the DR readiness/replication release gates
+  only after this conversion's acceptance evidence is complete. Until then the
+  existing endpoint remains fenced; do not present it as ready Staging.
+
+## Decision and invariants
+
+Reuse the existing DR Supabase project `daeqwtpaxcebmtwxqdkj` and Vercel project
+`prj_GOSwYN5rKhSuD3d4gPJEVtmKt7b3`; do not create a billable replacement. The final
+test hostname is `staging.qidaigo.com`. Retire the old `dr.qidaigo.com` entry only
+after the new protected entry is verified. Production remains exclusively on
+`app.qidaigo.com`, Supabase `eyuctbnlvnbnivwasvqr`, Vercel
+`prj_uoG4FNJIgnF1LdKRiXnfRaieXnUP`. There will no longer be a qualified DR failover
+target; an independent test database is not a Production recovery replica.
+
+1. Prove an encrypted backup can restore DR's table data and actual Storage file
+   bytes before deleting any hosted replica. Preserve authenticated encryption,
+   source/backup identity and drift checks. Archive listing/counts alone do not
+   establish restoration. Preserve the backup key outside the retired runtime.
+2. Retire both database replication and Primary-to-DR Storage writes. Do not stop
+   Primary's ordinary expiration/deletion queue. Remove DR database/Storage runtime
+   bindings, check read-routing/failover overrides, and reconcile old DR jobs before
+   opening the test environment. Preserve the Primary publication as historical
+   metadata unless separately reviewed; no automatic reconstruction/subscription.
+3. Only after isolation and restore proof, clear DR's old business records/files
+   and replace them with synthetic data using the repository's migrations and
+   seed contracts. Do not copy current Primary data, OAuth identities, sessions,
+   order-token secrets, API/provider credentials, queues or device registrations.
+4. The test application uses a Vercel Preview runtime, independent database/Auth/
+   Storage/Edge bindings and test-only secrets. Its logical PRIMARY writer label
+   is local to the isolated test DB, not authority over Production. Disable real
+   payment, invoice, LINE, email/push, delivery and hardware dispatch. Mock/provider
+   guards must remain fail-closed in the Production runtime.
+5. Keep Cloudflare Access account-member access and origin JWT issuer/audience
+   validation; generated Vercel URLs retain Standard protection. No purchase of
+   Advanced Deployment Protection. Reuse the existing Access implementation with
+   the exact Staging host and new/current audience; do not make the origin public.
+6. Keep the source promotion order: candidate PR → `staging` CI/isolated Preview
+   and persistent Staging QA → verified tree promotion to `main` → protected
+   application release. The retired DR must never be used to satisfy DR readiness
+   or automatically receive Production migrations, credentials or customer data.
+
+## Acceptance before completion
+
+- Exact baseline, reversible configuration receipt and single remote writer.
+- Verified encrypted data/file restore; effective grants/RLS and synthetic seed
+  isolation. Source must remain unchanged between backup and approved cleanup.
+- No subscription/slot, no active DR cron, no Primary-to-test Storage/DB routing;
+  Primary cleanup still works. No obsolete automation can recreate replication.
+- Staging login → authorized workspace; synthetic QR → order → Staff/KDS and
+  simulated printing/payment boundaries; image upload/read/deletion; tenant denial.
+- Anonymous Access denial and direct-origin protection; test runtime cannot read
+  Primary secrets or send real external effects. Test data never appears on Primary.
+- Provider readback, source SHA, aliases, actual backing DB and signed receipt;
+  Primary login/availability/affected ordering flow unchanged after each mutation.
+
+The detailed execution record is [DR-to-Staging QA](../qa/dr-to-staging-20261021.md).
+Until every required acceptance case passes, report this conversion as incomplete.

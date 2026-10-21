@@ -52,6 +52,7 @@ vi.mock("@supabase/supabase-js", () => ({
 
 import {
   enqueueStorageDeletion,
+  enqueueStorageReplication,
   processStorageReplicationJobs,
 } from "./storage-replication-service";
 
@@ -154,5 +155,53 @@ describe("storage deletion lifecycle", () => {
       data: expect.objectContaining({ status: "PROCESSING", claimedAt: expect.any(Date) }),
     }));
     expect(mocks.manifestUpdate).not.toHaveBeenCalled();
+  });
+
+  it("keeps Primary deletion working after the DR origin is retired", async () => {
+    vi.stubEnv("DR_SUPABASE_URL", "");
+    vi.stubEnv("DR_SUPABASE_SECRET_KEY", "");
+    mocks.jobFindMany.mockResolvedValue([{
+      id: "job-1", manifestId: "manifest-1", status: "PENDING", attemptCount: 0,
+      manifest: { bucket: "product-images", objectPath, deletedAt: new Date() },
+    }]);
+    mocks.jobUpdateMany.mockResolvedValue({ count: 1 });
+    await expect(processStorageReplicationJobs()).resolves.toMatchObject({ deleted: 1, failed: 0 });
+    expect(mocks.primaryRemove).toHaveBeenCalledWith([objectPath]);
+    expect(mocks.drRemove).not.toHaveBeenCalled();
+    expect(mocks.manifestUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ replicationStatus: "DELETED", drChecksum: null, drUpdatedAt: null }),
+    }));
+  });
+
+  it("does not enqueue new replicas when there is no DR origin", async () => {
+    vi.stubEnv("DR_SUPABASE_URL", "");
+    await expect(enqueueStorageReplication({ organizationId, bucket: "product-images", objectPath,
+      contentType: "image/webp", primaryChecksum: "a".repeat(64), primaryUpdatedAt: new Date(),
+    })).resolves.toBeNull();
+    expect(mocks.jobCreate).not.toHaveBeenCalled();
+    expect(mocks.manifestUpsert).not.toHaveBeenCalled();
+  });
+
+  it("cancels a queued replica instead of copying to the retired DR or claiming success", async () => {
+    vi.stubEnv("DR_SUPABASE_URL", "");
+    mocks.jobFindMany.mockResolvedValue([{
+      id: "job-1", manifestId: "manifest-1", status: "PENDING", attemptCount: 0,
+      manifest: { bucket: "product-images", objectPath, primaryChecksum: "a".repeat(64), deletedAt: null },
+    }]);
+    mocks.jobUpdateMany.mockResolvedValue({ count: 1 });
+    await expect(processStorageReplicationJobs()).resolves.toMatchObject({ cancelled: 1, mirrored: 0, failed: 0 });
+    expect(mocks.jobUpdateMany).toHaveBeenLastCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: "CANCELLED", lastErrorCode: "DR_REPLICATION_DISABLED" }),
+    }));
+    expect(mocks.primaryRemove).not.toHaveBeenCalled();
+    expect(mocks.drRemove).not.toHaveBeenCalled();
+  });
+
+  it("still fails closed for an incomplete configured DR rather than silently retiring it", async () => {
+    vi.stubEnv("DR_SUPABASE_SECRET_KEY", "");
+    vi.stubEnv("DR_SUPABASE_SERVICE_ROLE_KEY", "");
+    await expect(processStorageReplicationJobs()).resolves.toMatchObject({ status: "NOT_CONFIGURED" });
+    expect(mocks.jobFindMany).not.toHaveBeenCalled();
+    expect(mocks.primaryRemove).not.toHaveBeenCalled();
   });
 });
