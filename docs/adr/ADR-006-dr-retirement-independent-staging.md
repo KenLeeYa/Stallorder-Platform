@@ -135,3 +135,10 @@ Staging; Production schema publication remains fail-closed until the independent
 Staging validation predecessor is in place. This is not permission to skip it.
 Cloudflare human IdP login and ordinary browser/service-worker behavior remain
 separate completion checks from service-token-assisted Playwright.
+
+Ephemeral Preview must also provision independently generated public-order
+secrets in both Edge and application runtimes and verify provider digests before
+functional QA. OAuth/delivery smoke alone did not detect a missing Edge secret.
+Require a real hosted QR session, mobile submission and tracker, with responsive
+checks, before treating a paired Preview as an ordering validation environment.
+Never copy Production secrets or weaken CORS/protection to obtain a green result.

@@ -104,7 +104,7 @@
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
     "typescript": "^5",
-    "vitest": "^4.1.11",
+    "vitest": "^4.1.12",
     "wrangler": "4.118.0"
   },
   "prisma": {

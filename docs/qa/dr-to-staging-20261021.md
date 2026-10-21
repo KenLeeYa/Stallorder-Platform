@@ -347,3 +347,72 @@ LINE DB 56863 is retained. No hosted DR data/files have been removed.
 Fresh public Production readback remained revision `4e95d2e`, NORMAL_PRIMARY,
 PRIMARY epoch 3, QR/Staff AVAILABLE and login 200. New candidate cloud gates remain
 required; none of these local checks qualifies a completed hosted conversion.
+
+## Post-merge hosted QR gate (2026-10-22 04:22 Asia/Taipei)
+
+PR371 merged normally as `179a26ba5e361596eff1bf5b0cb2934c13646312` after exact
+candidate CI `39663146479`, Preview `39663146402` and security `39663146544`
+passed. Its tree equals candidate `6329bd3` and paired Preview merge `27e5074`:
+`034a2990fa2b84a36bc69651f13a8a7f29b8b9a5`. Actual Chrome password login,
+workspace, Staff/SSE, Print Center and KDS succeeded on paired Preview
+`dpl_7YNmafP7SZHQezvUs6YC4Dvvfu1c`.
+
+Actual QR entry then failed with HTTP500. The isolated branch's Edge logs identify
+`Missing required secret: ABUSE_HASH_SECRET`; this was not a Production failure.
+The workflow deployed Edge functions without their independent order secrets;
+its OAuth/delivery-only smoke did not exercise QR. Promotion is paused for this
+real failure, despite the preceding green workflow. No hosted DR data/files or
+provider settings have been removed or changed.
+
+The scoped follow-up supplies random Preview-only abuse/token secrets to both
+Edge and application, digest-verifies provider readback, keeps official Turnstile
+test keys restricted to explicit test runtimes, and adds hosted browser QR
+session → four responsive widths → mobile order → tracker validation. The same
+target guard rejects both live projects and mismatched DB/API bindings. Browser
+QA uses only the seeded merchant, disables its printers, marks its new order as
+test-only and removes exactly that order. No real credentials or external effects.
+Provisioning/workflow regressions failed before the fix and focused tests pass;
+new hosted execution remains required and is not yet recorded as passed.
+
+### Preview session contract correction (2026-10-22 04:56 Asia/Taipei)
+
+PR372 run `39670467150` passed actual Edge configuration digest readback,
+database/Storage checks and deployment, but the new browser assertion rejected a
+valid idempotent session HTTP200. Vercel logs show the same operation first
+returned201 at20:50:55Z, then200 at20:51:03Z after the browser retry. The public
+session contract explicitly permits this replay. The assertion now requires
+200/201 plus a valid session-token shape, unexpired timestamp and DEFAULT mode;
+error, expired and order-resume bodies remain failures. Regression reproduced
+the incorrect rejection before the fix. No application retry or timeout changed.
+Normal Chrome on paired `dpl_sqXhmbfLwxfuMMr6uBd91tCGyn6D` completed a synthetic
+QR order, displayed its tracker, confirmed it through Staff and observed the
+same order in KDS with SSE ready. Only that exact test-marked order was deleted;
+readback found zero matching orders/print jobs. No payment or printing occurred.
+CI `39670467211` passed. The full automated mobile/responsive rerun remains pending.
+
+### Current Preview and dependency gate (2026-10-22)
+
+Preview `39674978026` passed on candidate `501c540`, paired merge `fadf342` and
+deployment `dpl_Gfuh4RgkACDY9ZUNmGceVGiKoT2B` with isolated backend
+`yorwbxvcflxygmrvtuys`. Artifact `12381668301` confirms actual QR session,
+320/390/768/1440 layouts, mobile checkout and tracker; downloaded screenshots were
+visually checked. Normal Chrome password login, workspace, Staff/SSE, disabled
+Print Center and KDS/SSE passed without injected protection headers.
+
+CI `39674977886` passed unit and Chromium/WebKit E2E tests, then failed the native
+dependency audit on newly indexed `@vitest/mocker` advisories
+`GHSA-qxg6-89mg-rqv8` and `GHSA-xp26-3454-mjgp`. Local `npm audit --json`
+reproduced two moderate findings. Upstream's 4.1.12 release fixes both; update
+only Vitest and its seven version-coupled packages, preserving every other lock
+entry and the default-deny install-script policy. Clean `npm ci --ignore-scripts`,
+native audit (zero findings), 517 registry signatures / 155 attestations,
+typecheck, production guardrails, build, UI audit and 3,424 unit tests passed
+(nine existing skips). Lint has zero errors and five existing navigation warnings.
+This is test tooling remediation,
+not evidence of a Production exploit. The patched candidate still requires new
+cloud gates; the earlier green Preview does not override the failed audit.
+
+Cloudflare readback `39621513322` attempt 2 passed at 21:09:33Z using the currently
+stored Token. Exact Primary DNS and old DR Access identities remain unchanged;
+Staging DNS is absent. Actual edit capability remains a protected-entry step
+before deletion. No hosted DR data/files/provider mutation has occurred.

@@ -53,6 +53,8 @@ jobs:
         shell: bash
         run: |
           for name in \
+            ABUSE_HASH_SECRET \
+            TOKEN_DERIVATION_SECRET \
             AUDIT_IP_HASH_SECRET \
             SESSION_FINGERPRINT_HASH_SECRET \
             OAUTH_STATE_SECRET \
@@ -75,6 +77,7 @@ jobs:
             echo "PRODUCTION_ENVIRONMENT_APPROVED=false"
             echo "TRUSTED_CLIENT_IP_HEADER=x-real-ip"
             echo "REPORT_DELIVERY_MODE=simulate"
+            echo "NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA"
           } >> "$GITHUB_ENV"
 
       - name: Validate isolated environment configuration
@@ -296,6 +299,13 @@ jobs:
             --file supabase/fixtures/delivery_mock_preview.sql \
             --log-level error
 
+      - name: Configure isolated public-order Edge runtime
+        env:
+          VERCEL_ENV: "preview"
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PREVIEW_ORDER_BRANCH_REF: ${{ steps.preview.outputs.branch_ref }}
+        run: node --import tsx scripts/configure-preview-order-runtime.ts
+
       - name: Deploy Edge Functions to isolated branch
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -445,6 +455,7 @@ jobs:
               --build-env "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" \
               --build-env "NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL=$NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL" \
               --build-env "NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL" \
+              --build-env "NEXT_PUBLIC_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_TURNSTILE_SITE_KEY" \
               --build-env "OAUTH_PROVIDER_MODE=$OAUTH_PROVIDER_MODE" \
               --build-env "OAUTH_STATE_SECRET=$OAUTH_STATE_SECRET" \
               --build-env "DELIVERY_MOCK_WEBHOOK_SECRET=$DELIVERY_MOCK_WEBHOOK_SECRET" \
@@ -464,6 +475,9 @@ jobs:
               --env "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" \
               --env "NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL=$NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL" \
               --env "NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL" \
+              --env "NEXT_PUBLIC_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_TURNSTILE_SITE_KEY" \
+              --env "ABUSE_HASH_SECRET=$ABUSE_HASH_SECRET" \
+              --env "TOKEN_DERIVATION_SECRET=$TOKEN_DERIVATION_SECRET" \
               --env "OAUTH_PROVIDER_MODE=$OAUTH_PROVIDER_MODE" \
               --env "OAUTH_STATE_SECRET=$OAUTH_STATE_SECRET" \
               --env "OAUTH_MOCK_GOOGLE_SUBJECT=$OAUTH_MOCK_GOOGLE_SUBJECT" \
@@ -607,6 +621,28 @@ jobs:
           DELIVERY_SYNTHETIC_CONFIRMATION: EPHEMERAL_PREVIEW_ONLY
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: npm run preview:delivery-smoke
+
+      - name: Install browser for hosted public-order QA
+        if: steps.vercel-auth.outputs.enabled == 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify real public-order browser flow
+        if: steps.vercel-auth.outputs.enabled == 'true'
+        env:
+          VERCEL_ENV: "preview"
+          PREVIEW_ORDER_BASE_URL: ${{ steps.vercel-preview.outputs.url }}
+          PREVIEW_ORDER_BRANCH_REF: ${{ steps.preview.outputs.branch_ref }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: node --import tsx scripts/qa-preview-public-order.ts
+
+      - name: Preserve public-order browser QA evidence
+        if: always() && steps.vercel-auth.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-public-order-${{ github.run_id }}
+          path: artifacts/preview-public-order*
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Clean reusable Preview-only fixture state
         if: always() && env.EPHEMERAL_DATABASE_URL != ''

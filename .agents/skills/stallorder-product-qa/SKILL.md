@@ -106,6 +106,15 @@ Schedule concurrency QA must include the minute-boundary cron transaction:
 Preserve lock/deadlock assertions and verify all committed terminal states under
 the existing deadline; a passing retry alone does not qualify the release.
 
+Paired Preview must provision independent ABUSE/TOKEN secrets in Edge and the
+application, verify provider digests, and run an actual QR session → mobile order
+→ tracker before promotion. Green OAuth/delivery smoke did not detect the missing
+Edge secret in PR371. Keep explicit test-only Turnstile settings, target guards
+rejecting both live projects, 320/390/768/1440 checks and exact synthetic cleanup.
+Session creation can legitimately return HTTP200 on an idempotent retry; require
+the actual valid session body and usable UI for both200/201. Reject expired,
+error and order-resume bodies instead of treating every200 as a new session.
+
 ## LINE Web authentication
 
 For LINE Web authentication or live PR testing, read `docs/OAUTH_IDENTITY_ARCHITECTURE.md` and `docs/GITHUB_PREVIEW_ENVIRONMENT.md`; run `QA-AUTH-LINE-01` and `QA-AUTH-LINE-02`. Keep strict Web HS256 verification, exact-branch deployment-only TEST credentials, a data-less paired backend, atomic prepared SQL fixtures, real callback/session evidence and verified temporary-resource cleanup. DR is not a test runtime and this workflow does not activate Production.
