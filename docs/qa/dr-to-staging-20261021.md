@@ -58,8 +58,31 @@ this is NOT a passing backup gate and permits no DR deletion. A corrected runner
 schema setup is under verification.
 
 Local regression: 26 tests across seven Storage/catalog/asset consumer files and
-four encryption/target tests pass; typecheck and focused ESLint pass. These tests
-do not establish deployed Primary cleanup or Staging readiness.
+four encryption/target tests pass. Full unit suite: 555 files and 3,372 tests
+passed, two files/nine tests skipped. Typecheck, Production build and the
+335-file UI audit passed. ESLint has zero errors and five existing navigation
+warnings. Dependency audit reports zero vulnerabilities. These checks do not
+establish deployed Primary cleanup or Staging readiness.
+
+## Provider access blocker and latest restore attempt
+
+Read-only Cloudflare inventory run `39616131097` failed with HTTP 403. The local
+token separately returned code 9109 (invalid access token). No DNS, Access or
+Vercel environment mutation was attempted. The owner has been asked to update
+the existing GitHub `production` environment `CLOUDFLARE_API_TOKEN` securely,
+without posting its value or expanding its resource scope.
+
+The older read-only operator Plan `39615795041` failed before provider access:
+the workflow did not generate Prisma after install scripts were disabled. That
+failure is not evidence of a Cloudflare provider read or a successful Plan.
+
+Restore run `39615232670` captured the encrypted backup but failed with
+`PSQL_FAILED_1_MUST_BE_OWNER`: provider-owned schemas cannot be replaced by the
+ordinary local `postgres` role. Revision `5dc7090c` confines restore operations
+to the exact disposable runner container's Unix socket and its local
+`supabase_admin` role; it cannot target either hosted database. Run `39616803086`
+is verifying that correction. Until verification succeeds, restoration remains
+unproven and deleting DR data remains prohibited.
 
 Pending: pass actual backup restoration; separately retire file replication;
 prove effective permissions and synthetic seed isolation; convert Preview runtime,
