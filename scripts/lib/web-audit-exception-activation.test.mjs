@@ -9,6 +9,17 @@ const now=Date.parse('2026-10-20T00:00:00Z');
 function inputs(){const candidate={head:'a'.repeat(40),tree:'b'.repeat(40),sourceSha256:'c'.repeat(64),lockSha256:policy.lockBytesSha256};return {policy,policySha256:'e'.repeat(64),candidate,artifact:{...candidate,status:'PASS',scope:'WEB_KNOWN_NATIVE_DEPENDENCY_EXCLUSION',sbomSha256:'2'.repeat(64),auditSha256:'3'.repeat(64),advisoryRuntimeExclusion:{status:'PASS',scope:'REVIEWED_SOURCE_LITERAL_IMPORTS_AND_NFT_PACKAGE_CLOSURE',traces:1},artifactSha256:'f'.repeat(64),buildId:'fresh',installation:{sbom:'PASS',installedGraphSha256:'1'.repeat(64)},runtimeLoaderSafety:'NOT_PROVEN'},sbomSha256:'2'.repeat(64),auditSha256:'3'.repeat(64),advisoryRuntimeExclusion:{status:'PASS',scope:'REVIEWED_SOURCE_LITERAL_IMPORTS_AND_NFT_PACKAGE_CLOSURE',traces:1},lint:{status:'PASS',logSha256:'4'.repeat(64),configSha256:policy.lintConfigSha256,rootDir:'UNSET',ruleEnabled:true},isolation:{platform:'linux',ci:true,githubHosted:true,workspaceMatches:true,cleanCheckout:true,loopbackServices:true,noReleaseCredentials:true,runId:'123',runAttempt:'1',job:'verify',sha:candidate.head}};}
 test('only activates an exact candidate after artifact SBOM lint and isolation proof',()=>{expect(validateExceptionActivation(inputs(),now)).toMatchObject({status:'ACTIVATED',head:'a'.repeat(40),auditStatus:'NON_PASS',vulnerabilityRemediation:'NOT_FIXED',expiresAt:'2026-10-22T14:00:00Z'});});
 test('fixed window rejects expiry, preauthorization and sliding extension',()=>{expect(()=>validateExceptionWindow(policy,Date.parse(policy.expiresAt))).toThrow('EXPIRED');expect(()=>validateExceptionWindow(policy,Date.parse('2026-10-19T15:53:57Z'))).toThrow('NOT_STARTED');expect(()=>validateExceptionWindow({...policy,expiresAt:'2026-10-23T14:00:00Z'},now)).toThrow('WINDOW_UNREVIEWED');});
+
+test('lock amendment requires its exact separate authorization and rejects stale or arbitrary bindings',()=>{
+ expect(policy.lockRebind?.authorizationMessage).toBe('Sentinel_a4cb747e08008191a8ca1859de6f791a');
+ expect(()=>validateExceptionWindow(policy,now)).not.toThrow();
+ for(const patch of [{lockRebind:undefined},{lockRebind:{...policy.lockRebind,authorizationMessage:'OTHER'}},
+  {lockRebind:{...policy.lockRebind,to:'1.16.2'}},{lockRebind:{...policy.lockRebind,otherPackage:'unreviewed'}},
+  {lockSha256:'00f3c2b4363f58e2485fb9139142ac9d611671ad04e8561150cf35be8015bc6c'},
+  {lockBytesSha256:'d284d352264e152619d134d21c5323005e2727f314672e74ff3dff54e91379ef'},
+  {lockSha256:'0'.repeat(64)},{lockBytesSha256:'0'.repeat(64)}])
+  expect(()=>validateExceptionWindow({...policy,...patch},now)).toThrow();
+});
 test.each(['head','tree','sourceSha256','lockSha256'])('rejects stale artifact %s',key=>{const x=inputs();x.artifact[key]='0'.repeat(x.candidate[key].length);expect(()=>validateExceptionActivation(x,now)).toThrow('CANDIDATE_MISMATCH');});
 test.each(['artifact','lint','isolation','sbomSha256','auditSha256'])('rejects missing %s evidence',key=>{const x=inputs();delete x[key];expect(()=>validateExceptionActivation(x,now)).toThrow();});
 test.each(['cleanCheckout','loopbackServices','noReleaseCredentials','githubHosted','workspaceMatches'])('rejects isolation condition %s',key=>{const x=inputs();x.isolation[key]=false;expect(()=>validateExceptionActivation(x,now)).toThrow('ISOLATION');});

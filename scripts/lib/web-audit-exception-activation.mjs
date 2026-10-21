@@ -34,7 +34,9 @@ export function isCleanExceptionCheckout(root,evidenceDirectory){
 }
 export function validateExceptionWindow(policy,now=Date.now()){
  if(policy.id!=='WEB-20261019-ONE-WINDOW-BRACES'||policy.expiresAt!=='2026-10-22T14:00:00Z'||policy.authorizedAt!=='2026-10-19T15:53:58Z'||policy.authorizationMessage!=='Sentinel_2859b6c9b0908191a8647cc7508aa2bc'||policy.scope!=='WEB_ONLY_ONE_ACCEPTANCE_WINDOW'||policy.preparationBase!=='980309944db37379906c44714387ff65fa22fc0c')reject('WINDOW_UNREVIEWED');
- if(policy.hashByteContract!=='COMMITTED_GIT_BLOB_LF_BYTES_FOR_HOSTED_LINUX_CHECKOUT'||policy.lockBytesSha256!=='d284d352264e152619d134d21c5323005e2727f314672e74ff3dff54e91379ef'||policy.lintConfigSha256!=='8fd517247f4021feb4bfeb4edb33d14e1579084e0ff413ab7c3bc6d31e587313')reject('POLICY_BINDING_UNREVIEWED');
+ if(policy.hashByteContract!=='COMMITTED_GIT_BLOB_LF_BYTES_FOR_HOSTED_LINUX_CHECKOUT'||policy.lockBytesSha256!=='51d616877d27acbb72a1c788fad7ea6c80abdcd045f99c6254b29b6eaa978732'||policy.lockSha256!=='7273203027bb3e4c194cedcc5890bcc9d164c9d41a0b8dee9ae3e1f081c62f97'||policy.lintConfigSha256!=='8fd517247f4021feb4bfeb4edb33d14e1579084e0ff413ab7c3bc6d31e587313')reject('POLICY_BINDING_UNREVIEWED');
+ const amendment={authorizationMessage:'Sentinel_a4cb747e08008191a8ca1859de6f791a',candidateBase:'86bd17f450d32cf69f8560102150d91656edc5af',package:'follow-redirects',from:'1.16.0',to:'1.16.1',previousLockSha256:'00f3c2b4363f58e2485fb9139142ac9d611671ad04e8561150cf35be8015bc6c',previousLockBytesSha256:'d284d352264e152619d134d21c5323005e2727f314672e74ff3dff54e91379ef'};
+ if(!policy.lockRebind||Object.keys(policy.lockRebind).length!==Object.keys(amendment).length||Object.entries(amendment).some(([key,value])=>policy.lockRebind[key]!==value))reject('LOCK_REBIND_UNREVIEWED');
  if(!Number.isFinite(now)||now>=Date.parse(policy.expiresAt))reject('EXPIRED');
  if(now<Date.parse(policy.authorizedAt))reject('NOT_STARTED');
 }

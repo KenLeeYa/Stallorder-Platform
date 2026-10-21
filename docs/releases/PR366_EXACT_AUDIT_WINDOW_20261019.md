@@ -16,9 +16,34 @@ micromatch 4.0.8 -> braces 3.0.3. Existing exact audit checks retain package/nod
 version, integrity presence, advisory source/range, via/effects and count checks.
 Both semantic lock identity and exact lock bytes are bound. Native and any new
 advisory, version or lock change are excluded. No vendor experiment is resumed.
+The sole subsequent amendment is the owner-approved follow-redirects 1.16.0 ->
+1.16.1 patch below; every other version/lock change remains excluded.
 Approved byte hashes use the committed Git blobs (LF) for the required hosted
 Linux checkout; MSI's CRLF working-copy hashes differ and are not substituted for
 those values. Activation still checks the actual candidate file bytes exactly.
+
+## Approved narrow lock amendment, 2026-10-21
+
+Owner message `Sentinel_a4cb747e08008191a8ca1859de6f791a` approved only the
+follow-redirects patch in candidate `86bd17f450d32cf69f8560102150d91656edc5af`,
+rebinding the original five HIGH exception and running free CI. The previous
+authorization identity/time remain recorded separately and are not rewritten.
+No new advisory or Native risk is accepted. The five complete audit entries and
+their locked package entries are unchanged. Raw audit remains NON_PASS and the
+original findings remain NOT_FIXED. Expiry stays `2026-10-22T14:00:00Z`.
+
+The entire lock changes only follow-redirects version, tarball and integrity:
+
+- Semantic SHA256: `00f3c2b4363f58e2485fb9139142ac9d611671ad04e8561150cf35be8015bc6c`
+  -> `7273203027bb3e4c194cedcc5890bcc9d164c9d41a0b8dee9ae3e1f081c62f97`.
+- Git LF bytes SHA256: `d284d352264e152619d134d21c5323005e2727f314672e74ff3dff54e91379ef`
+  -> `51d616877d27acbb72a1c788fad7ea6c80abdcd045f99c6254b29b6eaa978732`.
+
+The verifier requires the new exact hashes and separate amendment metadata;
+stale hashes, other lock deltas and deadline changes remain rejected. Prior
+activations cannot transfer: the final candidate still needs a fresh hosted
+Linux install/SBOM/lint/build/NFT/isolation activation. This approval does not
+authorize a second paid hosted acceptance or bypass Production release gates.
 
 ## Evidence collection and activation
 

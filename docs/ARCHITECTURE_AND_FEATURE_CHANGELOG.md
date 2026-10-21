@@ -2,6 +2,10 @@
 
 This ledger is the durable entry point for owner-approved architecture and product-function changes. It prevents a new task from relying only on chat history or rediscovering an already changed contract.
 
+## 2026-10-21 — Approved exact-lock amendment, new audit blocker
+
+Implemented locally, not released: owner message `Sentinel_a4cb747e08008191a8ca1859de6f791a` approved only rebinding the existing five-HIGH exception to the follow-redirects 1.16.1 lock. Both exact hashes and separate amendment metadata are enforced; the original approval, NON_PASS/NOT_FIXED findings, scope and `2026-10-22T14:00:00Z` expiry remain unchanged. New tests reject stale/broader bindings without relying on CI Git history. Fresh audit reports an additional Vite 8.2.2 HIGH entry outside that approval; it remains blocking, with no Vite update, exception expansion, push, paid resource or deployment. See [current gate and validation](releases/PR366_FOLLOW_REDIRECTS_PATCH_20261021.md).
+
 ## 2026-10-21 — PR366 follow-redirects security patch preparation
 
 Implemented locally, not released; release verification blocked: minimally update follow-redirects 1.16.0 to 1.16.1, add real HTTP credential-redirect regressions, and make the existing Native orders consumer test independent of invocation cwd. Selected Web audit returns to the original five HIGH/NON_PASS; those vulnerabilities remain NOT_FIXED. Existing policy excludes all lock/version changes, so neither its exact hash binding nor its fixed expiry was changed. See [patch, Web/Native results and precise rebind decision](releases/PR366_FOLLOW_REDIRECTS_PATCH_20261021.md). No new hosted resource, Production or DR mutation.

@@ -9,16 +9,16 @@ const temporary=[];
 afterEach(()=>{vi.restoreAllMocks();for(const root of temporary.splice(0))rmSync(root,{recursive:true,force:true});});
 const audit={metadata:{vulnerabilities:{total:0}},vulnerabilities:{}};
 const sbom={bomFormat:'CycloneDX',components:[{name:'safe',version:'1.0.0'}]};
-function fixture(){
+function fixture(name='safe',version='1.0.0'){
  const root=mkdtempSync(join(tmpdir(),'stallorder-web-audit-'));temporary.push(root);
  const write=(path,value)=>{mkdirSync(join(root,path,'..'),{recursive:true});writeFileSync(join(root,path),value);};
- write('package.json',JSON.stringify({dependencies:{safe:'1.0.0'}}));write('package-lock.json',JSON.stringify({packages:{'node_modules/safe':{version:'1.0.0'}}}));
- write('packages/contracts/package.json',JSON.stringify({name:'@stallorder/contracts',dependencies:{}}));write('src/page.ts',"import 'safe';");
+ write('package.json',JSON.stringify({dependencies:{[name]:version}}));write('package-lock.json',JSON.stringify({packages:{['node_modules/'+name]:{version}}}));
+ write('packages/contracts/package.json',JSON.stringify({name:'@stallorder/contracts',dependencies:{}}));write('src/page.ts',`import '${name}';`);
  execFileSync('git',['init','--quiet'],{cwd:root});execFileSync('git',['add','.'],{cwd:root});execFileSync('git',['-c','user.name=Synthetic QA','-c','user.email=qa@example.invalid','commit','--quiet','-m','synthetic fixture'],{cwd:root});
  const baseline=prepareWebAudit(root);
- write('node_modules/safe/package.json',JSON.stringify({name:'safe',version:'1.0.0'}));write('node_modules/safe/index.js','module.exports=1;');
+ write(`node_modules/${name}/package.json`,JSON.stringify({name,version}));write(`node_modules/${name}/index.js`,'module.exports=1;');
  write('.next/BUILD_ID','synthetic-build');utimesSync(join(root,'.next/BUILD_ID'),new Date(),new Date(Date.parse(baseline.preparedAt)+1000));
- write('.next/server/page.js',"require('safe');");write('.next/server/page.js.nft.json',JSON.stringify({version:1,files:['../../node_modules/safe/index.js']}));
+ write('.next/server/page.js',`require('${name}');`);write('.next/server/page.js.nft.json',JSON.stringify({version:1,files:[`../../node_modules/${name}/index.js`]}));
  write('.next/server/app/page_client-reference-manifest.js','globalThis.__RSC_MANIFEST = globalThis.__RSC_MANIFEST || {}; globalThis.__RSC_MANIFEST["/page"] = {"clientModules":{}};');
  write('.next/server/server-reference-manifest.json',JSON.stringify({node:{},edge:{}}));
  return {root,write,baseline,verify:()=>verifyWebArtifact(root,baseline,audit,sbom)};
@@ -33,8 +33,8 @@ describe('Web artifact dependency scope',()=>{
  it('binds a synthetic fresh artifact to source, HEAD, lock and every trace',()=>{const f=fixture();expect(f.verify()).toMatchObject({status:'PASS',traces:1,tracedFiles:1,buildId:'synthetic-build',head:f.baseline.head,lockSha256:f.baseline.lockSha256});expect(f.verify().artifactSha256).toMatch(/^[a-f0-9]{64}$/);});
  it('artifact receipt preserves NON_PASS audit under exact exception rather than relabeling it',()=>{
   vi.spyOn(Date,'now').mockReturnValue(Date.parse('2026-10-20T00:00:00Z'));
-  const f=fixture(),policy=JSON.parse(readFileSync(new URL('../web-release-audit-exception.json',import.meta.url))),lock=JSON.parse(readFileSync(new URL('../../package-lock.json',import.meta.url)));
-  lock.packages['node_modules/safe']={version:'1.0.0'};policy.lockSha256=createHash('sha256').update(JSON.stringify(lock)).digest('hex');
+  const f=fixture('clsx','2.1.1'),policy=JSON.parse(readFileSync(new URL('../web-release-audit-exception.json',import.meta.url))),lock=JSON.parse(readFileSync(new URL('../../package-lock.json',import.meta.url)));
+  const sbom={bomFormat:'CycloneDX',components:[{name:'clsx',version:'2.1.1'}]};
   f.write('package-lock.json',JSON.stringify(lock));const baseline=prepareWebAudit(f.root);baseline.oldBuildId=null;utimesSync(join(f.root,'.next/BUILD_ID'),new Date(),new Date(Date.parse(baseline.preparedAt)+1000));
   const accepted={auditReportVersion:2,metadata:{vulnerabilities:policy.counts},vulnerabilities:Object.fromEntries(Object.entries(policy.packages).map(([name,p])=>[name,{name,severity:'high',isDirect:p.isDirect,nodes:[p.node],effects:p.effects,range:p.range,via:name==='braces'?[{source:1240992,url:'https://github.com/advisories/GHSA-vfj7-8cjw-p6xm',name:'braces',dependency:'braces',severity:'high',range:'<=3.0.3'}]:p.via}]))};
   expect(verifyWebArtifact(f.root,baseline,accepted,sbom,{policy,lock})).toMatchObject({rootAudit:'NON_PASS',auditReleaseDecision:'PENDING_EXCEPTION_ACTIVATION'});
@@ -45,7 +45,7 @@ describe('Web artifact dependency scope',()=>{
   f.write('.next/server/page.js.nft.json',JSON.stringify({version:1,files:['../../node_modules/braces/index.js']}));
   const tracedSbom={...sbom,components:[...sbom.components,{name:'braces',version:'3.0.3'}]};
   expect(verifyWebArtifact(f.root,baseline,accepted,tracedSbom,{policy,lock})).toMatchObject({status:'INCOMPLETE',problems:expect.arrayContaining([{path:expect.any(String),code:'EXCEPTION_RUNTIME_PACKAGE'}])});
-  f.write('.next/server/page.js.nft.json',JSON.stringify({version:1,files:['../../node_modules/safe/index.js']}));
+  f.write('.next/server/page.js.nft.json',JSON.stringify({version:1,files:['../../node_modules/clsx/index.js']}));
   expect(verifyWebArtifact(f.root,baseline,audit,sbom)).toMatchObject({rootAudit:'PASS',auditReleaseDecision:'ZERO_VULNERABILITIES'});
  });
  it('does not claim Deno-only Edge helpers are part of Web publication',()=>{const f=fixture();f.write('supabase/functions/_shared/supabase.ts',"import 'npm:@supabase/supabase-js@2.110.2';");f.baseline=prepareWebAudit(f.root);f.baseline.oldBuildId=null;utimesSync(join(f.root,'.next/BUILD_ID'),new Date(),new Date(Date.parse(f.baseline.preparedAt)+1000));expect(verifyWebArtifact(f.root,f.baseline,audit,sbom)).toMatchObject({status:'PASS',sourceScope:{edgeFunctions:'NOT_VERIFIED_DENO_QA_REQUIRED'}});});
