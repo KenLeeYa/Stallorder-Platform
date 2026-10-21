@@ -88,6 +88,18 @@ async function main() {
   sql("truncate storage.objects cascade;");
   operation = "REMOVE_SCHEMAS";
   sql("drop schema if exists app_private cascade; drop schema if exists internal cascade;");
+  operation = "SEQUENCE_REGRESSION";
+  sql(`begin;
+    create table public.__dr_sequence_fixture (id bigint generated always as identity primary key);
+    create sequence public.__dr_standalone_fixture;
+    ${retiredDrSequenceCleanupSql}
+    do $$ begin
+      if to_regclass('public.__dr_standalone_fixture') is not null
+        or to_regclass(pg_get_serial_sequence('public.__dr_sequence_fixture','id')) is null then
+        raise exception 'SEQUENCE_REGRESSION_FAILED';
+      end if;
+    end $$;
+    rollback;`);
   operation = "REMOVE_SEQUENCES";
   sql(retiredDrSequenceCleanupSql);
   const url = assertRehearsalTarget(`postgresql://supabase_admin:${password}@127.0.0.1:54322/postgres?sslmode=disable`);
@@ -122,6 +134,7 @@ async function main() {
     syntheticState: state, remoteWrites: false, hostedCleanup: false,
     exactCliRemoteResetPath: true, localAdministratorUsed: true,
     localStorageRemovalSimulated: true,
+    sequenceRegression: true,
   }, null, 2));
   console.log("PASS: original DR restore reset and synthetic seed on disposable loopback only.");
 }

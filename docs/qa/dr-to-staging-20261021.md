@@ -274,3 +274,10 @@ now explicitly drops only non-extension public sequences on the offline copy
 before replaying the unchanged migrations. The eventual hosted action must use
 this same preparation only after the backup/Primary-isolation/target guards.
 No historical migration was edited and no Primary sequence was touched.
+
+Run `39644728498` exposed a preparation boundary: identity sequences cannot be
+dropped separately from their owning columns. Preparation now excludes extension,
+owned and identity dependencies (`e`, `a`, `i`); the CLI removes owned sequences
+with their tables. A transactional SQL regression on the disposable restore
+creates both an identity-backed table and a standalone sequence, proves only the
+latter is removed, then rolls back before the actual reset rehearsal.
