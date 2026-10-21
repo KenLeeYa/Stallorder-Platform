@@ -80,7 +80,10 @@ Never recreate replication into the test project or import Production credential
 into Staging. ADR-006's bounded, encrypted recovery-only reference supplement is not
 seed data and must retain all original constraint and data checks; it does not permit
 hosted data repair or additional Primary copies.
-Preserve Primary-only Storage cleanup when retiring mirroring. Keep Cloudflare
+Preserve Primary-only Storage cleanup and asset manifests when retiring mirroring;
+offline menu snapshots still require those manifests. Cancel only replication,
+never its Primary metadata, and rerun the offline permit/asset E2E unchanged.
+Keep Cloudflare
 Access and Standard Vercel protection; the historical paid-All-Deployments
 provisioning paragraph is superseded by ADR-005, not permission to buy an add-on.
 An independent Staging environment cannot satisfy a Production DR-readiness gate.

@@ -60,6 +60,23 @@ target; an independent test database is not a Production recovery replica.
 The detailed execution record is [DR-to-Staging QA](../qa/dr-to-staging-20261021.md).
 Until every required acceptance case passes, report this conversion as incomplete.
 
+## Primary runtime isolation prerequisite
+
+The application-only release has an explicit `retire_dr_runtime` option. Its
+immutable Plan binds the exact live Primary artifact and five Production-only DR
+environment binding IDs/metadata. Apply rejects drift, shared Preview bindings,
+unexpected DR keys and mismatched project/revision identities. The reviewed new
+artifact overrides those five bindings to empty at build and runtime, is probed
+before promotion, and passes live Production smoke before the planned bindings
+are removed. Other environments and non-DR settings are retained and rechecked.
+No database or Edge Function mutation belongs to this prerequisite.
+
+This prerequisite uses the existing paired, data-less Preview qualification while
+persistent Staging is still unavailable; it does not claim Staging acceptance.
+The verified previous artifact remains a recovery option only while the original
+DR data is intact. After cleanup, recovery must use a verified Primary-only
+artifact; never restore an old artifact capable of mirroring into synthetic Staging.
+
 ## Recovery-only reference closure
 
 The original DR contains 552 print jobs referencing three missing print rules.

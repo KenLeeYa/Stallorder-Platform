@@ -30,13 +30,16 @@ async function main() {
   const supabaseUrl = required("NEXT_PUBLIC_SUPABASE_URL");
   assertIsolatedStorageQa({ ref, supabaseUrl, parentRef: required("SUPABASE_PARENT_PROJECT_REF"),
     databaseUrl: required("DATABASE_URL") });
-  const response = await fetch(`https://api.supabase.com/v1/projects/${ref}/api-keys`, {
+  const response = await fetch(`https://api.supabase.com/v1/projects/${ref}/api-keys?reveal=true`, {
     headers: { Authorization: `Bearer ${required("SUPABASE_ACCESS_TOKEN")}` },
     redirect: "error", signal: AbortSignal.timeout(20_000),
   });
   if (!response.ok) throw new Error("STORAGE_QA_KEY_LOOKUP_FAILED");
-  const keys = await response.json() as Array<{ name: string; api_key: string }>;
-  const key = keys.find((entry) => entry.name === "service_role")?.api_key;
+  const keys = await response.json() as Array<{ name: string; type?: string; api_key?: string; value?: string }>;
+  const selectedKey = keys.find((entry) => entry.type === "secret" && entry.name === "default")
+    ?? keys.find((entry) => entry.type === "secret")
+    ?? keys.find((entry) => entry.name === "service_role");
+  const key = selectedKey?.api_key ?? selectedKey?.value;
   if (!key) throw new Error("STORAGE_QA_SERVICE_KEY_MISSING");
   console.log("Storage QA: isolated target and temporary service access verified.");
   // The isolated key is used only by this process, never exported to later steps.
@@ -59,22 +62,21 @@ async function main() {
     assert.equal(await prisma.storageReplicationJob.count({
       where: { status: { in: ["PENDING", "PROCESSING", "FAILED"] } },
     }), 0, "STORAGE_QA_QUEUE_NOT_EMPTY");
+    uploaded = true;
     const published = await publishImmutableStorageObject({ organizationId: null,
       bucket: "product-images", objectPath, contentType: "image/png", bytes });
-    uploaded = true;
-    assert.equal(await prisma.storageObjectManifest.findUnique({
+    const manifest = await prisma.storageObjectManifest.findUniqueOrThrow({
       where: { bucket_objectPath: { bucket: "product-images", objectPath } },
-    }), null, "STORAGE_QA_UNEXPECTED_REPLICA");
+    });
+    manifestId = manifest.id;
+    assert.equal(manifest.primaryChecksum, published.checksum);
+    assert.equal(manifest.lastErrorCode, "DR_REPLICATION_DISABLED");
+    assert.equal(await prisma.storageReplicationJob.count({ where: { manifestId } }), 0,
+      "STORAGE_QA_UNEXPECTED_REPLICA");
     const downloaded = await storage.download(objectPath);
     assert.equal(downloaded.error, null, "STORAGE_QA_DOWNLOAD_FAILED");
     assert.deepEqual(Buffer.from(await downloaded.data!.arrayBuffer()), bytes);
-    console.log("Storage QA: real upload/read passed without a new replica.");
-
-    const oldManifest = await prisma.storageObjectManifest.create({ data: {
-      bucket: "product-images", objectPath, contentType: "image/png",
-      primaryChecksum: published.checksum, primaryUpdatedAt: new Date(),
-    } });
-    manifestId = oldManifest.id;
+    console.log("Storage QA: real upload/read and Primary manifest passed without a new replica.");
     const oldJob = await prisma.storageReplicationJob.create({ data: {
       manifestId, sourceBackendCode: "PRIMARY", targetBackendCode: "DR",
     } });
@@ -120,9 +122,10 @@ function required(name: string) {
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
-  main().catch(() => {
+  main().catch((error: unknown) => {
     // Provider exceptions can contain connection details: do not print them.
-    console.error("STORAGE_RETIREMENT_LIVE_QA_FAILED");
+    const message = error instanceof Error ? error.message : "";
+    console.error(/^STORAGE_QA_[A-Z_]+$/.test(message) ? message : "STORAGE_RETIREMENT_LIVE_QA_FAILED");
     process.exitCode = 1;
   });
 }

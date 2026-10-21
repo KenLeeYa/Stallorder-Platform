@@ -56,7 +56,7 @@ export async function enqueueStorageReplication(input: StorageReplicationInput) 
   if (!/^[a-f0-9]{64}$/.test(input.primaryChecksum)) {
     throw new Error("STORAGE_CHECKSUM_INVALID");
   }
-  if (!process.env.DR_SUPABASE_URL?.trim()) return null;
+  const replicationEnabled = Boolean(process.env.DR_SUPABASE_URL?.trim());
 
   return prisma.$transaction(async (transaction) => {
     const existing = await transaction.storageObjectManifest.findUnique({
@@ -72,7 +72,9 @@ export async function enqueueStorageReplication(input: StorageReplicationInput) 
       && !existing.deletedAt
       && existing.primaryChecksum === input.primaryChecksum
       && existing.contentType === input.contentType
-      && ["PENDING", "PROCESSING", "MIRRORED"].includes(existing.replicationStatus)
+      && (replicationEnabled
+        ? ["PENDING", "PROCESSING", "MIRRORED"].includes(existing.replicationStatus)
+        : existing.replicationStatus === "FAILED" && existing.lastErrorCode === "DR_REPLICATION_DISABLED")
     ) {
       return existing.id;
     }
@@ -91,7 +93,8 @@ export async function enqueueStorageReplication(input: StorageReplicationInput) 
         contentType: input.contentType,
         primaryChecksum: input.primaryChecksum,
         primaryUpdatedAt: input.primaryUpdatedAt,
-        replicationStatus: "PENDING",
+        replicationStatus: replicationEnabled ? "PENDING" : "FAILED",
+        lastErrorCode: replicationEnabled ? null : "DR_REPLICATION_DISABLED",
       },
       update: {
         organizationId: input.organizationId,
@@ -99,9 +102,10 @@ export async function enqueueStorageReplication(input: StorageReplicationInput) 
         primaryChecksum: input.primaryChecksum,
         primaryUpdatedAt: input.primaryUpdatedAt,
         deletedAt: null,
-        replicationStatus: "PENDING",
+        replicationStatus: replicationEnabled ? "PENDING" : "FAILED",
         retryCount: 0,
-        lastErrorCode: null,
+        lastErrorCode: replicationEnabled ? null : "DR_REPLICATION_DISABLED",
+        ...(!replicationEnabled ? { drChecksum: null, drUpdatedAt: null } : {}),
       },
     });
     await transaction.storageReplicationJob.updateMany({
@@ -112,9 +116,10 @@ export async function enqueueStorageReplication(input: StorageReplicationInput) 
       data: {
         status: "CANCELLED",
         completedAt: new Date(),
-        lastErrorCode: "SUPERSEDED",
+        lastErrorCode: replicationEnabled ? "SUPERSEDED" : "DR_REPLICATION_DISABLED",
       },
     });
+    if (!replicationEnabled) return manifest.id;
     await transaction.storageReplicationJob.create({
       data: {
         manifestId: manifest.id,

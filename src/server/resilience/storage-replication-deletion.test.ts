@@ -173,13 +173,22 @@ describe("storage deletion lifecycle", () => {
     }));
   });
 
-  it("does not enqueue new replicas when there is no DR origin", async () => {
+  it("retains the Primary asset manifest without enqueueing replicas when DR is retired", async () => {
     vi.stubEnv("DR_SUPABASE_URL", "");
+    mocks.manifestFindUnique.mockResolvedValue(null);
+    mocks.manifestUpsert.mockResolvedValue({ id: "manifest-1" });
     await expect(enqueueStorageReplication({ organizationId, bucket: "product-images", objectPath,
       contentType: "image/webp", primaryChecksum: "a".repeat(64), primaryUpdatedAt: new Date(),
-    })).resolves.toBeNull();
+    })).resolves.toBe("manifest-1");
     expect(mocks.jobCreate).not.toHaveBeenCalled();
-    expect(mocks.manifestUpsert).not.toHaveBeenCalled();
+    expect(mocks.manifestUpsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({ primaryChecksum: "a".repeat(64),
+        replicationStatus: "FAILED", lastErrorCode: "DR_REPLICATION_DISABLED" }),
+      update: expect.objectContaining({ drChecksum: null, drUpdatedAt: null }),
+    }));
+    expect(mocks.jobUpdateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: "CANCELLED", lastErrorCode: "DR_REPLICATION_DISABLED" }),
+    }));
   });
 
   it("cancels a queued replica instead of copying to the retired DR or claiming success", async () => {

@@ -166,3 +166,42 @@ writing. Only the current isolated branch's service key is used, in process;
 no shared Preview secret is changed. Exact synthetic object/job/manifest cleanup
 runs on success or failure. The CLI rejects a local invocation; target guard
 tests, typecheck and lint pass. Its hosted execution remains pending.
+
+## Isolation prerequisite follow-up (2026-10-21 23:56 Asia/Taipei)
+
+Preview `39627518399` passed its migrations, database tests, lint and Edge setup,
+then stopped before Storage access because the new CLI's explicit Preview runtime
+guard was not wired into the workflow. A red regression reproduces the missing
+`VERCEL_ENV`; the step now supplies `preview` without weakening any target check.
+Service-key selection also follows the existing modern/legacy key contract and
+requests explicit reveal only in this isolated process. Hosted Storage QA must rerun.
+
+The application release's optional DR retirement mode now binds a sanitized
+Primary prestate snapshot into its existing immutable approval parameters. Only
+the exact Production-only DR bindings may be removed, after the reviewed
+Primary-only deployment and live smoke; unrelated bindings are checked before
+each deletion and afterwards. A mismatched project, revision, artifact, shared
+environment binding or changed snapshot fails closed. Recovery uses the exact
+healthy prestate artifact, not an arbitrary previous deployment. This code has
+focused guard/workflow tests, but no hosted Plan/Apply has executed it yet.
+
+At 23:55, Primary remains revision `b651daba7014d540d7105a642ff0d7d5f3e2ded2`,
+`NORMAL_PRIMARY`, epoch 3, with QR and Staff availability unchanged. No DR data,
+runtime binding, domain or provider policy has been removed in this phase.
+
+CI `39627518344` also caught a real dependent-flow regression: the offline permit
+journey requires a Storage manifest even when DR is absent. The initial early
+return suppressed that Primary metadata along with replication. Preserve the
+manifest/checksum/content type and cancel only replication jobs; under the existing
+schema, its replication status stays `FAILED` with `DR_REPLICATION_DISABLED`, never
+claims `MIRRORED`, and clears stale DR checksums. Primary asset reads/deletions keep
+their existing contract. The original offline E2E assertion is unchanged; a focused
+red regression now passes. Hosted Storage QA also requires the retained manifest.
+Local full units passed 3383 before this correction; 15 affected tests/typecheck
+are rerun after it, and current full CI/Preview remain required.
+
+After the manifest correction, full local verification passed again: 557 test
+files / 3383 tests (2 files / 9 pre-existing skips), typecheck, targeted lint,
+Production guardrails (2310 tracked files / 146 migrations), both workflow YAML
+parses, and the Production build. These are local checks, not hosted-flow or
+release completion evidence.
