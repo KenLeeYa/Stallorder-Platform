@@ -347,3 +347,29 @@ LINE DB 56863 is retained. No hosted DR data/files have been removed.
 Fresh public Production readback remained revision `4e95d2e`, NORMAL_PRIMARY,
 PRIMARY epoch 3, QR/Staff AVAILABLE and login 200. New candidate cloud gates remain
 required; none of these local checks qualifies a completed hosted conversion.
+
+## Post-merge hosted QR gate (2026-10-22 04:22 Asia/Taipei)
+
+PR371 merged normally as `179a26ba5e361596eff1bf5b0cb2934c13646312` after exact
+candidate CI `39663146479`, Preview `39663146402` and security `39663146544`
+passed. Its tree equals candidate `6329bd3` and paired Preview merge `27e5074`:
+`034a2990fa2b84a36bc69651f13a8a7f29b8b9a5`. Actual Chrome password login,
+workspace, Staff/SSE, Print Center and KDS succeeded on paired Preview
+`dpl_7YNmafP7SZHQezvUs6YC4Dvvfu1c`.
+
+Actual QR entry then failed with HTTP500. The isolated branch's Edge logs identify
+`Missing required secret: ABUSE_HASH_SECRET`; this was not a Production failure.
+The workflow deployed Edge functions without their independent order secrets;
+its OAuth/delivery-only smoke did not exercise QR. Promotion is paused for this
+real failure, despite the preceding green workflow. No hosted DR data/files or
+provider settings have been removed or changed.
+
+The scoped follow-up supplies random Preview-only abuse/token secrets to both
+Edge and application, digest-verifies provider readback, keeps official Turnstile
+test keys restricted to explicit test runtimes, and adds hosted browser QR
+session → four responsive widths → mobile order → tracker validation. The same
+target guard rejects both live projects and mismatched DB/API bindings. Browser
+QA uses only the seeded merchant, disables its printers, marks its new order as
+test-only and removes exactly that order. No real credentials or external effects.
+Provisioning/workflow regressions failed before the fix and focused tests pass;
+new hosted execution remains required and is not yet recorded as passed.
