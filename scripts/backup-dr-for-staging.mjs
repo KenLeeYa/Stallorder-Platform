@@ -84,6 +84,8 @@ async function main() {
         "password authentication failed", "connection refused", "timeout", "violates foreign key constraint",
         "violates unique constraint", "unrecognized configuration parameter"];
       const category = categories.find((value) => result.stderr?.toLowerCase().includes(value));
+      const missing = result.stderr?.match(/(?:schema|extension|relation|type|function|role) "([A-Za-z_][A-Za-z0-9_. (),\[\]]{0,120})" does not exist/);
+      if (missing) console.error(JSON.stringify({ event: "restore_missing_database_object", object: missing[1] }));
       throw new Error(`${command.toUpperCase()}_FAILED_${result.status ?? "TIMEOUT"}${category ? `_${category.toUpperCase().replaceAll(" ", "_")}` : ""}`);
     }
     return result.stdout.trim();
@@ -166,7 +168,11 @@ async function main() {
   } else if (mode === "restore") {
     // The only writable connection is this loopback-only ephemeral CI database.
     await writeFile(resolve(directory, "restore.dump"), await decrypted("database.dump.enc"), { mode: 0o600 });
-    run("pg_restore", ["--schema-only", "--clean", "--if-exists", "--no-owner", "--no-acl", "--exit-on-error",
+    query(`create extension if not exists btree_gist with schema extensions;
+      drop schema if exists app_private cascade;
+      drop schema if exists internal cascade;
+      drop schema public cascade;`, local);
+    run("pg_restore", ["--schema-only", "--no-owner", "--no-acl", "--exit-on-error",
       "--schema=public", "--schema=app_private", "--schema=internal", "--dbname=postgres", "/out/restore.dump"], local);
     query(`do $$ declare r record; relations text; begin
       for r in select schemaname,tablename from pg_tables where schemaname in (${SCHEMAS.map(literal).join(",")}) loop
