@@ -205,3 +205,18 @@ files / 3383 tests (2 files / 9 pre-existing skips), typecheck, targeted lint,
 Production guardrails (2310 tracked files / 146 migrations), both workflow YAML
 parses, and the Production build. These are local checks, not hosted-flow or
 release completion evidence.
+
+## Original Storage path recovery (2026-10-22)
+
+The v2 archive retained all file bytes and the database's Storage paths, but its
+file manifest reused `name` for the encrypted filename. Version 3 explicitly
+retains `objectPath` separately, checks an exact bijection against the restored
+`storage.objects`, restores bytes under their bucket/original path in the private
+runner directory, and reads each file back. These plaintext files are not
+published as artifacts. Existing encrypted archives remain unchanged.
+
+The object-path regression failed before implementation, then all eight backup
+tests and lint passed. A fresh hosted backup/restore run is still required before
+claiming this added recovery proof. Both permitted task-owned branches retain the
+same repository-owner, exact DR target and read-only source guards. No hosted
+cleanup is part of the backup workflow.

@@ -2,7 +2,7 @@ name: DR retirement backup and restore proof
 
 on:
   push:
-    branches: [codex/dr-to-staging-20261021]
+    branches: [codex/dr-to-staging-20261021, codex/dr-staging-transition-20261022]
     paths:
       - .github/workflows/dr-staging-backup.yml
       - scripts/backup-dr-for-staging.mjs

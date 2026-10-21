@@ -1,6 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes, scryptSync } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { dirname, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 
@@ -9,6 +9,20 @@ const PRIMARY_REF = "eyuctbnlvnbnivwasvqr";
 const RECOVERY_RULE_IDS = ["14e82b29-5b3c-4b8a-819a-f0a16f9db2fd", "ce425c1e-c149-42e0-83b3-590268772896", "f66584a9-6357-4422-8cda-40c8a13c259d"];
 const SCHEMAS = ["public", "auth", "storage", "app_private", "internal", "vault"];
 const MAGIC = Buffer.from("STAGING-BACKUP-1\n");
+
+export function fileArchiveRecord(object, archive, plaintextSha256) {
+  return { bucket: object.bucket, objectPath: object.name, plaintextSha256, ...archive };
+}
+
+export function assertFileObjectMapping(files, objects) {
+  const filePaths = files.map((file, index) => {
+    if (file.name !== `object-${index}.enc` || !file.objectPath) throw new Error("BACKUP_FILE_MAPPING_INVALID");
+    return `${file.bucket}\0${file.objectPath}`;
+  }).sort();
+  const originalPaths = objects.map((object) => `${object.bucket}\0${object.name}`).sort();
+  if (new Set(filePaths).size !== files.length
+    || JSON.stringify(filePaths) !== JSON.stringify(originalPaths)) throw new Error("BACKUP_FILE_MAPPING_INVALID");
+}
 
 export function assertRecoveryRuleSet(rows, columns, parents) {
   if (!Array.isArray(rows) || JSON.stringify(rows.map((row) => row.id).sort()) !== JSON.stringify(RECOVERY_RULE_IDS)) {
@@ -68,7 +82,8 @@ async function main() {
   if (process.env.GITHUB_ACTIONS !== "true"
     || process.env.GITHUB_REPOSITORY !== "KenLeeYa/Stallorder-Platform"
     || process.env.GITHUB_ACTOR !== process.env.GITHUB_REPOSITORY_OWNER
-    || process.env.GITHUB_REF !== "refs/heads/codex/dr-to-staging-20261021") {
+    || !["refs/heads/codex/dr-to-staging-20261021", "refs/heads/codex/dr-staging-transition-20261022"]
+      .includes(process.env.GITHUB_REF)) {
     throw new Error("BACKUP_INVOCATION_NOT_ALLOWED");
   }
   const url = assertDrBackupTarget(process.env.DR_DIRECT_URL);
@@ -215,13 +230,13 @@ async function main() {
       });
       if (!download.ok) throw new Error(`DR_OBJECT_DOWNLOAD_${download.status}`);
       const bytes = Buffer.from(await download.arrayBuffer());
-      files.push({ ...object, plaintextSha256: hash(bytes),
-        ...await saveEncrypted(`object-${index}.enc`, bytes) });
+      files.push(fileArchiveRecord(object, await saveEncrypted(`object-${index}.enc`, bytes), hash(bytes)));
     }
+    assertFileObjectMapping(files, objects);
     assertDetached();
     if (JSON.stringify(fingerprints(tables, remote)) !== JSON.stringify(before)) throw new Error("DR_CHANGED_DURING_BACKUP");
     await saveEncrypted("manifest.json.enc", Buffer.from(JSON.stringify({
-      version: 2, ref: DR_REF, commit: process.env.GITHUB_SHA, runId: process.env.GITHUB_RUN_ID,
+      version: 3, ref: DR_REF, commit: process.env.GITHUB_SHA, runId: process.env.GITHUB_RUN_ID,
       tables, fingerprints: before, archive, files, recovery,
     })));
     console.log(JSON.stringify({ event: "dr_backup_captured", tables: tables.length, files: files.length, remoteWrites: false }));
@@ -278,9 +293,18 @@ async function main() {
         from public.print_rules where id in (${RECOVERY_RULE_IDS.map(literal).join(",")})) r`, local));
       if (JSON.stringify(rows) !== JSON.stringify(supplement.rows)) throw new Error("RECOVERY_DATA_MISMATCH");
     }
+    const restoredObjects = JSON.parse(query("select coalesce(json_agg(json_build_object('bucket',bucket_id,'name',name)),'[]') from storage.objects", local));
+    assertFileObjectMapping(manifest.files, restoredObjects);
+    const objectsDirectory = resolve(directory, "restored-objects");
     for (const file of manifest.files) {
       const encrypted = await readFile(resolve(artifacts, file.name));
-      if (hash(encrypted) !== file.sha256 || hash(openBackup(encrypted, key)) !== file.plaintextSha256) throw new Error("RESTORED_FILE_MISMATCH");
+      const restored = openBackup(encrypted, key);
+      if (hash(encrypted) !== file.sha256 || hash(restored) !== file.plaintextSha256) throw new Error("RESTORED_FILE_MISMATCH");
+      const restoredPath = resolve(objectsDirectory, file.bucket, file.objectPath);
+      if (!restoredPath.startsWith(`${objectsDirectory}${sep}`)) throw new Error("BACKUP_FILE_PATH_INVALID");
+      await mkdir(dirname(restoredPath), { recursive: true, mode: 0o700 });
+      await writeFile(restoredPath, restored, { mode: 0o600 });
+      if (hash(await readFile(restoredPath)) !== file.plaintextSha256) throw new Error("RESTORED_FILE_READBACK_MISMATCH");
     }
     assertDetached();
     if (JSON.stringify(fingerprints(manifest.tables, remote)) !== JSON.stringify(manifest.fingerprints)) throw new Error("DR_CHANGED_AFTER_BACKUP");
@@ -288,6 +312,7 @@ async function main() {
       version: 1, ref: DR_REF, commit: process.env.GITHUB_SHA, runId: process.env.GITHUB_RUN_ID,
       databaseDataRestore: true, tableCount: manifest.tables.length, restoredFileBytes: true,
       fileCount: manifest.files.length, encrypted: true, remoteWrites: false,
+      restoredOriginalObjectPaths: true, restoredFileReadback: true,
       fullProviderRecovery: false, primaryAccessed: Boolean(supplement), primaryWrites: false,
       recoveryOnlyReferenceRows: supplement?.rows.length ?? 0, originalReplicaSelfContained: !supplement,
       checkedAt: new Date().toISOString(),

@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { assertDrBackupTarget, assertRecoveryRuleSet, openBackup, sealBackup } from "./backup-dr-for-staging.mjs";
+import { assertDrBackupTarget, assertRecoveryRuleSet, fileArchiveRecord, assertFileObjectMapping, openBackup, sealBackup } from "./backup-dr-for-staging.mjs";
 
 describe("DR retirement backup boundary", () => {
+  it("retains the original object path separately from its encrypted archive filename", () => {
+    const object = { bucket: "product-images", name: "fixture/product.webp" };
+    const archive = { name: "object-0.enc", sha256: "a".repeat(64), bytes: 90 };
+    const record = fileArchiveRecord(object, archive, "b".repeat(64));
+    expect(record.objectPath).toBe(object.name);
+    expect(record.name).toBe(archive.name);
+    expect(() => assertFileObjectMapping([record], [object])).not.toThrow();
+    expect(() => assertFileObjectMapping([{ ...record, objectPath: "other.webp" }], [object])).toThrow();
+    expect(() => assertFileObjectMapping([record], [])).toThrow();
+  });
   it("accepts only the existing DR session pooler, never Primary", () => {
     expect(() => assertDrBackupTarget("postgresql://postgres.daeqwtpaxcebmtwxqdkj:example-placeholder@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require")).not.toThrow();
     expect(() => assertDrBackupTarget("postgresql://postgres.eyuctbnlvnbnivwasvqr:example-placeholder@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require")).toThrow("DR_BACKUP_TARGET_INVALID");

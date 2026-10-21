@@ -80,6 +80,9 @@ Never recreate replication into the test project or import Production credential
 into Staging. ADR-006's bounded, encrypted recovery-only reference supplement is not
 seed data and must retain all original constraint and data checks; it does not permit
 hosted data repair or additional Primary copies.
+Backup verification must bind actual restored file bytes to their original bucket
+and object path, separately from encrypted archive filenames; retain private
+plaintext only inside the disposable restore environment, never in artifacts.
 Preserve Primary-only Storage cleanup and asset manifests when retiring mirroring;
 offline menu snapshots still require those manifests. Cancel only replication,
 never its Primary metadata, and rerun the offline permit/asset E2E unchanged.
