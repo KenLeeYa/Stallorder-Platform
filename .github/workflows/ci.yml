@@ -94,6 +94,8 @@ jobs:
         run: npm run status:check
       - name: Install Playwright Chromium and WebKit
         run: npx playwright install --with-deps chromium webkit
+      - name: WebPRNT native recovery on Chromium and WebKit
+        run: npx playwright test --config playwright.webprnt.config.ts
       - name: Playwright end-to-end tests
         env:
           PLAYWRIGHT_PRODUCTION_SERVER: "true"

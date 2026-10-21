@@ -3,6 +3,9 @@ import { build } from "esbuild";
 import { createServer, type Server } from "node:http";
 import { readFileSync } from "node:fs";
 
+// The native bridge fixture needs Star detection even under the default CI config.
+test.use({ userAgent: "webPRNTSupportMessageHandler iPad", serviceWorkers: "block" });
+
 let server: Server;
 let origin: string;
 const printer = { id: "44444444-4444-4444-8444-444444444444", name: "QA MCP31LB", isEnabled: true, autoDetectEnabled: true,

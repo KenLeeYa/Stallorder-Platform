@@ -1,6 +1,6 @@
 # WebPRNT overnight recovery — 2026-10-21
 
-Status: local candidate only. Not deployed; physical MCP31LB/iPad recovery remains unverified.
+Status: PR #367 release candidate, not yet deployed. On 2026-10-21 the owner explicitly waived pre-release physical verification for this urgent release because printing failures disrupt store operations. Physical MCP31LB/iPad recovery remains **not run**, not passed. This exception applies only to this release; automated, security, Staging and Production identity/readback gates remain required.
 
 ## Incident evidence and limits
 
@@ -28,6 +28,8 @@ Status: local candidate only. Not deployed; physical MCP31LB/iPad recovery remai
 - Focused Vitest: 7 files / 74 tests passed, including actual bundled SDK status decoding and native callback-slot recovery, allowlisted diagnostics, tenant/CSRF/rate-limit boundaries, existing queue and ticket regressions.
 - `npx playwright test --config playwright.webprnt.config.ts --repeat-each=2`: 16/16 passed (Chromium + WebKit). Real React Print Center/Staff components and bundled Star SDK; local HTTP harness, synthetic API and native-device responses, no database or physical printer. Covers auto/manual liveness, failed resume, recovery, busy test-print reporting, missing callback and page reload without replay.
 - Initial manual-mode Chromium QA failed because the harness attempted to click behind an acknowledged-success modal. The fixture now closes it via its actual acknowledgement button; recovery assertions remain intact. No application focus trap was removed.
+- Hosted CI `39567727485` exposed four native component failures: the default desktop browser configuration omitted the Star user agent that existed only in the dedicated configuration. The busy-rejection case reproduced locally under the default configuration. The spec now declares its native-bridge user agent and blocked service-worker fixture itself; CI also runs the dedicated Chromium/WebKit configuration. The default full suite still discovers all four cases; no assertion, failure or timeout is suppressed.
+- After the CI correction: default-configuration native regression 4/4, repeated dedicated Chromium/WebKit regression 16/16, workflow/dependency contracts 53/53, typecheck and diff checks passed. These are local fixture results; a fresh hosted run remains required.
 - Typecheck and local production-mode build passed. Targeted lint and diff whitespace checks form the closing gate. Browser harness is functional component QA, not authenticated full-application, CSP, real Bluetooth or paper-output proof.
 - Existing authenticated local printer-indicator E2E was updated for diagnostics and timeout quarantine but not executed here (no application/DB test service started). Full authenticated Staging flow remains required before release.
 
@@ -35,7 +37,7 @@ Status: local candidate only. Not deployed; physical MCP31LB/iPad recovery remai
 
 Current Production readback: `app.qidaigo.com/api/version` still reports `5cc15c6a6189cfd56e127676bc5228e9ffd2ff56`. Login, Staff login and body-free connectivity returned 200. These are availability checks only, not authenticated printing proof. No remote writes or deployment occurred.
 
-Before release, use the protected Staging → Production process and exact candidate identity. On an authorized physical iPad + MCP31LB: verify foreground return after extended idle, correct Star target, Bluetooth transport, paper/cover/busy cases, one explicit test ticket, and one authorized queue job producing exactly one ticket. Preserve existing pending jobs until actual device response is confirmed. Do not auto-retry `PRINT_RESULT_UNKNOWN` or claim that a WebKit fixture proves iPad recovery.
+Use the protected Staging → Production process and exact candidate identity. The owner's 2026-10-21 emergency instruction supersedes the pre-release physical-test prerequisite for this candidate only. After deployment, physical acceptance remains outstanding: foreground return after extended idle, correct Star target, Bluetooth transport, paper/cover/busy cases, one explicit test ticket, and one authorized queue job producing exactly one ticket. Preserve existing pending jobs until actual device response is confirmed. Do not auto-retry `PRINT_RESULT_UNKNOWN` or claim that a WebKit fixture proves iPad recovery. Report deployment success separately from unverified paper output.
 
 After deployment, query tenant-scoped audit events for `PRINT_QUEUE_WEBPRNT_DIAGNOSTIC` with event time, phase, code and protocol fields; do not expose customer payloads. Prior generic errors cannot be retroactively decoded.
 
