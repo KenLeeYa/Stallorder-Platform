@@ -4,7 +4,7 @@ import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
-import { retiredDrSequenceCleanupSql } from "./lib/dr-reset-preparation.mjs";
+import { retiredDrSequenceCleanupSql, disableStagingCronsSql } from "./lib/dr-reset-preparation.mjs";
 
 const CONTAINER = "supabase_db_dr-retirement-restore";
 let operation = "TARGET_CHECK";
@@ -42,7 +42,7 @@ export function rehearsalFailureCode(result, stage, catalogObjects = []) {
 export function assertRehearsalTarget(value) {
   const url = new URL(value);
   assert.ok(url.protocol === "postgresql:" && url.hostname === "127.0.0.1"
-    && url.port === "54322" && url.username === "supabase_admin"
+    && url.port === "54322" && url.username === "postgres"
     && url.pathname === "/postgres" && url.search === "?sslmode=disable",
   "REHEARSAL_TARGET_INVALID");
   return url;
@@ -79,17 +79,17 @@ async function main() {
   knownObjects = JSON.parse(sql("select json_agg(name) from (select relname as name from pg_class union select nspname from pg_namespace union select typname from pg_type) names"));
   const password = randomBytes(32).toString("hex");
   operation = "LOCAL_PASSWORD";
-  sql(`alter role supabase_admin password '${password}';`);
+  sql(`alter role postgres password '${password}';`);
   // Local-only simulation of confirmed Storage API removal. This is not
   // evidence that any hosted file was removed.
   operation = "REMOVE_VAULT";
-  sql("delete from vault.secrets;");
+  applicationSql("delete from vault.secrets;");
   operation = "REMOVE_FILES";
   sql("truncate storage.objects cascade;");
   operation = "REMOVE_SCHEMAS";
-  sql("drop schema if exists app_private cascade; drop schema if exists internal cascade;");
+  applicationSql("drop schema if exists app_private cascade; drop schema if exists internal cascade;");
   operation = "SEQUENCE_REGRESSION";
-  sql(`begin;
+  applicationSql(`begin;
     create table public.__dr_sequence_fixture (id bigint generated always as identity primary key);
     create sequence public.__dr_standalone_fixture;
     ${retiredDrSequenceCleanupSql}
@@ -101,8 +101,8 @@ async function main() {
     end $$;
     rollback;`);
   operation = "REMOVE_SEQUENCES";
-  sql(retiredDrSequenceCleanupSql);
-  const url = assertRehearsalTarget(`postgresql://supabase_admin:${password}@127.0.0.1:54322/postgres?sslmode=disable`);
+  applicationSql(retiredDrSequenceCleanupSql);
+  const url = assertRehearsalTarget(`postgresql://postgres:${password}@127.0.0.1:54322/postgres?sslmode=disable`);
   operation = "REMOTE_RESET";
   const resetLog = run("supabase", ["db", "reset", "--workdir", cliWorkdir,
     "--db-url", url.toString(), "--no-seed", "--yes"]);
@@ -111,9 +111,9 @@ async function main() {
   // SQL replay creates cron jobs. No old credentials exist; leave all jobs
   // inactive before synthetic data or any application is introduced.
   operation = "STOP_CRONS";
-  sql("update cron.job set active=false; select pg_notify('pgrst','reload schema');");
+  applicationSql(`${disableStagingCronsSql} select pg_notify('pgrst','reload schema');`);
   operation = "SYNTHETIC_SEED";
-  sql(await readFile("supabase/seed.sql", "utf8"));
+  applicationSql(await readFile("supabase/seed.sql", "utf8"));
   operation = "VERIFY_SYNTHETIC";
   const state = JSON.parse(sql(`select json_build_object(
     'orders',(select count(*) from public.orders),
@@ -135,6 +135,7 @@ async function main() {
     exactCliRemoteResetPath: true, localAdministratorUsed: true,
     localStorageRemovalSimulated: true,
     sequenceRegression: true,
+    applicationRole: "postgres",
   }, null, 2));
   console.log("PASS: original DR restore reset and synthetic seed on disposable loopback only.");
 }
@@ -142,6 +143,10 @@ async function main() {
 function sql(query) {
   return run("docker", ["exec", "-i", CONTAINER, "psql", "-X", "-A", "-t", "-v", "ON_ERROR_STOP=1",
     "-h", "/var/run/postgresql", "-U", "supabase_admin", "-d", "postgres"], query, false);
+}
+
+function applicationSql(query) {
+  return sql(`set role postgres;\n${query}\nreset role;`);
 }
 
 function run(command, args, input, includeStderr = true) {

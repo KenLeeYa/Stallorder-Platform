@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { retiredDrSequenceCleanupSql } from "./dr-reset-preparation.mjs";
+import { retiredDrSequenceCleanupSql, disableStagingCronsSql } from "./dr-reset-preparation.mjs";
 
 describe("retired DR reset preparation", () => {
+  it("uses the permitted owner API instead of updating provider-owned cron tables", () => {
+    expect(disableStagingCronsSql).toContain("cron.alter_job(jobid, active := false)");
+    expect(disableStagingCronsSql).not.toMatch(/update\s+cron\.job/i);
+  });
   it("targets only ordinary public sequences, including unowned invoice counters", () => {
     expect(retiredDrSequenceCleanupSql).toContain("c.relkind = 'S'");
     expect(retiredDrSequenceCleanupSql).toContain("n.nspname = 'public'");

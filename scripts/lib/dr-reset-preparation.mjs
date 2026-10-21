@@ -13,3 +13,6 @@ export const retiredDrSequenceCleanupSql = `do $$ declare item record; begin
     execute format('drop sequence %I.%I cascade', item.nspname, item.relname);
   end loop;
 end $$;`;
+
+// Hosted postgres owns the jobs, but cannot UPDATE the provider-owned cron table.
+export const disableStagingCronsSql = "select cron.alter_job(jobid, active := false) from cron.job where active;";

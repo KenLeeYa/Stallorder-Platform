@@ -27,8 +27,9 @@ describe("restored DR reset rehearsal boundary", () => {
       .toBe("REHEARSAL_REMOTE_RESET_FAILED_ALREADY_EXISTS_42P07_OBJECT_PLAN_VERSIONS");
   });
   it("accepts only the disposable loopback database, never either hosted project", () => {
-    expect(() => assertRehearsalTarget("postgresql://supabase_admin:example-placeholder@127.0.0.1:54322/postgres?sslmode=disable")).not.toThrow();
+    expect(() => assertRehearsalTarget("postgresql://postgres:example-placeholder@127.0.0.1:54322/postgres?sslmode=disable")).not.toThrow();
     for (const url of [
+      "postgresql://supabase_admin:example-placeholder@127.0.0.1:54322/postgres?sslmode=disable",
       "postgresql://supabase_admin:example-placeholder@127.0.0.1:55432/postgres?sslmode=disable",
       "postgresql://postgres.daeqwtpaxcebmtwxqdkj:example-placeholder@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require",
       "postgresql://postgres.eyuctbnlvnbnivwasvqr:example-placeholder@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require",
