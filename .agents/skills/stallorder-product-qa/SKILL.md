@@ -111,6 +111,9 @@ application, verify provider digests, and run an actual QR session → mobile or
 → tracker before promotion. Green OAuth/delivery smoke did not detect the missing
 Edge secret in PR371. Keep explicit test-only Turnstile settings, target guards
 rejecting both live projects, 320/390/768/1440 checks and exact synthetic cleanup.
+Session creation can legitimately return HTTP200 on an idempotent retry; require
+the actual valid session body and usable UI for both200/201. Reject expired,
+error and order-resume bodies instead of treating every200 as a new session.
 
 ## LINE Web authentication
 

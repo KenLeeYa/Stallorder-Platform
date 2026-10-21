@@ -373,3 +373,19 @@ QA uses only the seeded merchant, disables its printers, marks its new order as
 test-only and removes exactly that order. No real credentials or external effects.
 Provisioning/workflow regressions failed before the fix and focused tests pass;
 new hosted execution remains required and is not yet recorded as passed.
+
+### Preview session contract correction (2026-10-22 04:56 Asia/Taipei)
+
+PR372 run `39670467150` passed actual Edge configuration digest readback,
+database/Storage checks and deployment, but the new browser assertion rejected a
+valid idempotent session HTTP200. Vercel logs show the same operation first
+returned201 at20:50:55Z, then200 at20:51:03Z after the browser retry. The public
+session contract explicitly permits this replay. The assertion now requires
+200/201 plus a valid session-token shape, unexpired timestamp and DEFAULT mode;
+error, expired and order-resume bodies remain failures. Regression reproduced
+the incorrect rejection before the fix. No application retry or timeout changed.
+Normal Chrome on paired `dpl_sqXhmbfLwxfuMMr6uBd91tCGyn6D` completed a synthetic
+QR order, displayed its tracker, confirmed it through Staff and observed the
+same order in KDS with SSE ready. Only that exact test-marked order was deleted;
+readback found zero matching orders/print jobs. No payment or printing occurred.
+CI `39670467211` passed. The full automated mobile/responsive rerun remains pending.

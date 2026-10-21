@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { PrismaClient } from "@prisma/client";
 import { chromium, expect } from "@playwright/test";
 import { assertIsolatedStorageQa } from "./qa-primary-only-storage";
@@ -12,6 +14,15 @@ const required = (name: string) => {
   assert.ok(process.env[name]?.trim(), "PREVIEW_ORDER_QA_CONFIGURATION_MISSING");
   return process.env[name]!.trim();
 };
+
+export function assertPreviewOrderSession(status: number, body: unknown) {
+  assert.ok(status === 200 || status === 201, "PREVIEW_QR_SESSION_FAILED");
+  assert.ok(body && typeof body === "object" && !Array.isArray(body), "PREVIEW_QR_SESSION_BODY_INVALID");
+  const session = body as Record<string, unknown>;
+  assert.ok(typeof session.orderSessionToken === "string" && /^stos_[A-Za-z0-9_-]{43}$/.test(session.orderSessionToken)
+    && typeof session.expiresAt === "string" && Date.parse(session.expiresAt) > Date.now()
+    && session.orderingMode === "DEFAULT", "PREVIEW_QR_SESSION_BODY_INVALID");
+}
 
 async function main() {
   assert.ok(process.env.GITHUB_ACTIONS === "true" && process.env.VERCEL_ENV === "preview"
@@ -45,7 +56,8 @@ async function main() {
     const session = page.waitForResponse((response) => response.url().endsWith("/create-order-session") && response.request().method() === "POST");
     phase = "qr-session";
     await page.goto(`${base.origin}/q/demo-aming-chicken-table-a1-qr-2026`);
-    assert.equal((await session).status(), 201, "PREVIEW_QR_SESSION_FAILED");
+    const sessionResponse = await session;
+    assertPreviewOrderSession(sessionResponse.status(), await sessionResponse.json());
     const add = page.getByRole("button", { name: "增加 冬瓜茶", exact: true });
     await expect(add).toBeEnabled();
     await mkdir("artifacts", { recursive: true });
@@ -90,7 +102,7 @@ async function main() {
   }
 }
 
-void main().catch((error: unknown) => {
+if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) void main().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : "";
   console.error(/^PREVIEW_[A-Z_]+$/.test(message) ? message : "PREVIEW_PUBLIC_ORDER_BROWSER_QA_FAILED", { phase });
   process.exitCode = 1;
