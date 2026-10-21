@@ -157,3 +157,12 @@ the new target-guard test. They are now explicit non-secret placeholders; the
 credential scanner and all target rejection checks remain unchanged.
 Storage synchronization and Primary DR runtime bindings still exist. Cleanup,
 synthetic Staging, domain publication and final live QA remain incomplete.
+
+The paired Preview now includes `scripts/qa-primary-only-storage.ts`: actual
+Storage upload/read, a real database-backed retired replica cancellation, and
+Primary-only deletion with an empty API listing. It rejects both live projects,
+the parent project and mismatched API/database targets before fetching a key or
+writing. Only the current isolated branch's service key is used, in process;
+no shared Preview secret is changed. Exact synthetic object/job/manifest cleanup
+runs on success or failure. The CLI rejects a local invocation; target guard
+tests, typecheck and lint pass. Its hosted execution remains pending.

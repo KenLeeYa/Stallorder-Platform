@@ -342,6 +342,12 @@ jobs:
       - name: Generate Prisma Client
         run: npm run prisma:generate
 
+      - name: Verify live Primary-only Storage on the isolated branch
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          STORAGE_QA_BRANCH_REF: ${{ steps.preview.outputs.branch_ref }}
+        run: node --conditions=react-server --import tsx scripts/qa-primary-only-storage.ts
+
       - name: Typecheck
         run: npm run typecheck
 

@@ -106,6 +106,8 @@ Every entry must identify the affected user roles, routes/services/data/environm
 
 | 2026-10-21 | `DR-TO-STAGING-003` | Supplemented data restore passed; conversion incomplete | Verified 239 original tables, 42 actual files and three separate recovery-only references without disabling constraints. Preserve the encrypted archive; do not clear DR until Storage/runtime isolation passes. Explicit placeholders resolve the test-fixture credential guard failure without weakening the scanner. | [Current QA receipt](qa/dr-to-staging-20261021.md#backup-restoration-passed-2026-10-21-2310-asiataipei); backup run 39622637596 on f723fa03508faef492bbdd7b2d19ebb7927ff622, artifact 12356096664. This supersedes only the pending restore status in DR-TO-STAGING-002; not full provider recovery or Staging readiness. |
 
+| 2026-10-21 | `DR-TO-STAGING-004` | Implemented; hosted QA pending | Add real isolated Storage upload/read/cancel/delete qualification before retiring DR mirroring. Reject Primary, old DR, parent or mismatched API/DB targets; use only an in-process branch key and clean up exact synthetic resources. | [QA](qa/dr-to-staging-20261021.md); target guard red/green tests, typecheck and lint; no hosted or release success implied. |
+
 ## Maintenance rule
 
 Do not rewrite an old row to make a later rollout look complete. Append a new row when status changes, include the exact commit/tree and protected evidence, and mark the prior row superseded only when the new decision is accepted.
