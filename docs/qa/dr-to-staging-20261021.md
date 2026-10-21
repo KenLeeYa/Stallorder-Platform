@@ -37,7 +37,7 @@ cleanup. Before DR data removal, retire Primary-to-DR file replication and remov
 DR eligibility from failover/routing. Current 48 MIRRORED jobs are historical,
 not proof that future mirroring is disabled.
 
-## Backup gate (not yet passed)
+## Earlier backup attempts (superseded by the successful restore below)
 
 The owner-only branch workflow uses existing GitHub Production secrets and the
 same `production-dr-operations` concurrency group. It only reads the exact DR
@@ -130,3 +130,30 @@ supplemental rows are checked separately and cannot overwrite original DR rows.
 Seven encryption/target/recovery-scope tests pass, including rejection of extra
 Production rows, columns and new parent dependencies. Actual hosted-runner restore
 verification is pending; no cleanup or Staging readiness is claimed.
+
+## Backup restoration passed (2026-10-21 23:10 Asia/Taipei)
+
+Run `39622637596`, revision `f723fa03508faef492bbdd7b2d19ebb7927ff622`,
+passed pre-data, data and post-data restoration with all original foreign keys
+validated. All 239 original table fingerprints and 42 actual file byte hashes
+match. The three separately encrypted recovery-only reference rows were verified
+independently; no original rows were replaced and no constraints were disabled.
+The receipt records `remoteWrites=false`, `primaryWrites=false`,
+`recoveryOnlyReferenceRows=3`, `originalReplicaSelfContained=false` and
+`fullProviderRecovery=false`. This qualifies the supplemented data archive,
+not a self-contained original DR or full provider failover recovery.
+
+Encrypted artifact `12356096664`, `dr-retirement-encrypted-39622637596`, has
+archive SHA-256 `6ae89c2d763218cb051f8016af194049b486018f75450e3539a794e91a14b8b1`.
+The artifact expires on `2026-11-20T15:10:54Z`; a durable encrypted local copy
+(46 files) was also retained under this task's output directory. Its existing
+key remains in the protected GitHub environment, never in the artifact or logs.
+The disposable restore database was stopped. No hosted data was repaired,
+deleted or seeded.
+
+Draft PR #369 starts exact-revision CI and isolated Preview validation. Its first
+CI run `39623361381` correctly rejected ambiguous literal test passwords in
+the new target-guard test. They are now explicit non-secret placeholders; the
+credential scanner and all target rejection checks remain unchanged.
+Storage synchronization and Primary DR runtime bindings still exist. Cleanup,
+synthetic Staging, domain publication and final live QA remain incomplete.

@@ -3,13 +3,13 @@ import { assertDrBackupTarget, assertRecoveryRuleSet, openBackup, sealBackup } f
 
 describe("DR retirement backup boundary", () => {
   it("accepts only the existing DR session pooler, never Primary", () => {
-    expect(() => assertDrBackupTarget("postgresql://postgres.daeqwtpaxcebmtwxqdkj:fixture@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require")).not.toThrow();
-    expect(() => assertDrBackupTarget("postgresql://postgres.eyuctbnlvnbnivwasvqr:fixture@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require")).toThrow("DR_BACKUP_TARGET_INVALID");
+    expect(() => assertDrBackupTarget("postgresql://postgres.daeqwtpaxcebmtwxqdkj:example-placeholder@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require")).not.toThrow();
+    expect(() => assertDrBackupTarget("postgresql://postgres.eyuctbnlvnbnivwasvqr:example-placeholder@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require")).toThrow("DR_BACKUP_TARGET_INVALID");
   });
   it("rejects redirected hosts and insecure connections", () => {
     for (const url of [
-      "postgresql://postgres.daeqwtpaxcebmtwxqdkj:fixture@attacker.example:5432/postgres?sslmode=require",
-      "postgresql://postgres.daeqwtpaxcebmtwxqdkj:fixture@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=disable",
+      "postgresql://postgres.daeqwtpaxcebmtwxqdkj:example-placeholder@attacker.example:5432/postgres?sslmode=require",
+      "postgresql://postgres.daeqwtpaxcebmtwxqdkj:example-placeholder@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=disable",
     ]) expect(() => assertDrBackupTarget(url)).toThrow("DR_BACKUP_TARGET_INVALID");
   });
   it("restores exact binary content using the existing backup key", () => {
