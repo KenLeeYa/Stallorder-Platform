@@ -63,6 +63,10 @@ function validate(receipt = validReceipt(), overrides = {}) {
 }
 
 describe("production approval receipts", () => {
+  it("binds DR conversion to its own protected workflow", () => {
+    const receipt = validReceipt({ operation: "dr-staging-conversion" });
+    expect(receipt.workflowPath).toBe(".github/workflows/dr-staging-conversion.yml");
+  });
   it("creates and validates an immutable receipt for the verified Staging tree", () => {
     expect(validate()).toMatchObject({
       operation: "production-migrations",

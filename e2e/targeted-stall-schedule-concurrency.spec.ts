@@ -19,7 +19,7 @@ type BackendPidRow = { pid: number };
 type JsonResultRow = { result: Prisma.JsonValue };
 
 test.describe.serial("targeted stall schedule lock order", () => {
-  test.beforeAll(async () => {
+  test.beforeEach(async () => {
     await removeFixture();
     const now = new Date();
     const startsAt = new Date(now.getTime() - 2 * 60 * 60_000);
@@ -136,7 +136,7 @@ test.describe.serial("targeted stall schedule lock order", () => {
     });
   });
 
-  test.afterAll(async () => {
+  test.afterEach(async () => {
     try {
       await removeFixture();
     } finally {
@@ -144,11 +144,12 @@ test.describe.serial("targeted stall schedule lock order", () => {
     }
   });
 
-  test("capacity refresh and session replay serialize on the stall without deadlock", async () => {
+  const runConcurrencyCase = async (withScheduler: boolean) => {
     const blocker = new PrismaClient();
     const capacityClient = new PrismaClient();
     const sessionClient = new PrismaClient();
     const observer = new PrismaClient();
+    const schedulerClient = new PrismaClient();
     let releaseBlocker: () => void = () => undefined;
     const blockerRelease = new Promise<void>((resolve) => {
       releaseBlocker = resolve;
@@ -173,6 +174,7 @@ test.describe.serial("targeted stall schedule lock order", () => {
     void blockerWork.catch(rejectBlockerReady);
 
     let concurrentWork: Promise<PromiseSettledResult<JsonResultRow[]>[]> | undefined;
+    let schedulerWork: ReturnType<typeof startDatabaseWork> | undefined;
     try {
       const definitions = await effectiveDefinitions();
       expectStallFirst(definitions.targeted, /from public\.stall_schedules schedule/iu);
@@ -210,40 +212,60 @@ test.describe.serial("targeted stall schedule lock order", () => {
         return row?.count ?? 0;
       }, { timeout: 10_000 }).toBe(2);
 
+      if (withScheduler) {
+        // Reproduce the real minute-boundary cron: it locks the schedule after
+        // the two entry points have queued on the stall, then commits later.
+        schedulerWork = startDatabaseWork(schedulerClient, async (transaction) => {
+          const rows = await transaction.$queryRaw<JsonResultRow[]>`
+            select app_private.process_stall_schedules() as result
+          `;
+          await transaction.$executeRaw`select pg_sleep(0.15)`;
+          return rows;
+        });
+        const schedulerPid = await schedulerWork.started;
+        await expect.poll(async () => {
+          const [row] = await observer.$queryRaw<Array<{ count: number }>>`
+            select cardinality(pg_catalog.pg_blocking_pids(${schedulerPid}::integer)) as count
+          `;
+          return row?.count ?? 0;
+        }).toBeGreaterThan(0);
+      }
+
       releaseBlocker();
       await blockerWork;
       const outcomes = await concurrentWork;
       expect(outcomes.filter((outcome) => outcome.status === "rejected")).toEqual([]);
 
-      const schedule = await observer.stallSchedule.findUniqueOrThrow({
-        where: { id: scheduleId },
-        select: { status: true },
-      });
-      const stall = await observer.stall.findUniqueOrThrow({
-        where: { id: stallId },
-        select: { orderingState: true },
-      });
-      const sessionState = await observer.orderSession.findUniqueOrThrow({
-        where: { id: orderSessionId },
-        select: { status: true },
-      });
-      expect(schedule.status).toBe("COMPLETED");
-      expect(stall.orderingState).toBe("CLOSED");
-      expect(sessionState.status).toBe("REVOKED");
+      // SKIP LOCKED lets the queued cron own this transition. The entry points
+      // can finish before that independent transaction becomes visible.
+      await expect.poll(async () => {
+        const [schedule, stall, sessionState] = await Promise.all([
+          observer.stallSchedule.findUniqueOrThrow({ where: { id: scheduleId }, select: { status: true } }),
+          observer.stall.findUniqueOrThrow({ where: { id: stallId }, select: { orderingState: true } }),
+          observer.orderSession.findUniqueOrThrow({ where: { id: orderSessionId }, select: { status: true } }),
+        ]);
+        return { schedule: schedule.status, stall: stall.orderingState, session: sessionState.status };
+      }).toEqual({ schedule: "COMPLETED", stall: "CLOSED", session: "REVOKED" });
+      if (schedulerWork) await schedulerWork.result;
     } finally {
       releaseBlocker();
       await Promise.allSettled([
         blockerWork,
         ...(concurrentWork ? [concurrentWork] : []),
+        ...(schedulerWork ? [schedulerWork.result] : []),
       ]);
       await Promise.all([
         blocker.$disconnect(),
         capacityClient.$disconnect(),
         sessionClient.$disconnect(),
         observer.$disconnect(),
+        schedulerClient.$disconnect(),
       ]);
     }
-  });
+  };
+
+  test("capacity refresh and session replay serialize on the stall without deadlock", () => runConcurrencyCase(false));
+  test("capacity refresh and session replay serialize while cron commits", () => runConcurrencyCase(true));
 });
 
 function startCapacityRefresh(client: PrismaClient) {

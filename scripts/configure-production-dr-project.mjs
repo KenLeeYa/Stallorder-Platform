@@ -16,6 +16,7 @@ const headers = {
 try {
   if (process.argv.length > (runtimeOnly ? 3 : 2)) throw new Error("DR_CONFIGURATION_ARGUMENTS_INVALID");
   requireApproval();
+  if (drRef === "daeqwtpaxcebmtwxqdkj") throw new Error("DR_TARGET_RETIRED_USE_INDEPENDENT_STAGING");
   if (primaryRef === drRef) throw new Error("DR_TARGET_MUST_DIFFER_FROM_PRIMARY");
   const [primarySecrets, drAuth] = await Promise.all([
     management(`/v1/projects/${primaryRef}/secrets`),

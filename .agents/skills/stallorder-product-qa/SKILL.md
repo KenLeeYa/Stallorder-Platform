@@ -80,6 +80,9 @@ Never recreate replication into the test project or import Production credential
 into Staging. ADR-006's bounded, encrypted recovery-only reference supplement is not
 seed data and must retain all original constraint and data checks; it does not permit
 hosted data repair or additional Primary copies.
+Backup verification must bind actual restored file bytes to their original bucket
+and object path, separately from encrypted archive filenames; retain private
+plaintext only inside the disposable restore environment, never in artifacts.
 Preserve Primary-only Storage cleanup and asset manifests when retiring mirroring;
 offline menu snapshots still require those manifests. Cancel only replication,
 never its Primary metadata, and rerun the offline permit/asset E2E unchanged.
@@ -87,6 +90,30 @@ Keep Cloudflare
 Access and Standard Vercel protection; the historical paid-All-Deployments
 provisioning paragraph is superseded by ADR-005, not permission to buy an add-on.
 An independent Staging environment cannot satisfy a Production DR-readiness gate.
+Use `dr-staging-conversion.yml` only for the one-time, backup-qualified conversion.
+The legacy DR operation/entry workflows and direct configurator now fail closed.
+Do not re-enable them to clear a release gate. After the old replica is removed,
+recover Production only with a verified Primary-only artifact. Protect all test
+entry points, including the old default Vercel alias; deployment upload inputs
+must be the reviewed Git archive, never the runner's decrypted recovery files.
+Track service-token QA, real human Access login and ordinary browser/SW behavior
+separately; cleanup removes the temporary service-token policy and token.
+The complete hosted SQL suite is run in ordered batches of at most 20 files under
+the unchanged subprocess deadline. Assert every recursively discovered SQL file
+is included exactly once and any failed batch prevents further conversion.
+Schedule concurrency QA must include the minute-boundary cron transaction:
+`SKIP LOCKED` can leave closure owned by that still-uncommitted transaction.
+Preserve lock/deadlock assertions and verify all committed terminal states under
+the existing deadline; a passing retry alone does not qualify the release.
+
+Paired Preview must provision independent ABUSE/TOKEN secrets in Edge and the
+application, verify provider digests, and run an actual QR session → mobile order
+→ tracker before promotion. Green OAuth/delivery smoke did not detect the missing
+Edge secret in PR371. Keep explicit test-only Turnstile settings, target guards
+rejecting both live projects, 320/390/768/1440 checks and exact synthetic cleanup.
+Session creation can legitimately return HTTP200 on an idempotent retry; require
+the actual valid session body and usable UI for both200/201. Reject expired,
+error and order-resume bodies instead of treating every200 as a new session.
 
 ## LINE Web authentication
 

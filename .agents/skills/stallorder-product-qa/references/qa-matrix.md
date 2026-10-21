@@ -24,6 +24,8 @@ Use this matrix to select tests before changing code. Add or update automated te
 
 ## Universal preflight
 
+- `QA-STAGING-01` (`REL-STAGING-001`): exact-project/URL/alias negatives, unchanged backup fingerprints and original file bytes, original constraints plus remote reset rehearsal, zero live credentials/queues/replication, protected Preview canonical origin, real owner/Staff/KDS login and QR order, image upload/read/deletion and tenant denial. Require hosted identity readback, temporary-token cleanup, actual human Access login and Primary invariance; neither mock tests nor service-token QA alone completes conversion.
+
 - Local integrated acceptance is recorded in `docs/LOCAL_ALL_FEATURES_QA_20260907.md`. Run browser mutation cases sequentially against the dedicated local QA database; run the complete transactional SQL suite in a separate freshly migrated database so retained manual examples do not invalidate seed-only assumptions.
 - `QA-LOT-04`: master disabled with saved active spend/holiday campaigns; Node and Edge responses and client checkout agree. Live table draw → idempotent retry → zero-price gift → KDS → checkout; gift discount eligibility stays false. Database coverage: `lottery_dine_in_channel.test.sql`.
 - `QA-PAY-LOCAL-01`: configure network failure and retry; seven mock outcomes, request lost before commit, response lost after commit, one transaction per attempt, refund state and explicit reconciliation case. `e2e/payment-workflow-local.spec.ts`.

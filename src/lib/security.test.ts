@@ -150,6 +150,18 @@ describe("安全工具", () => {
     })).toBe("https://stallorder-platform-preview.vercel.app");
   });
 
+  it("只有明確受 Access 保護的 Staging Preview 使用固定入口", () => {
+    const environment = { VERCEL_ENV: "preview", VERCEL_URL: "staging-build.vercel.app",
+      NEXT_PUBLIC_APP_URL: "https://staging.qidaigo.com", APP_BASE_URL: "https://staging.qidaigo.com",
+      DR_ACCESS_ENFORCEMENT_ENABLED: "true", DR_ACCESS_HOSTNAME: "staging.qidaigo.com" };
+    expect(resolveAppOrigin(new URL("https://request.example/login"), environment)).toBe("https://staging.qidaigo.com");
+    for (const changed of [{ DR_ACCESS_ENFORCEMENT_ENABLED: "false" }, { DR_ACCESS_HOSTNAME: "other.example" },
+      { APP_BASE_URL: "https://app.qidaigo.com" }]) {
+      expect(resolveAppOrigin(new URL("https://request.example/login"), { ...environment, ...changed }))
+        .toBe("https://staging-build.vercel.app");
+    }
+  });
+
   it("Production OAuth 保留固定的正式 app origin", () => {
     expect(resolveAppOrigin(new URL("https://request.example/auth/google"), {
       NEXT_PUBLIC_APP_URL: "https://app.qidaigo.com",

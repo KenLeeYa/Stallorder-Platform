@@ -10,6 +10,10 @@ const MAX_CLOCK_SKEW_MS = 5 * 60 * 1_000;
 export const PRODUCTION_PLAN_TTL_MS = 24 * 60 * 60 * 1_000;
 
 export const PRODUCTION_OPERATIONS = Object.freeze({
+  "dr-staging-conversion": {
+    workflowPath: ".github/workflows/dr-staging-conversion.yml",
+    allowedPlanEvents: ["workflow_dispatch"],
+  },
   "production-public-order-secret-recovery": {
     workflowPath: ".github/workflows/production-public-order-secret-recovery.yml",
     allowedPlanEvents: ["workflow_dispatch"],

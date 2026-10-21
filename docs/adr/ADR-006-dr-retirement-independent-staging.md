@@ -96,3 +96,49 @@ receipt must disclose that the original replica is not self-contained and that
 the current Primary reference rows are supplemental, not historical DR rows.
 These recovery artifacts are never Staging seed inputs. Staging still starts from
 reviewed migrations and synthetic data only; this does not qualify DR failover.
+
+## One-time conversion transaction
+
+`dr-staging-conversion.yml` is owner/main-only, uses the existing remote-writer
+lock, and requires successful main/staging CI, source security and database
+readiness runs. Its fresh immutable Plan binds the qualified encrypted backup,
+unchanged migration/seed/reset implementation, source table fingerprints,
+Primary deployment/environment/DNS, and target provider prestate. Apply repeats
+those checks. Failed or partially applied transactions must not be blindly rerun.
+Inspect the step journal and exact provider identities, preserve the backup,
+and create a source-bound recovery operation when correction is needed.
+
+Before deleting old files or resetting the database, create and verify restricted
+Staging Access, prove actual Access/DNS edit permissions, and detach only the two
+old public DR aliases/domain mappings. The old generated deployment remains
+Standard-SSO-protected. Its source artifact is not a valid recovery target after
+the database becomes synthetic. Old DR DNS/Access is removed only after actual
+Staging application acceptance passes; Primary domains are never cleanup targets.
+
+Disable old Auth providers/hooks/SMTP, rotate only target Edge credentials, clear
+Vault and old private schemas, and use the qualified pinned remote reset path.
+Run unchanged migrations/seed, hosted database tests/lint and the Staging-only
+safety overlay. Only Preview variables are created. Deploy only a `git archive`
+of the reviewed source: decrypted runner settings, Access tokens and backup inputs
+must never be uploaded as application files. Use a temporary one-hour QA service
+token, remove its policy/token on exit, and retain only encrypted recovery inputs.
+
+Hosted pgTAP validation takes about 12–13 minutes in the observed paired Preview
+runs. Execute every recursively discovered SQL test in ordered batches of at most
+20 files, retaining the ten-minute subprocess deadline and existing workflow
+budget. A missing suite or any failed batch aborts conversion; batching must not
+skip files, loosen SQL assertions, or turn timeouts into success.
+
+The historical DR workflows and direct DR project configurator are disabled for
+this retired target. The former DR-schema predecessor does not qualify synthetic
+Staging; Production schema publication remains fail-closed until the independent
+Staging validation predecessor is in place. This is not permission to skip it.
+Cloudflare human IdP login and ordinary browser/service-worker behavior remain
+separate completion checks from service-token-assisted Playwright.
+
+Ephemeral Preview must also provision independently generated public-order
+secrets in both Edge and application runtimes and verify provider digests before
+functional QA. OAuth/delivery smoke alone did not detect a missing Edge secret.
+Require a real hosted QR session, mobile submission and tracker, with responsive
+checks, before treating a paired Preview as an ordering validation environment.
+Never copy Production secrets or weaken CORS/protection to obtain a green result.

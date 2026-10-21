@@ -39,7 +39,15 @@ env:
   DR_UPDATE_EXISTING: ${{ inputs.operation == 'plan-update' || inputs.operation == 'update' }}
 
 jobs:
+  retired-target:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse recreation of the retired DR operator entry
+        run: |
+          echo "::error::ADR-006 retires this target into protected Staging. Use the DR-to-Staging conversion workflow, not the former DR publisher."
+          exit 1
   plan:
+    needs: retired-target
     if: inputs.operation == 'plan' || inputs.operation == 'plan-update'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -144,6 +152,7 @@ jobs:
           retention-days: 1
 
   approval:
+    needs: retired-target
     if: inputs.operation == 'apply' || inputs.operation == 'update'
     runs-on: ubuntu-latest
     timeout-minutes: 10

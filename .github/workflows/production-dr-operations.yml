@@ -56,7 +56,15 @@ env:
   PRODUCTION_ENVIRONMENT_APPROVED: "true"
 
 jobs:
+  retired-target:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse operations against the retired DR target
+        run: |
+          echo "::error::ADR-006 retires this target into synthetic Staging. DR bootstrap, replication, promotion and schema operations are disabled."
+          exit 1
   plan:
+    needs: retired-target
     if: "${{ startsWith(inputs.operation, 'plan-') }}"
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -265,6 +273,7 @@ jobs:
           retention-days: 1
 
   approval:
+    needs: retired-target
     if: >-
       inputs.operation == 'bootstrap' ||
       inputs.operation == 'drill' ||

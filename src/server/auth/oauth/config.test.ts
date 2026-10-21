@@ -109,6 +109,13 @@ describe("OAuth provider configuration", () => {
     } as NodeJS.ProcessEnv)).toBe("https://stallorder-preview.example.vercel.app");
   });
 
+  it("keeps protected persistent Staging callbacks on its canonical Access hostname", () => {
+    expect(getOAuthAppBaseUrl({ NODE_ENV: "production", VERCEL_ENV: "preview",
+      VERCEL_URL: "staging-build.vercel.app", APP_BASE_URL: "https://staging.qidaigo.com",
+      NEXT_PUBLIC_APP_URL: "https://staging.qidaigo.com", DR_ACCESS_HOSTNAME: "staging.qidaigo.com",
+      DR_ACCESS_ENFORCEMENT_ENABLED: "true" } as NodeJS.ProcessEnv)).toBe("https://staging.qidaigo.com");
+  });
+
   it("opts only LINE into live OAuth on an explicitly isolated Preview", () => {
     const preview = environment({
       VERCEL_ENV: "preview",
