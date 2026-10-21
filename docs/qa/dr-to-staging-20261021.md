@@ -220,3 +220,12 @@ tests and lint passed. A fresh hosted backup/restore run is still required befor
 claiming this added recovery proof. Both permitted task-owned branches retain the
 same repository-owner, exact DR target and read-only source guards. No hosted
 cleanup is part of the backup workflow.
+
+The isolated rehearsal additionally runs the pinned Supabase CLI's remote-reset
+SQL path against only the restored runner database, then replays the unchanged
+migrations and synthetic seed. The CLI preserves Vault, so old Vault rows are
+removed from this disposable copy before scheduling functions are recreated;
+all recreated cron jobs are then left inactive. The temporary CLI configuration
+uses a different local port so it cannot select Docker-volume reset. This uses
+the local administrator and simulates already-confirmed Storage API deletion;
+neither hosted permissions nor actual hosted cleanup are claimed by the rehearsal.
