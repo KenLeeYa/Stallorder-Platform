@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Printer, TriangleAlert } from "lucide-react";
 import { useOperationsLocale } from "@/components/operations-locale";
 import { csrfHeaders } from "@/lib/csrf-client";
+import { reportStarWebPrntFailure } from "@/lib/star-webprnt-diagnostics";
 import type {
   PrinterView,
   PrintJobView,
@@ -19,6 +20,7 @@ import {
   probeStarWebPrnt,
   StarWebPrntError,
   STAR_WEBPRNT_SDK_LOAD_TIMEOUT_MS,
+  withStarWebPrntDiagnostics,
 } from "@/lib/star-webprnt-client";
 
 type AgentStatus = "CHECKING" | "READY" | "CONNECTED_NO_RULE" | "UNSUPPORTED" | "NOT_CONFIGURED" | "ERROR";
@@ -71,14 +73,17 @@ export function StaffAutoPrintAgent({ stallSlug, onStatusChange }: {
 
   useEffect(() => {
     if (environment !== "STAR_WEBPRNT" || !scriptReady) return;
+    let disposed = false;
 
     async function runAgent() {
-      if (busyRef.current) return;
+      if (busyRef.current || disposed || document.hidden) return;
       busyRef.current = true;
       let claimedJob: PrintJobView | null = null;
+      let selectedPrinter: PrinterView | null = null;
       try {
         const refreshed = await postPrintCommand(stallSlug, { operation: "REFRESH" });
         const printer = selectAutomaticPrinter(refreshed.state, stallSlug);
+        selectedPrinter = printer;
         if (!printer) {
           activePrinterRef.current = null;
           setStatus("NOT_CONFIGURED");
@@ -87,6 +92,7 @@ export function StaffAutoPrintAgent({ stallSlug, onStatusChange }: {
         }
 
         await probeStarWebPrnt();
+        if (disposed || document.visibilityState === "hidden") return;
         activePrinterRef.current = printer;
         window.localStorage.setItem(`stallorder_printer_${stallSlug}`, printer.id);
         await postPrintCommand(stallSlug, { operation: "HEARTBEAT", printerId: printer.id });
@@ -122,6 +128,8 @@ export function StaffAutoPrintAgent({ stallSlug, onStatusChange }: {
         }
         setDetail(t("print.agent.printed"));
       } catch (error) {
+        activePrinterRef.current = null;
+        if (selectedPrinter) reportStarWebPrntFailure(stallSlug, selectedPrinter.id, claimedJob ? "PRINT" : "PROBE", error);
         if (claimedJob) {
           try {
             await postPrintCommand(stallSlug, {
@@ -142,7 +150,14 @@ export function StaffAutoPrintAgent({ stallSlug, onStatusChange }: {
 
     void runAgent();
     const timer = window.setInterval(() => void runAgent(), 5_000);
-    return () => window.clearInterval(timer);
+    document.addEventListener("visibilitychange", runAgent);
+    window.addEventListener("pageshow", runAgent);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", runAgent);
+      window.removeEventListener("pageshow", runAgent);
+    };
   }, [environment, scriptReady, stallSlug, t]);
 
   useEffect(() => {
@@ -167,6 +182,8 @@ export function StaffAutoPrintAgent({ stallSlug, onStatusChange }: {
         await openStarCashDrawer();
         setDetail(t("print.drawer.opened"));
       } catch (error) {
+        activePrinterRef.current = null;
+        reportStarWebPrntFailure(stallSlug, printer.id, "DRAWER", error);
         setStatus("ERROR");
         setDetail(printAgentError(t, error));
       }
@@ -237,12 +254,19 @@ async function postPrintCommand(stallSlug: string, command: Record<string, unkno
 }
 
 function printAgentError(t: ReturnType<typeof useOperationsLocale>["t"], error: unknown) {
+  return withStarWebPrntDiagnostics(translatedPrintAgentError(t, error), error);
+}
+
+function translatedPrintAgentError(t: ReturnType<typeof useOperationsLocale>["t"], error: unknown) {
   if (!(error instanceof StarWebPrntError)) {
     return error instanceof Error ? error.message : t("print.bluetooth.error.connection");
   }
   if (error.code === "PAPER_END") return t("print.bluetooth.error.paperEnd");
   if (error.code === "COVER_OPEN") return t("print.bluetooth.error.coverOpen");
   if (error.code === "OFFLINE") return t("print.bluetooth.error.offline");
+  if (error.code === "PRINT_REJECTED") return t("print.bluetooth.error.rejected");
+  if (error.code === "PRINTER_BUSY") return t("print.bluetooth.error.busy");
+  if (error.code === "BRIDGE_UNRESPONSIVE") return t("print.bluetooth.error.bridgeUnresponsive");
   if (error.code === "TIMEOUT") return t("print.bluetooth.error.timeout");
   if (["CUTTER_ERROR", "ROLL_POSITION_ERROR", "HIGH_TEMPERATURE", "NON_RECOVERABLE"].includes(error.code)) {
     return t("print.bluetooth.error.hardware");

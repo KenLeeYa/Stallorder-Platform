@@ -20,6 +20,12 @@ const productionApproval = read("scripts/lib/production-approval.mjs");
 const vercel = JSON.parse(read("vercel.json"));
 
 describe("Production workflow approval contract", () => {
+  it("runs the native WebPRNT regression on Chromium and WebKit in CI", () => {
+    expect(ci).toContain("npx playwright test --config playwright.webprnt.config.ts");
+    expect(ci).toContain("npx playwright install --with-deps chromium webkit");
+    expect(ci).toContain("run: npm run test:e2e");
+  });
+
   it("uses the fail-closed bounded dependency audit runner in every release gate", () => {
     for (const workflow of [ci, readiness, applicationRelease]) {
       expect(workflow).toContain("node scripts/run-npm-audit.mjs");

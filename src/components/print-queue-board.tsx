@@ -8,6 +8,7 @@ import { useOperationsLocale } from "@/components/operations-locale";
 import { PrintCenterSettings } from "@/components/print-center-settings";
 import { SettingsFeedbackDialog, type SettingsFeedbackKind } from "@/components/settings-feedback-dialog";
 import { csrfHeaders } from "@/lib/csrf-client";
+import { reportStarWebPrntFailure } from "@/lib/star-webprnt-diagnostics";
 import { formatAppDateTime } from "@/lib/locale-format";
 import { formatMoney } from "@/lib/money";
 import {
@@ -36,6 +37,7 @@ import {
   StarWebPrntError,
   STAR_WEBPRNT_SDK_LOAD_TIMEOUT_MS,
   starWebPrntLaunchUrl,
+  withStarWebPrntDiagnostics,
   type StarWebPrntEnvironment,
 } from "@/lib/star-webprnt-client";
 
@@ -87,7 +89,7 @@ export function PrintQueueBoard({ stall, initialState }: {
     jobPageSize,
   ), [cancelledJobPage, cancelledJobs, jobPageSize]);
   const autoDetectSignature = state.printers
-    .filter((printer) => printer.isEnabled && printer.autoDetectEnabled && printer.connectionType === "WEBPRNT_BLUETOOTH")
+    .filter((printer) => printer.isEnabled && (printer.autoDetectEnabled || printer.id === activePrinterId) && printer.connectionType === "WEBPRNT_BLUETOOTH")
     .map((printer) => `${printer.id}:${printer.name}`)
     .join("|");
 
@@ -156,10 +158,10 @@ export function PrintQueueBoard({ stall, initialState }: {
   useEffect(() => {
     autoDetectPrintersRef.current = state.printers.filter((printer) => (
       printer.isEnabled
-      && printer.autoDetectEnabled
+      && (printer.autoDetectEnabled || printer.id === activePrinterId)
       && printer.connectionType === "WEBPRNT_BLUETOOTH"
     ));
-  }, [state.printers]);
+  }, [activePrinterId, state.printers]);
 
   useEffect(() => {
     const detectEnvironment = window.setTimeout(() => {
@@ -204,11 +206,13 @@ export function PrintQueueBoard({ stall, initialState }: {
     if (printEnvironment !== "STAR_WEBPRNT" || !webPrntScriptReady) return;
     const candidates = autoDetectPrintersRef.current;
     if (candidates.length === 0) return;
+    let disposed = false;
     const detect = async () => {
-      if (probingRef.current) return;
+      if (probingRef.current || document.hidden) return;
       probingRef.current = true;
       try {
         await probeStarWebPrnt();
+        if (disposed || document.visibilityState === "hidden") return;
         setWebPrntBridgeMessage("");
         const saved = window.localStorage.getItem(`stallorder_printer_${stall.slug}`);
         const detected = candidates.find((printer) => printer.id === saved) ?? candidates[0];
@@ -216,6 +220,9 @@ export function PrintQueueBoard({ stall, initialState }: {
         window.localStorage.setItem(`stallorder_printer_${stall.slug}`, detected.id);
         await sendHeartbeat(detected.id);
       } catch (error) {
+        if (disposed) return;
+        const saved = window.localStorage.getItem(`stallorder_printer_${stall.slug}`);
+        reportStarWebPrntFailure(stall.slug, (candidates.find((printer) => printer.id === saved) ?? candidates[0]).id, "PROBE", error);
         setActivePrinterId((current) => candidates.some((printer) => printer.id === current) ? null : current);
         setWebPrntBridgeMessage(starWebPrntErrorMessage(t, error));
       } finally {
@@ -224,18 +231,24 @@ export function PrintQueueBoard({ stall, initialState }: {
     };
     void detect();
     const timer = window.setInterval(() => void detect(), 30_000);
-    return () => window.clearInterval(timer);
+    document.addEventListener("visibilitychange", detect);
+    window.addEventListener("pageshow", detect);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", detect);
+      window.removeEventListener("pageshow", detect);
+    };
   }, [autoDetectSignature, printEnvironment, sendHeartbeat, stall.slug, t, webPrntScriptReady]);
 
   useEffect(() => {
-    if (!activePrinterId || activeConnectionType === "CLOUDPRNT" || printEnvironment === "CHECKING") return;
-    if (activeConnectionType === "WEBPRNT_BLUETOOTH"
-        && (printEnvironment !== "STAR_WEBPRNT" || !webPrntScriptReady)) return;
+    // WebPRNT heartbeats are sent ONLY after the non-printing probe succeeds.
+    if (!activePrinterId || activeConnectionType !== "SYSTEM_PRINT") return;
     const heartbeat = () => void sendHeartbeat(activePrinterId);
     heartbeat();
     const timer = window.setInterval(heartbeat, 30_000);
     return () => window.clearInterval(timer);
-  }, [activeConnectionType, activePrinterId, printEnvironment, sendHeartbeat, webPrntScriptReady]);
+  }, [activeConnectionType, activePrinterId, sendHeartbeat]);
 
   const takeOverPrinter = useCallback(async (printer: PrinterView) => {
     if (printer.connectionType === "WEBPRNT_BLUETOOTH" && printEnvironment !== "STAR_WEBPRNT") {
@@ -247,16 +260,19 @@ export function PrintQueueBoard({ stall, initialState }: {
       try {
         await probeStarWebPrnt();
       } catch (error) {
+        setActivePrinterId(null);
+        reportStarWebPrntFailure(stall.slug, printer.id, "PROBE", error);
         setMessageKind("error");
         setMessage(starWebPrntErrorMessage(t, error));
         return;
       }
     }
     setActivePrinterId(printer.id);
+    await sendHeartbeat(printer.id);
     window.localStorage.setItem(`stallorder_printer_${stall.slug}`, printer.id);
     setMessageKind("success");
     setMessage(t("print.takeoverStarted"));
-  }, [printEnvironment, stall.slug, t]);
+  }, [printEnvironment, sendHeartbeat, stall.slug, t]);
 
   const openCashDrawer = useCallback(async (printer: PrinterView) => {
     if (printer.connectionType !== "WEBPRNT_BLUETOOTH" || activePrinterId !== printer.id) {
@@ -278,10 +294,12 @@ export function PrintQueueBoard({ stall, initialState }: {
       setMessageKind("success");
       setMessage(t("print.drawer.opened"));
     } catch (error) {
+      setActivePrinterId(null);
+      reportStarWebPrntFailure(stall.slug, printer.id, "DRAWER", error);
       setMessageKind("error");
       setMessage(starWebPrntErrorMessage(t, error));
     }
-  }, [activePrinterId, run, t]);
+  }, [activePrinterId, run, stall.slug, t]);
 
   const startPrint = useCallback(async (job: PrintJobView, selectedPrinter?: PrinterView | null) => {
     const printer = selectedPrinter ?? activePrinter;
@@ -341,6 +359,8 @@ export function PrintQueueBoard({ stall, initialState }: {
           setMessage(t("print.bluetooth.statusUnknown"));
         }
       } catch (error) {
+        setActivePrinterId(null);
+        reportStarWebPrntFailure(stall.slug, printer.id, "PRINT", error);
         const failure = starWebPrntErrorMessage(t, error);
         const recorded = await run({ operation: "FAIL", jobId: job.id, error: failure }, t("print.failedRecorded"));
         if (!recorded) {
@@ -358,7 +378,7 @@ export function PrintQueueBoard({ stall, initialState }: {
       window.print();
       setPrintingJobId(null);
     }));
-  }, [activePrinter, printEnvironment, run, t, webPrntScriptReady]);
+  }, [activePrinter, printEnvironment, run, stall.slug, t, webPrntScriptReady]);
 
   const testPrinter = useCallback(async (printer: PrinterView) => {
     if (printer.connectionType === "CLOUDPRNT") {
@@ -373,22 +393,27 @@ export function PrintQueueBoard({ stall, initialState }: {
     }
     const tested = await run({ operation: "TEST_PRINTER", printerId: printer.id });
     if (!tested?.printPayload) return;
-    setActivePrinterId(printer.id);
-    window.localStorage.setItem(`stallorder_printer_${stall.slug}`, printer.id);
     if (printer.connectionType === "SYSTEM_PRINT") {
+      setActivePrinterId(printer.id);
+      window.localStorage.setItem(`stallorder_printer_${stall.slug}`, printer.id);
       setSystemPrintContent(tested.printPayload.content);
       window.requestAnimationFrame(() => window.requestAnimationFrame(() => window.print()));
       return;
     }
     try {
       await printWithStarWebPrnt(tested.printPayload.dataBase64);
+      setActivePrinterId(printer.id);
+      window.localStorage.setItem(`stallorder_printer_${stall.slug}`, printer.id);
+      await sendHeartbeat(printer.id);
       setMessageKind("success");
       setMessage(t("print.device.testSucceeded"));
     } catch (error) {
+      setActivePrinterId(null);
+      reportStarWebPrntFailure(stall.slug, printer.id, "TEST", error);
       setMessageKind("error");
       setMessage(starWebPrntErrorMessage(t, error));
     }
-  }, [printEnvironment, run, stall.slug, t]);
+  }, [printEnvironment, run, sendHeartbeat, stall.slug, t]);
 
   useEffect(() => {
     if (busy || printingJobId || printEnvironment !== "STAR_WEBPRNT" || !webPrntScriptReady) return;
@@ -426,7 +451,7 @@ export function PrintQueueBoard({ stall, initialState }: {
       <button type="button" title={t("common.refresh")} onClick={() => void refresh()} className="grid h-10 w-10 place-items-center rounded-md border border-stone-300"><RefreshCw className="h-4 w-4" /></button>
     </div>
     {!state.printModuleEnabled ? <p className="mt-5 border-y border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-900 print:hidden">{t("print.moduleDisabled")}</p> : null}
-    {printEnvironment === "STAR_WEBPRNT" ? <p className={`mt-4 flex items-center gap-2 border-y px-3 py-3 text-sm font-medium print:hidden ${webPrntScriptReady && !webPrntBridgeMessage ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-amber-300 bg-amber-50 text-amber-900"}`}><Bluetooth className="h-4 w-4 shrink-0" />{webPrntBridgeMessage || (webPrntScriptReady ? t("print.bluetooth.ready") : webPrntScriptFailed ? t("print.bluetooth.bridgeFailed") : t("print.bluetooth.bridgeLoading"))}</p> : null}
+    {printEnvironment === "STAR_WEBPRNT" ? <p data-testid="webprnt-connection-status" className={`mt-4 flex items-center gap-2 border-y px-3 py-3 text-sm font-medium print:hidden ${webPrntScriptReady && activeConnectionType === "WEBPRNT_BLUETOOTH" && !webPrntBridgeMessage ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-amber-300 bg-amber-50 text-amber-900"}`}><Bluetooth className="h-4 w-4 shrink-0" />{webPrntBridgeMessage || (webPrntScriptReady ? activeConnectionType === "WEBPRNT_BLUETOOTH" ? t("print.device.detected", { printer: activePrinter?.name ?? "" }) : t("print.agent.checking") : webPrntScriptFailed ? t("print.bluetooth.bridgeFailed") : t("print.bluetooth.bridgeLoading"))}</p> : null}
     {printEnvironment === "IOS_SAFARI" ? <div className="mt-4 border-y border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-950 print:hidden"><p>{t("print.bluetooth.safariHint")}</p>{webPrntLaunchHref ? <a href={webPrntLaunchHref} className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-md bg-stone-900 px-3 font-semibold text-white"><Bluetooth className="h-4 w-4" />{t("print.bluetooth.openBrowser")}<ExternalLink className="h-4 w-4" /></a> : null}</div> : null}
     {message ? <SettingsFeedbackDialog message={message} kind={messageKind} onClose={() => setMessage("")} /> : null}
 
@@ -517,10 +542,16 @@ function PrintJobPagination({
 }
 
 function starWebPrntErrorMessage(t: ReturnType<typeof useOperationsLocale>["t"], error: unknown) {
+  return withStarWebPrntDiagnostics(translatedStarWebPrntError(t, error), error);
+}
+
+function translatedStarWebPrntError(t: ReturnType<typeof useOperationsLocale>["t"], error: unknown) {
   if (!(error instanceof StarWebPrntError)) return t("print.bluetooth.error.connection");
   if (error.code === "PAPER_END") return t("print.bluetooth.error.paperEnd");
   if (error.code === "COVER_OPEN") return t("print.bluetooth.error.coverOpen");
   if (error.code === "OFFLINE") return t("print.bluetooth.error.offline");
+  if (error.code === "PRINTER_BUSY") return t("print.bluetooth.error.busy");
+  if (error.code === "BRIDGE_UNRESPONSIVE") return t("print.bluetooth.error.bridgeUnresponsive");
   if (["CUTTER_ERROR", "ROLL_POSITION_ERROR", "HIGH_TEMPERATURE", "NON_RECOVERABLE"].includes(error.code)) return t("print.bluetooth.error.hardware");
   if (error.code === "TIMEOUT") return t("print.bluetooth.error.timeout");
   if (error.code === "PRINT_REJECTED") return t("print.bluetooth.error.rejected");
