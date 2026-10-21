@@ -8,14 +8,25 @@ async function read(path) {
     headers: { authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN?.trim()}` },
     redirect: "error", signal: AbortSignal.timeout(20_000),
   });
-  if (!response.ok) throw new Error(`CLOUDFLARE_READ_HTTP_${response.status}`);
   const body = await response.json();
-  if (!body.success) throw new Error("CLOUDFLARE_READ_UNSUCCESSFUL");
+  if (!response.ok || !body.success) {
+    const codes = (body.errors ?? []).map((error) => error.code).filter(Number.isInteger).join("_");
+    throw new Error(`CLOUDFLARE_READ_HTTP_${response.status}${codes ? `_CODES_${codes}` : ""}`);
+  }
   return body.result;
 }
 
 try {
   if (!process.env.CLOUDFLARE_API_TOKEN) throw new Error("CLOUDFLARE_TOKEN_MISSING");
+  // Diagnostic only: account-owned tokens may not support this user endpoint.
+  // Do not reject a valid zone-scoped token solely on this optional check.
+  try {
+    const token = await read("/user/tokens/verify");
+    console.log(JSON.stringify({ event: "cloudflare_token_status", status: token.status }));
+  } catch (error) {
+    const code = /^[A-Z0-9_]+$/.test(error?.message ?? "") ? error.message : "TOKEN_VERIFY_UNAVAILABLE";
+    console.log(JSON.stringify({ event: "cloudflare_token_status_unavailable", code }));
+  }
   const zone = await read(`/zones/${zoneId}`);
   if (zone.name !== "qidaigo.com" || zone.account.id !== accountId) throw new Error("CLOUDFLARE_TARGET_MISMATCH");
   const dns = await Promise.all(hosts.map(async (host) => ({
