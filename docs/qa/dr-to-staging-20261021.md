@@ -321,3 +321,29 @@ No hosted DR files/data/Auth/Edge/DNS/Access changes have occurred at this check
 Pending: candidate CI/Preview and promotion; fresh conversion Plan/Apply; human
 Access login and ordinary browser/SW QA; persistent independent Staging release
 and schema predecessor; final Primary invariance. Do not report complete Staging.
+
+## Conversion execution and CI race regressions (2026-10-22 03:35 Asia/Taipei)
+
+Paired Preview `39657700424` passed. CI `39657700365` failed on the existing
+schedule-concurrency test at a minute boundary; its successful retry is not a
+passed release gate. An actual local third transaction running the cron function
+reproduced `OPEN` instead of `COMPLETED` deterministically: targeted entry points
+use `SKIP LOCKED`, so they can finish while cron still owns the closing commit.
+The test now retains its lock/deadlock assertions and all three terminal states,
+adds this real cron interleaving, and waits for committed observable state under
+the unchanged expectation deadline. Both scenarios passed 100 runs with no retry.
+No application code, migration, or cron schedule was changed for this test fix.
+
+The full hosted SQL suite was observed taking 12–13 minutes, longer than the
+conversion subprocess's ten-minute bound. Conversion now passes every recursively
+discovered SQL file to the pinned CLI in ordered batches of at most 20. The bound,
+workflow budget, SQL assertions and failure handling are unchanged. A red process
+boundary regression reproduced the unbatched timeout; coverage and fail-closed
+tests passed. Actual CLI batches on owned local DB 57042 passed all 72 files and
+1,619 assertions. Focused unit tests 12/12, typecheck, targeted lint and production
+guardrails passed. The temporary DB is stopped after this verification; unrelated
+LINE DB 56863 is retained. No hosted DR data/files have been removed.
+
+Fresh public Production readback remained revision `4e95d2e`, NORMAL_PRIMARY,
+PRIMARY epoch 3, QR/Staff AVAILABLE and login 200. New candidate cloud gates remain
+required; none of these local checks qualifies a completed hosted conversion.

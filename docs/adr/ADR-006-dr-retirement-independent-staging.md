@@ -123,6 +123,12 @@ of the reviewed source: decrypted runner settings, Access tokens and backup inpu
 must never be uploaded as application files. Use a temporary one-hour QA service
 token, remove its policy/token on exit, and retain only encrypted recovery inputs.
 
+Hosted pgTAP validation takes about 12–13 minutes in the observed paired Preview
+runs. Execute every recursively discovered SQL test in ordered batches of at most
+20 files, retaining the ten-minute subprocess deadline and existing workflow
+budget. A missing suite or any failed batch aborts conversion; batching must not
+skip files, loosen SQL assertions, or turn timeouts into success.
+
 The historical DR workflows and direct DR project configurator are disabled for
 this retired target. The former DR-schema predecessor does not qualify synthetic
 Staging; Production schema publication remains fail-closed until the independent

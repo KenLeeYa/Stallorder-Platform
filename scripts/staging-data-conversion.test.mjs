@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { stagingAuthPatch, stagingEdgeConfiguration, scopedDatabaseEnvironment } from "./staging-data-conversion.mjs";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { readdir } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { stagingAuthPatch, stagingEdgeConfiguration, scopedDatabaseEnvironment, resetAndSeedStaging } from "./staging-data-conversion.mjs";
+
+vi.mock("node:child_process", () => ({ spawnSync: vi.fn() }));
+afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.resetAllMocks(); });
 
 describe("synthetic Staging provider isolation", () => {
   it("disables external Auth and hooks without modifying project JWT keys", () => {
@@ -26,5 +31,37 @@ describe("synthetic Staging provider isolation", () => {
     expect(scopedDatabaseEnvironment({ PATH: "tools", PGHOST: "primary", DATABASE_URL: "primary",
       PRIMARY_SUPABASE_SECRET_KEY: "private", DR_DIRECT_URL: "private", SUPABASE_ACCESS_TOKEN: "private" }))
       .toEqual({ PATH: "tools", PGSSLMODE: "require" });
+  });
+  it("runs every hosted SQL test in bounded batches without extending command deadlines", async () => {
+    vi.stubEnv("DR_DIRECT_URL", "postgresql://postgres.daeqwtpaxcebmtwxqdkj@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require");
+    vi.stubEnv("SUPABASE_ACCESS_TOKEN", "unit-test-only");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("[]", { status: 200 })));
+    const batches = [];
+    vi.mocked(spawnSync).mockImplementation((_command, args, options) => {
+      expect(options.timeout).toBe(600_000);
+      if (args[0] === "test") {
+        const files = args.slice(2, args.indexOf("--db-url"));
+        // The observed full hosted suite takes over twelve minutes; a ten-minute
+        // subprocess must not attempt the entire suite in one invocation.
+        if (!files.length || files.length > 20) return { status: null, error: { code: "ETIMEDOUT" } };
+        batches.push(files);
+      }
+      return { status: 0, stdout: "Resetting remote database", stderr: "" };
+    });
+    await resetAndSeedStaging();
+    const files = (await readdir("supabase/tests", { recursive: true }))
+      .filter((name) => name.endsWith(".sql")).map((name) => `supabase/tests/${name.replaceAll("\\", "/")}`).sort();
+    expect(files.length).toBeGreaterThan(20);
+    expect(batches.flat()).toEqual(files);
+  });
+  it("fails closed when any hosted database test batch fails", async () => {
+    vi.stubEnv("DR_DIRECT_URL", "postgresql://postgres.daeqwtpaxcebmtwxqdkj@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require");
+    vi.stubEnv("SUPABASE_ACCESS_TOKEN", "unit-test-only");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("[]", { status: 200 })));
+    vi.mocked(spawnSync).mockImplementation((_command, args) => ({
+      status: args[0] === "test" ? 1 : 0, stdout: "Resetting remote database", stderr: "",
+    }));
+    await expect(resetAndSeedStaging()).rejects.toThrow("STAGING_SUPABASE_COMMAND_FAILED");
+    expect(vi.mocked(spawnSync).mock.calls.some(([, args]) => args[1] === "lint")).toBe(false);
   });
 });

@@ -98,6 +98,13 @@ entry points, including the old default Vercel alias; deployment upload inputs
 must be the reviewed Git archive, never the runner's decrypted recovery files.
 Track service-token QA, real human Access login and ordinary browser/SW behavior
 separately; cleanup removes the temporary service-token policy and token.
+The complete hosted SQL suite is run in ordered batches of at most 20 files under
+the unchanged subprocess deadline. Assert every recursively discovered SQL file
+is included exactly once and any failed batch prevents further conversion.
+Schedule concurrency QA must include the minute-boundary cron transaction:
+`SKIP LOCKED` can leave closure owned by that still-uncommitted transaction.
+Preserve lock/deadlock assertions and verify all committed terminal states under
+the existing deadline; a passing retry alone does not qualify the release.
 
 ## LINE Web authentication
 

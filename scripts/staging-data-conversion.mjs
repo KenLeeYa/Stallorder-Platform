@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { STAGING_TARGET, conversionApi, conversionDigest, conversionQuery, conversionRequired } from "./dr-staging-conversion-plan.mjs";
 import { assertFileObjectMapping, sealBackup } from "./backup-dr-for-staging.mjs";
@@ -148,7 +148,15 @@ export async function resetAndSeedStaging() {
   assert.ok(result.includes("Resetting remote database") && !result.includes("Recreating database"), "STAGING_RESET_PATH_INVALID");
   await conversionQuery(`${disableStagingCronsSql} select pg_notify('pgrst','reload schema');`, false);
   await conversionQuery(await readFile("supabase/seed.sql", "utf8"), false);
-  cli(["test", "db", "--db-url", target.toString()], { database: true });
+  // Preserve the full recursive suite and its ordering, but avoid putting the
+  // observed 12+ minute hosted suite inside a single ten-minute subprocess.
+  const tests = (await readdir("supabase/tests", { recursive: true }))
+    .filter((name) => name.endsWith(".sql")).map((name) => `supabase/tests/${name.replaceAll("\\", "/")}`).sort();
+  assert.ok(tests.length > 0, "STAGING_DATABASE_TESTS_MISSING");
+  for (let offset = 0; offset < tests.length; offset += 20) {
+    cli(["test", "db", ...tests.slice(offset, offset + 20), "--db-url", target.toString()], { database: true });
+    console.info(`Staging database tests: ${Math.min(offset + 20, tests.length)}/${tests.length} files passed`);
+  }
   cli(["db", "lint", "--db-url", target.toString(), "--level", "warning", "--fail-on", "warning"], { database: true });
   await conversionQuery(syntheticStagingSafetySql, false);
 }
