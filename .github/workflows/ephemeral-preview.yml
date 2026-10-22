@@ -216,13 +216,15 @@ jobs:
         run: |
           set -euo pipefail
           stable_connections=0
+          last_failure_output=""
           for attempt in $(seq 1 60); do
-            if supabase migration list --db-url "$EPHEMERAL_DATABASE_URL" >/dev/null 2>&1; then
+            if probe_output="$(supabase migration list --db-url "$EPHEMERAL_DATABASE_URL" 2>&1)"; then
               stable_connections="$((stable_connections + 1))"
               if [ "$stable_connections" -ge 2 ]; then
                 break
               fi
             else
+              last_failure_output="$probe_output"
               stable_connections=0
             fi
             if [ "$attempt" -lt 60 ]; then
@@ -230,6 +232,7 @@ jobs:
             fi
           done
           [ "$stable_connections" -ge 2 ] || {
+            printf '%s' "$last_failure_output" | node scripts/report-preview-db-probe.mjs
             echo "::error::Preview Branch database did not remain reachable for two consecutive probes."
             exit 1
           }
