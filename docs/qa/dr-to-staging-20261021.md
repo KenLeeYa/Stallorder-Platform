@@ -653,3 +653,58 @@ unresolved. New source-bound cloud gates are mandatory before promotion.
 Primary provider/revision/connectivity and the user's actual authenticated Staff
 page remained unchanged after the second failure. No real orders, payment,
 notification, printing, DR cleanup, conversion Plan or Apply were performed.
+
+## PR382 database readiness and closure refresh (2026-10-22)
+
+PR382 head `7e0d1a9b` did not qualify: security39773689383 passed,
+CI39773689372 failed its fail-on-flaky policy, and paired Preview39773689379
+exhausted database readiness at12:06:44Z. The always-run fixture cleanup also
+failed with a connection timeout, so cleanup is not counted as passed. Reviewed
+migrations/seed/Storage QA and matching Vercel deployment were not reached.
+The exact data-less Preview branch is `6f83e16e-b536-4ba4-89d6-7bafcf7e58c2`,
+ref `gosaisubfevcvekewdye`; no reset, restart or blind retry was performed.
+
+The provider reports ACTIVE_HEALTHY separately from automatic Git migration
+MIGRATIONS_FAILED. A bounded management `select 1` and a workstation session-pooler
+`select 1` succeeded; the latter used the CLI-returned exact branch configuration
+and completed in956ms. These do not explain the earlier runner timeout. Log
+aggregates for11:50–12:10Z contain7 PostgreSQL timeout matches, but detailed log
+queries returned backend errors and no specific cause is established. Do not
+rotate credentials, increase deadlines or weaken checks based on this evidence.
+The next source-reviewed gate preserves60 probes, five-second spacing and two
+consecutive successes; only its final captured CLI failure is classified into a
+fixed enum. Raw output, DSNs, credentials and hostnames never enter that diagnostic.
+The real diagnostic entry-point test verifies redaction with secret placeholders.
+
+CI's existing `local-order-experience.spec.ts:115` preorder test failed at its
+final withdrawn-notice assertion (expected0, received1). Its built-in retry
+passed, but the required workflow still failed; no run artifacts were uploaded.
+The actual component effect reproduces the failure deterministically when a
+visibility refresh arrives while a pre-withdrawal snapshot is in flight: the
+refresh was dropped and the old notice remained until the30-second poll.
+`npx vitest run src/components/public-order-closure-notice.test.tsx` first failed
+that exact stale-notice assertion. The minimal correction remembers one pending
+refresh and executes it after the active request settles, without overlapping
+requests or running after unmount/while hidden. Five component cases now pass;
+the three closure-domain and one tracker-abort cases also pass. No order state,
+localization, layout, authentication, billing or hardware path was changed.
+
+The original browser case now holds one real API snapshot, withdraws the closure
+in its synthetic database, requests refresh while the response is held, then
+releases it. All existing order-preservation, popup, focus, viewport and notice
+removal assertions remain, with no increased deadline, retries or skipped check.
+Its fresh full browser execution is still required; unit evidence is not a
+substitute. Primary provider/version/connectivity remained unchanged. No local
+Docker or application services were started; the unrelated pre-existing
+`line-booking-test-20261004` container was left untouched.
+
+Final local qualification for this follow-up passed3463 tests with9 existing
+skips (571 passing test files,2 skipped), full lint with0 errors and5 pre-existing
+navigation warnings, typecheck, build,336-file UI audit,2338-file/146-migration
+production guardrails, and dependency audit with0 vulnerabilities. This includes
+the real diagnostic CLI redaction test. It does not establish hosted database
+recovery or browser success. The final diagnostic retains the last failed probe
+even if the60th probe succeeds once; a lone success must not meet the two-success
+gate. Primary provider/version/connectivity were freshly rechecked unchanged
+at12:37Z, and both other work threads remained idle. Fresh hosted CI, paired
+Preview and ordinary Chrome acceptance are still mandatory on the new source.

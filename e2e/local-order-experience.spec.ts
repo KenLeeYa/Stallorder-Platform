@@ -148,11 +148,29 @@ test("an existing preorder shows a new closure notice and a pickup-day popup wit
     await page.screenshot({ path: test.info().outputPath(`pickup-day-closure-${viewport.width}.png`) });
   }
   await page.getByRole("button", { name: "我知道了", exact: true }).click();
+  let releaseOlderSnapshot!: () => void;
+  let snapshotReady!: () => void;
+  const olderSnapshot = new Promise<void>((resolve) => { releaseOlderSnapshot = resolve; });
+  const snapshotCaptured = new Promise<void>((resolve) => { snapshotReady = resolve; });
+  await page.route("**/api/public/stores/*/closures", async (route) => {
+    const response = await route.fetch();
+    expect(response.status()).toBe(200);
+    const payload = await response.json() as { closures: Array<{ id: string }> };
+    expect(payload.closures.some((closure) => closure.id === closureId)).toBe(true);
+    snapshotReady();
+    await olderSnapshot;
+    await route.fulfill({ response });
+  }, { times: 1 });
   await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
-  await expect(page.getByRole("alertdialog", { name: "取餐安排遇到店休公告" })).toHaveCount(0);
-  expect((await prisma.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe("WAITING_CONFIRMATION");
-  await prisma.stallSpecialClosure.delete({ where: { id: closureId } });
-  closureId = "";
-  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  try {
+    await snapshotCaptured;
+    await expect(page.getByRole("alertdialog", { name: "取餐安排遇到店休公告" })).toHaveCount(0);
+    expect((await prisma.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe("WAITING_CONFIRMATION");
+    await prisma.stallSpecialClosure.delete({ where: { id: closureId } });
+    closureId = "";
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  } finally {
+    releaseOlderSnapshot();
+  }
   await expect(page.getByTestId("order-closure-notice")).toHaveCount(0);
 });
