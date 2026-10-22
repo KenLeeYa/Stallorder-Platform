@@ -1,4 +1,4 @@
-name: Bounded Staging Auth readback diagnostic
+name: Bounded Staging Auth validation diagnostic
 
 on:
   push:
@@ -40,7 +40,7 @@ jobs:
           path: approved-backup
           github-token: ${{ github.token }}
           run-id: 39647447270
-      - name: Verify unchanged original data, Auth and Primary; inspect field contracts only
+      - name: Verify original state then reproduce only failed Auth validation once
         env:
           GITHUB_TOKEN: ${{ github.token }}
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -70,8 +70,21 @@ jobs:
           const properties=spec.components.schemas.UpdateAuthConfigBody.properties;
           const patch=stagingAuthPatch(auth);
           const unknownFields=Object.keys(patch).filter(name=>!properties[name]);
-          const fieldTypes=Object.entries(patch).map(([name,value])=>({name,type:typeof value,empty:value==='',nullable:properties[name]?.nullable??false}));
+          assert.deepEqual(unknownFields,[]);
           const tokens=await conversionApi('cloudflare','/accounts/b1c70202652cd3b77dfec70e5463785f/access/service_tokens?per_page=1000');
           assert.ok(tokens.length<1000&&!tokens.some(item=>item.id==='ac9c9b77-d7de-469b-acfc-4572aee7adbf'));
-          console.log(JSON.stringify({originalDataUnchanged:true,authUnchanged:true,edgeUnchanged:true,primaryUnchanged:true,temporaryQaTokenAbsent:true,unknownFields,fieldTypes}));
+          console.log(JSON.stringify({originalDataUnchanged:true,authUnchanged:true,edgeUnchanged:true,primaryUnchanged:true,temporaryQaTokenAbsent:true,unknownFields}));
+          const response=await fetch('https://api.supabase.com/v1/projects/daeqwtpaxcebmtwxqdkj/config/auth',{
+            method:'PATCH',headers:{Authorization:`Bearer ${process.env.SUPABASE_ACCESS_TOKEN}`,'Content-Type':'application/json'},body:JSON.stringify(patch)
+          });
+          const responseText=await response.text();
+          const after=await conversionApi('supabase','/v1/projects/daeqwtpaxcebmtwxqdkj/config/auth');
+          assert.deepEqual(await readConversionPrimary(),plan.primary);
+          const values=[...Object.values(auth),...Object.values(patch),...Object.values(process.env)].filter(value=>typeof value==='string'&&value.length>3).sort((a,b)=>b.length-a.length);
+          let diagnostic=response.status===400?responseText:'Provider response body omitted for unexpected status';
+          for(const value of values) diagnostic=diagnostic.split(value).join('[REDACTED]');
+          diagnostic=diagnostic.replace(/(?:sb_secret_|sb_publishable_|eyJ)[A-Za-z0-9_.-]+/g,'[REDACTED]').slice(0,2000);
+          console.log(JSON.stringify({authPatchStatus:response.status,diagnostic,authStillUnchanged:conversionDigest(after)===plan.providerPrestate.authDigest,primaryStillUnchanged:true}));
+          assert.equal(response.status,400,'Expected the same bounded validation failure; do not continue conversion on unexpected status');
+          assert.equal(conversionDigest(after),plan.providerPrestate.authDigest);
           JS
