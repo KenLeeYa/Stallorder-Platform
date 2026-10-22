@@ -30,7 +30,7 @@ jobs:
           path: approved-backup
           github-token: ${{ github.token }}
           run-id: 39647447270
-      - name: Identify failing read-only boundary without disclosing provider data
+      - name: Verify corrected backup readback without disclosing provider data
         env:
           BACKUP_RUN_ID: "39647447270"
           GITHUB_TOKEN: ${{ github.token }}

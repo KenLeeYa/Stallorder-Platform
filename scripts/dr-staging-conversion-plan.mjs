@@ -62,9 +62,11 @@ export async function verifyConversionSourceChecks() {
 }
 
 export function conversionRequired(name) {
-  const value = process.env[name]?.trim();
-  assert.ok(value, "STAGING_CONFIGURATION_MISSING");
-  return value;
+  const value = process.env[name];
+  assert.ok(value?.trim(), "STAGING_CONFIGURATION_MISSING");
+  // The backup writer derives its AES key from the original password bytes.
+  // API token normalization must never alter that cryptographic input.
+  return name === "DR_BACKUP_ENCRYPTION_KEY" ? value : value.trim();
 }
 
 export function assertConversionWriteScope(provider, path, method) {
@@ -73,6 +75,7 @@ export function assertConversionWriteScope(provider, path, method) {
     : provider === "vercel" ? [9, 10].some((version) => path.startsWith(`/v${version}/projects/${STAGING_TARGET.project}/`))
       || (method === "POST" && /^\/v2\/deployments\/dpl_[a-zA-Z0-9]+\/aliases$/.test(path))
       || (method === "DELETE" && RETIRED_HOSTS.some((host) => path === `/v2/aliases/${host}`))
+      || (method === "PATCH" && /^\/aliases\/[a-f0-9]{128}\/protection-bypass$/.test(path))
       : provider === "cloudflare" && ((method === "DELETE" && [
         `/accounts/${STAGING_TARGET.account}/access/apps/${STAGING_TARGET.oldAccessId}`,
         `/zones/${STAGING_TARGET.zone}/dns_records/${STAGING_TARGET.oldDnsId}`,
@@ -111,6 +114,19 @@ export async function conversionApi(provider, path, options = {}) {
       && deployment.readyState === "READY" && deployment.meta?.git_commit === conversionRequired("GITHUB_SHA"),
     "STAGING_ALIAS_TARGET_INVALID");
     assert.equal(JSON.parse(options.body).alias, STAGING_TARGET.host, "STAGING_WRITE_HOST_INVALID");
+  }
+  if (provider === "vercel" && method === "PATCH" && path.startsWith("/aliases/")) {
+    const alias = await conversionApi("vercel", `/v4/aliases/${path.split("/")[2]}`);
+    assert.ok(alias.alias === STAGING_TARGET.host && alias.projectId === STAGING_TARGET.project
+      && alias.uid === path.split("/")[2], "STAGING_WRITE_HOST_INVALID");
+    const deployment = await conversionApi("vercel", `/v13/deployments/${alias.deploymentId}`);
+    assert.ok(deployment.projectId === STAGING_TARGET.project && [null, "preview"].includes(deployment.target)
+      && deployment.readyState === "READY" && deployment.meta?.git_commit === conversionRequired("GITHUB_SHA"),
+    "STAGING_ALIAS_TARGET_INVALID");
+    const body = JSON.parse(options.body);
+    assert.ok(["create", "revoke"].includes(body.override?.action), "STAGING_ALIAS_EXCEPTION_INVALID");
+    assert.deepEqual(body, { override: { action: body.override.action, scope: "alias-protection-override" } },
+      "STAGING_ALIAS_EXCEPTION_INVALID");
   }
   if (provider === "cloudflare" && !["GET", "HEAD"].includes(method)) {
     const appPrefix = `/accounts/${STAGING_TARGET.account}/access/apps`;

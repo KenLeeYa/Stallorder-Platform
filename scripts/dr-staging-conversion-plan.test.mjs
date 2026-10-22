@@ -1,7 +1,19 @@
-import { describe, expect, it } from "vitest";
-import { conversionDigest, sourceFingerprintQuery, assertConversionWriteScope, stagingOwnerPolicy } from "./dr-staging-conversion-plan.mjs";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { conversionDigest, conversionRequired, sourceFingerprintQuery, assertConversionWriteScope, stagingOwnerPolicy } from "./dr-staging-conversion-plan.mjs";
+import { sealBackup, openBackup } from "./backup-dr-for-staging.mjs";
+
+afterEach(() => vi.unstubAllEnvs());
 
 describe("DR conversion source-bound plan", () => {
+  it("preserves the exact encryption password used by the backup writer", () => {
+    const password = " fixture-password-for-encrypted-backup\r\n";
+    vi.stubEnv("DR_BACKUP_ENCRYPTION_KEY", password);
+    const encrypted = sealBackup(Buffer.from("qualified-backup-fixture"), password);
+    expect(openBackup(encrypted, conversionRequired("DR_BACKUP_ENCRYPTION_KEY")).toString())
+      .toBe("qualified-backup-fixture");
+    vi.stubEnv("VERCEL_TOKEN", " fixture-api-token\n");
+    expect(conversionRequired("VERCEL_TOKEN")).toBe("fixture-api-token");
+  });
   it("preserves the existing account-member and email restrictions without widening access", () => {
     const policy = { decision: "allow", include: [{ cloudflare_account_member: { account_id: "b1c70202652cd3b77dfec70e5463785f" } }],
       require: [{ email: { email: "owner@example.test" } }], exclude: [] };
