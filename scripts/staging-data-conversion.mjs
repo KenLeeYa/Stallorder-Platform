@@ -19,7 +19,10 @@ export function stagingAuthPatch(source) {
   for (const [name, value] of Object.entries(source)) {
     if (/^(external_|hook_).+_enabled$/.test(name) && typeof value === "boolean") patch[name] = false;
     if (/^(external_|hook_|sms_)/.test(name)
-      && /(?:_secret|_secrets|_client_id|_token|_password|_pass|_key|_uri)$/.test(name)) patch[name] = "";
+      && /(?:_secret|_secrets|_client_id|_token|_password|_pass|_key|_uri)$/.test(name)) {
+      // Supabase validates Hook URI/secret format even when the Hook is disabled.
+      patch[name] = name.startsWith("hook_") ? null : "";
+    }
   }
   return patch;
 }
@@ -65,7 +68,7 @@ export async function isolateStagingProviders(plan) {
   const updated = await conversionApi("supabase", `${PREFIX}/config/auth`);
   for (const [name, value] of Object.entries(patch)) {
     if (name === "smtp_pass") continue; // Some provider versions redact this unused credential.
-    assert.ok(value === "" ? updated[name] == null || updated[name] === "" : String(updated[name]) === String(value),
+    assert.ok(value == null || value === "" ? updated[name] == null || updated[name] === "" : String(updated[name]) === String(value),
       "STAGING_AUTH_ISOLATION_FAILED");
   }
   const names = secrets.map((item) => item.name).filter((name) => !name.startsWith("SUPABASE_"));

@@ -1,20 +1,68 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readdir } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
-import { stagingAuthPatch, stagingEdgeConfiguration, scopedDatabaseEnvironment, resetAndSeedStaging } from "./staging-data-conversion.mjs";
+import { stagingAuthPatch, stagingEdgeConfiguration, scopedDatabaseEnvironment, resetAndSeedStaging, isolateStagingProviders } from "./staging-data-conversion.mjs";
+import { conversionDigest, STAGING_TARGET } from "./dr-staging-conversion-plan.mjs";
 
 vi.mock("node:child_process", () => ({ spawnSync: vi.fn() }));
+vi.mock("node:fs/promises", async (importOriginal) => ({
+  ...await importOriginal(), mkdir: vi.fn(), writeFile: vi.fn(),
+}));
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.resetAllMocks(); });
 
 describe("synthetic Staging provider isolation", () => {
+  it.each([null, ""])("clears disabled Auth Hooks using nullable API fields and verifies %s readback", async (emptyValue) => {
+    const hooks = ["mfa_verification_attempt", "password_verification_attempt", "custom_access_token",
+      "send_sms", "send_email", "before_user_created", "after_user_created"];
+    const source = Object.fromEntries(hooks.flatMap((hook) => [
+      [`hook_${hook}_enabled`, false], [`hook_${hook}_uri`, null], [`hook_${hook}_secrets`, null],
+    ]));
+    let auth = source;
+    let edge = [];
+    let patchRequests = 0;
+    vi.stubEnv("SUPABASE_ACCESS_TOKEN", "unit-test-only");
+    vi.stubEnv("DR_BACKUP_ENCRYPTION_KEY", "unit-test-backup-only");
+    vi.stubGlobal("fetch", vi.fn(async (input, options) => {
+      const url = new URL(input);
+      expect(url.origin).toBe("https://api.supabase.com");
+      expect(url.pathname.startsWith(`/v1/projects/${STAGING_TARGET.ref}/`)).toBe(true);
+      if (url.pathname.endsWith("/config/auth")) {
+        if (options.method === "PATCH") {
+          patchRequests += 1;
+          const patch = JSON.parse(options.body);
+          // Hosted API39726312396 rejects empty Hook URI/secret strings even
+          // when enabled=false. Nullable fields are the documented clear contract.
+          if (hooks.some((hook) => patch[`hook_${hook}_uri`] === "" || patch[`hook_${hook}_secrets`] === "")) {
+            return Response.json({ message: "Invalid Auth Hook URI; Auth Hook Secret must follow Standard Webhooks format" }, { status: 400 });
+          }
+          for (const hook of hooks) {
+            expect(patch[`hook_${hook}_enabled`]).toBe(false);
+            expect(patch[`hook_${hook}_uri`]).toBeNull();
+            expect(patch[`hook_${hook}_secrets`]).toBeNull();
+          }
+          auth = Object.fromEntries(Object.entries(patch).map(([key, value]) => [key, value === null ? emptyValue : value]));
+        }
+        return Response.json(auth);
+      }
+      expect(url.pathname.endsWith("/secrets")).toBe(true);
+      if (options.method === "POST") edge = JSON.parse(options.body).map(({ name, value }) => ({ name, value: conversionDigest(value) }));
+      return Response.json(edge);
+    }));
+    await isolateStagingProviders({ sourceSha: "test-source", providerPrestate: {
+      authDigest: conversionDigest(source), edgeSecretsDigest: conversionDigest([]),
+    } });
+    expect(patchRequests).toBe(1);
+    expect(edge.length).toBeGreaterThan(0);
+  });
+
   it("disables external Auth and hooks without modifying project JWT keys", () => {
     const patch = stagingAuthPatch({ external_google_enabled: true, external_google_secret: "source-secret",
       external_google_client_id: "source-client", hook_send_email_enabled: true,
       hook_send_email_uri: "https://production.example", hook_send_email_secrets: "old-hook",
       jwt_secret: "project-owned", smtp_pass: "old-password", external_email_enabled: true });
     expect(patch).toMatchObject({ external_google_enabled: false, external_google_secret: "",
-      external_google_client_id: "", hook_send_email_enabled: false, hook_send_email_uri: "",
-      hook_send_email_secrets: "", external_email_enabled: false, disable_signup: true,
+      external_google_client_id: "", hook_send_email_enabled: false, hook_send_email_uri: null,
+      hook_send_email_secrets: null, external_email_enabled: false, disable_signup: true,
       site_url: "https://staging.qidaigo.com", smtp_host: "disabled.staging.invalid" });
     expect(patch).not.toHaveProperty("jwt_secret");
     expect(JSON.stringify(patch)).not.toContain("source-secret");
