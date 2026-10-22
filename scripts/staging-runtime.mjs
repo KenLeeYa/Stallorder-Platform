@@ -52,6 +52,18 @@ export function assertStagingDeployment(deployment, sourceSha) {
     && deployment.meta?.githubCommitRef === "staging", "STAGING_DEPLOYMENT_INVALID");
 }
 
+export function stagingAliasExceptionRequest({ alias, deployment, runtime, access, sourceSha }, action = "create") {
+  assertStagingDeployment(deployment, sourceSha);
+  assert.ok(alias.alias === STAGING_TARGET.host && alias.projectId === STAGING_TARGET.project
+    && alias.deploymentId === deployment.id && /^[a-f0-9]{128}$/.test(alias.uid), "STAGING_ALIAS_READBACK_FAILED");
+  assert.ok(runtime.DR_ACCESS_ENFORCEMENT_ENABLED === "true" && runtime.DR_ACCESS_HOSTNAME === STAGING_TARGET.host
+    && runtime.CLOUDFLARE_ACCESS_AUD === access.audience
+    && runtime.CLOUDFLARE_ACCESS_TEAM_DOMAIN === access.teamDomain, "STAGING_ORIGIN_GUARD_MISSING");
+  assert.ok(["create", "revoke"].includes(action), "STAGING_ALIAS_EXCEPTION_INVALID");
+  return { path: `/aliases/${alias.uid}/protection-bypass`, options: { method: "PATCH",
+    body: JSON.stringify({ override: { action, scope: "alias-protection-override" } }) } };
+}
+
 function run(command, args, env = {}) {
   const result = spawnSync(command, args, { encoding: "utf8", timeout: 900_000, maxBuffer: 16 * 1024 * 1024,
     env: { ...process.env, ...env } });
@@ -126,17 +138,28 @@ export async function verifyStagingEntryTls(plan, verifyPrimary) {
   const access = await readStagingAccess(plan);
   const alias = await conversionApi("vercel", `/v4/aliases/${STAGING_TARGET.host}`);
   assert.equal(alias.projectId, STAGING_TARGET.project, "STAGING_ALIAS_READBACK_FAILED");
-  assertStagingDeployment(await conversionApi("vercel", `/v13/deployments/${alias.deploymentId}`), plan.sourceSha);
+  const deployment = await conversionApi("vercel", `/v13/deployments/${alias.deploymentId}`);
   const runtime = JSON.parse(await readFile("staging-conversion-private/runtime.json", "utf8"));
-  assert.ok(runtime.DR_ACCESS_ENFORCEMENT_ENABLED === "true" && runtime.DR_ACCESS_HOSTNAME === STAGING_TARGET.host
-    && runtime.CLOUDFLARE_ACCESS_AUD === access.audience, "STAGING_ORIGIN_GUARD_MISSING");
+  const scope = { alias, deployment, runtime, access, sourceSha: plan.sourceSha };
+  const exception = stagingAliasExceptionRequest(scope);
+  const project = await conversionApi("vercel", `/v9/projects/${STAGING_TARGET.project}`);
+  assert.ok(project.id === STAGING_TARGET.project && project.ssoProtection?.deploymentType === "all_except_custom_domains",
+    "STAGING_GENERATED_ORIGIN_PROTECTION_CHANGED");
   const dnsPath = `/zones/${STAGING_TARGET.zone}/dns_records/${access.dnsId}`;
+  // Standard protection includes Preview custom domains. Transfer only this
+  // exact alias to Access + origin JWT; generated URLs retain Vercel protection.
+  await conversionApi("vercel", exception.path, exception.options);
+  let protectedOrigin = false;
   // Certificate issuance may require DNS-only resolution. This is permitted only
   // after the isolated, JWT-enforcing candidate is assigned; never before it.
-  await conversionApi("cloudflare", dnsPath, { method: "PATCH", body: JSON.stringify({ proxied: false, ttl: 60 }) });
   try {
+    const readback = await conversionApi("vercel", `/v4/aliases/${STAGING_TARGET.host}`);
+    stagingAliasExceptionRequest({ ...scope, alias: readback });
+    assert.equal(readback.uid, alias.uid, "STAGING_ALIAS_READBACK_FAILED");
+    assert.ok(Object.values(readback.protectionBypass ?? {}).some((value) => value.scope === "alias-protection-override"),
+      "STAGING_ALIAS_EXCEPTION_NOT_VERIFIED");
+    await conversionApi("cloudflare", dnsPath, { method: "PATCH", body: JSON.stringify({ proxied: false, ttl: 60 }) });
     await verifyPrimary();
-    let protectedOrigin = false;
     for (let attempt = 0; attempt < 60; attempt += 1) {
       const response = await fetch(`https://${STAGING_TARGET.host}/login`, {
         redirect: "manual", signal: AbortSignal.timeout(8_000),
@@ -149,7 +172,23 @@ export async function verifyStagingEntryTls(plan, verifyPrimary) {
     }
     assert.ok(protectedOrigin, "STAGING_ORIGIN_TLS_NOT_VERIFIED");
   } finally {
-    await conversionApi("cloudflare", dnsPath, { method: "PATCH", body: JSON.stringify({ proxied: true, ttl: 1 }) });
-    await verifyPrimary();
+    try {
+      if (!protectedOrigin) {
+        const revoke = stagingAliasExceptionRequest(scope, "revoke");
+        await conversionApi("vercel", revoke.path, revoke.options);
+        const restored = await conversionApi("vercel", `/v4/aliases/${STAGING_TARGET.host}`);
+        assert.ok(!Object.values(restored.protectionBypass ?? {}).some((value) => value.scope === "alias-protection-override"),
+          "STAGING_ALIAS_EXCEPTION_NOT_REVOKED");
+      }
+    } finally {
+      await conversionApi("cloudflare", dnsPath, { method: "PATCH", body: JSON.stringify({ proxied: true, ttl: 1 }) });
+      await verifyPrimary();
+    }
   }
+  await writeFile("artifacts/staging-origin-protection.json", JSON.stringify({
+    sourceSha: plan.sourceSha, projectId: STAGING_TARGET.project, deploymentId: deployment.id,
+    aliasId: alias.uid, hostname: STAGING_TARGET.host, exceptionScope: "alias-protection-override",
+    projectProtection: project.ssoProtection.deploymentType, anonymousOriginJwtDenied: true,
+    primaryWrites: false,
+  }, null, 2));
 }

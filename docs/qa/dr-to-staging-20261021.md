@@ -416,3 +416,33 @@ Cloudflare readback `39621513322` attempt 2 passed at 21:09:33Z using the curren
 stored Token. Exact Primary DNS and old DR Access identities remain unchanged;
 Staging DNS is absent. Actual edit capability remains a protected-entry step
 before deletion. No hosted DR data/files/provider mutation has occurred.
+
+## Conversion preflight correction (2026-10-22 08:10 Asia/Taipei)
+
+PR372/Staging and PR373/main gates passed with equal tree
+`378ec32fa2a6e0952ba70f31edb643494a292a0f`. Main `f9823db6` CI39693537032,
+readiness39693537025 (including read-only Primary remote checks), and
+security39693537024 passed. Both paired Preview environments were cleaned and
+independently read back absent. Production remains the qualified Primary-only
+`4e95d2ea` artifact; no new application promotion is part of this conversion.
+
+Read-only Plan39696458946 stopped before any provider/data mutation. Bounded
+diagnostic39697214006 located authenticated decryption failure. The backup writer
+uses the original password bytes, whereas the conversion reader trimmed them.
+An actual AES-GCM regression reproduced the same failure before the fix. Keeping
+the original bytes (without rotating the password or weakening authentication)
+resolved it: read-only diagnostic39697720424 passed qualified backup verification,
+Primary preservation, all original DR data fingerprints and Cloudflare/provider
+prestate at2026-10-22T00:07:39Z. The temporary diagnostic workflow was then removed;
+its immutable Actions records remain. No credential value entered its logs.
+
+Vercel's current documented Standard scope protects Preview custom domains too.
+The old runtime path had no exact-alias exception and a provider-contract fixture
+reproduced `STAGING_ORIGIN_TLS_NOT_VERIFIED`. The correction transfers only the
+verified Staging alias to Cloudflare Access plus the existing origin JWT guard;
+project-wide Standard protection is unchanged. Tests cover the actual request
+boundary, source/project/host/target negatives, required exception readback and
+revoke/proxy restoration on anonymous exposure. This is fixture evidence, not a
+completed hosted handoff. New candidate cloud gates, a fresh Plan/Apply, actual
+Access login and persistent Staging acceptance remain required. DR still has its
+827 old orders and42 files; none has been deleted.

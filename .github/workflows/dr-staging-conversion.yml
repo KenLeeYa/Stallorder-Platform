@@ -73,7 +73,7 @@ jobs:
       - run: npm run prisma:generate
       - run: npm run production:check
       - run: node scripts/run-npm-audit.mjs
-      - run: npx vitest run scripts/convert-dr-to-staging.test.mjs scripts/dr-staging-conversion-plan.test.mjs scripts/staging-access-entry.test.mjs scripts/staging-data-conversion.test.mjs scripts/staging-runtime.test.mjs scripts/staging-retired-entry.test.mjs scripts/staging-workflow-contract.test.mjs scripts/lib/production-approval.test.mjs
+      - run: npx vitest run scripts/convert-dr-to-staging.test.mjs scripts/dr-staging-conversion-plan.test.mjs scripts/staging-access-entry.test.mjs scripts/staging-data-conversion.test.mjs scripts/staging-runtime.test.mjs scripts/staging-runtime-entry.test.mjs scripts/staging-retired-entry.test.mjs scripts/staging-workflow-contract.test.mjs scripts/lib/production-approval.test.mjs
       - name: Download verified encrypted recovery archive
         uses: actions/download-artifact@v4
         with:
