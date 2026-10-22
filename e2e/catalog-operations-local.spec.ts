@@ -146,7 +146,7 @@ test("printed table QR survives enabling dine-in, main QR rotation and pause-clo
     await prisma.stallOrderingSettings.update({where:{stallId},data:{dineInEnabled:false}});
     const denied=await session(page,"DEFAULT",token);expect(denied.response.status()).toBeGreaterThanOrEqual(400);
     await gotoLocalPath(page,`/merchant/stalls/${stallId}/qr-print?target=table&paper=A4&tableId=${table.id}`);
-    await expect(page.getByRole("alert")).toContainText("內用點餐尚未開啟");
+    await expect(page.getByRole("alert").filter({hasText:"內用點餐尚未開啟"})).toContainText("內用點餐尚未開啟");
     await gotoLocalPath(page,`/merchant/stalls/${stallId}/settings/dine-in`);
     await page.getByRole("switch",{name:/內用點餐/}).click();
     const saved=page.waitForResponse((response)=>response.url().endsWith("/modules")&&response.request().method()==="PATCH");
