@@ -98,6 +98,14 @@ entry points, including the old default Vercel alias; deployment upload inputs
 must be the reviewed Git archive, never the runner's decrypted recovery files.
 Track service-token QA, real human Access login and ordinary browser/SW behavior
 separately; cleanup removes the temporary service-token policy and token.
+Preserve backup-password bytes exactly as used by the backup writer; API-token
+trimming is not applicable to AES key derivation. Require actual authenticated
+decryption, source fingerprints and immutable encrypted-byte checks.
+Preview custom domains are also covered by Standard Vercel protection. Transfer
+only the verified `staging.qidaigo.com` alias to Cloudflare Access + origin JWT
+using an exact alias exception; never change project-wide SSO or exempt generated
+URLs. Reject host/project/Preview/source/JWT drift before the provider write,
+read back the exception, and revoke it if anonymous origin denial fails.
 The complete hosted SQL suite is run in ordered batches of at most 20 files under
 the unchanged subprocess deadline. Assert every recursively discovered SQL file
 is included exactly once and any failed batch prevents further conversion.
