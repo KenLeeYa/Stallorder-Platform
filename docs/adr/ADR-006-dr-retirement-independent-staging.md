@@ -133,6 +133,17 @@ recreation: record that bounded difference explicitly, compare every other
 provider/Primary prestate field, and require a fresh source-bound Plan. Never
 claim byte-identical provider recovery or reuse the previous Plan in that case.
 
+If Auth PATCH succeeded before its readback failed, do not restore opaque or
+unverifiable archived credentials as plaintext. A bounded pre-data recovery may
+retain the already-disabled providers/hooks/signup/SMTP and clear only the exact
+remaining credential fields using the verified nullable contract. Bind that
+operation to the failed source/Plan and current Auth digest; prove all unrelated
+Auth fields, original data/files, Edge and Primary unchanged. Recover the exact
+old entry identities as above without reactivating login providers. Record the
+new isolated Auth digest separately from recreated domain metadata, and require
+a fresh Plan to capture it. This is retained isolation, not full Auth restoration
+or permission to accept arbitrary readback values, replay Apply or clear data.
+
 Alias reads and deletions must use their own provider contracts. Retire aliases
 by the Plan-bound immutable UID, rechecking the UID, retired hostname and DR
 project at the actual delete boundary. Report a failed request's method, provider,
@@ -147,8 +158,11 @@ Staging application acceptance passes; Primary domains are never cleanup targets
 
 Disable old Auth providers/hooks/SMTP, rotate only target Edge credentials, clear
 Vault and old private schemas, and use the qualified pinned remote reset path.
-Clear configured Auth Hook URI/secret fields with JSON `null`, not empty strings;
-the provider validates their format even when `enabled=false`. Omit already-empty,
+Clear nullable Auth provider credentials/client IDs and Hook URI/secret fields
+with JSON `null`, not empty strings. Empty OAuth/SMS secret strings produced
+nonempty opaque readback values in the actual provider; the isolation check must
+continue to reject those values. Hooks validate format even when `enabled=false`.
+Omit already-empty,
 disabled Hooks from PATCH: configuring unused MFA/password-verification Hooks
 still invokes paid-plan checks. Verify those omitted fields remain disabled/empty
 in the actual readback. A configured Hook that cannot be disabled must block
