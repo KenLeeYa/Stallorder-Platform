@@ -1,0 +1,60 @@
+name: Bounded read-only Staging conversion diagnosis
+on:
+  push:
+    branches: [codex/staging-access-preview-20261022]
+    paths: [.github/workflows/dr-staging-readback-diagnostic.yml]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: production-dr-operations
+  cancel-in-progress: false
+jobs:
+  readback:
+    if: github.repository == 'KenLeeYa/Stallorder-Platform' && github.actor == github.repository_owner
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: dr-retirement-encrypted-39647447270
+          path: approved-backup
+          github-token: ${{ github.token }}
+          run-id: 39647447270
+      - name: Identify failing read-only boundary without disclosing provider data
+        env:
+          BACKUP_RUN_ID: "39647447270"
+          GITHUB_TOKEN: ${{ github.token }}
+          DR_BACKUP_ENCRYPTION_KEY: ${{ secrets.DR_BACKUP_ENCRYPTION_KEY }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readConversionBackup, readConversionPrimary, verifyOriginalReplica, readStagingProviderPrestate } from './scripts/dr-staging-conversion-plan.mjs';
+          let backup;
+          for (const [stage, execute] of [
+            ['qualified-backup', async () => { backup = await readConversionBackup(); }],
+            ['primary-preserved', readConversionPrimary],
+            ['original-data', () => verifyOriginalReplica(backup.manifest)],
+            ['cloudflare-and-provider-prestate', readStagingProviderPrestate],
+          ]) {
+            try { await execute(); console.log(JSON.stringify({stage, result: 'passed', remoteWrites: false})); }
+            catch (error) {
+              console.error(JSON.stringify({stage, result: 'failed', remoteWrites: false,
+                code: /^[A-Z][A-Z0-9_]{0,100}$/.test(error?.message ?? '') ? error.message : 'REDACTED_ERROR',
+                category: ['Error','TypeError','AssertionError'].includes(error?.name) ? error.name : 'Other',
+                source: error?.stack?.match(/scripts\/[a-zA-Z0-9_-]+\.mjs:\d+:\d+/)?.[0] ?? null}));
+              process.exitCode = 1; break;
+            }
+          }
+          NODE
