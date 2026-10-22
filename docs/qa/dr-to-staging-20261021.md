@@ -446,3 +446,39 @@ revoke/proxy restoration on anonymous exposure. This is fixture evidence, not a
 completed hosted handoff. New candidate cloud gates, a fresh Plan/Apply, actual
 Access login and persistent Staging acceptance remain required. DR still has its
 827 old orders and42 files; none has been deleted.
+
+## Pre-data entry failure and bounded recovery (2026-10-22)
+
+PR374/Staging and PR375/main passed their complete gates and paired browser QA;
+main `5efed50aa9519bfd65a81ce2280fe1ad28452b92` and Staging `d5682978` share
+tree `cb3343bbd7e386af58008ead64eb9382001351c2`. Main CI39704626454,
+readiness39704626509 (including remote checks), and security39704626621 passed.
+Both paired Preview resources were independently confirmed removed.
+
+Plan39707497864 passed. Apply39707738186 stopped with `STAGING_VERCEL_HTTP_404`
+after immutable-Plan and original-data validation, before any provider isolation,
+Storage deletion or database reset. Its saved entry was ready, but both old
+aliases remained. Finally removed the temporary service-token policy/token.
+Read-only diagnosis39709279580 revalidated the qualified backup, all239 original
+table fingerprints, Primary, all prepared-entry GET routes, both alias name/UID
+reads and temporary-token removal. Thus this is not a remaining Cloudflare Token
+read/edit-permission failure. The original generic error did not expose its path;
+the alias deletion by hostname is the remaining suspected failure point.
+
+The correction deletes the immutable alias UID and rechecks its actual host,
+project and UID at the write boundary. A provider-boundary fixture reproduces the
+hostname404 and verifies the canonical path; hostile Primary/host/UID cases must
+make zero deletion requests. Failed requests now log only safe method/path/status
+metadata. Focused51/51 and full3440 tests pass (nine existing skips), but these
+fixtures do not yet prove a successful hosted delete.
+
+The failed run's new Staging domain, DNS and Access app were identified by source,
+immutable Plan and exact resource IDs, then removed in that order using existing
+authenticated provider UI. No new rollback workflow or credential was needed.
+The old DR aliases, DNS/Access and data were preserved. Independent read-only
+run39711025735 passed at02:27:56Z: qualified backup, all239 fingerprints, full
+original Primary snapshot and provider prestate equal immutable Plan39707497864;
+the temporary QA token is absent. ESLint, typecheck and Production guardrails
+pass; dependency audit passed with zero findings after one network retry.
+Subsequent source gates, fresh Plan/Apply and real persistent Staging acceptance
+remain required. Production stays on `4e95d2ea`.
