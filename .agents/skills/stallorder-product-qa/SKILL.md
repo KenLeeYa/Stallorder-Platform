@@ -113,6 +113,13 @@ bind entry recovery to the failed source/Plan and exact created resource IDs;
 remove only the new mapping/DNS/Access, then compare the full original provider
 and Primary prestate. Preserve old data and old DR entry resources. Recovery is
 not Staging acceptance and never authorizes a blind replay of the failed Apply.
+When old aliases were already detached, follow ADR-006's source-bound restoration
+to the exact original project/deployment/UID before entry cleanup. Record recreated
+domain metadata separately; all other original provider/data/Primary state must
+match, and a fresh Plan is mandatory. For Auth isolation, use nullable Hook fields
+and omit already-disabled/empty Hooks to avoid both format400 and unused paid-Hook
+402. Still verify every omitted Hook remains disabled/empty; do not purchase an
+upgrade or silently leave configured Hooks behind to make conversion pass.
 The complete hosted SQL suite is run in ordered batches of at most 20 files under
 the unchanged subprocess deadline. Assert every recursively discovered SQL file
 is included exactly once and any failed batch prevents further conversion.

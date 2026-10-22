@@ -482,3 +482,58 @@ the temporary QA token is absent. ESLint, typecheck and Production guardrails
 pass; dependency audit passed with zero findings after one network retry.
 Subsequent source gates, fresh Plan/Apply and real persistent Staging acceptance
 remain required. Production stays on `4e95d2ea`.
+
+## Auth isolation contract and second pre-data recovery (2026-10-22)
+
+PR376/377 and their source/paired Preview/browser gates passed; main `e03e41a6`
+and Staging `da5a8963` share tree `cf7ffe15fcc79f3ba5b222073152fed2b0dae355`.
+Main CI39721290882 passed3440 unit tests (nine existing skips),72 SQL files with
+1619 assertions, eight WebPRNT browser tests,204 E2E cases (40 environment skips),
+eight resilience cases and the dependency audit. Readiness39721290917 and source
+security39721290895 passed. Both paired Preview resources were removed and their
+absence independently verified; none of this redeployed the Production app.
+
+Fresh Plan39724497044 passed against backup39647447270. Apply39724729839 completed
+Plan/data verification, prepared the protected Staging entry and successfully
+detached both old aliases by UID, then failed at Supabase Auth PATCH400. No provider
+isolation completion, Storage cleanup or database reset occurred. Full readback
+39725900699 verified unchanged original239 table/file fingerprints, Auth/Edge
+digests, Primary snapshot and removal of the temporary QA token.
+
+Bounded API reproduction39726312396 returned the exact validation errors: empty
+Hook URI strings are invalid, and empty Hook secrets are not Standard Webhooks
+secrets. The provider's documented nullable fields correct that contract. A
+subsequent no-op probe39726852632 exposed a separate402: configuring even disabled
+MFA/password-verification Hooks requires an unavailable paid capability. No
+billing was enabled. The correction omits already-disabled/empty Hooks, clears
+configured Hook fields with `null`, and verifies both changed and omitted Hooks.
+Real API39727195797 accepted the already-empty email-Hook nullable contract200;
+all Auth/Edge/data/Primary fingerprints remained unchanged. This is provider
+contract evidence, not complete Staging acceptance.
+
+Regression tests exercise the real isolation request/serialization/readback seam:
+the original implementation reproduces400, the partial null-only fix reproduces
+402, and the final correction accepts null/empty normalized readback while
+rejecting reactivation of an omitted Hook before any Edge mutation. Focused
+isolation tests8/8 and the four conversion suites23/23 pass; lint passes.
+The final local suite passes3443 tests with nine existing skips; typecheck,
+Production guardrails and the native dependency audit (zero findings) pass.
+New cloud gates and persistent Staging acceptance remain required.
+
+The two old domain mappings were recreated with their original no-redirect,
+no-branch settings. Both aliases read back their original UID, project and
+deployment; the generated old deployment remains Standard-SSO-protected.
+Creation timestamps/order differ, so the old Plan cannot be reused. The failed
+run's new Staging Vercel domain was removed, then bounded recovery39727943086
+removed only its new DNS/Access at05:26:15Z. Its receipt verifies all original
+table/file fingerprints, Auth, Edge, Primary and provider prestate, except the
+explicitly recreated domain metadata. Artifact12403223556 SHA256
+`ab465e8808c5998a370c7ca5b760edbc6df91c92eb235964ec61d7866211c996`
+records old/new domain digests and requires a fresh Plan. All temporary diagnostic
+workflows were removed before promotion. Original827 orders/42 files remain
+intact. Production stays on `4e95d2ea`, with an actual authenticated QA
+Print Center reload passing at13:15; no printer/job mutation was performed.
+
+Official contract:
+[Supabase Auth configuration API](https://supabase.com/docs/reference/api/v1-update-auth-service-config),
+with schema inspected at upstream commit `b8483fc454ed2d6fb2b3637fc5da928bc9b1ff6b`.
