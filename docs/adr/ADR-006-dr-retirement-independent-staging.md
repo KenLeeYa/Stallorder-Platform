@@ -124,6 +124,15 @@ then its Access application. Never remove old DR entry resources during this
 recovery. Read the complete provider/Primary prestate back against the original
 Plan before creating a fresh Plan; UI success alone is not recovery evidence.
 
+If aliases were already detached but Auth/Edge and all original data still match
+the qualified Plan, first restore only its two recorded DR hosts to their exact
+old project/deployment/UID, retaining the old Access/DNS and generated-origin SSO.
+Recheck the original no-redirect/no-branch domain configuration before removing
+the failed run's new entry. Domain creation timestamps/order can change during
+recreation: record that bounded difference explicitly, compare every other
+provider/Primary prestate field, and require a fresh source-bound Plan. Never
+claim byte-identical provider recovery or reuse the previous Plan in that case.
+
 Alias reads and deletions must use their own provider contracts. Retire aliases
 by the Plan-bound immutable UID, rechecking the UID, retired hostname and DR
 project at the actual delete boundary. Report a failed request's method, provider,
@@ -138,6 +147,12 @@ Staging application acceptance passes; Primary domains are never cleanup targets
 
 Disable old Auth providers/hooks/SMTP, rotate only target Edge credentials, clear
 Vault and old private schemas, and use the qualified pinned remote reset path.
+Clear configured Auth Hook URI/secret fields with JSON `null`, not empty strings;
+the provider validates their format even when `enabled=false`. Omit already-empty,
+disabled Hooks from PATCH: configuring unused MFA/password-verification Hooks
+still invokes paid-plan checks. Verify those omitted fields remain disabled/empty
+in the actual readback. A configured Hook that cannot be disabled must block
+conversion; never enable billing or skip the isolation requirement.
 Run unchanged migrations/seed, hosted database tests/lint and the Staging-only
 safety overlay. Only Preview variables are created. Deploy only a `git archive`
 of the reviewed source: decrypted runner settings, Access tokens and backup inputs
