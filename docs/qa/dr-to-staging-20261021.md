@@ -708,3 +708,44 @@ even if the60th probe succeeds once; a lone success must not meet the two-succes
 gate. Primary provider/version/connectivity were freshly rechecked unchanged
 at12:37Z, and both other work threads remained idle. Fresh hosted CI, paired
 Preview and ordinary Chrome acceptance are still mandatory on the new source.
+
+## Printed QR warning locator (2026-10-22)
+
+PR382 subsequently qualified on head0a4456ea, tree04d0924e: CI39779783265,
+security39779783281 and paired39779783308 passed. The delayed-response closure
+E2E passed at12:59:25Z without a flaky retry. Ordinary Chrome login, Staff SSE,
+Print Center reload with zero jobs/printing disabled, and KDS mode/reload passed.
+PR382 merged normally at13:13:14Z into staging5ac6456f, with the same tree.
+Cleanup39784933768 succeeded; independent Vercel404 and Supabase branch absence
+were verified at13:16:10Z. Prior provider failure causes remain unknown.
+
+Post-merge CI39784933379 nevertheless failed its unchanged fail-on-flaky gate.
+At13:23:05Z the existing `catalog-operations-local.spec.ts:149` assertion selected
+two alerts: the correct disabled-dine-in warning and Next.js's empty
+`__next-route-announcer__`. This is a strict-locator violation, not evidence that
+the warning was missing. The built-in retry passed, but the workflow failed;
+its artifact list is empty. Staging Readiness39784933388 and security39784933392
+passed; the main-only remote Readiness job was skipped, not passed. Main
+promotion and conversion remain blocked. No CI rerun or DR cleanup was started.
+
+The local artifact `node artifacts/dr-staging-qr-print-alert-probe.mjs` extracts and executes the actual E2E
+assertion in a disposable local Chromium page. The original assertion fails
+deterministically with the framework announcer before or after the correct
+warning, matching the hosted strict-mode error. Narrowing only that locator by
+its existing business text makes both cases pass. The correct-warning-only case
+also passes; missing warning, wrong text and duplicate business warnings remain
+rejected. All six probe verdicts now pass. The probe is local fixture evidence,
+not an application/hosted acceptance result; the original real API/database QR
+enable/rotation/pause-close-open test remains mandatory on the new source.
+
+The change preserves the original warning assertion, all QR/session/RBAC and
+cleanup checks, timeouts, retries and fail-on-flaky policy. No application,
+workflow policy, schema, credentials, provider, customer data or hardware was
+changed. The probe browser closes in `finally`; no Docker/application server
+was started and other workspaces' services remain untouched. Fresh CI/security,
+paired Preview and ordinary Chrome checks are still required before promotion.
+
+Local validation for this narrow candidate passed: 3463 unit tests with nine
+existing skips, typecheck, full lint (zero errors/five existing warnings),
+production build, 336-file UI audit and dependency audit (zero vulnerabilities).
+These results do not replace the new hosted printed-QR E2E or release gates.
