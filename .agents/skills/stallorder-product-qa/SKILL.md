@@ -116,10 +116,20 @@ not Staging acceptance and never authorizes a blind replay of the failed Apply.
 When old aliases were already detached, follow ADR-006's source-bound restoration
 to the exact original project/deployment/UID before entry cleanup. Record recreated
 domain metadata separately; all other original provider/data/Primary state must
-match, and a fresh Plan is mandatory. For Auth isolation, use nullable Hook fields
+match, and a fresh Plan is mandatory. If Auth was already changed and archived
+credentials cannot be verified as plaintext, follow ADR-006's retained-isolation
+recovery: never restore opaque credentials or re-enable providers, and bind only
+the exact nullable credential clear to the observed Auth prestate. Record the new
+Auth digest explicitly; original data/files, Edge, unrelated Auth and Primary
+must remain unchanged. Do not call this full Auth restoration.
+For Auth isolation, use nullable provider credential/client-ID and Hook fields
 and omit already-disabled/empty Hooks to avoid both format400 and unused paid-Hook
 402. Still verify every omitted Hook remains disabled/empty; do not purchase an
 upgrade or silently leave configured Hooks behind to make conversion pass.
+An empty-string secret PATCH may return a nonempty opaque value. Test the actual
+isolation request and readback, require null/empty credential results, and keep
+negative tests for retained secrets and reactivated omitted Hooks. Do not infer a
+hash/redaction contract or relax comparison merely because all values look alike.
 The complete hosted SQL suite is run in ordered batches of at most 20 files under
 the unchanged subprocess deadline. Assert every recursively discovered SQL file
 is included exactly once and any failed batch prevents further conversion.
@@ -136,6 +146,13 @@ rejecting both live projects, 320/390/768/1440 checks and exact synthetic cleanu
 Session creation can legitimately return HTTP200 on an idempotent retry; require
 the actual valid session body and usable UI for both200/201. Reject expired,
 error and order-resume bodies instead of treating every200 as a new session.
+
+For existing ordinary Chrome login, distinguish automation-owned tabs from user
+tabs using the current Chrome skill's supported discovery/claim APIs. An empty
+owned-tab inventory does not prove that the user is logged out. Reuse an existing
+authorized task tab, avoid exposing unrelated private tabs, and never reset the
+runtime or repeatedly reopen login pages while waiting for the user's identity
+selection. Actual protected-page rendering remains the authentication evidence.
 
 ## LINE Web authentication
 

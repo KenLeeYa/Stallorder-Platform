@@ -537,3 +537,74 @@ Print Center reload passing at13:15; no printer/job mutation was performed.
 Official contract:
 [Supabase Auth configuration API](https://supabase.com/docs/reference/api/v1-update-auth-service-config),
 with schema inspected at upstream commit `b8483fc454ed2d6fb2b3637fc5da928bc9b1ff6b`.
+
+## Nullable provider credentials and third pre-data failure (2026-10-22)
+
+PR378/379 were normally merged; main `16a991fff` and staging `205836e5` share
+tree `81ce08f2269c0c8da7ec2c87ecac0b092e8a14b8`. Their six push gates passed and
+both paired Previews were independently confirmed absent. Main CI39735278262
+attempt1 stopped at a native Supabase Edge Runtime1.74.2 SIGBUS/exit135, without
+an observed assertion failure. One bounded full-job repeat passed; its cause
+remains unknown and is not claimed fixed. These gates qualify that source only.
+
+After the user completed ordinary Chrome login, the actual authorized Staff,
+Merchant dashboard, Print Center and reload, and public menu were verified.
+The merchant's KDS was configured OFF and was not changed. The old dedicated QA
+stall returned404 and was not recreated or counted as passed. No real order,
+payment, notification, setting change or hardware output was performed. User-tab
+discovery/claim, not an empty automation-owned tab list, found the logged-in page.
+
+Fresh Plan39743118579 bound backup39647447270, original data/files and provider/
+Primary prestate. Apply39752454954 failed at09:04:54Z with
+`STAGING_AUTH_ISOLATION_FAILED`: the Auth PATCH had succeeded, but readback failed.
+Its only completed checkpoints were immutable Plan, original data matches backup,
+and protected entry/token permissions. Old aliases were detached and the new
+protected entry existed; no Edge rotation, Storage deletion, Vault cleanup or DB
+reset was reached. This failed Plan is consumed, even before its expiry.
+
+Source-bound diagnostic39754926641 verified all239 original table/file
+fingerprints, unchanged Edge and complete Primary snapshot, and absence of the
+temporary QA token/policy. Twenty-seven OAuth/SMS secret fields returned the same
+nonempty64-character hex value after empty-string clearing, including previously
+null fields. It was not any tested empty-string/null placeholder digest; no
+particular hash or redaction algorithm is asserted. All external providers and
+Hooks remained disabled. The pinned official update schema marks all48 selected
+credential/client-ID/URI fields nullable.
+
+The regression first failed at the real isolation request/readback seam, then
+passed after replacing non-Hook empty-string clears with JSON null. It also
+rejects retained secrets and reactivation of omitted Hooks before Edge writes.
+Four focused suites pass22 tests; full local Vitest passes3444 with nine existing
+skips, and typecheck, ESLint (zero errors/five existing navigation warnings),
+335-file UI audit, Production guardrails/build and dependency audit (zero findings)
+pass. New cloud/source and
+persistent Staging acceptance remain pending; local tests do not replace them.
+
+Single-field live probe39755641345 cleared only the originally-unused, disabled
+Apple secret with null; actual readback was empty and every unrelated Auth field,
+original data/file fingerprint, Edge and Primary remained unchanged. Artifact
+12414744132 SHA256 `9a7c6e5f3eef5e42a1816232320be96274cbbb7997c7843810c09e282956ec6d`
+is provider-contract evidence, not Staging acceptance. Recovery39756449992 then
+stopped before provider writes because the archived Google credential could not
+be verified as plaintext. It must not be reused as a password or reactivated.
+Bounded recovery39757480156 passed: it retained Auth isolation, cleared only the26
+remaining opaque fields, and proved every unrelated Auth field unchanged. Each
+checkpoint read back the complete original Primary snapshot. Both old aliases
+again match their exact original UID/project/deployment; generated-origin SSO and
+old Cloudflare owner/IdP restrictions remained in place. Only the failed run's
+new Staging domain, DNS and Access app were removed. Original239 table/file
+fingerprints and Edge metadata still match; no hosted data cleanup occurred.
+
+Recovery artifact12415734782 SHA256
+`c9df5d728075f513adc85ec6423e05526f29af6af889483339f5384449b9e25b`
+records retained-isolation Auth digest
+`38836d3faa0e6080183332f0a109f472815c77457e5cdbae31ef648772d44773`
+and changed domain recreation metadata, not full original Auth restoration.
+Independent Supabase/Vercel readback confirmed that Auth/Edge digest, both old
+aliases, absence of the new domain, and unchanged Primary deployment. Primary
+version/connectivity/login returned200 and the authenticated Staff page remained
+usable. Local Cloudflare credentials were rejected; no retry or credential
+change was performed. Cloudflare deletion/isolation evidence is the protected
+recovery run's actual final readback, and the next fresh Plan must verify it again.
+The one-off diagnostic/probe/recovery workflow was removed before PR promotion.
+No local test servers or Docker resources were started for this correction.
