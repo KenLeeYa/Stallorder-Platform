@@ -74,8 +74,10 @@ jobs:
           const tokens=await conversionApi('cloudflare','/accounts/b1c70202652cd3b77dfec70e5463785f/access/service_tokens?per_page=1000');
           assert.ok(tokens.length<1000&&!tokens.some(item=>item.id==='ac9c9b77-d7de-469b-acfc-4572aee7adbf'));
           console.log(JSON.stringify({originalDataUnchanged:true,authUnchanged:true,edgeUnchanged:true,primaryUnchanged:true,temporaryQaTokenAbsent:true,unknownFields}));
-          const hookPatch=Object.fromEntries(Object.entries(patch).filter(([name])=>/^hook_.+_(enabled|uri|secrets)$/.test(name)));
-          assert.ok(Object.keys(hookPatch).length>0);
+          assert.ok(!Object.keys(patch).some(name=>name.startsWith('hook_')),'All current Hooks are already disabled and empty');
+          const example=stagingAuthPatch({...auth,hook_send_email_enabled:true,hook_send_email_uri:'https://fixture.invalid/hook',hook_send_email_secrets:'fixture-only'});
+          const hookPatch=Object.fromEntries(Object.entries(example).filter(([name])=>/^hook_send_email_(enabled|uri|secrets)$/.test(name)));
+          assert.equal(Object.keys(hookPatch).length,3);
           for(const [name,value] of Object.entries(hookPatch)) {
             if(value===false) assert.equal(auth[name],false,'Do not change an active Hook during this contract-only check');
             else assert.ok(value===null&&(auth[name]===null||auth[name]===''),'Only already-empty Hooks may be tested');
@@ -91,7 +93,7 @@ jobs:
           for(const value of values) diagnostic=diagnostic.split(value).join('[REDACTED]');
           diagnostic=diagnostic.replace(/(?:sb_secret_|sb_publishable_|eyJ)[A-Za-z0-9_.-]+/g,'[REDACTED]').slice(0,2000);
           console.log(JSON.stringify({authPatchStatus:response.status,diagnostic,authStillUnchanged:conversionDigest(after)===plan.providerPrestate.authDigest,primaryStillUnchanged:true}));
-          assert.equal(response.status,402,'Expected bounded plan-limit diagnostic; do not continue conversion');
+          assert.equal(response.status,200,'Nullable contract not verified; do not continue conversion');
           assert.equal(conversionDigest(after),plan.providerPrestate.authDigest);
           assert.equal(await verifyOriginalReplica(backup.manifest),plan.replicaDigest);
           JS

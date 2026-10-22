@@ -17,6 +17,9 @@ export function stagingAuthPatch(source) {
     smtp_pass: randomBytes(32).toString("hex"), smtp_admin_email: "disabled@example.invalid",
     smtp_sender_name: "Staging email disabled" };
   for (const [name, value] of Object.entries(source)) {
+    // Even false/null writes to unused paid Hooks trigger provider plan checks.
+    // Already-disabled, empty Hooks need readback verification, not a PATCH.
+    if (name.startsWith("hook_") && (value == null || value === "" || value === false)) continue;
     if (/^(external_|hook_).+_enabled$/.test(name) && typeof value === "boolean") patch[name] = false;
     if (/^(external_|hook_|sms_)/.test(name)
       && /(?:_secret|_secrets|_client_id|_token|_password|_pass|_key|_uri)$/.test(name)) {
@@ -66,7 +69,9 @@ export async function isolateStagingProviders(plan) {
   const patch = stagingAuthPatch(auth);
   await conversionApi("supabase", `${PREFIX}/config/auth`, { method: "PATCH", body: JSON.stringify(patch) });
   const updated = await conversionApi("supabase", `${PREFIX}/config/auth`);
-  for (const [name, value] of Object.entries(patch)) {
+  const expected = { ...Object.fromEntries(Object.entries(auth)
+    .filter(([name]) => /^hook_.+_(enabled|uri|secrets)$/.test(name))), ...patch };
+  for (const [name, value] of Object.entries(expected)) {
     if (name === "smtp_pass") continue; // Some provider versions redact this unused credential.
     assert.ok(value == null || value === "" ? updated[name] == null || updated[name] === "" : String(updated[name]) === String(value),
       "STAGING_AUTH_ISOLATION_FAILED");
