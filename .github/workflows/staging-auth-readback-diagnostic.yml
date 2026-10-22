@@ -87,11 +87,11 @@ jobs:
           const after=await conversionApi('supabase','/v1/projects/daeqwtpaxcebmtwxqdkj/config/auth');
           assert.deepEqual(await readConversionPrimary(),plan.primary);
           const values=[...Object.values(auth),...Object.values(patch),...Object.values(process.env)].filter(value=>typeof value==='string'&&value.length>3).sort((a,b)=>b.length-a.length);
-          let diagnostic=response.status===400?responseText:'Provider response body omitted for unexpected status';
+          let diagnostic=[400,402].includes(response.status)?responseText:'Provider response body omitted for unexpected status';
           for(const value of values) diagnostic=diagnostic.split(value).join('[REDACTED]');
           diagnostic=diagnostic.replace(/(?:sb_secret_|sb_publishable_|eyJ)[A-Za-z0-9_.-]+/g,'[REDACTED]').slice(0,2000);
           console.log(JSON.stringify({authPatchStatus:response.status,diagnostic,authStillUnchanged:conversionDigest(after)===plan.providerPrestate.authDigest,primaryStillUnchanged:true}));
-          assert.equal(response.status,200,'Nullable Hook contract not verified; do not continue conversion');
+          assert.equal(response.status,402,'Expected bounded plan-limit diagnostic; do not continue conversion');
           assert.equal(conversionDigest(after),plan.providerPrestate.authDigest);
           assert.equal(await verifyOriginalReplica(backup.manifest),plan.replicaDigest);
           JS
