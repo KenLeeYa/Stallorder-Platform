@@ -1,4 +1,4 @@
-name: Read-only failed Staging Auth readback diagnosis
+name: Bounded disabled Auth nullable-clear contract probe
 on:
   push:
     branches: [codex/staging-auth-readback-recovery-20261022]
@@ -42,7 +42,7 @@ jobs:
           path: failed-apply
           github-token: ${{ github.token }}
           run-id: 39752454954
-      - name: Compare encrypted prestate to current provider without writes
+      - name: Verify backup and prestate, probe one already-disabled unused credential
         env:
           GITHUB_TOKEN: ${{ github.token }}
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -88,10 +88,29 @@ jobs:
           await mkdir('artifacts',{recursive:true});
           await writeFile('artifacts/staging-auth-readback-diagnostic.json',JSON.stringify(result,null,2));
           console.log(JSON.stringify(result));
+          // One field only: originally unused Apple credential, provider disabled
+          // before and after. No login, data, Edge or other credential mutation.
+          assert.equal(conversionDigest(auth),'9cc161edf9b497e3b67f7d385919abce6971e41334090edc7b70ae4325e98e8c');
+          assert.equal(auth.external_apple_enabled,false);
+          assert.equal(recovery.auth.external_apple_enabled,false);
+          assert.ok(recovery.auth.external_apple_secret==null||recovery.auth.external_apple_secret==='');
+          assert.match(auth.external_apple_secret,/^[a-f0-9]{64}$/);
+          const response=await conversionApi('supabase',`/v1/projects/${STAGING_TARGET.ref}/config/auth`,{method:'PATCH',body:JSON.stringify({external_apple_secret:null})});
+          const after=await conversionApi('supabase',`/v1/projects/${STAGING_TARGET.ref}/config/auth`);
+          assert.deepEqual(await readConversionPrimary(),plan.primary);
+          assert.ok(after.external_apple_secret==null||after.external_apple_secret==='','NULLABLE_CLEAR_NOT_EMPTY');
+          const {external_apple_secret:beforeSecret,...beforeOther}=auth;
+          const {external_apple_secret:afterSecret,...afterOther}=after;
+          assert.deepEqual(afterOther,beforeOther,'UNRELATED_AUTH_CHANGED');
+          assert.equal(conversionDigest(await conversionApi('supabase',`/v1/projects/${STAGING_TARGET.ref}/secrets`)),plan.providerPrestate.edgeSecretsDigest);
+          assert.equal(await verifyOriginalReplica(backup.manifest),plan.replicaDigest);
+          const probe={...result,probeField:'external_apple_secret',nullableClearVerified:true,unrelatedAuthUnchanged:true,authDigestAfter:conversionDigest(after),providerWrites:true};
+          await writeFile('artifacts/staging-auth-nullable-probe.json',JSON.stringify(probe,null,2));
+          console.log(JSON.stringify({nullableClearVerified:true,unrelatedAuthUnchanged:true,originalDataUnchanged:true,primaryUnchanged:true,authDigestAfter:conversionDigest(after)}));
           JS
       - uses: actions/upload-artifact@v4
         with:
-          name: staging-auth-readback-diagnostic-${{ github.run_id }}
-          path: artifacts/staging-auth-readback-diagnostic.json
+          name: staging-auth-nullable-probe-${{ github.run_id }}
+          path: artifacts/*.json
           if-no-files-found: error
           retention-days: 30
