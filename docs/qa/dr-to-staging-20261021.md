@@ -537,3 +537,215 @@ Print Center reload passing at13:15; no printer/job mutation was performed.
 Official contract:
 [Supabase Auth configuration API](https://supabase.com/docs/reference/api/v1-update-auth-service-config),
 with schema inspected at upstream commit `b8483fc454ed2d6fb2b3637fc5da928bc9b1ff6b`.
+
+## Nullable provider credentials and third pre-data failure (2026-10-22)
+
+PR378/379 were normally merged; main `16a991fff` and staging `205836e5` share
+tree `81ce08f2269c0c8da7ec2c87ecac0b092e8a14b8`. Their six push gates passed and
+both paired Previews were independently confirmed absent. Main CI39735278262
+attempt1 stopped at a native Supabase Edge Runtime1.74.2 SIGBUS/exit135, without
+an observed assertion failure. One bounded full-job repeat passed; its cause
+remains unknown and is not claimed fixed. These gates qualify that source only.
+
+After the user completed ordinary Chrome login, the actual authorized Staff,
+Merchant dashboard, Print Center and reload, and public menu were verified.
+The merchant's KDS was configured OFF and was not changed. The old dedicated QA
+stall returned404 and was not recreated or counted as passed. No real order,
+payment, notification, setting change or hardware output was performed. User-tab
+discovery/claim, not an empty automation-owned tab list, found the logged-in page.
+
+Fresh Plan39743118579 bound backup39647447270, original data/files and provider/
+Primary prestate. Apply39752454954 failed at09:04:54Z with
+`STAGING_AUTH_ISOLATION_FAILED`: the Auth PATCH had succeeded, but readback failed.
+Its only completed checkpoints were immutable Plan, original data matches backup,
+and protected entry/token permissions. Old aliases were detached and the new
+protected entry existed; no Edge rotation, Storage deletion, Vault cleanup or DB
+reset was reached. This failed Plan is consumed, even before its expiry.
+
+Source-bound diagnostic39754926641 verified all239 original table/file
+fingerprints, unchanged Edge and complete Primary snapshot, and absence of the
+temporary QA token/policy. Twenty-seven OAuth/SMS secret fields returned the same
+nonempty64-character hex value after empty-string clearing, including previously
+null fields. It was not any tested empty-string/null placeholder digest; no
+particular hash or redaction algorithm is asserted. All external providers and
+Hooks remained disabled. The pinned official update schema marks all48 selected
+credential/client-ID/URI fields nullable.
+
+The regression first failed at the real isolation request/readback seam, then
+passed after replacing non-Hook empty-string clears with JSON null. It also
+rejects retained secrets and reactivation of omitted Hooks before Edge writes.
+Four focused suites pass22 tests; full local Vitest passes3444 with nine existing
+skips, and typecheck, ESLint (zero errors/five existing navigation warnings),
+335-file UI audit, Production guardrails/build and dependency audit (zero findings)
+pass. New cloud/source and
+persistent Staging acceptance remain pending; local tests do not replace them.
+
+Single-field live probe39755641345 cleared only the originally-unused, disabled
+Apple secret with null; actual readback was empty and every unrelated Auth field,
+original data/file fingerprint, Edge and Primary remained unchanged. Artifact
+12414744132 SHA256 `9a7c6e5f3eef5e42a1816232320be96274cbbb7997c7843810c09e282956ec6d`
+is provider-contract evidence, not Staging acceptance. Recovery39756449992 then
+stopped before provider writes because the archived Google credential could not
+be verified as plaintext. It must not be reused as a password or reactivated.
+Bounded recovery39757480156 passed: it retained Auth isolation, cleared only the26
+remaining opaque fields, and proved every unrelated Auth field unchanged. Each
+checkpoint read back the complete original Primary snapshot. Both old aliases
+again match their exact original UID/project/deployment; generated-origin SSO and
+old Cloudflare owner/IdP restrictions remained in place. Only the failed run's
+new Staging domain, DNS and Access app were removed. Original239 table/file
+fingerprints and Edge metadata still match; no hosted data cleanup occurred.
+
+Recovery artifact12415734782 SHA256
+`c9df5d728075f513adc85ec6423e05526f29af6af889483339f5384449b9e25b`
+records retained-isolation Auth digest
+`38836d3faa0e6080183332f0a109f472815c77457e5cdbae31ef648772d44773`
+and changed domain recreation metadata, not full original Auth restoration.
+Independent Supabase/Vercel readback confirmed that Auth/Edge digest, both old
+aliases, absence of the new domain, and unchanged Primary deployment. Primary
+version/connectivity/login returned200 and the authenticated Staff page remained
+usable. Local Cloudflare credentials were rejected; no retry or credential
+change was performed. Cloudflare deletion/isolation evidence is the protected
+recovery run's actual final readback, and the next fresh Plan must verify it again.
+The one-off diagnostic/probe/recovery workflow was removed before PR promotion.
+No local test servers or Docker resources were started for this correction.
+
+## PR381 Storage lookup diagnostics (2026-10-22)
+
+PR380 was normally merged to staging `e5fee2a9`; its CI, security, paired
+Preview and ordinary Chrome acceptance passed, and its exact Preview resources
+were independently confirmed absent. Staging Readiness passed `verify-local`;
+`verify-remote` was skipped by the workflow's main-only condition, not passed.
+PR381 promotes that tree to main. Its CI39766797888 and security39766797885
+passed, but paired Preview39766797866 failed twice and promotion remains blocked.
+
+Attempt1 reported `STORAGE_QA_KEY_LOOKUP_FAILED` at11:14:12Z. A single bounded
+same-source full-job repeat reported the identical failure at11:38:50Z. Both
+failed on the non-2xx Management API key lookup for isolated branch
+`ynpvrihsukkhjojyeovr`, before selecting a key, importing Prisma, uploading a QA
+object or writing a manifest. Reviewed migrations, complete SQL tests, DB lint,
+Edge configuration/deployment and always-run synthetic fixture cleanup passed;
+matching Vercel build/deploy/browser checks were skipped. There is no third retry.
+Original HTTP statuses were not recorded, so neither an authorization failure,
+rate limit nor provider outage is established. A workstation GET returning200
+does not explain a different runner's failure. No credentials were rotated or
+permissions widened, and the original DR data remains untouched.
+
+The narrow diagnostic correction retains the same fixed failure code, exact
+target/invocation guards, single request, redirect rejection and20-second timeout.
+It logs only the numeric HTTP status, content-type category (`json`, `html`,
+`other`, `none`), and a decimal Retry-After bounded to0–86400 seconds or null.
+It never logs response bodies, status text, URLs, cookies, arbitrary headers,
+connection strings or credentials. It does not retry or treat any error as pass.
+
+Tests invoke the real CLI entry function through Node fetch and disposable
+loopback HTTP responses401/403/429/503. The old implementation failed all four
+diagnostic assertions; the correction passes all seven focused tests, including
+the three existing target/workflow guards. Malicious body/header placeholders
+remain absent from logs and each case makes exactly one request before stopping.
+Each loopback server is closed, with no Docker or application service started.
+Full local qualification passed3448 tests with9 existing skips, typecheck,
+focused/full lint (0 errors,5 pre-existing warnings), build,335-file UI audit,
+2335-file/146-migration guardrails and dependency audit (0 vulnerabilities).
+This fixes missing diagnostic evidence only;
+the hosted failure cause, fresh paired QA and persistent Staging acceptance remain
+unresolved. New source-bound cloud gates are mandatory before promotion.
+
+Primary provider/revision/connectivity and the user's actual authenticated Staff
+page remained unchanged after the second failure. No real orders, payment,
+notification, printing, DR cleanup, conversion Plan or Apply were performed.
+
+## PR382 database readiness and closure refresh (2026-10-22)
+
+PR382 head `7e0d1a9b` did not qualify: security39773689383 passed,
+CI39773689372 failed its fail-on-flaky policy, and paired Preview39773689379
+exhausted database readiness at12:06:44Z. The always-run fixture cleanup also
+failed with a connection timeout, so cleanup is not counted as passed. Reviewed
+migrations/seed/Storage QA and matching Vercel deployment were not reached.
+The exact data-less Preview branch is `6f83e16e-b536-4ba4-89d6-7bafcf7e58c2`,
+ref `gosaisubfevcvekewdye`; no reset, restart or blind retry was performed.
+
+The provider reports ACTIVE_HEALTHY separately from automatic Git migration
+MIGRATIONS_FAILED. A bounded management `select 1` and a workstation session-pooler
+`select 1` succeeded; the latter used the CLI-returned exact branch configuration
+and completed in956ms. These do not explain the earlier runner timeout. Log
+aggregates for11:50–12:10Z contain7 PostgreSQL timeout matches, but detailed log
+queries returned backend errors and no specific cause is established. Do not
+rotate credentials, increase deadlines or weaken checks based on this evidence.
+The next source-reviewed gate preserves60 probes, five-second spacing and two
+consecutive successes; only its final captured CLI failure is classified into a
+fixed enum. Raw output, DSNs, credentials and hostnames never enter that diagnostic.
+The real diagnostic entry-point test verifies redaction with secret placeholders.
+
+CI's existing `local-order-experience.spec.ts:115` preorder test failed at its
+final withdrawn-notice assertion (expected0, received1). Its built-in retry
+passed, but the required workflow still failed; no run artifacts were uploaded.
+The actual component effect reproduces the failure deterministically when a
+visibility refresh arrives while a pre-withdrawal snapshot is in flight: the
+refresh was dropped and the old notice remained until the30-second poll.
+`npx vitest run src/components/public-order-closure-notice.test.tsx` first failed
+that exact stale-notice assertion. The minimal correction remembers one pending
+refresh and executes it after the active request settles, without overlapping
+requests or running after unmount/while hidden. Five component cases now pass;
+the three closure-domain and one tracker-abort cases also pass. No order state,
+localization, layout, authentication, billing or hardware path was changed.
+
+The original browser case now holds one real API snapshot, withdraws the closure
+in its synthetic database, requests refresh while the response is held, then
+releases it. All existing order-preservation, popup, focus, viewport and notice
+removal assertions remain, with no increased deadline, retries or skipped check.
+Its fresh full browser execution is still required; unit evidence is not a
+substitute. Primary provider/version/connectivity remained unchanged. No local
+Docker or application services were started; the unrelated pre-existing
+`line-booking-test-20261004` container was left untouched.
+
+Final local qualification for this follow-up passed3463 tests with9 existing
+skips (571 passing test files,2 skipped), full lint with0 errors and5 pre-existing
+navigation warnings, typecheck, build,336-file UI audit,2338-file/146-migration
+production guardrails, and dependency audit with0 vulnerabilities. This includes
+the real diagnostic CLI redaction test. It does not establish hosted database
+recovery or browser success. The final diagnostic retains the last failed probe
+even if the60th probe succeeds once; a lone success must not meet the two-success
+gate. Primary provider/version/connectivity were freshly rechecked unchanged
+at12:37Z, and both other work threads remained idle. Fresh hosted CI, paired
+Preview and ordinary Chrome acceptance are still mandatory on the new source.
+
+## Printed QR warning locator (2026-10-22)
+
+PR382 subsequently qualified on head0a4456ea, tree04d0924e: CI39779783265,
+security39779783281 and paired39779783308 passed. The delayed-response closure
+E2E passed at12:59:25Z without a flaky retry. Ordinary Chrome login, Staff SSE,
+Print Center reload with zero jobs/printing disabled, and KDS mode/reload passed.
+PR382 merged normally at13:13:14Z into staging5ac6456f, with the same tree.
+Cleanup39784933768 succeeded; independent Vercel404 and Supabase branch absence
+were verified at13:16:10Z. Prior provider failure causes remain unknown.
+
+Post-merge CI39784933379 nevertheless failed its unchanged fail-on-flaky gate.
+At13:23:05Z the existing `catalog-operations-local.spec.ts:149` assertion selected
+two alerts: the correct disabled-dine-in warning and Next.js's empty
+`__next-route-announcer__`. This is a strict-locator violation, not evidence that
+the warning was missing. The built-in retry passed, but the workflow failed;
+its artifact list is empty. Staging Readiness39784933388 and security39784933392
+passed; the main-only remote Readiness job was skipped, not passed. Main
+promotion and conversion remain blocked. No CI rerun or DR cleanup was started.
+
+The local artifact `node artifacts/dr-staging-qr-print-alert-probe.mjs` extracts and executes the actual E2E
+assertion in a disposable local Chromium page. The original assertion fails
+deterministically with the framework announcer before or after the correct
+warning, matching the hosted strict-mode error. Narrowing only that locator by
+its existing business text makes both cases pass. The correct-warning-only case
+also passes; missing warning, wrong text and duplicate business warnings remain
+rejected. All six probe verdicts now pass. The probe is local fixture evidence,
+not an application/hosted acceptance result; the original real API/database QR
+enable/rotation/pause-close-open test remains mandatory on the new source.
+
+The change preserves the original warning assertion, all QR/session/RBAC and
+cleanup checks, timeouts, retries and fail-on-flaky policy. No application,
+workflow policy, schema, credentials, provider, customer data or hardware was
+changed. The probe browser closes in `finally`; no Docker/application server
+was started and other workspaces' services remain untouched. Fresh CI/security,
+paired Preview and ordinary Chrome checks are still required before promotion.
+
+Local validation for this narrow candidate passed: 3463 unit tests with nine
+existing skips, typecheck, full lint (zero errors/five existing warnings),
+production build, 336-file UI audit and dependency audit (zero vulnerabilities).
+These results do not replace the new hosted printed-QR E2E or release gates.

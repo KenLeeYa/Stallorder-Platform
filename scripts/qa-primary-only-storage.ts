@@ -21,7 +21,7 @@ export function assertIsolatedStorageQa(input: {
   }
 }
 
-async function main() {
+export async function runStorageQa() {
   if (process.env.GITHUB_ACTIONS !== "true" || process.env.VERCEL_ENV !== "preview"
     || process.env.GITHUB_REPOSITORY !== "KenLeeYa/Stallorder-Platform") {
     throw new Error("STORAGE_QA_INVOCATION_INVALID");
@@ -34,7 +34,17 @@ async function main() {
     headers: { Authorization: `Bearer ${required("SUPABASE_ACCESS_TOKEN")}` },
     redirect: "error", signal: AbortSignal.timeout(20_000),
   });
-  if (!response.ok) throw new Error("STORAGE_QA_KEY_LOOKUP_FAILED");
+  if (!response.ok) {
+    // Never log provider bodies, URLs, cookies or arbitrary header values.
+    const type = response.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
+    const retryAfter = response.headers.get("retry-after") ?? "";
+    console.error("STORAGE_QA_KEY_LOOKUP_DIAGNOSTIC", {
+      status: response.status,
+      contentType: type === "application/json" ? "json" : type === "text/html" ? "html" : type ? "other" : "none",
+      retryAfterSeconds: /^\d{1,5}$/.test(retryAfter) && Number(retryAfter) <= 86_400 ? Number(retryAfter) : null,
+    });
+    throw new Error("STORAGE_QA_KEY_LOOKUP_FAILED");
+  }
   const keys = await response.json() as Array<{ name: string; type?: string; api_key?: string; value?: string }>;
   const selectedKey = keys.find((entry) => entry.type === "secret" && entry.name === "default")
     ?? keys.find((entry) => entry.type === "secret")
@@ -122,7 +132,7 @@ function required(name: string) {
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
-  main().catch((error: unknown) => {
+  runStorageQa().catch((error: unknown) => {
     // Provider exceptions can contain connection details: do not print them.
     const message = error instanceof Error ? error.message : "";
     console.error(/^STORAGE_QA_[A-Z_]+$/.test(message) ? message : "STORAGE_RETIREMENT_LIVE_QA_FAILED");

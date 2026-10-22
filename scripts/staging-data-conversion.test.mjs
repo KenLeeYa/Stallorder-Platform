@@ -11,14 +11,17 @@ vi.mock("node:fs/promises", async (importOriginal) => ({
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.resetAllMocks(); });
 
 describe("synthetic Staging provider isolation", () => {
-  it.each([[null, false], ["", false], [null, true]])("clears configured Hooks with %s readback; rejects reactivation=%s", async (emptyValue, reactivateHook) => {
+  it.each([[null, false, false], ["", false, false], [null, true, false], [null, false, true]])("clears provider credentials with %s readback; rejects reactivation=%s and retained secret=%s", async (emptyValue, reactivateHook, retainSecret) => {
     const hooks = ["mfa_verification_attempt", "password_verification_attempt", "custom_access_token",
       "send_sms", "send_email", "before_user_created", "after_user_created"];
     const source = Object.fromEntries(hooks.flatMap((hook) => [
       [`hook_${hook}_enabled`, false], [`hook_${hook}_uri`, null], [`hook_${hook}_secrets`, null],
     ]));
     Object.assign(source, { hook_send_email_enabled: true,
-      hook_send_email_uri: "https://fixture.example/hook", hook_send_email_secrets: "fixture-only-secret" });
+      hook_send_email_uri: "https://fixture.example/hook", hook_send_email_secrets: "fixture-only-secret",
+      external_apple_enabled: false, external_apple_secret: null,
+      external_google_enabled: true, external_google_client_id: "fixture-client", external_google_secret: "fixture-google-secret",
+      sms_twilio_auth_token: null });
     let auth = source;
     let edge = [];
     let patchRequests = 0;
@@ -51,8 +54,13 @@ describe("synthetic Staging provider isolation", () => {
               for (const suffix of ["enabled", "uri", "secrets"]) expect(patch).not.toHaveProperty(`hook_${hook}_${suffix}`);
             }
           }
-          auth = { ...source, ...Object.fromEntries(Object.entries(patch).map(([key, value]) => [key, value === null ? emptyValue : value])) };
+          auth = { ...source, ...Object.fromEntries(Object.entries(patch).map(([key, value]) => [key,
+            // Apply39752454954 accepted empty secret strings but read back a
+            // nonempty 64-character value. Only nullable clearing proves empty.
+            value === "" && /^(external_|sms_).*(secret|token)$/.test(key) ? "a".repeat(64)
+              : value === null ? emptyValue : value])) };
           if (reactivateHook) auth.hook_mfa_verification_attempt_enabled = true;
+          if (retainSecret) auth.external_google_secret = "a".repeat(64);
         }
         return Response.json(auth);
       }
@@ -63,10 +71,10 @@ describe("synthetic Staging provider isolation", () => {
     const operation = isolateStagingProviders({ sourceSha: "test-source", providerPrestate: {
       authDigest: conversionDigest(source), edgeSecretsDigest: conversionDigest([]),
     } });
-    if (reactivateHook) await expect(operation).rejects.toThrow("STAGING_AUTH_ISOLATION_FAILED");
+    if (reactivateHook || retainSecret) await expect(operation).rejects.toThrow("STAGING_AUTH_ISOLATION_FAILED");
     else await operation;
     expect(patchRequests).toBe(1);
-    if (reactivateHook) expect(edge).toEqual([]);
+    if (reactivateHook || retainSecret) expect(edge).toEqual([]);
     else expect(edge.length).toBeGreaterThan(0);
   });
 
@@ -75,8 +83,8 @@ describe("synthetic Staging provider isolation", () => {
       external_google_client_id: "source-client", hook_send_email_enabled: true,
       hook_send_email_uri: "https://production.example", hook_send_email_secrets: "old-hook",
       jwt_secret: "project-owned", smtp_pass: "old-password", external_email_enabled: true });
-    expect(patch).toMatchObject({ external_google_enabled: false, external_google_secret: "",
-      external_google_client_id: "", hook_send_email_enabled: false, hook_send_email_uri: null,
+    expect(patch).toMatchObject({ external_google_enabled: false, external_google_secret: null,
+      external_google_client_id: null, hook_send_email_enabled: false, hook_send_email_uri: null,
       hook_send_email_secrets: null, external_email_enabled: false, disable_signup: true,
       site_url: "https://staging.qidaigo.com", smtp_host: "disabled.staging.invalid" });
     expect(patch).not.toHaveProperty("jwt_secret");

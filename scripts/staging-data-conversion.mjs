@@ -23,8 +23,9 @@ export function stagingAuthPatch(source) {
     if (/^(external_|hook_).+_enabled$/.test(name) && typeof value === "boolean") patch[name] = false;
     if (/^(external_|hook_|sms_)/.test(name)
       && /(?:_secret|_secrets|_client_id|_token|_password|_pass|_key|_uri)$/.test(name)) {
-      // Supabase validates Hook URI/secret format even when the Hook is disabled.
-      patch[name] = name.startsWith("hook_") ? null : "";
+      // Use the nullable clear contract. Empty secret strings can read back as
+      // nonempty provider values; Hooks also reject empty URI/secret strings.
+      patch[name] = null;
     }
   }
   return patch;
