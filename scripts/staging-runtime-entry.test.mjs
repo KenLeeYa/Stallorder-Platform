@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { readStagingAccess } from "./staging-access-entry.mjs";
 import { conversionApi } from "./dr-staging-conversion-plan.mjs";
 import { verifyStagingEntryTls } from "./staging-runtime.mjs";
 
-vi.mock("node:fs/promises", async (original) => ({ ...await original(), readFile: vi.fn() }));
+vi.mock("node:fs/promises", async (original) => ({ ...await original(), readFile: vi.fn(), writeFile: vi.fn() }));
 vi.mock("./staging-access-entry.mjs", async (original) => ({ ...await original(), readStagingAccess: vi.fn() }));
-afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.useRealTimers(); });
+afterEach(() => { vi.restoreAllMocks(); vi.clearAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.useRealTimers(); });
 
 function setup(status = 403) {
   vi.useFakeTimers();
@@ -64,6 +64,9 @@ describe("Staging Preview Access handoff at the provider boundary", () => {
     ]);
     expect(fixture.writes.some((write) => write.path.includes("/projects/"))).toBe(false);
     expect(primary).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(vi.mocked(writeFile).mock.calls[0][1])).toMatchObject({
+      aliasId: fixture.alias.uid, hostname: "staging.qidaigo.com", anonymousOriginJwtDenied: true, primaryWrites: false,
+    });
   });
   it("revokes the exact exception and restores the proxy if anonymous origin access is exposed", async () => {
     const fixture = setup(200);
@@ -72,6 +75,7 @@ describe("Staging Preview Access handoff at the provider boundary", () => {
     expect(fixture.overridden()).toBe(false);
     expect(fixture.writes.at(-2).body).toEqual({ override: { action: "revoke", scope: "alias-protection-override" } });
     expect(fixture.writes.at(-1).body).toEqual({ proxied: true, ttl: 1 });
+    expect(writeFile).not.toHaveBeenCalled();
   });
   it("refuses to transfer an alias if generated-URL protection has changed", async () => {
     const fixture = setup();

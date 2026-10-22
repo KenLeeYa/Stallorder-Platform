@@ -185,4 +185,10 @@ export async function verifyStagingEntryTls(plan, verifyPrimary) {
       await verifyPrimary();
     }
   }
+  await writeFile("artifacts/staging-origin-protection.json", JSON.stringify({
+    sourceSha: plan.sourceSha, projectId: STAGING_TARGET.project, deploymentId: deployment.id,
+    aliasId: alias.uid, hostname: STAGING_TARGET.host, exceptionScope: "alias-protection-override",
+    projectProtection: project.ssoProtection.deploymentType, anonymousOriginJwtDenied: true,
+    primaryWrites: false,
+  }, null, 2));
 }

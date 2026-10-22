@@ -320,12 +320,17 @@ async function main() {
   const command = process.argv[2];
   assert.ok(["plan", "parameters", "verify"].includes(command), "STAGING_PLAN_COMMAND_INVALID");
   const backup = await readConversionBackup();
+  console.log("PASS: qualified encrypted backup, restore proof and unchanged reset inputs.");
   let plan;
   if (command === "plan") {
     const sourceChecks = await verifyConversionSourceChecks();
+    console.log("PASS: exact main/staging source checks.");
     const primary = await readConversionPrimary();
+    console.log("PASS: Primary isolation and live baseline.");
     const replicaDigest = await verifyOriginalReplica(backup.manifest);
+    console.log("PASS: original replica matches the qualified backup.");
     const providerPrestate = await readStagingProviderPrestate();
+    console.log("PASS: current Cloudflare and target provider prestate.");
     plan = { schemaVersion: 1, sourceSha: conversionRequired("GITHUB_SHA"), target: STAGING_TARGET,
       backup: backup.identity, migrationCount: backup.migrationCount, sourceChecks, primary, replicaDigest, providerPrestate };
     await mkdir("artifacts", { recursive: true });

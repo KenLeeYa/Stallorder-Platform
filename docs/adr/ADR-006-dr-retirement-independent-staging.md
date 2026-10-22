@@ -38,6 +38,13 @@ target; an independent test database is not a Production recovery replica.
    validation; generated Vercel URLs retain Standard protection. No purchase of
    Advanced Deployment Protection. Reuse the existing Access implementation with
    the exact Staging host and new/current audience; do not make the origin public.
+   Standard protection also covers Preview custom domains. After verifying the
+   exact target Preview deployment, source and JWT configuration, use only the
+   `staging.qidaigo.com` alias's `alias-protection-override`. Read it back; never
+   change project-wide protection or exempt a generated/Primary hostname. Direct
+   anonymous origin access must still return the application's empty403; revoke
+   the exact exception and restore the proxy if that check fails. Cloudflare
+   Access remains required, and generated URLs remain Standard-SSO-protected.
 6. Keep the source promotion order: candidate PR → `staging` CI/isolated Preview
    and persistent Staging QA → verified tree promotion to `main` → protected
    application release. The retired DR must never be used to satisfy DR readiness
@@ -142,3 +149,14 @@ functional QA. OAuth/delivery smoke alone did not detect a missing Edge secret.
 Require a real hosted QR session, mobile submission and tracker, with responsive
 checks, before treating a paired Preview as an ordering validation environment.
 Never copy Production secrets or weaken CORS/protection to obtain a green result.
+
+Backup encryption passwords are byte-exact inputs, unlike transport API tokens.
+The conversion reader and recovery writers must preserve the original password,
+including surrounding whitespace; never normalize or rotate it to make an archive
+readable. Retain authenticated-decryption and immutable-artifact checks.
+
+Provider contracts verified on2026-10-22:
+[Vercel protection scopes](https://vercel.com/docs/deployment-protection) and
+[exact-domain exceptions](https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection/deployment-protection-exceptions).
+The documented exact-domain exception does not require a paid add-on; this is
+not authorization to purchase protection services or expose the application.
