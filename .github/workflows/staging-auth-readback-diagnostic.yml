@@ -1,4 +1,4 @@
-name: Bounded failed-Apply Auth and entry recovery
+name: Bounded isolated-Auth entry recovery
 on:
   push:
     branches: [codex/staging-auth-readback-recovery-20261022]
@@ -42,7 +42,7 @@ jobs:
           path: failed-apply
           github-token: ${{ github.token }}
           run-id: 39752454954
-      - name: Restore exact archived Auth and old entry; remove only failed-run resources
+      - name: Retain disabled Auth, clear opaque remnants, recover exact entry resources
         env:
           GITHUB_TOKEN: ${{ github.token }}
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -124,15 +124,21 @@ jobs:
           const dnsPath=`/zones/${STAGING_TARGET.zone}/dns_records/${state.dnsId}`;
           const dns=await conversionApi('cloudflare',dnsPath);
           assert.ok(dns.id===state.dnsId&&dns.name===STAGING_TARGET.host&&dns.type==='CNAME'&&dns.content==='cname.vercel-dns.com'&&dns.proxied&&dns.comment===`Staging conversion ${plan.sourceSha}`);
-          // Restore only changed fields from this exact encrypted DR preimage.
-          // Reject digest/masked credential recovery and unexpected config drift.
-          const allowed=new Set(Object.keys(stagingAuthPatch(recovery.auth)));
-          assert.ok(changedNames.every(name=>allowed.has(name)&&!name.startsWith('hook_')));
-          assert.ok(/^GOCSPX-/.test(recovery.auth.external_google_secret),'ARCHIVED_CREDENTIAL_NOT_VERIFIABLE');
-          const restore=Object.fromEntries(changedNames.map(name=>[name,recovery.auth[name]]));
-          await conversionApi('supabase',`/v1/projects/${STAGING_TARGET.ref}/config/auth`,{method:'PATCH',body:JSON.stringify(restore)});
-          assert.equal(conversionDigest(await conversionApi('supabase',`/v1/projects/${STAGING_TARGET.ref}/config/auth`)),plan.providerPrestate.authDigest,'AUTH_PREIMAGE_NOT_RESTORED');
-          await checkpoint('original-auth-restored');
+          // The archived Google credential cannot be proven plaintext. Do not
+          // restore it or reactivate providers. Retain the existing isolation;
+          // clear only the 26 exact opaque remnants proved by the nullable probe.
+          assert.ok(Object.entries(auth).filter(([name])=>/^(external_|hook_).+_enabled$/.test(name)).every(([,value])=>value===false));
+          assert.ok(auth.disable_signup===true&&auth.site_url===`https://${STAGING_TARGET.host}`&&auth.smtp_host==='disabled.staging.invalid');
+          assert.equal(mismatches.length,26);
+          assert.ok(mismatches.every(({name,expectedEmpty,actualLength})=>expectedEmpty&&actualLength===64&&/^(?:external_.+_secret|sms_.+_(?:secret|token|key))$/.test(name)));
+          const clear=Object.fromEntries(mismatches.map(({name})=>[name,null]));
+          await conversionApi('supabase',`/v1/projects/${STAGING_TARGET.ref}/config/auth`,{method:'PATCH',body:JSON.stringify(clear)});
+          const isolated=await conversionApi('supabase',`/v1/projects/${STAGING_TARGET.ref}/config/auth`);
+          assert.ok(Object.keys(clear).every(name=>isolated[name]==null||isolated[name]===''),'AUTH_CLEAR_NOT_VERIFIED');
+          const unchanged=value=>Object.fromEntries(Object.entries(value).filter(([name])=>!Object.hasOwn(clear,name)));
+          assert.equal(conversionDigest(unchanged(isolated)),conversionDigest(unchanged(auth)),'UNRELATED_AUTH_CHANGED');
+          const isolatedAuthDigest=conversionDigest(isolated);
+          await checkpoint('disabled-auth-isolation-preserved-and-credentials-cleared');
           // Recovery-only boundaries; the normal conversion client cannot restore
           // old hosts or delete the temporary Staging mapping by design.
           const vercelWrite=async(path,method,body)=>{
@@ -151,7 +157,7 @@ jobs:
             const alias=await conversionApi('vercel',`/v4/aliases/${old.host}`);
             assert.ok(alias.uid===old.aliasId&&alias.deploymentId===old.deploymentId&&alias.projectId===STAGING_TARGET.project,'ALIAS_PREIMAGE_NOT_RESTORED');
             const domain=await conversionApi('vercel',`/v9/projects/${STAGING_TARGET.project}/domains/${old.host}`);
-            assert.ok(domain.projectId===STAGING_TARGET.project&&domain.verified&&domain.redirect===null&&domain.gitBranch===null&&domain.customEnvironmentId===null);
+            assert.ok(domain.projectId===STAGING_TARGET.project&&domain.verified&&domain.redirect==null&&domain.gitBranch==null&&domain.customEnvironmentId==null);
           }
           await vercelWrite(`/v9/projects/${STAGING_TARGET.project}/domains/staging.qidaigo.com`,'DELETE');
           assert.equal(dnsPath,'/zones/8f8070a80ad4182e4af0c11a1b496968/dns_records/5e1c867daf713106aff87ac5d2260bb4');
@@ -162,14 +168,17 @@ jobs:
           await checkpoint('failed-new-dns-removed');
           await conversionApi('cloudflare',`${prefix}/apps/${state.appId}`,{method:'DELETE'});
           await checkpoint('failed-new-access-removed');
+          const finalDomains=await conversionApi('vercel',`/v9/projects/${STAGING_TARGET.project}/domains?limit=100`);
+          assert.ok(!finalDomains.pagination?.next&&finalDomains.domains.length===RETIRED_HOSTS.length&&finalDomains.domains.every(domain=>RETIRED_HOSTS.includes(domain.name)&&domain.verified&&domain.redirect==null&&domain.gitBranch==null&&domain.customEnvironmentId==null),'RECOVERED_DOMAIN_SCOPE_CHANGED');
           const restored=await readStagingProviderPrestate();
-          const {targetDomainDigest:oldDomainDigest,...oldStable}=plan.providerPrestate;
-          const {targetDomainDigest:newDomainDigest,...newStable}=restored;
+          const {targetDomainDigest:oldDomainDigest,authDigest:oldAuthDigest,...oldStable}=plan.providerPrestate;
+          const {targetDomainDigest:newDomainDigest,authDigest:newAuthDigest,...newStable}=restored;
+          assert.equal(newAuthDigest,isolatedAuthDigest,'ISOLATED_AUTH_CHANGED');
           assert.equal(conversionDigest(newStable),conversionDigest(oldStable),'PROVIDER_PREIMAGE_NOT_RESTORED');
           assert.equal(await verifyOriginalReplica(backup.manifest),plan.replicaDigest);
           await primary();
           const receipt={failedPlan:39743118579,failedApply:39752454954,recoverySource:process.env.GITHUB_SHA,backup:plan.backup,
-            fullOriginalDataUnchanged:true,primaryUnchanged:true,authRestored:true,edgeUnchanged:true,
+            fullOriginalDataUnchanged:true,primaryUnchanged:true,authRestored:false,authIsolationRetained:true,oldCredentialsNotRestored:true,oldAuthDigest,newAuthDigest,edgeUnchanged:true,
             retiredAliasIdentityRestored:true,oldDomainDigest,newDomainDigest,domainCreationMetadataChanged:true,
             freshPlanRequired:true,removedNewAccess:state.appId,removedNewDns:state.dnsId,primaryWrites:false};
           await writeFile('artifacts/staging-predata-recovery.json',JSON.stringify(receipt,null,2));
