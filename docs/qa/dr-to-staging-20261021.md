@@ -608,3 +608,48 @@ change was performed. Cloudflare deletion/isolation evidence is the protected
 recovery run's actual final readback, and the next fresh Plan must verify it again.
 The one-off diagnostic/probe/recovery workflow was removed before PR promotion.
 No local test servers or Docker resources were started for this correction.
+
+## PR381 Storage lookup diagnostics (2026-10-22)
+
+PR380 was normally merged to staging `e5fee2a9`; its CI, security, paired
+Preview and ordinary Chrome acceptance passed, and its exact Preview resources
+were independently confirmed absent. Staging Readiness passed `verify-local`;
+`verify-remote` was skipped by the workflow's main-only condition, not passed.
+PR381 promotes that tree to main. Its CI39766797888 and security39766797885
+passed, but paired Preview39766797866 failed twice and promotion remains blocked.
+
+Attempt1 reported `STORAGE_QA_KEY_LOOKUP_FAILED` at11:14:12Z. A single bounded
+same-source full-job repeat reported the identical failure at11:38:50Z. Both
+failed on the non-2xx Management API key lookup for isolated branch
+`ynpvrihsukkhjojyeovr`, before selecting a key, importing Prisma, uploading a QA
+object or writing a manifest. Reviewed migrations, complete SQL tests, DB lint,
+Edge configuration/deployment and always-run synthetic fixture cleanup passed;
+matching Vercel build/deploy/browser checks were skipped. There is no third retry.
+Original HTTP statuses were not recorded, so neither an authorization failure,
+rate limit nor provider outage is established. A workstation GET returning200
+does not explain a different runner's failure. No credentials were rotated or
+permissions widened, and the original DR data remains untouched.
+
+The narrow diagnostic correction retains the same fixed failure code, exact
+target/invocation guards, single request, redirect rejection and20-second timeout.
+It logs only the numeric HTTP status, content-type category (`json`, `html`,
+`other`, `none`), and a decimal Retry-After bounded to0–86400 seconds or null.
+It never logs response bodies, status text, URLs, cookies, arbitrary headers,
+connection strings or credentials. It does not retry or treat any error as pass.
+
+Tests invoke the real CLI entry function through Node fetch and disposable
+loopback HTTP responses401/403/429/503. The old implementation failed all four
+diagnostic assertions; the correction passes all seven focused tests, including
+the three existing target/workflow guards. Malicious body/header placeholders
+remain absent from logs and each case makes exactly one request before stopping.
+Each loopback server is closed, with no Docker or application service started.
+Full local qualification passed3448 tests with9 existing skips, typecheck,
+focused/full lint (0 errors,5 pre-existing warnings), build,335-file UI audit,
+2335-file/146-migration guardrails and dependency audit (0 vulnerabilities).
+This fixes missing diagnostic evidence only;
+the hosted failure cause, fresh paired QA and persistent Staging acceptance remain
+unresolved. New source-bound cloud gates are mandatory before promotion.
+
+Primary provider/revision/connectivity and the user's actual authenticated Staff
+page remained unchanged after the second failure. No real orders, payment,
+notification, printing, DR cleanup, conversion Plan or Apply were performed.

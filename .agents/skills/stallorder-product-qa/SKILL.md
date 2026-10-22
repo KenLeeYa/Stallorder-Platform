@@ -147,6 +147,13 @@ Session creation can legitimately return HTTP200 on an idempotent retry; require
 the actual valid session body and usable UI for both200/201. Reject expired,
 error and order-resume bodies instead of treating every200 as a new session.
 
+For isolated Storage key-lookup failures, retain only numeric HTTP status,
+allowlisted content-type category and bounded numeric Retry-After; never provider
+bodies, cookies, raw headers or keys. Exercise the actual entry/fetch boundary
+with negative HTTP fixtures. A different workstation's200 is not evidence of the
+runner's original status or a fixed cause. Repeated failure after one documented
+bounded retry requires source-reviewed diagnosis, not another rerun or skipped QA.
+
 For existing ordinary Chrome login, distinguish automation-owned tabs from user
 tabs using the current Chrome skill's supported discovery/claim APIs. An empty
 owned-tab inventory does not prove that the user is logged out. Reuse an existing
