@@ -30,7 +30,13 @@ jobs:
           path: approved-backup
           github-token: ${{ github.token }}
           run-id: 39647447270
-      - name: Read exact prepared entry and original data without provider writes
+      - uses: actions/download-artifact@v4
+        with:
+          name: dr-staging-plan-39707497864
+          path: approved-transition-plan
+          github-token: ${{ github.token }}
+          run-id: 39707497864
+      - name: Verify exact restored prestate without provider writes
         env:
           BACKUP_RUN_ID: "39647447270"
           GITHUB_TOKEN: ${{ github.token }}
@@ -41,34 +47,18 @@ jobs:
         run: |
           node --input-type=module <<'NODE'
           import assert from 'node:assert/strict';
-          import { readConversionBackup, readConversionPrimary, verifyOriginalReplica, conversionApi, STAGING_TARGET as T } from './scripts/dr-staging-conversion-plan.mjs';
+          import { readFile } from 'node:fs/promises';
+          import { readConversionBackup, readConversionPrimary, verifyOriginalReplica, readStagingProviderPrestate, conversionDigest, conversionApi, STAGING_TARGET as T } from './scripts/dr-staging-conversion-plan.mjs';
+          const plan = JSON.parse(await readFile('approved-transition-plan/dr-staging-transition-plan.json','utf8'));
+          assert.equal(conversionDigest(plan),'a4b6423ff586fe77cffbae627eebb07bb1e01c28a2f211962a8d319b0faf77cd');
           const backup = await readConversionBackup();
+          assert.deepEqual(backup.identity, plan.backup);
           assert.equal(await verifyOriginalReplica(backup.manifest), '3be52e470b9fdfeb7bdba8e15733bd915cd78bef8cac8536bc6a160e61b1e91a');
-          await readConversionPrimary();
-          console.log('PASS: qualified backup and unchanged original replica; Primary baseline readable');
-          const paths = [
-            ['cloudflare', `/accounts/${T.account}/access/apps/4b13f07e-00e2-4c96-8860-982641dc0f55`],
-            ['cloudflare', `/accounts/${T.account}/access/apps/4b13f07e-00e2-4c96-8860-982641dc0f55/policies`],
-            ['cloudflare', `/zones/${T.zone}/dns_records/d3f4ebd487ced68a07341fd5adff3699`],
-            ['vercel', `/v9/projects/${T.project}/domains/${T.host}`],
-            ['vercel', '/v4/aliases/dr.qidaigo.com'],
-            ['vercel', '/v4/aliases/stallorder-dr.vercel.app'],
-          ];
-          for (const [provider, path] of paths) {
-            try {
-              const result = await conversionApi(provider, path);
-              if (path.endsWith('/policies')) assert.equal(result.length, 1);
-              if (path.includes('/v4/aliases/')) {
-                assert.equal(result.projectId, T.project);
-                assert.equal((await conversionApi('vercel', `/v4/aliases/${result.uid}`)).uid, result.uid);
-              }
-              console.log(JSON.stringify({provider, path, result:'passed', remoteWrites:false}));
-            } catch (error) {
-              console.error(JSON.stringify({provider, path, result:'failed', remoteWrites:false,
-                code:/^[A-Z][A-Z0-9_]{0,100}$/.test(error?.message ?? '') ? error.message : 'REDACTED_ERROR'}));
-              process.exitCode = 1;
-            }
-          }
+          console.log('PASS: qualified backup and unchanged239table original replica');
+          assert.deepEqual(await readConversionPrimary(),plan.primary);
+          console.log('PASS: exact original Primary deployment, version, environment and DNS');
+          assert.deepEqual(await readStagingProviderPrestate(),plan.providerPrestate);
+          console.log('PASS: exact original provider prestate restored; Staging entry absent and old DR preserved');
           const tokens = await conversionApi('cloudflare', `/accounts/${T.account}/access/service_tokens?per_page=1000`);
           assert.ok(tokens.length < 1000 && !tokens.some(t => t.id === '67d8fc97-e5f4-4c39-bfb8-0dd1ab00819c'));
           console.log('PASS: temporary QA token removed; no mutation performed');
