@@ -74,7 +74,7 @@ export function assertConversionWriteScope(provider, path, method) {
   const scoped = provider === "supabase" ? path.startsWith(`/v1/projects/${STAGING_TARGET.ref}/`)
     : provider === "vercel" ? [9, 10].some((version) => path.startsWith(`/v${version}/projects/${STAGING_TARGET.project}/`))
       || (method === "POST" && /^\/v2\/deployments\/dpl_[a-zA-Z0-9]+\/aliases$/.test(path))
-      || (method === "DELETE" && RETIRED_HOSTS.some((host) => path === `/v2/aliases/${host}`))
+      || (method === "DELETE" && /^\/v2\/aliases\/[a-f0-9]{128}$/.test(path))
       || (method === "PATCH" && /^\/aliases\/[a-f0-9]{128}\/protection-bypass$/.test(path))
       : provider === "cloudflare" && ((method === "DELETE" && [
         `/accounts/${STAGING_TARGET.account}/access/apps/${STAGING_TARGET.oldAccessId}`,
@@ -102,11 +102,12 @@ export async function conversionApi(provider, path, options = {}) {
   // Supabase operations in this conversion can never address Primary.
   if (provider === "supabase") assert.ok(path.startsWith(`/v1/projects/${STAGING_TARGET.ref}/`), "STAGING_PROVIDER_TARGET_INVALID");
   if (provider === "vercel" && method === "DELETE") {
-    const host = RETIRED_HOSTS.find((value) => path === `/v2/aliases/${value}`
-      || path === `/v9/projects/${STAGING_TARGET.project}/domains/${value}`);
-    assert.ok(host, "STAGING_WRITE_HOST_INVALID");
-    const current = await conversionApi("vercel", path.startsWith("/v2/aliases/") ? `/v4/aliases/${host}` : path);
+    const aliasId = path.startsWith("/v2/aliases/") ? path.split("/").at(-1) : null;
+    assert.ok(aliasId || RETIRED_HOSTS.some(host => path === `/v9/projects/${STAGING_TARGET.project}/domains/${host}`),
+      "STAGING_WRITE_HOST_INVALID");
+    const current = await conversionApi("vercel", aliasId ? `/v4/aliases/${aliasId}` : path);
     assert.equal(current.projectId, STAGING_TARGET.project, "STAGING_WRITE_HOST_INVALID");
+    if (aliasId) assert.ok(current.uid === aliasId && RETIRED_HOSTS.includes(current.alias), "STAGING_WRITE_HOST_INVALID");
   }
   if (provider === "vercel" && method === "POST" && path.startsWith("/v2/deployments/")) {
     const deployment = await conversionApi("vercel", `/v13/deployments/${path.split("/")[3]}`);
@@ -162,6 +163,7 @@ export async function conversionApi(provider, path, options = {}) {
     ...options, headers: { authorization: `Bearer ${value}`, "content-type": "application/json", ...options.headers },
     redirect: "error", signal: AbortSignal.timeout(60_000),
   });
+  if (!response.ok) console.error(JSON.stringify({ provider, method, path: new URL(path, base).pathname, status: response.status }));
   assert.ok(response.ok, `STAGING_${provider.toUpperCase()}_HTTP_${response.status}`);
   const text = await response.text();
   const body = text ? JSON.parse(text) : null;

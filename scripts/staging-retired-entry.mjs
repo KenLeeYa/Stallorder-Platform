@@ -15,7 +15,7 @@ export async function detachRetiredEntries(plan, verifyPrimary) {
     const origin = await fetch(`https://${expected.deploymentUrl}/login`, { redirect: "manual", signal: AbortSignal.timeout(20_000) });
     assert.ok(origin.status === 401 || (origin.status === 302
       && origin.headers.get("location")?.startsWith("https://vercel.com/sso-api?")), "STAGING_OLD_ORIGIN_UNPROTECTED");
-    await conversionApi("vercel", `/v2/aliases/${expected.host}`, { method: "DELETE" });
+    await conversionApi("vercel", `/v2/aliases/${expected.aliasId}`, { method: "DELETE" });
     await conversionApi("vercel", `/v9/projects/${STAGING_TARGET.project}/domains/${expected.host}`, { method: "DELETE" });
     await verifyPrimary();
     const remaining = await conversionApi("vercel", `/v2/deployments/${expected.deploymentId}/aliases`);

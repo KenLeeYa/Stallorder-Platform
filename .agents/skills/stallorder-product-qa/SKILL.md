@@ -106,6 +106,13 @@ only the verified `staging.qidaigo.com` alias to Cloudflare Access + origin JWT
 using an exact alias exception; never change project-wide SSO or exempt generated
 URLs. Reject host/project/Preview/source/JWT drift before the provider write,
 read back the exception, and revoke it if anonymous origin denial fails.
+Retire Vercel aliases by their bound UID, not by assuming the read endpoint's
+hostname argument works identically for deletion. Exercise the actual API boundary
+and reject Primary/project/host/UID drift before DELETE. For a pre-data failure,
+bind entry recovery to the failed source/Plan and exact created resource IDs;
+remove only the new mapping/DNS/Access, then compare the full original provider
+and Primary prestate. Preserve old data and old DR entry resources. Recovery is
+not Staging acceptance and never authorizes a blind replay of the failed Apply.
 The complete hosted SQL suite is run in ordered batches of at most 20 files under
 the unchanged subprocess deadline. Assert every recursively discovered SQL file
 is included exactly once and any failed batch prevents further conversion.

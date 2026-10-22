@@ -115,6 +115,20 @@ those checks. Failed or partially applied transactions must not be blindly rerun
 Inspect the step journal and exact provider identities, preserve the backup,
 and create a source-bound recovery operation when correction is needed.
 
+If failure occurs before provider isolation or data cleanup, recovery may remove
+only the new entry resources identified by that failed run's encrypted state and
+sanitized receipt. First revalidate the qualified backup, unchanged original data,
+both old aliases and Primary; bind the operator record to the failed source and
+immutable Plan. Remove the new Vercel domain mapping, then its exact DNS record,
+then its Access application. Never remove old DR entry resources during this
+recovery. Read the complete provider/Primary prestate back against the original
+Plan before creating a fresh Plan; UI success alone is not recovery evidence.
+
+Alias reads and deletions must use their own provider contracts. Retire aliases
+by the Plan-bound immutable UID, rechecking the UID, retired hostname and DR
+project at the actual delete boundary. Report a failed request's method, provider,
+path and status without response bodies, query values or authorization headers.
+
 Before deleting old files or resetting the database, create and verify restricted
 Staging Access, prove actual Access/DNS edit permissions, and detach only the two
 old public DR aliases/domain mappings. The old generated deployment remains
