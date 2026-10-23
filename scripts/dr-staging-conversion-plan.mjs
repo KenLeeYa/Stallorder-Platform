@@ -46,18 +46,50 @@ export function requireConversionInvocation() {
 export async function verifyConversionSourceChecks() {
   const main = conversionRequired("GITHUB_SHA");
   const staging = execFileSync("git", ["rev-parse", "origin/staging"], { encoding: "utf8" }).trim();
+  return verifySourceCheckShas(main, staging);
+}
+
+async function verifySourceCheckShas(main, staging) {
   const evidence = [];
   for (const sha of new Set([main, staging])) {
+    // Fixed fields only: never log tokens, response bodies, titles or raw headers.
+    console.error(JSON.stringify({ event: "staging-source-query", sha }));
     const { workflow_runs: runs, total_count: count } = await conversionApi("github",
       `/repos/KenLeeYa/Stallorder-Platform/actions/runs?head_sha=${sha}&event=push&per_page=100`);
+    console.error(JSON.stringify({ event: "staging-source-list", sha,
+      totalCount: Number.isSafeInteger(count) ? count : null,
+      returnedCount: Array.isArray(runs) ? runs.length : null, unambiguous: count < 100 }));
     assert.ok(count < 100, "STAGING_SOURCE_CHECKS_AMBIGUOUS");
     for (const path of ["ci.yml", "codeql.yml", "production-readiness.yml"]) {
       const run = runs.find((item) => item.path === `.github/workflows/${path}`);
+      console.error(JSON.stringify({ event: "staging-source-check", sha, workflow: path,
+        totalCount: Number.isSafeInteger(count) ? count : null, returnedCount: runs.length,
+        found: Boolean(run), shaMatches: run?.head_sha === sha,
+        completed: run?.status === "completed", successful: run?.conclusion === "success",
+        runId: Number.isSafeInteger(run?.id) ? run.id : null,
+        attempt: Number.isSafeInteger(run?.run_attempt) ? run.run_attempt : null,
+        returnedSha: /^[a-f0-9]{40}$/.test(run?.head_sha ?? "") ? run.head_sha : null,
+      }));
       assert.ok(run?.head_sha === sha && run.status === "completed" && run.conclusion === "success",
         "STAGING_SOURCE_CHECKS_NOT_PASSED");
       evidence.push({ sha, workflow: path, runId: run.id, attempt: run.run_attempt });
     }
   }
+  return evidence;
+}
+
+// Replay only the source-list seam for a recorded equal-tree pair. This does not
+// qualify a Plan: current refs, backup, provider drift and Primary are not checked.
+export async function diagnoseConversionSourceChecks() {
+  requireConversionInvocation();
+  const main = conversionRequired("DIAGNOSTIC_MAIN_SHA");
+  const staging = conversionRequired("DIAGNOSTIC_STAGING_SHA");
+  for (const sha of [main, staging]) assert.match(sha, /^[a-f0-9]{40}$/, "STAGING_DIAGNOSTIC_SOURCE_INVALID");
+  const tree = (sha) => execFileSync("git", ["rev-parse", `${sha}^{tree}`], { encoding: "utf8" }).trim();
+  assert.equal(tree(main), tree(staging), "STAGING_DIAGNOSTIC_TREE_MISMATCH");
+  const evidence = await verifySourceCheckShas(main, staging);
+  console.log(JSON.stringify({ event: "staging-source-diagnostic", diagnosticOnly: true,
+    planQualified: false, evidence }));
   return evidence;
 }
 
@@ -320,7 +352,11 @@ export async function readApprovedConversionPlan(backup) {
 async function main() {
   requireConversionInvocation();
   const command = process.argv[2];
-  assert.ok(["plan", "parameters", "verify"].includes(command), "STAGING_PLAN_COMMAND_INVALID");
+  assert.ok(["plan", "parameters", "verify", "diagnose-sources"].includes(command), "STAGING_PLAN_COMMAND_INVALID");
+  if (command === "diagnose-sources") {
+    await diagnoseConversionSourceChecks();
+    return;
+  }
   const backup = await readConversionBackup();
   console.log("PASS: qualified encrypted backup, restore proof and unchanged reset inputs.");
   let plan;

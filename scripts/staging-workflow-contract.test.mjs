@@ -37,4 +37,28 @@ describe("independent Staging workflow boundaries", () => {
       expect(read(".gitignore")).toContain(path);
     }
   });
+  it("limits source diagnosis to the protected caller, read token and source-only CLI", () => {
+    const workflow = yaml.load(read(".github/workflows/dr-staging-conversion.yml"));
+    expect(Object.keys(workflow.on)).toEqual(["workflow_dispatch"]);
+    expect(workflow.permissions).toEqual({ contents: "read", actions: "read", statuses: "read" });
+    expect(workflow.concurrency).toEqual({ group: "production-dr-operations", "cancel-in-progress": false });
+    const job = workflow.jobs.conversion;
+    expect(job.if).toContain("github.actor == github.repository_owner");
+    expect(job.if).toContain("github.ref == 'refs/heads/main'");
+    expect(job.environment).toBe("production");
+    const active = job.steps.filter((step) => !step.if || step.if === "inputs.operation == 'diagnose-sources'");
+    expect(active).toHaveLength(4);
+    expect(active[0].name).toBe("Validate owner-approved operation");
+    expect(active[0].run).toContain('test -z "$BACKUP_RUN_ID" && test -z "$PLAN_RUN" && test -z "$CONFIRMATION"');
+    expect(active[0].run).toContain('test -z "$DIAGNOSTIC_MAIN_SHA" && test -z "$DIAGNOSTIC_STAGING_SHA"');
+    expect(active[1].uses).toBe("actions/checkout@v4");
+    expect(active[2].uses).toBe("actions/setup-node@v4");
+    expect(active[2].with["node-version"]).toBe(24);
+    expect(active[3].run).toBe("node scripts/dr-staging-conversion-plan.mjs diagnose-sources");
+    expect(active[3]["timeout-minutes"]).toBe(5);
+    expect(active[3].env).toEqual({ GITHUB_TOKEN: "${{ github.token }}",
+      DIAGNOSTIC_MAIN_SHA: "${{ inputs.diagnostic_main_sha }}", DIAGNOSTIC_STAGING_SHA: "${{ inputs.diagnostic_staging_sha }}" });
+    expect(JSON.stringify(active)).not.toMatch(/secrets\.|upload-artifact|download-artifact|continue-on-error/);
+    expect(job.steps.some((step) => step.run?.includes("scripts/dr-staging-source-checks.test.mjs"))).toBe(true);
+  });
 });
