@@ -159,6 +159,14 @@ category from captured CLI output, never raw connection strings or credentials.
 Management SQL or workstation connectivity cannot prove runner-path reachability.
 Failed always-run fixture cleanup remains failed until independently reconciled.
 
+For conversion source-gate failures, workstation PASS and direct successful run
+reads do not prove protected workflow caller recovery. Keep the exact source
+query, first matching workflow, count and success assertions. Diagnose only with
+allowlisted SHA/workflow/count/run metadata and predicate booleans, never raw API
+bodies or tokens. A reviewed source-only protected diagnostic is not a conversion
+Plan, never qualifies Apply, and cannot reconstruct a historical token/response.
+Do not replay consumed Plans or change page/filter to obtain a green result.
+
 Closure-notice refreshes arriving during an in-flight read must coalesce into one
 follow-up read, not disappear until the next poll. Test the real component effect
 with a delayed pre-withdrawal snapshot and retain the real browser/API/DB case
