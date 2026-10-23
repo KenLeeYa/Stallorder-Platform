@@ -749,3 +749,204 @@ Local validation for this narrow candidate passed: 3463 unit tests with nine
 existing skips, typecheck, full lint (zero errors/five existing warnings),
 production build, 336-file UI audit and dependency audit (zero vulnerabilities).
 These results do not replace the new hosted printed-QR E2E or release gates.
+
+## Protected conversion source-gate diagnosis (2026-10-23)
+
+PR381 merged normally to main `b68df370` with the same tree as staging
+`846df25a`. The six source workflows succeeded, but conversion Plans
+`39811974789` and `39817316089` failed with
+`STAGING_SOURCE_CHECKS_NOT_PASSED`. Both are consumed: never rerun or reuse them.
+The latter job `119959100340` passed authenticated encrypted backup/restore and
+unchanged-reset-input verification at16:50:39Z on October22, then failed the
+source gate at16:50:40Z. It produced no artifact and never reached Provider
+capture, Apply or DR data reset. The six direct run successes and workstation
+PASS results do not qualify the protected caller.
+
+The original source gate queries each distinct main/staging SHA using exactly
+`actions/runs?head_sha=<sha>&event=push&per_page=100`. It requires `total_count`
+below100, then selects the first exact workflow-path match for `ci.yml`,
+`codeql.yml` and `production-readiness.yml`. Its final assertion can fail for:
+
+| Predicate | Rejected condition |
+| --- | --- |
+| found | No exact workflow-path match in this response |
+| shaMatches | Selected run's head SHA differs from the queried SHA |
+| completed | Selected run's status is not completed |
+| successful | Selected run's conclusion is not success |
+
+The historical error is after the successful API response and count assertion.
+Existing hosted logs/annotations do not retain the response or false predicate;
+they cannot establish which SHA/workflow failed, or token/cache/pagination/server
+root cause. Do not retrospectively label any one hypothesis confirmed.
+
+New local mechanism evidence: four actual-fetch-boundary fixtures against the
+unchanged function each produced the same error, one request and zero diagnostic
+records. The new regression initially reported5 failures/2 passes. The local
+candidate now emits only fixed event/workflow names, SHA, numeric counts/run IDs
+and predicate booleans. It preserves the original query, first-match selection,
+assertions, fail-fast behavior and errors; it adds no pagination, fallback,
+successful-run allowlist, retry or weaker gate.
+
+The candidate adds `operation=diagnose-sources` to the original protected
+workflow, retaining its owner/main guard, production environment, read-only
+GitHub permissions, job and serialized concurrency. Two explicit40-hex recorded
+SHAs must resolve to equal trees. This operation executes only source reads,
+with no backup/provider credentials, artifact/Plan receipt, Apply or reset. Its
+output explicitly says `diagnosticOnly=true` and `planQualified=false`. The
+original Plan/Apply validation and tests remain required for those operations.
+This is a new token instance in the same protected caller configuration, not a
+reconstruction of the expired historical token or response. It must first pass
+normal review and release gates; no hosted diagnostic has been dispatched.
+
+Local candidate checks passed24 focused tests, focused ESLint, typecheck,
+2340-file/146-migration production guardrails and3478 full unit tests with9
+existing skips (572 passing files,2 skipped). The real CLI entry was exercised
+with an allowlisted GitHub fetch fixture and no backup/provider secrets. These
+are local diagnostic-contract results, not protected-caller evidence or Staging
+acceptance. Fresh build, full release QA, PR review and hosted diagnosis remain
+incomplete. No commit, push, PR, Plan/Apply, provider mutation or service lifecycle
+change occurred during this investigation.
+
+### Newly blocking dependency audit
+
+The current audit exited1: one critical package (`next`16.3.8), containing
+GHSA-2464-fhr4-w9xw, GHSA-p3m5-59mp-jv5r and GHSA-673q-mjm6-r5xr. These advisory
+ranges were independently confirmed from the official Next.js advisories via
+AnySearch; they list16.4.1 as fixed, while npm proposes16.4.2. This supersedes
+historical audit0 as current release evidence. No forced audit fix, dependency
+upgrade, security exception or remote release was performed. The owner was
+asked once whether to include the framework security upgrade and regression QA
+in this isolated worktree before normal PR review, without deploying Primary.
+
+The existing sharp0.35.5 pin matches the image advisory's stated mitigation;
+no `use server`/`use cache` directives were found in the searched application
+source. This limited source triage neither clears the native audit gate nor
+proves deployed exploitability or absence of compromise. See the official
+[image optimization advisory](https://github.com/vercel/next.js/security/advisories/GHSA-2464-fhr4-w9xw),
+[Server Actions advisory](https://github.com/vercel/next.js/security/advisories/GHSA-p3m5-59mp-jv5r)
+and [cache advisory](https://github.com/vercel/next.js/security/advisories/GHSA-673q-mjm6-r5xr).
+
+At02:52Z and03:09:39–42Z Primary alias still bound project `prj_uoG4FNJIgnF1LdKRiXnfRaieXnUP`
+to deployment `dpl_4v5acoGZU8tkbTAnb6uEwuN5AjJQ`; public version remained
+`4e95d2ea5d53ae78c5af9c3db044481237674c44`, connectivity/login returned200.
+This does not replace authenticated Staff/SSE proof: the last actual browser
+verification remains18:18:48Z on October22, and the existing Chrome runtime was
+unavailable at02:19Z. No runtime reset, session injection or repeated login was
+attempted. Old DR827 orders/42 files remain unreset; persistent Staging and real
+device acceptance remain incomplete.
+
+### Approved minimal framework security upgrade (2026-10-23)
+
+At06:59Z the owner explicitly authorized the minimal Next.js/eslint-config-next
+security upgrade, full regression and a normal PR in this isolated worktree.
+This supersedes the pending-scope state above; it does not authorize direct
+Primary deployment. Both packages are pinned to16.4.2, with only their related
+Next.js lockfile entries updated by npm. React19.2.4, sharp0.35.5, existing
+overrides and the ignore-scripts policy remain unchanged. The official
+[16.4.2 release](https://github.com/vercel/next.js/releases/tag/v16.4.2) and
+advisories were checked before installation. Native npm audit now exits0 with
+zero vulnerabilities; no force-fix or security exception was used.
+
+Local evidence for this candidate:
+
+- Standard unmodified unit discovery:3480 passed/9 existing skips
+  (572 passing files/2 skipped). Four focused source/workflow/security suites:
+  48 passed. The security contract pins the framework, config and ESLint plugin.
+- A deliberate inversion of the new returned-SHA redaction condition caused
+  three regression failures, including sentinel disclosure; restoring it
+  restored48 focused passes and the exact original source SHA-256
+  `4d0e6dcd495954121a680673b39df8a494c608ce864aeb12b6070b11123feaec`.
+- Typecheck,336-file UI audit and production guardrails passed. Full lint has
+  zero errors and five Next.js navigation warnings in existing tracker, reorder
+  and keep-alive code; no unrelated navigation rewrite was included.
+- Fresh isolated database initialization applied146 migrations and seed;
+  72 SQL files/1619 assertions and warning-level DB lint passed. Production-mode
+  Next.js16.4.2 build generated101 pages. Independent status Worker dry-run
+  passed without deployment. Chromium/WebKit WebPRNT fixtures passed8 tests;
+  this is not physical printer proof.
+
+The disposable lab is project `dr-staging-next-security-20261023`, API54321,
+DB54322 and test SMTP54324. It uses synthetic data and no provider credentials.
+Initial lab copies exposed CRLF-sensitive migration anchors; an explicit
+`git -c core.autocrlf=false archive` produced296 exact Git-blob files and fresh
+initialization passed. A copy under artifacts was mistakenly discovered by
+Vitest; moving the lab under node_modules removed that duplicate test discovery
+without changing Vitest/TypeScript configuration or excluding production tests.
+The final standard unit command above has no extra exclusions.
+
+The first E2E shard then reported26 passes/2 failures/3 not run because all three
+ordering Edge workers failed to resolve bare `zod` before application execution.
+Explicit import-map selection alone did not fix it. A controlled comparison
+used the same Edge Runtime v1.74.2 image, environment and unchanged function
+bytes, but mounted them at `/workspace/supabase/functions` instead of a path
+containing node_modules: all three workers booted and returned the expected
+origin-rejection response. The test container now uses that clean mount path;
+the host lab remains excluded through node_modules. The original failed test
+containers/logs remain retained, not relabeled as passes. No application source,
+assertions, deadlines, retries, rate counters or real provider configuration
+were changed for this harness correction. The complete eight-shard suite and
+resilience checks must still finish before local QA is considered complete.
+
+At07:37:52–53Z Primary alias/project/deployment and revision4e95 remained unchanged;
+version/connectivity/login returned200. This is not fresh authenticated proof.
+No new protected-caller evidence or historical source-gate root cause has been
+obtained; diagnostics still cannot qualify a Plan. Normal review/hosted QA,
+persistent Staging acceptance and real-device checks remain incomplete.
+
+### Independent review follow-up (2026-10-23)
+
+Standards and Spec reviewers independently examined the candidate from
+`846df25a` to local commit `e29b38ee`. Each found the same P2: although stderr
+metadata was sanitized, an all-success source-only diagnostic printed raw API
+run IDs and attempts in its final stdout summary. An actual mocked-fetch CLI
+reproduction exited0 and disclosed a sentinel. This was a diagnostic-output
+defect, not evidence of the historical hosted source-gate failure.
+
+A new successful-path regression first failed1/passed14. The correction only
+projects diagnostic summary run IDs/attempts to safe integers or null; original
+query, first-match selection, count/SHA/status/conclusion assertions and returned
+Plan evidence are unchanged. The actual CLI regression now exercises both
+normal and malformed metadata and checks stdout plus stderr. Four focused
+suites pass50 tests, focused ESLint and diff checks pass. Both reviewers then
+independently verified sentinel removal and `planQualified:false`, with no
+remaining Standards or Spec findings. This is local independent review, not a
+GitHub approval or hosted diagnostic receipt.
+
+### Final local security-regression receipt (2026-10-23)
+
+- After the review fix, the unmodified standard unit command passed3482 tests
+  with9 existing skips (572 passing files/2 skipped); typecheck, focused lint,
+  production guardrails and diff checks passed. A fresh native audit exited0
+  with all vulnerability counts0. The five full-lint warnings recorded above
+  remain warnings, not errors.
+- The complete eight-shard production-mode browser run exited0:204 passed,
+  40 environment-specific skips, zero failures/flaky. Per-shard passes were
+  31/31/23/30/28/32/24/5; skips were0/0/11/0/0/0/14/15. The six-minute idle
+  tracker case executed its full wait and passed. No skipped case is counted as
+  passed. The first failed Edge-harness run remains in the appended E2E log.
+- The separate resilience suite passed8/8 in39.4 seconds. Its first launcher
+  attempt failed before tests because direct CLI execution lacked npm's local
+  executable PATH; adding node_modules/.bin to the ignored local launcher
+  restored normal startup. No product/test/config gate was changed.
+- Build/SQL/DB-lint/WebPRNT/Worker evidence above remains applicable: the later
+  fix changed only diagnostic script output/tests/docs, not application or
+  dependency bytes. Hosted CI, paired Preview, ordinary-browser provider checks
+  and real hardware remain separate pending evidence.
+
+Local logs, archives and generated payment/surge fixture receipts are retained
+under ignored `artifacts/dr-staging-next-security-20261023/`. At08:01Z all eight
+active containers with the exact lab project label were stopped; the four
+earlier stopped Edge probes were retained. All12 now read back exited, and
+ports3000/55431/54321/54322/54324/55439/8183 have no listeners. Docker volumes,
+images and data were not deleted. `line-booking-test-20261004` remains running
+on56863, so Docker Desktop was not stopped. To resume only this lab, recheck
+labels, bind sources and free ports, start its existing DB and wait for health,
+then start only its seven canonical companion containers (not old Edge probes)
+and the owned local runner. No default-workspace start/reset is appropriate.
+
+At07:56:31Z the exact Primary alias still bound the same project and deployment;
+revision4e95/version/connectivity/login200 were unchanged. No fresh authenticated
+Staff/SSE claim is made. No protected diagnosis, Plan, Apply, DR reset or Primary
+deployment has occurred. The source-bound normal PR is the next release gate;
+the historical protected-caller predicate and persistent Staging acceptance
+are still unresolved.

@@ -5,12 +5,20 @@ on:
     inputs:
       operation:
         type: choice
-        options: [plan, apply]
+        options: [plan, apply, diagnose-sources]
         required: true
       backup_run_id:
         description: Successful encrypted backup, actual restore and reset rehearsal run
         type: string
-        required: true
+        required: false
+      diagnostic_main_sha:
+        description: Exact recorded main SHA for source-only diagnosis (never Plan qualification)
+        type: string
+        default: ""
+      diagnostic_staging_sha:
+        description: Exact recorded equal-tree staging SHA for source-only diagnosis
+        type: string
+        default: ""
       plan_run_id:
         description: Immutable conversion Plan run required for Apply
         type: string
@@ -44,8 +52,17 @@ jobs:
           OPERATION: ${{ inputs.operation }}
           PLAN_RUN: ${{ inputs.plan_run_id }}
           CONFIRMATION: ${{ inputs.confirmation }}
+          DIAGNOSTIC_MAIN_SHA: ${{ inputs.diagnostic_main_sha }}
+          DIAGNOSTIC_STAGING_SHA: ${{ inputs.diagnostic_staging_sha }}
         run: |
           set -euo pipefail
+          if [ "$OPERATION" = diagnose-sources ]; then
+            test -z "$BACKUP_RUN_ID" && test -z "$PLAN_RUN" && test -z "$CONFIRMATION"
+            [[ "$DIAGNOSTIC_MAIN_SHA" =~ ^[a-f0-9]{40}$ ]]
+            [[ "$DIAGNOSTIC_STAGING_SHA" =~ ^[a-f0-9]{40}$ ]]
+            exit 0
+          fi
+          test -z "$DIAGNOSTIC_MAIN_SHA" && test -z "$DIAGNOSTIC_STAGING_SHA"
           [[ "$BACKUP_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]]
           if [ "$OPERATION" = plan ]; then
             test -z "$PLAN_RUN" && test -z "$CONFIRMATION"
@@ -58,6 +75,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Require identical verified Staging source
+        if: inputs.operation != 'diagnose-sources'
         run: |
           set -euo pipefail
           git fetch --no-tags origin staging
@@ -66,15 +84,30 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - name: Diagnose source predicates with the protected caller only
+        if: inputs.operation == 'diagnose-sources'
+        timeout-minutes: 5
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DIAGNOSTIC_MAIN_SHA: ${{ inputs.diagnostic_main_sha }}
+          DIAGNOSTIC_STAGING_SHA: ${{ inputs.diagnostic_staging_sha }}
+        run: node scripts/dr-staging-conversion-plan.mjs diagnose-sources
       - uses: supabase/setup-cli@v1
+        if: inputs.operation != 'diagnose-sources'
         with:
           version: 2.109.1
       - run: npm ci
+        if: inputs.operation != 'diagnose-sources'
       - run: npm run prisma:generate
+        if: inputs.operation != 'diagnose-sources'
       - run: npm run production:check
+        if: inputs.operation != 'diagnose-sources'
       - run: node scripts/run-npm-audit.mjs
-      - run: npx vitest run scripts/convert-dr-to-staging.test.mjs scripts/dr-staging-conversion-plan.test.mjs scripts/staging-access-entry.test.mjs scripts/staging-data-conversion.test.mjs scripts/staging-runtime.test.mjs scripts/staging-runtime-entry.test.mjs scripts/staging-retired-entry.test.mjs scripts/staging-workflow-contract.test.mjs scripts/lib/production-approval.test.mjs
+        if: inputs.operation != 'diagnose-sources'
+      - run: npx vitest run scripts/convert-dr-to-staging.test.mjs scripts/dr-staging-conversion-plan.test.mjs scripts/dr-staging-source-checks.test.mjs scripts/staging-access-entry.test.mjs scripts/staging-data-conversion.test.mjs scripts/staging-runtime.test.mjs scripts/staging-runtime-entry.test.mjs scripts/staging-retired-entry.test.mjs scripts/staging-workflow-contract.test.mjs scripts/lib/production-approval.test.mjs
+        if: inputs.operation != 'diagnose-sources'
       - name: Download verified encrypted recovery archive
+        if: inputs.operation != 'diagnose-sources'
         uses: actions/download-artifact@v4
         with:
           name: dr-retirement-encrypted-${{ inputs.backup_run_id }}
