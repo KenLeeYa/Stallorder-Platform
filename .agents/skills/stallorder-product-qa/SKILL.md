@@ -167,6 +167,102 @@ bodies or tokens. A reviewed source-only protected diagnostic is not a conversio
 Plan, never qualifies Apply, and cannot reconstruct a historical token/response.
 Do not replay consumed Plans or change page/filter to obtain a green result.
 
+For conversion subprocess failures, preserve the exact allowlisted error code;
+Node assertion messages can append comparison text and become generic at the
+Apply boundary. Test the actual reset/seed subprocess seam with nonzero, null,
+timeout and spawn-error results, secret-bearing captured output and zero later
+commands/network calls. Never log raw CLI output to recover the missing detail.
+After destructive checkpoints, require a separately reviewed continuation bound
+to the failed run, verified backup and proven current partial-data/provider/entry
+state. Original full fingerprints and entry-absent assumptions cannot be replayed
+or waived. Lock-pressure fixture success is not hosted capacity equivalence or
+recovery, and never authorizes legacy workflow activation or parameter changes.
+Partial-retirement evidence must authenticate the exact failed run/attempt and
+immutable archive bytes before parsing any receipt. Require the exact completed
+checkpoint prefix and separate original-backup replay/equivalence evidence;
+provenance validation alone stays diagnostic-only, planQualified=false and
+remainingDataProven=false. Never accept a supplied extracted JSON or today's
+snapshot as proof of unchanged remaining original data, or reuse a consumed Plan.
+Offline restore adapters must reject networked, mounted, published-port or
+privileged targets before archive/SQL transfer. Restore original constraints
+and grants, INSERT only the separately authenticated offline parent exception,
+then compare every original source-column fingerprint and the exception rows.
+A synthetic pg_restore/FK pass is not original-backup or remaining-state proof.
+The partial-proof original-backup reader must authenticate the fixed raw ZIP and
+live run/artifact identity before parsing. Decode only bounded named members,
+keep the original key bytes in the protected parent process, and never emit
+decrypted buffers as evidence. Archive transport without the runner-only key is
+not decryption, restoration or remaining-data equivalence.
+Before offline Storage metadata replay, inspect the ORIGINAL restored DELETE
+graph and exact backup paths, not only today's provider catalog. Keep the original
+guard enabled; reject extra FK/rule/trigger side effects and use only the documented
+transaction-local guard setting in the isolated copy. Replay only completed
+retirement operations and check their readback. Synthetic replay does not prove
+all Storage API effects or live equivalence; remainingDataProven stays false
+until exhaustive remaining data/schema comparison actually passes.
+When deriving remaining data, validate the complete surviving table/ordered-column
+inventory and recheck offline-only reference rows after replay. Exclude those
+references only in the isolated expected projection; the hosted projection must
+include every row and reject any such reference IDs. Keep hashes/snapshots private
+and use one read-only statement for data/catalog consistency. A table-data match
+does not prove types, constraints, routines, ACLs, sequences or current provider
+safety; retain false full-equivalence/qualification flags until those gates pass.
+For structural comparison after restore, preserve logical DDL/ACL/owner and exact
+sequence value/is_called evidence. Generated physical TOAST and internal RI names
+contain new OIDs: bind verified owner/constraint identities without dropping the
+dependency or enabled/argument state. Reject unsupported catalog classes rather
+than ignoring them. Keep catalogs private and qualify catalog functions explicitly.
+Separate data/schema reads do not establish a single consistent snapshot; global
+security/provider checks remain mandatory before any full-equivalence claim.
+Combine final row/catalog evidence into one generated read-only SELECT on both
+the isolated copy and fixed hosted target; preliminary sequence discovery is not
+the evidence snapshot. PostgreSQL sequence state is non-MVCC and setval changes
+survive rollback: one SELECT must not become an atomic sequence or full-global
+consistency claim. Keep that limitation explicit and reject either-side drift.
+The six-schema dump does not establish historical global roles/settings. Capture
+current global security separately, with no password-verifier selection, and do
+not label an inventory as original equivalence or as a passed isolation policy.
+Role settings, extension conditions, labels and event-trigger definitions may
+contain secrets: retain only private in-memory detail and public numeric/false-
+qualification summaries. Use null, not a possible real role name, for all-role
+settings. Read-only catalog inspection must not execute application routines.
+For a partial-retirement observation, query the current DB fence and empty
+Auth/Storage/Vault/private-schema/replication/queue state rather than reusing the
+original full-data fingerprint. Read Auth and Edge metadata independently and
+keep them private. Known constant-value hashes can be matched; hashes of lost
+runner-only random secrets cannot establish fresh independent credentials.
+Zero currently active clients is not proof of future sequence-writer quiescence.
+Partial-entry checks must derive their private baseline from authenticated failed
+Apply/consumed Plan archives, not caller-extracted JSON or the old entry-absent
+predicate. Require complete provider list metadata before claiming QA-token/policy
+absence; a policy with missing identity is not absence evidence. Only an exact
+Vercel not_found404 establishes retired-alias absence, never permission/rate-limit
+errors. Preserve old Cloudflare resources until the acceptance checkpoint permits
+retirement. Configuration/Primary matching is not human Access or runtime acceptance.
+Current partial-proof sources must bind the checked-out SHA to live main/staging
+refs and equal trees, then retain the original source-list/first-match gate intact.
+Verify each selected run's repository, push branch, source and latest attempt.
+Main Readiness needs the actual successful verify-remote job and executed migration,
+stall-code, divergence and lint steps; skipped remote work is never PASS. Verify
+Production mutation steps remained skipped and reject ref/attempt drift on readback.
+These observations are not a source lock, protected invocation, Plan or acceptance.
+Compose partial-state diagnostics behind a separate owner/main/manual protected
+workflow using the existing single-writer concurrency group and read permissions.
+Bind the live invocation, fixed raw archive hashes and backup-bound Git inputs;
+never forward GitHub credentials to a signed archive redirect. Keep key/provider
+environment out of Git/Python/Docker children. Use a fresh no-network/no-mount
+copy and always stop/read back only its exact owned ID. Enumerate public receipt
+fields rather than spreading private adapter returns. A protected observation
+still cannot establish historical global roles, sequence quiescence, fresh lost
+credentials, human/runtime acceptance or any Plan/Apply authority.
+Test final receipt drift with valid, shape-preserving mutations; malformed inputs
+can pass shape guards' tests while leaving equality checks untested. Keep the
+pure receipt policy distinct from authenticated provenance and protected execution.
+Pin both the OCI reference and verified platform-specific image identity where
+Docker engines report index versus config IDs; never accept an arbitrary tag to
+resolve portability. Exercise the exact cleanup shell against external fixtures,
+but report real protected-container cleanup separately.
+
 Closure-notice refreshes arriving during an in-flight read must coalesce into one
 follow-up read, not disappear until the next poll. Test the real component effect
 with a delayed pre-withdrawal snapshot and retain the real browser/API/DB case
