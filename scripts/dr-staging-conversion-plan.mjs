@@ -89,7 +89,10 @@ export async function diagnoseConversionSourceChecks() {
   assert.equal(tree(main), tree(staging), "STAGING_DIAGNOSTIC_TREE_MISMATCH");
   const evidence = await verifySourceCheckShas(main, staging);
   console.log(JSON.stringify({ event: "staging-source-diagnostic", diagnosticOnly: true,
-    planQualified: false, evidence }));
+    planQualified: false, evidence: evidence.map(({ sha, workflow, runId, attempt }) => ({
+      sha, workflow, runId: Number.isSafeInteger(runId) ? runId : null,
+      attempt: Number.isSafeInteger(attempt) ? attempt : null,
+    })) }));
   return evidence;
 }
 

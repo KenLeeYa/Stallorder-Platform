@@ -892,3 +892,61 @@ version/connectivity/login returned200. This is not fresh authenticated proof.
 No new protected-caller evidence or historical source-gate root cause has been
 obtained; diagnostics still cannot qualify a Plan. Normal review/hosted QA,
 persistent Staging acceptance and real-device checks remain incomplete.
+
+### Independent review follow-up (2026-10-23)
+
+Standards and Spec reviewers independently examined the candidate from
+`846df25a` to local commit `e29b38ee`. Each found the same P2: although stderr
+metadata was sanitized, an all-success source-only diagnostic printed raw API
+run IDs and attempts in its final stdout summary. An actual mocked-fetch CLI
+reproduction exited0 and disclosed a sentinel. This was a diagnostic-output
+defect, not evidence of the historical hosted source-gate failure.
+
+A new successful-path regression first failed1/passed14. The correction only
+projects diagnostic summary run IDs/attempts to safe integers or null; original
+query, first-match selection, count/SHA/status/conclusion assertions and returned
+Plan evidence are unchanged. The actual CLI regression now exercises both
+normal and malformed metadata and checks stdout plus stderr. Four focused
+suites pass50 tests, focused ESLint and diff checks pass. Both reviewers then
+independently verified sentinel removal and `planQualified:false`, with no
+remaining Standards or Spec findings. This is local independent review, not a
+GitHub approval or hosted diagnostic receipt.
+
+### Final local security-regression receipt (2026-10-23)
+
+- After the review fix, the unmodified standard unit command passed3482 tests
+  with9 existing skips (572 passing files/2 skipped); typecheck, focused lint,
+  production guardrails and diff checks passed. A fresh native audit exited0
+  with all vulnerability counts0. The five full-lint warnings recorded above
+  remain warnings, not errors.
+- The complete eight-shard production-mode browser run exited0:204 passed,
+  40 environment-specific skips, zero failures/flaky. Per-shard passes were
+  31/31/23/30/28/32/24/5; skips were0/0/11/0/0/0/14/15. The six-minute idle
+  tracker case executed its full wait and passed. No skipped case is counted as
+  passed. The first failed Edge-harness run remains in the appended E2E log.
+- The separate resilience suite passed8/8 in39.4 seconds. Its first launcher
+  attempt failed before tests because direct CLI execution lacked npm's local
+  executable PATH; adding node_modules/.bin to the ignored local launcher
+  restored normal startup. No product/test/config gate was changed.
+- Build/SQL/DB-lint/WebPRNT/Worker evidence above remains applicable: the later
+  fix changed only diagnostic script output/tests/docs, not application or
+  dependency bytes. Hosted CI, paired Preview, ordinary-browser provider checks
+  and real hardware remain separate pending evidence.
+
+Local logs, archives and generated payment/surge fixture receipts are retained
+under ignored `artifacts/dr-staging-next-security-20261023/`. At08:01Z all eight
+active containers with the exact lab project label were stopped; the four
+earlier stopped Edge probes were retained. All12 now read back exited, and
+ports3000/55431/54321/54322/54324/55439/8183 have no listeners. Docker volumes,
+images and data were not deleted. `line-booking-test-20261004` remains running
+on56863, so Docker Desktop was not stopped. To resume only this lab, recheck
+labels, bind sources and free ports, start its existing DB and wait for health,
+then start only its seven canonical companion containers (not old Edge probes)
+and the owned local runner. No default-workspace start/reset is appropriate.
+
+At07:56:31Z the exact Primary alias still bound the same project and deployment;
+revision4e95/version/connectivity/login200 were unchanged. No fresh authenticated
+Staff/SSE claim is made. No protected diagnosis, Plan, Apply, DR reset or Primary
+deployment has occurred. The source-bound normal PR is the next release gate;
+the historical protected-caller predicate and persistent Staging acceptance
+are still unresolved.

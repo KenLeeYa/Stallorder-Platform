@@ -119,13 +119,31 @@ describe("protected source-only diagnostic entry", () => {
     expect(request).not.toHaveBeenCalled();
   });
 
-  it("runs the actual CLI without backup/provider secrets or a Plan/GITHUB_ENV write", async () => {
+  it("redacts malformed run metadata from a successful diagnostic summary", async () => {
+    const summary = vi.spyOn(console, "log").mockImplementation(() => {});
+    request.mockImplementation(async (url) => {
+      const sha = new URL(url).searchParams.get("head_sha");
+      return new Response(JSON.stringify({ total_count: 3, workflow_runs: runsFor(sha).map((run) => ({
+        ...run, id: "private-sentinel", run_attempt: { untrusted: "private-sentinel" },
+      })) }));
+    });
+    await expect(diagnoseConversionSourceChecks()).resolves.toHaveLength(6);
+    const report = JSON.parse(summary.mock.calls[0][0]);
+    expect(report).toMatchObject({ diagnosticOnly: true, planQualified: false });
+    expect(report.evidence).toHaveLength(6);
+    for (const row of report.evidence) expect(row).toMatchObject({ runId: null, attempt: null });
+    expect(JSON.stringify([...output.mock.calls, ...summary.mock.calls])).not.toContain("private-sentinel");
+  });
+
+  it.each([false, true])("runs the actual CLI without backup/provider secrets or writes (malformed metadata: %s)", async (malformed) => {
     const { execFileSync: realExec, spawnSync } = await vi.importActual("node:child_process");
     const sha = realExec("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+    const runs = runsFor(sha).map((run) => malformed
+      ? { ...run, id: "private-sentinel", run_attempt: { untrusted: "private-sentinel" } } : run);
     const fixture = `globalThis.fetch = async (url, options) => {
       if (url !== 'https://api.github.com/repos/KenLeeYa/Stallorder-Platform/actions/runs?head_sha=${sha}&event=push&per_page=100'
         || (options.method ?? 'GET') !== 'GET') throw Error('unexpected request');
-      return new Response(JSON.stringify({total_count:3,workflow_runs:${JSON.stringify(runsFor(sha))}}));
+      return new Response(JSON.stringify({total_count:3,workflow_runs:${JSON.stringify(runs)}}));
     };`;
     const result = spawnSync(process.execPath, ["--import", `data:text/javascript,${encodeURIComponent(fixture)}`,
       "scripts/dr-staging-conversion-plan.mjs", "diagnose-sources"], { encoding: "utf8", env: {
@@ -136,6 +154,6 @@ describe("protected source-only diagnostic entry", () => {
     } });
     expect(result.status, result.stderr).toBe(0);
     expect(JSON.parse(result.stdout)).toMatchObject({ diagnosticOnly: true, planQualified: false });
-    expect(result.stderr).not.toMatch(/fixture-not-a-real-token|BACKUP|PROVIDER/);
+    expect(result.stdout + result.stderr).not.toMatch(/private-sentinel|fixture-not-a-real-token|BACKUP|PROVIDER/);
   });
 });
