@@ -1,7 +1,9 @@
 import { createRequire } from "node:module";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { createStaffOrderSchema } from "../src/lib/staff-order-contract";
 
 const require = createRequire(import.meta.url);
 const root = path.resolve(import.meta.dirname, "..");
@@ -23,11 +25,60 @@ describe("security dependency release contract", () => {
     ["sharp", "0.35.5"],
     ["brace-expansion", "5.0.12"],
     ["shell-quote", "1.11.0"],
-    ["undici", "7.29.1"],
+    ["undici", "7.30.1"],
+    ["zod", "4.6.6"],
     ["source-map-js", "1.2.2"],
     ["vite", "8.2.4"],
   ])("locks %s to its reviewed security release", (name, version) => {
     expect(lock.packages[`node_modules/${name}`].version).toBe(version);
+  });
+
+  it("uses the reviewed Zod release for the application and Vercel CLI config", () => {
+    const configRequire = createRequire(require.resolve("@vercel/cli-config"));
+    expect(configRequire("zod/package.json").version).toBe("4.6.6");
+    expect(Object.entries(lock.packages).filter(([key]) => key.endsWith("node_modules/zod")).map(([, value]) => value.version)).toEqual(["4.6.6"]);
+  });
+
+  it("rejects oversized Staff order collections before validating every element", () => {
+    const result = createStaffOrderSchema.safeParse({
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+      fulfillmentType: "TAKEOUT",
+      paymentTiming: "PAY_LATER",
+      items: Array.from({ length: 101 }, () => ({})),
+    });
+    expect(result.success).toBe(false);
+    expect(result.error.issues).toHaveLength(1);
+    expect(result.error.issues).toEqual([expect.objectContaining({ code: "too_big", path: ["items"], maximum: 100 })]);
+  });
+
+  it("preserves valid Staff orders and rejects invalid elements within the collection limit", () => {
+    const order = {
+      idempotencyKey: "11111111-1111-4111-8111-111111111111",
+      fulfillmentType: "TAKEOUT",
+      paymentTiming: "PAY_LATER",
+      items: [{ productId: "22222222-2222-4222-8222-222222222222", quantity: 1 }],
+    };
+    expect(createStaffOrderSchema.safeParse(order).success).toBe(true);
+    const invalid = createStaffOrderSchema.safeParse({ ...order, items: [{}] });
+    expect(invalid.success).toBe(false);
+    expect(invalid.error.issues).toEqual(expect.arrayContaining([expect.objectContaining({ path: ["items", 0, "productId"] })]));
+  });
+
+  it("preserves Vercel CLI config validation without reading credentials", () => {
+    const { globalConfigSchema } = require("@vercel/cli-config");
+    const config = { credStorage: "file", telemetry: { enabled: false }, updates: { auto: false }, fixtureExtension: true };
+    expect(globalConfigSchema.parse(config)).toEqual(config);
+    expect(globalConfigSchema.safeParse({ credStorage: "invalid" }).success).toBe(false);
+    expect(globalConfigSchema.safeParse({ telemetry: { enabled: "false" } }).success).toBe(false);
+  });
+
+  it.each(["SHA256", "sHa256"])("enforces Undici integrity with a %s algorithm token", async (algorithm) => {
+    const { fetch } = require("undici");
+    const digest = createHash("sha256").update("fixture").digest("base64");
+    const response = await fetch("data:text/plain,fixture", { integrity: `${algorithm}-${digest}` });
+    expect(await response.text()).toBe("fixture");
+    const wrongDigest = createHash("sha256").update("different").digest("base64");
+    await expect(fetch("data:text/plain,fixture", { integrity: `${algorithm}-${wrongDigest}` })).rejects.toThrow("fetch failed");
   });
 
   it("rejects shell comment terminator injection instead of emitting a command", () => {
