@@ -5,6 +5,16 @@ import { decryptPartialProofBackup, readOriginalPartialProofBackup, restoreOrigi
 
 const spawnSync = vi.hoisted(() => vi.fn());
 vi.mock("node:child_process", () => ({ spawnSync }));
+it("rejects caller backup clocks in historical mode before archive parsing or decryption", () => {
+  spawnSync.mockClear();
+  for (const backup of [{ now: new Date("2025-12-01T00:00:00Z") }, { now: new Date() }, { now: undefined },
+    Object.create({ now: new Date("2025-12-01T00:00:00Z") })]) {
+    expect(() => restoreOriginalPartialProofCopy({ backup,
+      retirement: { mode: "consumed-plan-history-v1" }, containerId: "never-used" }))
+      .toThrow(/^STAGING_PARTIAL_BACKUP_INVALID$/);
+  }
+  expect(spawnSync).not.toHaveBeenCalled();
+});
 const key = " synthetic offline-only key with preserved spaces ";
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const ref = "daeqwtpaxcebmtwxqdkj";
