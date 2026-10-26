@@ -213,11 +213,24 @@ the DR conversion complete or qualify the partially converted environment.
 
 The application source is pinned to
 `eb1d925f6cb7d728c054dfdbe96f5c103dde6f96`, tree
-`becf8f2a207562521f9f5f5abd82bc9938371ba0`. A policy-only successor may change only
-this ADR and `docs/qa/pr389-alternative-release-20261026.md`. All other source,
-dependencies, lockfile, tests, build settings, scripts, workflows, schema,
-migrations and seed inputs must remain byte-identical to that source. Any runtime
-change requires a new impact assessment and invalidated acceptance to be rerun.
+`becf8f2a207562521f9f5f5abd82bc9938371ba0`. The two-file policy successor is
+`11b7b2a7cf9c79fd3d23bc9761f7aead6cef0d9b`, tree
+`a4147b34af6cd5e8fffbeeecb6bbb5d92fa5bccc`. Its source-equivalence claim excludes
+only this ADR and `docs/qa/pr389-alternative-release-20261026.md`.
+
+The necessary next safety correction may additionally change only
+`.github/workflows/production-application-release.yml`,
+`scripts/production-application-target.mjs`,
+`scripts/production-application-recovery-plan.mjs`, and their three tests:
+`scripts/lib/production-application-target.test.mjs`,
+`scripts/lib/production-application-exact-recovery.test.mjs`, and
+`scripts/lib/production-application-recovery-plan.test.mjs`. This closes the normal
+application path's unspecified previous-deployment rollback and binds recovery
+to the immutable approval Plan. It requires independent review and fresh checks;
+the earlier documentation-only equivalence does not qualify these controls.
+All other application, dependencies, lockfile, build settings, workflows, schema,
+migrations and seed inputs remain byte-identical. Any further change requires a
+new impact assessment and invalidated acceptance to be rerun.
 
 Retain the candidate PR -> staging -> verified main tree promotion order and all
 required checks. A documentation successor has a new commit and full tree and
@@ -229,6 +242,18 @@ required browser/backend acceptance, a verified compatible Primary-only recovery
 artifact and fresh immutable application Plan/Apply remain mandatory.
 
 Use only `production-application-release.yml` with `retire_dr_runtime=false`.
+The Plan must machine-bind the exact compatible Primary-only recovery artifact,
+its original successful protected Apply and raw artifact digest, current Primary
+deployment/aliases/configuration and promotion epoch. Reverify before any provider
+write and immediately before promotion. An unknown or pending remote operation
+does not authorize recovery; first prove the exact operation reached a terminal
+state. Reject third-party alias/configuration drift. If the original baseline
+remains healthy and unchanged, make no recovery write. Otherwise permit at most
+one explicit recovery promotion and read it back even when its CLI returns an
+error. A recovered release still failed its original operation. Never use an
+unspecified previous deployment, replay a consumed Plan or mark missing evidence
+as passed.
+
 This exception excludes PR366 and Production/DR database/schema/Edge publication,
 DR conversion, replication changes, Auth provider configuration, secrets,
 domains, Access and data cleanup. Normal isolated QA operations in the named
