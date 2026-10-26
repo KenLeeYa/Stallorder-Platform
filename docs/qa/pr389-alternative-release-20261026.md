@@ -1,5 +1,52 @@
 # PR389 alternative application release acceptance
 
+## Latest bounded successor evidence (2026-10-27)
+
+Source `4d50033d77671ff45f7cee4348511c9da39697f9`, tree
+`4fd9b0b5f1781536c0a4189f2b603b1db60153ee`: CI `40369697084` and paired
+`40369697018` succeeded. The test-merge `d140ca53dd9f30329227eff4999c4845928dcd92`
+has that same tree. Paired deployment `dpl_BrmJi52YSb7164ki3jTmkyzvxnx2` targets
+the existing `teunnvfakbfzmodajqjz` backend. Original artifact `12674076073`
+is 325383 bytes, SHA256
+`07e1eb6dbfaa5e9ef2d7325e3ced45da3f34d0a3929bba154ca11be7f587ee57`.
+Four viewport sizes and real browser QR/order tracking passed; this artifact
+explicitly blocks service workers. Fixture reset/cleanup passed; infrastructure
+cleanup was skipped and the existing isolated station remains available for QA.
+
+The exact CI used Node 24.21.0 / Next 16.4.2 / Vitest 4.1.12. Results: 3790 unit
+passes / 9 skips; 146 migrations rebuilt; 1619 pgTAP tests across 72 files passed;
+8 WebPRNT passes; 216 E2E passes / 40 skips; 8 production-mode resilience passes;
+zero audit vulnerabilities. Lint had zero errors and five warnings. Resilience
+and some browser cases overlap, so these counts are not unique-case totals.
+Hosted Supabase stop succeeded. Unit skips are opt-in public-order DB replay;
+E2E skips concern opt-in retained local readiness, toggles, catalog amendments,
+printer indicators and push announcements. They are not counted as passes.
+
+`offline-pwa-foundation.spec.ts` exercised actual SW activation/controller,
+offline reload, a new document in the same context, IndexedDB persistence and
+real local sync API/DB behavior. Local closure, login/security and API cache
+regressions also passed. These results do not prove the deployed Preview's old
+SW upgrade, real OAuth providers or positive SSE Content-Type/frames. Those
+required affected-flow and deployed-environment cases remain incomplete.
+
+Security workflow `40369697004` succeeded in running CodeQL, but its separate
+analysis check `121737883699` failed (two high, four medium). Alerts 72/73 refer
+to array membership; the prior code already used exact-element equality. The
+successor makes equality explicit and rejects noncanonical/duplicate DNS aliases
+at both provider and persisted-baseline boundaries. Twenty added tests produced
+17 failures before the correction; all 198 focused tests pass afterward.
+Independent review accepted this bounded correction. This is local evidence
+against installed Vitest 4.1.11, not a new hosted security result.
+
+Alerts 74–77 identify approved snapshot IDs sent in fixed-origin provider GETs
+and provider metadata written to JSON receipts. Their exact sources, sinks and
+trust checks require documented review; this update does not dismiss alerts,
+suppress rules, post success or change protection. Every source successor still
+requires fresh CI, CodeQL analysis and paired qualification. The saved raw-CDP
+denial is not retried. Release qualification remains false.
+
+## Earlier evidence and adopted policy
+
 Owner adoption: 2026-10-26. Preparation continued after midnight on 2026-10-27
 (Asia/Taipei). Status: adopted policy; release qualification incomplete.
 

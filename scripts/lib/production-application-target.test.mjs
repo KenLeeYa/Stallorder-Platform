@@ -8,6 +8,7 @@ import {
   verifyApplicationRecovery, verifyApplicationTarget,
   readApplicationRuntime,
   settleApplicationPromotion, verifyApplicationRecoveryAdmission,
+  verifyApplicationUnchanged,
 } from "../production-application-target.mjs";
 import { createProductionApprovalReceipt, validateProductionApprovalReceipt } from "./production-approval.mjs";
 
@@ -46,6 +47,35 @@ function fixture() {
 }
 
 describe("application-only provider identity readback", () => {
+  it.each([
+    "https://app.qidaigo.com", "app.qidaigo.com/path", "app.qidaigo.com:443",
+    "app.qidaigo.com@evil.example", "app.qidaigo.com?next=evil", "app.qidaigo.com#evil",
+    " app.qidaigo.com", "app.qidaigo.com\n", "APP.qidaigo.com", "app.qidaigo.com.",
+    "bad..example", "-bad.example", "bad_.example", `${"a".repeat(64)}.example`,
+  ])("rejects noncanonical provider alias %j even with the real Primary alias", async (alias) => {
+    const f = fixture();
+    f.aliases.healthy.aliases.push({ alias });
+    await expect(captureApplicationBaseline(expected, f.api, f.runtime)).rejects.toThrow("RELEASE_ALIASES_UNPROVEN");
+  });
+
+  it.each(["evil-app.qidaigo.com", "app.qidaigo.com.evil.example"])("does not accept lookalike %s as the Primary alias", async (alias) => {
+    const f = fixture();
+    f.aliases.healthy.aliases = [{ alias }];
+    await expect(captureApplicationBaseline(expected, f.api, f.runtime)).rejects.toThrow("RELEASE_PRIMARY_ALIAS_MISSING");
+  });
+
+  it.each([
+    ["app.qidaigo.com", "https://evil.example"],
+    ["app.qidaigo.com", "app.qidaigo.com"],
+    ["app.qidaigo.com", null],
+    "evil-app.qidaigo.com.evil.example",
+  ])("rejects malformed persisted aliases %j before provider access", async (...row) => {
+    const f = fixture(), baseline = await captureApplicationBaseline(expected, f.api, f.runtime);
+    baseline.aliases = row.length === 1 ? row[0] : row;
+    await expect(verifyApplicationUnchanged(baseline, expected, async () => { throw new Error("UNEXPECTED_PROVIDER_ACCESS"); }))
+      .rejects.toThrow("RELEASE_BASELINE_DRIFT");
+  });
+
   it.each(["succeeded", "failed", "skipped"])("admits recovery only for the exact terminal %s job", async (jobStatus) => {
     const f = fixture(), baseline = await captureApplicationBaseline(expected, f.api, f.runtime);
     f.owner.lastAliasRequest = { jobStatus: "succeeded", requestedAt: 5, toDeploymentId: "dpl_healthy", type: "promote" };

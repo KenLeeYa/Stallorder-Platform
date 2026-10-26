@@ -1,5 +1,13 @@
 # StallOrder Architecture and Feature Change Ledger
 
+## 2026-10-27 — Implemented, release blocked: PR389 alias validation and exact CI evidence
+
+CI `40369697084` and paired Preview `40369697018` passed for source `4d50033d77671ff45f7cee4348511c9da39697f9`; tested merge `d140ca53dd9f30329227eff4999c4845928dcd92` has the identical full tree `4fd9b0b5f1781536c0a4189f2b603b1db60153ee`. Actual CI records 3790 unit passes / 9 skips, 146 migration rebuilds, 1619 pgTAP passes, 8 WebPRNT passes, 216 E2E passes / 40 skips, 8 resilience passes and zero dependency audit vulnerabilities. These totals overlap where noted in the QA record. Hosted Supabase stop and Preview fixture reset/cleanup succeeded; the existing Preview infrastructure remains retained.
+
+The security workflow executed successfully, but the separate CodeQL analysis check `121737883699` failed with two high and four medium alerts. Do not describe this as a passing security gate. The high reports concern hostname membership: the prior receiver was an array with exact-element equality, not exploitable substring matching. The bounded correction validates canonical DNS alias elements and persisted baseline arrays, rejects malformed/duplicate aliases, and makes exact equality explicit. Twenty added cases produced 17 expected failures before the change; all 198 focused recovery tests pass after it, with zero pending. Focused lint and syntax checks pass; installed Vitest 4.1.11 still differs from candidate 4.1.12. Independent review accepted the two-file correction; fresh hosted checks remain required after publication.
+
+The four medium reports cover approved-plan identifiers in fixed-origin provider GETs and validated provider metadata in JSON receipts. They remain subject to evidence-based security review; no rule suppression, status forgery or protection change is part of this correction. The actual CI SW/offline-new-document tests reduce the local evidence gap but do not prove the deployed Preview SW update, successful SSE frames or all authenticated affected flows. The saved raw-CDP denial remains unresolved and untried. No Production merge or deployment is qualified by these results.
+
 This ledger is the durable entry point for owner-approved architecture and product-function changes. It prevents a new task from relying only on chat history or rediscovering an already changed contract.
 
 ## Source-of-truth order

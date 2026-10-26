@@ -131,12 +131,19 @@ function verifyDeployment(deployment, sha) {
   if (deployment.meta.backend_target === "DR") fail("RELEASE_BACKEND_TARGET_DRIFT");
 }
 
+function validAliases(aliases) {
+  return Array.isArray(aliases) && aliases.every(alias => typeof alias === "string" && alias.length <= 253
+    && alias.split(".").length > 1
+    && alias.split(".").every(label => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/u.test(label)))
+    && new Set(aliases).size === aliases.length;
+}
+
 async function aliasesFor(api, id) {
   const response = await api(`/v2/deployments/${encodeURIComponent(id)}/aliases?teamId=${team}`);
   if (!Array.isArray(response?.aliases) || response.pagination?.next
     || response.aliases.some((row) => typeof row?.alias !== "string" || !row.alias)) fail("RELEASE_ALIASES_UNPROVEN");
   const aliases = response.aliases.map((row) => row.alias).sort();
-  if (new Set(aliases).size !== aliases.length) fail("RELEASE_ALIASES_UNPROVEN");
+  if (!validAliases(aliases)) fail("RELEASE_ALIASES_UNPROVEN");
   return aliases;
 }
 
@@ -147,7 +154,7 @@ async function captureActive(api, deploymentId, sha) {
   verifyDeployment(deployment, sha);
   if (deployment.id !== deploymentId) fail("RELEASE_PRIMARY_CHANGED");
   const aliases = await aliasesFor(api, deployment.id);
-  if (!aliases.includes(hostname)) fail("RELEASE_PRIMARY_ALIAS_MISSING");
+  if (!aliases.some(alias => alias === hostname)) fail("RELEASE_PRIMARY_ALIAS_MISSING");
   // Deployment/alias reads can race with another promotion after the initial owner snapshot.
   const latest = await ownerState(api);
   if (latest.targets?.production?.id !== deployment.id) fail("RELEASE_PRIMARY_CHANGED");
@@ -180,8 +187,8 @@ async function captureRecovery(parameters, baseline, api, readRuntime) {
 
 function assertBaseline(baseline, parameters) {
   if (baseline?.deploymentId !== parameters.primaryDeploymentId || baseline.sha !== parameters.primarySha
-    || baseline.projectId !== project || baseline.teamId !== team || !Array.isArray(baseline.aliases)
-    || !baseline.aliases.includes(hostname) || baseline.recovery?.deploymentId !== parameters.recoveryDeploymentId
+    || baseline.projectId !== project || baseline.teamId !== team || !validAliases(baseline.aliases)
+    || !baseline.aliases.some(alias => alias === hostname) || baseline.recovery?.deploymentId !== parameters.recoveryDeploymentId
     || baseline.recovery.sha !== parameters.recoverySha || baseline.recovery.resilienceMode !== parameters.resilienceMode) fail("RELEASE_BASELINE_DRIFT");
 }
 
