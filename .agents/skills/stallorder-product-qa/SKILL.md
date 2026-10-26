@@ -279,6 +279,11 @@ follow-up read, not disappear until the next poll. Test the real component effec
 with a delayed pre-withdrawal snapshot and retain the real browser/API/DB case
 with a response barrier, hidden/unmount guards and unchanged assertion deadlines.
 This read-only notice correction must not cancel or mutate the existing order.
+Keep the browser response-barrier route installed until the queued refresh has
+finished: hold only the first real snapshot and pass later requests through.
+A one-shot route can disable interception while that next request starts. Preserve
+the queue-removal negative control; local protocol overlap is not proof of the
+original CI's internal cause when its trace is unavailable.
 
 For existing ordinary Chrome login, distinguish automation-owned tabs from user
 tabs using the current Chrome skill's supported discovery/claim APIs. An empty
