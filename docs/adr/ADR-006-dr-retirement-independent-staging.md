@@ -203,3 +203,45 @@ Provider contracts verified on2026-10-22:
 [exact-domain exceptions](https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection/deployment-protection-exceptions).
 The documented exact-domain exception does not require a paid add-on; this is
 not authorization to purchase protection services or expose the application.
+
+## Owner-adopted PR389 application release alternative (2026-10-26)
+
+The owner explicitly adopted local regression, isolated paired Preview acceptance,
+protected publication and Production verification for this release. For PR389 only,
+this replaces decision 6's persistent-Staging prerequisite; it does not declare
+the DR conversion complete or qualify the partially converted environment.
+
+The application source is pinned to
+`eb1d925f6cb7d728c054dfdbe96f5c103dde6f96`, tree
+`becf8f2a207562521f9f5f5abd82bc9938371ba0`. A policy-only successor may change only
+this ADR and `docs/qa/pr389-alternative-release-20261026.md`. All other source,
+dependencies, lockfile, tests, build settings, scripts, workflows, schema,
+migrations and seed inputs must remain byte-identical to that source. Any runtime
+change requires a new impact assessment and invalidated acceptance to be rerun.
+
+Retain the candidate PR -> staging -> verified main tree promotion order and all
+required checks. A documentation successor has a new commit and full tree and
+must obtain its own required CI/security/paired results. Earlier Preview/UI
+evidence may support unchanged application behavior only with its original source,
+deployment, backend, timestamp and verified source-equivalence record; never
+relabel earlier checks as success for a new revision. Clean candidate validation,
+required browser/backend acceptance, a verified compatible Primary-only recovery
+artifact and fresh immutable application Plan/Apply remain mandatory.
+
+Use only `production-application-release.yml` with `retire_dr_runtime=false`.
+This exception excludes PR366 and Production/DR database/schema/Edge publication,
+DR conversion, replication changes, Auth provider configuration, secrets,
+domains, Access and data cleanup. Normal isolated QA operations in the named
+existing paired branch (reviewed migrations, Edge/test-secret provisioning and
+owned synthetic fixture cleanup) remain allowed; do not create a replacement
+resource or add costs. Do not dispatch Production/DR mutation workflows merely
+because their files exist in the promoted tree. Preserve target/source readback;
+complete affected-flow verification and owned cleanup after release.
+
+The owner's 2026-10-27 clarification permits necessary Docker tests with cleanup
+at test completion. Preserve unrelated services, including carpool. This does
+not authorize new costs, retrying previously denied installation/browser
+operations, changing origin/controller to evade a denial, or substituting
+indirect capture for denied technical evidence. An incomplete required case
+still blocks release. The source-bound evidence matrix and remaining stops are
+recorded in [PR389 alternative release QA](../qa/pr389-alternative-release-20261026.md).
