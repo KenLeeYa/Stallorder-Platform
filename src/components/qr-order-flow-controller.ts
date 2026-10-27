@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePublicClosureNotice } from "@/components/use-public-closure-notice";
 import { defaultInvoiceBuyerSelection } from "@/components/checkout-invoice-selector";
 import { persistQrOrderCartDraft } from "@/components/qr-order-cart-persistence";
 import { startQrOrderAvailabilityLifecycle } from "@/components/qr-order-availability-controller";
@@ -141,6 +142,12 @@ export function useQrOrderFlowController({
         expiresAt: "",
       }
     : null);
+  const closureNotice = usePublicClosureNotice(usableInitialMenu?.stall.code ?? session?.stall.code,
+    usableInitialMenu?.specialClosure ?? session?.specialClosure);
+  const closureRef = useRef(closureNotice.closure);
+  useEffect(() => { closureRef.current = closureNotice.closure; }, [closureNotice.closure]);
+  const reopenPendingRef = useRef(usableInitialMenu?.specialClosure?.isActive === true);
+  const sessionStartPendingRef = useRef(false);
   const [cartLines, setCartLines] = useState<QrCartLine[]>([]);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -177,7 +184,7 @@ export function useQrOrderFlowController({
   const sessionExpiryDialogOpen = !editMode && sessionReady
     && (sessionTimePhase === "EXPIRING" || sessionTimePhase === "EXPIRED");
   const cartDialogOpen = cartOpen && !sessionExpiryDialogOpen;
-  const specialClosureActive = session?.specialClosure?.isActive === true;
+  const specialClosureActive = closureNotice.closure?.isActive === true;
   const outsideBusinessHours = !editMode
     && entryChannel === "QR"
     && (session?.orderingOpenNow ?? usableInitialMenu?.orderingOpenNow) === false;
@@ -322,11 +329,13 @@ export function useQrOrderFlowController({
     currentDeviceId: string,
     browserLocale: QrLocale,
   ) => {
-    if (usableInitialMenu?.specialClosure?.isActive) {
+    if (closureRef.current?.isActive) {
       setIsLoading(false);
       setSessionStartError("");
       return;
     }
+    if (sessionStartPendingRef.current) return;
+    sessionStartPendingRef.current = true;
     setIsLoading(!usableInitialMenu);
     setSessionStartError("");
     const result = await sessionController.start({
@@ -334,7 +343,7 @@ export function useQrOrderFlowController({
       deviceId: currentDeviceId,
       activeOrderingMode,
       entryChannel,
-      initialMenu,
+      initialMenu: initialMenu ? { ...initialMenu, specialClosure: closureRef.current } : initialMenu,
       currentScheduledPickupAt: scheduledPickupAtRef.current,
       loadCartDraft: (resolvedOrderingMode) => window.localStorage.getItem(
         qrCartStorageKey(qrToken, resolvedOrderingMode),
@@ -388,7 +397,11 @@ export function useQrOrderFlowController({
       if (transition.availability) updateOrderingAvailability(transition.availability);
       setSession({
         ...orderSession,
-        orderingOpenNow: orderSession.orderingOpenNow ?? usableInitialMenu?.orderingOpenNow,
+        // A successful live session after withdrawing the initial closure has
+        // passed the server's current business-hours gate; do not restore false
+        // from the closed initial document.
+        orderingOpenNow: usableInitialMenu?.specialClosure?.isActive && !closureRef.current?.isActive
+          ? true : orderSession.orderingOpenNow ?? usableInitialMenu?.orderingOpenNow,
         onlineMenuPath: orderSession.onlineMenuPath ?? usableInitialMenu?.onlineMenuPath,
       });
       setActiveOrderingMode(orderSession.orderingMode);
@@ -413,7 +426,10 @@ export function useQrOrderFlowController({
       setSessionStartError(errorMessage);
       setMessage(errorMessage);
     } finally {
-      if (sessionController.isCurrentAttempt(result.attempt)) setIsLoading(false);
+      if (sessionController.isCurrentAttempt(result.attempt)) {
+        sessionStartPendingRef.current = false;
+        setIsLoading(false);
+      }
     }
   }, [
     activeOrderingMode,
@@ -425,6 +441,14 @@ export function useQrOrderFlowController({
     updateOrderingAvailability,
     usableInitialMenu,
   ]);
+
+  useEffect(() => {
+    if (specialClosureActive) { reopenPendingRef.current = true; return; }
+    if (!closureNotice.refreshed || !reopenPendingRef.current || !deviceId || editMode
+      || orderingAvailability !== "AVAILABLE") return;
+    reopenPendingRef.current = false;
+    if (!sessionReadyRef.current) void startOrderSession(deviceId, localeRef.current);
+  }, [closureNotice.refreshed, specialClosureActive, deviceId, editMode, orderingAvailability, startOrderSession]);
 
   useEffect(() => {
     if (!cartDialogOpen) return;
@@ -482,7 +506,6 @@ export function useQrOrderFlowController({
       }
       localeRef.current = browserLocale;
       setLocale(browserLocale);
-      setDeviceId(currentDeviceId);
       if (!editMode) {
         const recoveredOrder = await resolveQrOrderRecovery({
           storage: window.localStorage,
@@ -500,6 +523,7 @@ export function useQrOrderFlowController({
           return;
         }
       }
+      setDeviceId(currentDeviceId);
       if (editTrackingToken && usableInitialMenu) {
         const editSession: QrOrderSession = {
           ...usableInitialMenu,
@@ -576,7 +600,17 @@ export function useQrOrderFlowController({
         updateOrderingAvailability("AVAILABLE");
         if (editMode) return;
         if (!shouldStartSession) return;
-        if (targetChanged) sessionController.rotateSessionIdentity();
+        if (targetChanged) {
+          sessionController.rotateSessionIdentity();
+          sessionStartPendingRef.current = false;
+          sessionReadyRef.current = false;
+          setSession((current) => current ? {
+            ...current,
+            orderSessionToken: "",
+            expiresAt: "",
+          } : current);
+          setSessionTimePhase("INACTIVE");
+        }
         await startOrderSession(deviceId, localeRef.current);
       },
     });
@@ -954,7 +988,7 @@ export function useQrOrderFlowController({
     selectBundleChoice,
     selectFulfillmentTime,
     selectNoteOption,
-    session,
+    session: session ? { ...session, specialClosure: closureNotice.closure } : session,
     sessionExpiryDialogOpen,
     sessionReady,
     sessionStartError,

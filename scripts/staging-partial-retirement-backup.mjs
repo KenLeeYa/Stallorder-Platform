@@ -21,7 +21,7 @@ function requireBackup(condition) { if (!condition) throw new Error("STAGING_PAR
 
 // The caller obtains fresh GitHub metadata and raw ZIP bytes. Caller-extracted
 // members are never accepted here. The runner-only key stays in this process.
-export function readOriginalPartialProofBackup({ run, artifact, zip, key, now = new Date() }) {
+export function assertOriginalPartialProofArchive({ run, artifact, zip, now = new Date() }) {
   if (!(Buffer.isBuffer(zip) && zip.length === 9441387 && hash(zip) === digest
     && run?.id === Number(runId) && run.run_attempt === 1 && run.head_sha === commit
     && run.head_branch === branch && run.path === ".github/workflows/dr-staging-backup.yml"
@@ -36,6 +36,10 @@ export function readOriginalPartialProofBackup({ run, artifact, zip, key, now = 
     && artifact.workflow_run.head_repository_id === 1298874780)) {
     throw new Error("STAGING_PARTIAL_BACKUP_ARCHIVE_INVALID");
   }
+}
+
+export function readOriginalPartialProofBackup({ run, artifact, zip, key, now = new Date() }) {
+  assertOriginalPartialProofArchive({ run, artifact, zip, now });
   // Standard-library ZIP decoding only: no extraction, key, provider environment,
   // pickle, imported archive code or arbitrary paths. Bound expanded bytes too.
   const script = `import base64,io,json,sys,zipfile
@@ -75,6 +79,13 @@ with zipfile.ZipFile(io.BytesIO(sys.stdin.buffer.read())) as archive:
 // plaintext. Only a fresh isolated copy is written. The private replay snapshot
 // in this return value must never be logged or uploaded as a receipt.
 export function restoreOriginalPartialProofCopy({ backup, retirement, containerId }) {
+  // Reject corrupt historical identity before decrypting; still recheck against
+  // the actual manifest file count below before giving plaintext to Docker.
+  if (retirement?.mode === "consumed-plan-history-v1") {
+    requireBackup(backup && !("now" in backup));
+    assertOriginalPartialProofArchive(backup);
+    readFailedRetirementEvidence(retirement);
+  }
   const original = readOriginalPartialProofBackup(backup);
   readFailedRetirementEvidence({ ...retirement, fileCount: original.manifest.files.length,
     backup: { runId, commit, artifactId: 12368487539, artifactDigest: `sha256:${digest}` } });

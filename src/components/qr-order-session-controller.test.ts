@@ -232,6 +232,29 @@ describe("QR order session controller", () => {
     await expect(first).resolves.toEqual({ kind: "STALE", attempt: 1 });
   });
 
+  it.each([true, false])("invalidates a pending response on identity rotation before another start (ok %s)", async (ok) => {
+    let finish!: (value: Awaited<ReturnType<QrSessionTransport>>) => void;
+    const requestSession = vi.fn<QrSessionTransport>()
+      .mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }))
+      .mockResolvedValueOnce({ ok: true, status: 200, payload: sessionPayload("DEFAULT") });
+    const controller = createQrOrderSessionController({ requestSession, ...identities() });
+    const input = {
+      qrToken: "qr-token",
+      deviceId: "device-id",
+      activeOrderingMode: "DEFAULT" as const,
+      entryChannel: "QR" as const,
+      initialMenu: menu("DEFAULT"),
+      currentScheduledPickupAt: "",
+    };
+    const first = controller.start(input);
+    controller.rotateSessionIdentity();
+    finish({ ok, status: ok ? 200 : 422, payload: ok ? sessionPayload("DEFAULT") : { code: "INVALID_SESSION_REQUEST" } });
+    await expect(first).resolves.toEqual({ kind: "STALE", attempt: 1 });
+    expect(controller.sessionRequestId()).toBe("request-2");
+    await expect(controller.start(input)).resolves.toMatchObject({ kind: "SESSION" });
+    expect(requestSession.mock.calls.map(([request]) => request.sessionRequestId)).toEqual(["request-1", "request-2"]);
+  });
+
   it("owns checkout idempotency across equal, changed, and cleared fingerprints", () => {
     let uuid = 0;
     let operation = 0;

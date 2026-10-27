@@ -203,3 +203,126 @@ Provider contracts verified on2026-10-22:
 [exact-domain exceptions](https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection/deployment-protection-exceptions).
 The documented exact-domain exception does not require a paid add-on; this is
 not authorization to purchase protection services or expose the application.
+
+## Owner-adopted PR389 application release alternative (2026-10-26)
+
+The owner explicitly adopted local regression, isolated paired Preview acceptance,
+protected publication and Production verification for this release. For PR389 only,
+this replaces decision 6's persistent-Staging prerequisite; it does not declare
+the DR conversion complete or qualify the partially converted environment.
+
+The application source is pinned to
+`eb1d925f6cb7d728c054dfdbe96f5c103dde6f96`, tree
+`becf8f2a207562521f9f5f5abd82bc9938371ba0`. The two-file policy successor is
+`11b7b2a7cf9c79fd3d23bc9761f7aead6cef0d9b`, tree
+`a4147b34af6cd5e8fffbeeecb6bbb5d92fa5bccc`. Its source-equivalence claim excludes
+only this ADR and `docs/qa/pr389-alternative-release-20261026.md`.
+
+The necessary next safety correction may additionally change only
+`.github/workflows/production-application-release.yml`,
+`scripts/production-application-target.mjs`,
+`scripts/production-application-recovery-plan.mjs`, and their three tests:
+`scripts/lib/production-application-target.test.mjs`,
+`scripts/lib/production-application-exact-recovery.test.mjs`, and
+`scripts/lib/production-application-recovery-plan.test.mjs`. This closes the normal
+application path's unspecified previous-deployment rollback and binds recovery
+to the immutable approval Plan. It requires independent review and fresh checks;
+the earlier documentation-only equivalence does not qualify these controls.
+All other application, dependencies, lockfile, build settings, workflows, schema,
+migrations and seed inputs remain byte-identical. Any further change requires a
+new impact assessment and invalidated acceptance to be rerun.
+
+Retain the candidate PR -> staging -> verified main tree promotion order and all
+required checks. A documentation successor has a new commit and full tree and
+must obtain its own required CI/security/paired results. Earlier Preview/UI
+evidence may support unchanged application behavior only with its original source,
+deployment, backend, timestamp and verified source-equivalence record; never
+relabel earlier checks as success for a new revision. Clean candidate validation,
+required browser/backend acceptance, a verified compatible Primary-only recovery
+artifact and fresh immutable application Plan/Apply remain mandatory.
+
+Use only `production-application-release.yml` with `retire_dr_runtime=false`.
+The Plan must machine-bind the exact compatible Primary-only recovery artifact,
+its original successful protected Apply and raw artifact digest, current Primary
+deployment/aliases/configuration and promotion epoch. Reverify before any provider
+write and immediately before promotion. An unknown or pending remote operation
+does not authorize recovery; first prove the exact operation reached a terminal
+state. Reject third-party alias/configuration drift. If the original baseline
+remains healthy and unchanged, make no recovery write. Otherwise permit at most
+one explicit recovery promotion and read it back even when its CLI returns an
+error. A recovered release still failed its original operation. Never use an
+unspecified previous deployment, replay a consumed Plan or mark missing evidence
+as passed.
+
+This exception excludes PR366 and Production/DR database/schema/Edge publication,
+DR conversion, replication changes, Auth provider configuration, secrets,
+domains, Access and data cleanup. Normal isolated QA operations in the named
+existing paired branch (reviewed migrations, Edge/test-secret provisioning and
+owned synthetic fixture cleanup) remain allowed; do not create a replacement
+resource or add costs. Do not dispatch Production/DR mutation workflows merely
+because their files exist in the promoted tree. Preserve target/source readback;
+complete affected-flow verification and owned cleanup after release.
+
+The owner's 2026-10-27 clarification permits necessary Docker tests with cleanup
+at test completion. Preserve unrelated services, including carpool. This does
+not authorize new costs, retrying previously denied installation/browser
+operations, changing origin/controller to evade a denial, or substituting
+indirect capture for denied technical evidence. An incomplete required case
+still blocks release. The source-bound evidence matrix and remaining stops are
+recorded in [PR389 alternative release QA](../qa/pr389-alternative-release-20261026.md).
+
+## PR389 closure-freshness correction impact assessment (2026-10-27)
+
+The earlier eight-file release-control allowance above describes that historical
+successor. The owner-authorized correction of the newly reproduced Menu/QR
+freshness defect is bound to predecessor `cd6f64cd858895718665f857884ae5073d97e289`,
+full tree `abcd57605331f4ab3853f1675313a8cc2d7412a5`. Its application/test scope is
+limited to these nine files plus this ADR, the QA record and architecture ledger:
+
+- `src/components/use-public-closure-notice.ts` (new shared read-only refresh hook)
+- `src/components/public-menu-live-content.tsx` (new Menu client notice boundary)
+- `src/components/public-menu-closure-refresh.test.tsx` (new consumer regressions)
+- `src/test/stateful-hook-runtime.ts` (new unit-test helper)
+- `src/components/qr-order-flow-controller.ts`
+- `src/app/store/[identifier]/public-menu-view.tsx`
+- `src/app/store/[identifier]/page.tsx`
+- `src/app/store/[identifier]/public-menu-view.test.tsx`
+- `e2e/staff-kds-print-closure-flow.spec.ts`
+
+Impact: already-open Menu and QR must reflect closure additions, edits and
+withdrawals. QR must preserve cart, draft and a valid session; an initially
+closed QR may start a session only after closure withdrawal and completion of
+existing-order recovery. A delayed recovery lookup must not create a duplicate
+or unnecessary session. Failed closure reads must not reopen a known closure.
+Use the existing public closures endpoint, visible bounded polling and focus/
+visibility refresh; do not change authorization, server ordering checks or
+provider configuration to obtain a passing result.
+
+The prior application-byte-equivalence claim does not cover these changed
+consumers. Their old Menu/QR acceptance is invalidated: require fresh focused
+regressions, lint/type checks, unchanged protected CI/security and paired Preview
+qualification, then actual kept-open Menu/QR add/edit/remove UI and owned cleanup.
+Local mocked hook evidence is not deployed browser acceptance. Retain original
+source/deployment/timestamps for unaffected earlier evidence. Compare the complete
+successor tree and prove all files outside this exact scope unchanged.
+
+This amendment changes no dependency, lockfile, schema, migration, seed, Edge,
+resilience, release workflow or provider setting. In particular the 22 fixed
+recovery-compatibility scopes and full main/staging tree equality checks remain
+unchanged. It adds no release waiver, cost, DR conversion, retry of denied
+operations or replacement capture route. The bounded PR389 alternative remains
+subject to all required technical acceptance, protected promotion, immutable
+Plan/Apply and live Production affected-flow verification.
+
+### 2026-10-27 closure contract alignment
+
+The closure-freshness successor additionally updates `src/components/special-hours-ui.contract.test.ts` to follow the new server-view to client-shell to reminder wiring. This makes the accumulated bounded correction ten source/test files plus the same three release documents. No runtime byte, migration, Edge function, backend binding or protection is changed by this test-only alignment. The existing reminder/localization/storage assertions remain enforced; 48/48 focused local regressions pass after reproducing the old contract failure. Fresh protected CI/security and paired acceptance remain required, including the unchanged complete-tree and 22-scope recovery compatibility gates.
+
+
+### 2026-10-27 backend-target supersession correction
+
+Fresh CI exposed a session-start regression introduced by the closure pending guard. The necessary corrective successor is bound to c1d9200e3c9da3966e3ac7180b434923eaf405dd / tree e1c819fbc0049f97c44e3871407951bbda26b673. It changes only qr-order-flow-controller.ts, qr-order-session-controller.ts, public-menu-closure-refresh.test.tsx and qr-order-session-controller.test.ts under src/components, plus these same three release documents. The accumulated closure correction is therefore twelve source/test files and three documents; the two session-controller files are the only newly added paths.
+
+Identity rotation must immediately invalidate old attempts even when closure defers the replacement request. A backend change clears the obsolete token/readiness, while same-target starts remain deduplicated. A late old completion must neither release the new pending guard nor overwrite the current session. Preserve cart/draft and existing-order recovery ordering. Six negative cases reproduce the defect before correction; 54 focused tests pass afterwards with lint and extracted-source typecheck. Fresh same-source hosted E2E and paired UI must confirm the fix.
+
+This amendment changes no dependency, schema, seed, migration, Edge, provider binding or release control. Keep all 22 fixed recovery-compatibility scopes, complete-tree equality, protected checks, technical browser evidence and Plan/Apply gates unchanged. The c1 ordinary UI result supports only its original source and must not be relabeled as a successor release pass.

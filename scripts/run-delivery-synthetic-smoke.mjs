@@ -283,65 +283,67 @@ async function cleanupSyntheticState() {
     orderId = externalOrder?.internalOrderId ?? null;
   }
 
-  await prisma.$transaction(async (transaction) => {
-    if (syntheticExternalOrderId) {
-      await transaction.deliverySyncJob.deleteMany({
-        where: {
-          provider: "MOCK",
-          OR: [
-            {
-              deduplicationKey:
-                `order-import:MOCK:${syntheticExternalOrderId}`,
-            },
-            {
-              deduplicationKey: {
-                startsWith:
-                  deliveryActionDeduplicationPrefix(syntheticExternalOrderId),
-              },
-            },
-          ],
-        },
-      });
-      if (syntheticEventId) {
-        await transaction.deliveryWebhookEvent.deleteMany({
-          where: {
-            provider: "MOCK",
-            externalEventId: syntheticEventId,
+  // All owned keys are known: submit one ordered atomic batch without an interactive transaction ID.
+  const deletions = [];
+  if (syntheticExternalOrderId) {
+    deletions.push(prisma.deliverySyncJob.deleteMany({
+      where: {
+        provider: "MOCK",
+        OR: [
+          {
+            deduplicationKey:
+              `order-import:MOCK:${syntheticExternalOrderId}`,
           },
-        });
-      }
-      await transaction.externalOrder.deleteMany({
+          {
+            deduplicationKey: {
+              startsWith:
+                deliveryActionDeduplicationPrefix(syntheticExternalOrderId),
+            },
+          },
+        ],
+      },
+    }));
+    if (syntheticEventId) {
+      deletions.push(prisma.deliveryWebhookEvent.deleteMany({
         where: {
           provider: "MOCK",
-          externalOrderId: syntheticExternalOrderId,
+          externalEventId: syntheticEventId,
         },
-      });
+      }));
     }
-    if (orderId) {
-      await transaction.order.deleteMany({
-        where: {
-          id: orderId,
-          source: "MOCK",
-          isTest: true,
-        },
-      });
-    }
-    if (oauthTransactionId) {
-      await transaction.oAuthTransaction.deleteMany({
-        where: { id: oauthTransactionId },
-      });
-    }
-    if (sessionId) {
-      await transaction.authSession.deleteMany({
-        where: { id: sessionId },
-      });
-    }
-    if (oauthSessionTokenHash) {
-      await transaction.authSession.deleteMany({
-        where: { tokenHash: oauthSessionTokenHash },
-      });
-    }
-  });
+    deletions.push(prisma.externalOrder.deleteMany({
+      where: {
+        provider: "MOCK",
+        externalOrderId: syntheticExternalOrderId,
+      },
+    }));
+  }
+  if (orderId) {
+    deletions.push(prisma.order.deleteMany({
+      where: {
+        id: orderId,
+        source: "MOCK",
+        isTest: true,
+      },
+    }));
+  }
+  if (oauthTransactionId) {
+    deletions.push(prisma.oAuthTransaction.deleteMany({
+      where: { id: oauthTransactionId },
+    }));
+  }
+  if (sessionId) {
+    deletions.push(prisma.authSession.deleteMany({
+      where: { id: sessionId },
+    }));
+  }
+  if (oauthSessionTokenHash) {
+    deletions.push(prisma.authSession.deleteMany({
+      where: { tokenHash: oauthSessionTokenHash },
+    }));
+  }
+
+  await prisma.$transaction(deletions);
 }
 
 async function importPendingOrder(externalOrderId) {

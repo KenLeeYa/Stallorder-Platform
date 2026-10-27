@@ -183,6 +183,17 @@ checkpoint prefix and separate original-backup replay/equivalence evidence;
 provenance validation alone stays diagnostic-only, planQualified=false and
 remainingDataProven=false. Never accept a supplied extracted JSON or today's
 snapshot as proof of unchanged remaining original data, or reuse a consumed Plan.
+For expired/missing consumed-Plan artifacts, consult
+`docs/qa/dr-staging-plan-evidence-recovery-20261025.md`. Historical transport must
+be explicit, pin the original raw bytes and fresh original run/source/job/archive
+identities, derive its window from authenticated failed-job evidence, and expose
+no current approval or execution capability. Preserve the default artifact/expiry
+guards; local original-byte fixtures are not protected activation or DR acceptance.
+When wiring historical evidence into a full proof, pass the same private raw
+bundle to every consumer and revalidate it there, not a success boolean or fake
+Plan metadata. Reject own and inherited caller clocks; Apply/backup expiry stays
+current. Keep mode selection explicit, the ZIP secret conditional and proof-step
+only, final safety/invocation readback intact, and public history fields enumerated.
 Offline restore adapters must reject networked, mounted, published-port or
 privileged targets before archive/SQL transfer. Restore original constraints
 and grants, INSERT only the separately authenticated offline parent exception,
@@ -268,6 +279,11 @@ follow-up read, not disappear until the next poll. Test the real component effec
 with a delayed pre-withdrawal snapshot and retain the real browser/API/DB case
 with a response barrier, hidden/unmount guards and unchanged assertion deadlines.
 This read-only notice correction must not cancel or mutate the existing order.
+Keep the browser response-barrier route installed until the queued refresh has
+finished: hold only the first real snapshot and pass later requests through.
+A one-shot route can disable interception while that next request starts. Preserve
+the queue-removal negative control; local protocol overlap is not proof of the
+original CI's internal cause when its trace is unavailable.
 
 For existing ordinary Chrome login, distinguish automation-owned tabs from user
 tabs using the current Chrome skill's supported discovery/claim APIs. An empty

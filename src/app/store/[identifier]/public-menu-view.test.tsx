@@ -60,7 +60,7 @@ describe("PublicMenuView category navigation", () => {
       },
     };
 
-    const html = renderToStaticMarkup(<PublicMenuView menu={menu} locale="zh-TW" />);
+    const html = renderToStaticMarkup(<PublicMenuView identifier="demo" menu={menu} locale="zh-TW" />);
 
     expect(html).toContain('data-testid="public-menu-category-navigation"');
     expect(html).toContain("position:sticky");
@@ -108,7 +108,7 @@ describe("PublicMenuView category navigation", () => {
       },
     };
 
-    const html = renderToStaticMarkup(<PublicMenuView menu={menu} locale="zh-TW" />);
+    const html = renderToStaticMarkup(<PublicMenuView identifier="demo" menu={menu} locale="zh-TW" />);
 
     expect(html.indexOf("熱食")).toBeLessThan(html.indexOf("冷食"));
   });
@@ -147,7 +147,7 @@ describe("PublicMenuView category navigation", () => {
       },
     };
 
-    const html = renderToStaticMarkup(<PublicMenuView menu={menu} locale="vi" />);
+    const html = renderToStaticMarkup(<PublicMenuView identifier="demo" menu={menu} locale="vi" />);
 
     expect(html).toContain("Phở nước");
     expect(html).toContain("Nước dùng bò");
@@ -189,7 +189,7 @@ describe("PublicMenuView category navigation", () => {
       },
     };
 
-    const html = renderToStaticMarkup(<PublicMenuView menu={menu} locale="zh-TW" />);
+    const html = renderToStaticMarkup(<PublicMenuView identifier="demo" menu={menu} locale="zh-TW" />);
 
     expect(html).toContain("主餐商品");
     expect(html).toContain("https://example.test/sold-out.webp");

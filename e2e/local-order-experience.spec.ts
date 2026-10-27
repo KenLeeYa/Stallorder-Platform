@@ -152,7 +152,12 @@ test("an existing preorder shows a new closure notice and a pickup-day popup wit
   let snapshotReady!: () => void;
   const olderSnapshot = new Promise<void>((resolve) => { releaseOlderSnapshot = resolve; });
   const snapshotCaptured = new Promise<void>((resolve) => { snapshotReady = resolve; });
+  let holdNextSnapshot = true;
+  // Keep interception enabled while the queued refresh starts; a one-shot route
+  // can disable Chromium interception concurrently with that next request.
   await page.route("**/api/public/stores/*/closures", async (route) => {
+    if (!holdNextSnapshot) { await route.continue(); return; }
+    holdNextSnapshot = false;
     const response = await route.fetch();
     expect(response.status()).toBe(200);
     const payload = await response.json() as { closures: Array<{ id: string }> };
@@ -160,7 +165,7 @@ test("an existing preorder shows a new closure notice and a pickup-day popup wit
     snapshotReady();
     await olderSnapshot;
     await route.fulfill({ response });
-  }, { times: 1 });
+  });
   await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
   try {
     await snapshotCaptured;
