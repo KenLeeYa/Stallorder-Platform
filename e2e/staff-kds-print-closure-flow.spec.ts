@@ -1,7 +1,7 @@
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { expect, test, type Page, type Response } from "@playwright/test";
+import { expect, test, type Page, type Request, type Response } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { derivePublicOrderTokens } from "../supabase/functions/_shared/crypto";
 import {
@@ -34,6 +34,63 @@ let originalSettings: {
 const temporarilyDisabledPrinterIds: string[] = [];
 const createdOrderIds: string[] = [];
 const createdClosureIds: string[] = [];
+
+async function readOrderSessionIdentity(request: Request, closureExpected = false) {
+  try {
+    const input: unknown = request.postDataJSON();
+    const response = await request.response();
+    if (!response || !input || typeof input !== "object") throw new Error();
+    const payload: unknown = await response.json();
+    if (!payload || typeof payload !== "object") throw new Error();
+    const { sessionRequestId, includeMenu } = input as Record<string, unknown>;
+    const { orderSessionToken, expiresAt } = payload as Record<string, unknown>;
+    if (typeof sessionRequestId !== "string" || !sessionRequestId.trim()
+      || typeof includeMenu !== "boolean") throw new Error();
+    const requestIdHash = createHash("sha256").update(sessionRequestId).digest("hex");
+    if (response.status() === 409 && (payload as Record<string, unknown>).code === "STALL_SPECIAL_CLOSURE") {
+      // This exact preflight denial occurs before session issuance. Only permit
+      // it for a request observed while this case is creating/holding a closure.
+      if (!closureExpected || includeMenu
+        || Object.hasOwn(payload, "orderSessionToken") || Object.hasOwn(payload, "expiresAt")) throw new Error();
+      return { status: 409, requestIdHash, includeMenu, closureDenied: true as const };
+    }
+    if (typeof orderSessionToken !== "string" || !orderSessionToken.trim()
+      || typeof expiresAt !== "string" || !Number.isFinite(Date.parse(expiresAt))) throw new Error();
+    return {
+      status: response.status(),
+      requestIdHash,
+      tokenHash: createHash("sha256").update(orderSessionToken).digest("hex"),
+      expiresAt,
+      includeMenu,
+      closureDenied: false as const,
+    };
+  } catch {
+    // Never expose a session token or raw request/response body in failure logs.
+    throw new Error("Unable to verify order session identity from a completed request.");
+  }
+}
+
+async function expectPreservedOrderSession(
+  requests: Array<{ request: Request; closureExpected: boolean }>,
+  initial: Awaited<ReturnType<typeof readOrderSessionIdentity>>,
+) {
+  if (initial.closureDenied) throw new Error("The initial order session must be created.");
+  const identities = await Promise.all(requests.map(observed => (
+    readOrderSessionIdentity(observed.request, observed.closureExpected)
+  )));
+  expect(identities.filter(identity => identity.status === 201)).toHaveLength(1);
+  for (const [index, identity] of identities.entries()) {
+    expect(identity.requestIdHash).toBe(initial.requestIdHash);
+    if (identity.closureDenied) {
+      expect(index).toBeGreaterThan(0);
+      continue;
+    }
+    expect(identity.status).toBe(index === 0 ? 201 : 200);
+    if (index > 0) expect(identity.includeMenu).toBe(false);
+    expect(identity.tokenHash).toBe(initial.tokenHash);
+    expect(identity.expiresAt).toBe(initial.expiresAt);
+  }
+}
 
 async function acknowledgeSettingsFeedback(page: Page, message: string) {
   const dialog = page.getByRole("dialog", { name: "操作已完成", exact: true });
@@ -845,10 +902,12 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       await ownerPage.goto(`/merchant/stalls/${stallId}/settings/special-hours`);
       const menuPage = await customerContext.newPage();
       const qrPage = await customerContext.newPage();
-      let sessionRequests = 0;
-      qrPage.on("request", request => {
-        if (request.method() === "POST" && new URL(request.url()).pathname.endsWith("/create-order-session")) sessionRequests++;
-      });
+      let closureExpected = false;
+      const sessionRequests: Array<{ request: Request; closureExpected: boolean }> = [];
+      const trackSessionRequest = (request: Request) => {
+        if (request.method() === "POST" && new URL(request.url()).pathname.endsWith("/create-order-session")) sessionRequests.push({ request, closureExpected });
+      };
+      qrPage.on("request", trackSessionRequest);
       // Both customer documents must predate every merchant mutation below.
       await menuPage.goto("/store/aming-01?view=menu");
       await qrPage.goto(`/q/${qrToken}`);
@@ -860,7 +919,9 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       await expect(publicBanner).toHaveCount(0);
       await expect(qrBanner).toHaveCount(0);
       await expect(selection).toBeEnabled();
-      await expect.poll(() => sessionRequests).toBe(1);
+      await expect.poll(() => sessionRequests.length).toBe(1);
+      const initialSessionIdentity = await readOrderSessionIdentity(sessionRequests[0].request);
+      expect(initialSessionIdentity.status).toBe(201);
       const menuDocument = await menuPage.evaluate(() => performance.timeOrigin);
       const qrDocument = await qrPage.evaluate(() => performance.timeOrigin);
 
@@ -872,6 +933,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       await editor.getByLabel("公告標題").fill(closureTitle);
       await editor.getByLabel("補充說明（選填）").fill(closureMessage);
       const createResponsePromise = waitForClosureCommand(ownerPage, "CREATE");
+      closureExpected = true;
       await editor.getByRole("button", { name: "儲存", exact: true }).click();
       const createResponse = await createResponsePromise;
       expect(createResponse.status()).toBe(200);
@@ -913,6 +975,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       const deleteResponsePromise = waitForClosureCommand(ownerPage, "DELETE");
       await deleteDialog.getByRole("button", { name: "確認刪除", exact: true }).click();
       expect((await deleteResponsePromise).status()).toBe(200);
+      closureExpected = false;
       await expect(article).toHaveCount(0);
       await acknowledgeSettingsFeedback(ownerPage, "特殊營業日已刪除。");
       createdClosureIds.splice(createdClosureIds.indexOf(closureId!), 1);
@@ -925,7 +988,10 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       await expect(selection).toBeEnabled();
       expect(await menuPage.evaluate(() => performance.timeOrigin)).toBe(menuDocument);
       expect(await qrPage.evaluate(() => performance.timeOrigin)).toBe(qrDocument);
-      expect(sessionRequests).toBe(1);
+      // Capacity refresh reuses this endpoint every 60 seconds. It must retain
+      // the original session identity and expiry, never create another session.
+      qrPage.off("request", trackSessionRequest);
+      await expectPreservedOrderSession(sessionRequests, initialSessionIdentity);
     } finally {
       try {
         await prisma.$transaction(originalBusinessHours.map((hour) => (
