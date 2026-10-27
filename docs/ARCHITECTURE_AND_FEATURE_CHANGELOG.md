@@ -1,5 +1,29 @@
 # StallOrder Architecture and Feature Change Ledger
 
+## 2026-10-27 reviewed closure-freshness correction
+
+Scope limit: live closure refresh requires the canonical public store identifier. The reproduced special-closure flow retains that identifier even while closed. The pre-existing degraded path that loads with businessStatus CLOSED or orderingState PAUSED can return no initial menu; a later full Edge session omits stall.code, so that path is not covered by this refresh correction. It is not a regression introduced here, must not be counted as accepted, and must not use a guessed slug as a public code. Completing it requires a separately reviewed canonical-identity contract; this successor does not change Edge or the recovery compatibility scope.
+
+The nine source/test postimages in closure-refresh freeze v1 received separate correctness/spec and standards reviews with no remaining required correction. The local focused suite passed 44 tests with zero failures or skips; all nine candidate files passed ESLint with zero errors or warnings, and strict TypeScript checking of the extracted source closure passed. Three original consumer regressions and two delayed recovery cases first reproduced the defect. The shared refresh preserves existing cart/session state, and recovery completes before an initially closed QR can start its first session.
+
+The source-bound local harness used installed Next 16.4.0 and Vitest 4.1.11; it is not a clean build of the candidate Next 16.4.2 and Vitest 4.1.12 dependencies. The actual retained-document browser regression is added but has not run locally. Fresh hosted CI/security/paired Preview and normal kept-open Menu/QR acceptance remain mandatory on this successor. Previous green checks and the failed deployed UI observation belong only to the predecessor. This review does not authorize bypassing a denied operation or declare release qualification.
+
+## 2026-10-27 — Existing-page Menu/QR closure freshness defect
+
+Normal in-app browser acceptance on paired 0facbae found that an owned closure
+remained visible and QR ordering stayed disabled approximately 99 seconds after
+successful merchant deletion. Both pages had been observed visible; normal reload
+restored them. Source review confirmed missing closure synchronization in Menu
+server props and QR initial state. Tracker-only polling and prior new-page E2E
+coverage do not establish existing-page correctness. No order or payment was
+created, and the exact synthetic closure was removed.
+
+The sanitized official support continuation was referred to a specialist; this
+is not permission-reset proof. Ordinary UI work and a source-bound repair proceed
+without denied-operation retries, local Docker, new costs or Production writes.
+Release qualification remains false; predecessor CI badges cannot qualify the
+successor. See the [QA record](qa/pr389-alternative-release-20261026.md).
+
 ## 2026-10-27 — Implemented, release blocked: PR389 alias validation and exact CI evidence
 
 CI `40369697084` and paired Preview `40369697018` passed for source `4d50033d77671ff45f7cee4348511c9da39697f9`; tested merge `d140ca53dd9f30329227eff4999c4845928dcd92` has the identical full tree `4fd9b0b5f1781536c0a4189f2b603b1db60153ee`. Actual CI records 3790 unit passes / 9 skips, 146 migration rebuilds, 1619 pgTAP passes, 8 WebPRNT passes, 216 E2E passes / 40 skips, 8 resilience passes and zero dependency audit vulnerabilities. These totals overlap where noted in the QA record. Hosted Supabase stop and Preview fixture reset/cleanup succeeded; the existing Preview infrastructure remains retained.

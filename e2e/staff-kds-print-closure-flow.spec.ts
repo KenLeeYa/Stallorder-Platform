@@ -809,119 +809,112 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
     }
   });
 
-  test("單日公休同步顯示於公開 Menu 與 QR，且顧客無法下單", async ({
+  test("已開啟的 Menu 與 QR 同步新增、更新及撤回公休且不重新導覽", async ({
     browser,
   }, testInfo) => {
     test.setTimeout(180_000);
     const today = taipeiDate();
     const closureTitle = `${runMarker} 今日公休`;
+    const updatedTitle = `${closureTitle} 更新`;
     const closureMessage = "設備保養，明日恢復營業。";
     const ownerContext = await browser.newContext({
       locale: "zh-TW",
       timezoneId: "Asia/Taipei",
     });
+    const customerContext = await browser.newContext({
+      locale: "zh-TW",
+      timezoneId: "Asia/Taipei",
+      viewport: { width: 390, height: 844 },
+    });
     try {
       const ownerPage = await ownerContext.newPage();
       await login(ownerPage, "owner@stallorder.test", /\/merchant\/dashboard/);
-      await ownerPage.goto(
-        `/merchant/stalls/${stallId}/settings/special-hours`,
-      );
-      await ownerPage
-        .getByRole("button", { name: "新增特殊營業日", exact: true })
-        .click();
-      const closureEditor = ownerPage.getByRole("dialog", {
-        name: "特殊營業時間／店休",
+      await ownerPage.goto(`/merchant/stalls/${stallId}/settings/special-hours`);
+      const menuPage = await customerContext.newPage();
+      const qrPage = await customerContext.newPage();
+      let sessionRequests = 0;
+      qrPage.on("request", request => {
+        if (request.method() === "POST" && new URL(request.url()).pathname.endsWith("/create-order-session")) sessionRequests++;
       });
-      await closureEditor.getByLabel("開始日期").fill(today);
-      await closureEditor.getByLabel("結束日期").fill(today);
-      await closureEditor
-        .getByRole("button", { name: /^關閉 僅限所選日期/u })
-        .click();
-      await closureEditor.getByLabel("公告標題").fill(closureTitle);
-      await closureEditor.getByLabel("補充說明（選填）").fill(closureMessage);
+      // Both customer documents must predate every merchant mutation below.
+      await menuPage.goto("/store/aming-01?view=menu");
+      await qrPage.goto(`/q/${qrToken}`);
+      const publicBanner = menuPage.getByTestId("public-menu-special-closure");
+      const qrMain = qrPage.locator("main:visible").last();
+      const qrBanner = qrMain.getByTestId("qr-special-closure");
+      const qrProduct = qrMain.getByRole("article").filter({ hasText: product.name });
+      const selection = qrProductSelectionControl(qrProduct, product.name);
+      await expect(publicBanner).toHaveCount(0);
+      await expect(qrBanner).toHaveCount(0);
+      await expect(selection).toBeEnabled();
+      await expect.poll(() => sessionRequests).toBe(1);
+      const menuDocument = await menuPage.evaluate(() => performance.timeOrigin);
+      const qrDocument = await qrPage.evaluate(() => performance.timeOrigin);
+
+      await ownerPage.getByRole("button", { name: "新增特殊營業日", exact: true }).click();
+      const editor = ownerPage.getByRole("dialog", { name: "特殊營業時間／店休" });
+      await editor.getByLabel("開始日期").fill(today);
+      await editor.getByLabel("結束日期").fill(today);
+      await editor.getByRole("button", { name: /^關閉 僅限所選日期/u }).click();
+      await editor.getByLabel("公告標題").fill(closureTitle);
+      await editor.getByLabel("補充說明（選填）").fill(closureMessage);
       const createResponsePromise = waitForClosureCommand(ownerPage, "CREATE");
-      await closureEditor
-        .getByRole("button", { name: "儲存", exact: true })
-        .click();
+      await editor.getByRole("button", { name: "儲存", exact: true }).click();
       const createResponse = await createResponsePromise;
       expect(createResponse.status()).toBe(200);
-      const createPayload = (await createResponse.json()) as {
-        closures: Array<{ id: string; title: string }>;
-      };
-      const closureId = createPayload.closures.find(
-        (closure) => closure.title === closureTitle,
-      )?.id;
+      const createPayload = await createResponse.json() as { closures: Array<{ id: string; title: string }> };
+      const closureId = createPayload.closures.find(closure => closure.title === closureTitle)?.id;
       expect(closureId).toEqual(expect.any(String));
       createdClosureIds.push(closureId!);
-      await expect(
-        ownerPage.getByRole("article").filter({ hasText: closureTitle }),
-      ).toBeVisible();
       await acknowledgeSettingsFeedback(ownerPage, "特殊營業日已新增。");
 
-      const customerContext = await browser.newContext({
-        locale: "zh-TW",
-        timezoneId: "Asia/Taipei",
-        viewport: { width: 390, height: 844 },
-      });
-      try {
-        const customerPage = await customerContext.newPage();
-        await customerPage.goto("/store/aming-01?view=menu");
-        const publicBanner = customerPage.getByTestId(
-          "public-menu-special-closure",
-        );
-        await expect(publicBanner).toContainText(closureTitle);
-        await expect(publicBanner).toContainText(closureMessage);
-        await expect(customerPage.getByRole("main")).toContainText(
-          product.name,
-        );
+      await menuPage.bringToFront();
+      await expect(publicBanner).toContainText(closureTitle, { timeout: 45_000 });
+      await expect(publicBanner).toContainText(closureMessage);
+      await expect(menuPage.getByRole("main")).toContainText(product.name);
+      await qrPage.bringToFront();
+      await expect(qrBanner).toContainText(closureTitle, { timeout: 45_000 });
+      await expect(qrBanner).toContainText(closureMessage);
+      await expect(selection).toBeDisabled();
+      await expect(qrMain.getByTestId("qr-mobile-cart-summary")).toHaveCount(0);
 
-        await customerPage.goto(`/q/${qrToken}`);
-        const qrMain = customerPage.locator("main:visible").last();
-        const qrBanner = qrMain.getByTestId("qr-special-closure");
-        await expect(qrBanner).toContainText(closureTitle);
-        await expect(qrBanner).toContainText(closureMessage);
-        const qrProduct = qrMain
-          .getByRole("article")
-          .filter({ hasText: product.name });
-        await expect(
-          qrProductSelectionControl(qrProduct, product.name),
-        ).toBeDisabled();
-        await expect(qrMain.getByTestId("qr-mobile-cart-summary")).toHaveCount(
-          0,
-        );
-        await expect(customerPage.locator("[data-nextjs-dialog]")).toHaveCount(
-          0,
-        );
-        await customerPage.screenshot({
-          path: testInfo.outputPath("qr-special-closure-mobile.png"),
-          fullPage: true,
-        });
-      } finally {
-        await customerContext.close();
-      }
+      await ownerPage.getByRole("article").filter({ hasText: closureTitle }).getByRole("button").click();
+      await editor.getByLabel("公告標題").fill(updatedTitle);
+      const updateResponsePromise = waitForClosureCommand(ownerPage, "UPDATE");
+      await editor.getByRole("button", { name: "儲存", exact: true }).click();
+      expect((await updateResponsePromise).status()).toBe(200);
+      const savedDialog = ownerPage.getByRole("dialog", { name: "操作已完成", exact: true });
+      await savedDialog.getByRole("button", { name: "我知道了", exact: true }).click();
+      await menuPage.bringToFront();
+      await expect(publicBanner).toContainText(updatedTitle, { timeout: 45_000 });
+      await qrPage.bringToFront();
+      await expect(qrBanner).toContainText(updatedTitle, { timeout: 45_000 });
+      await expect(selection).toBeDisabled();
+      await expect(qrPage.locator("[data-nextjs-dialog]")).toHaveCount(0);
+      await qrPage.screenshot({ path: testInfo.outputPath("qr-special-closure-mobile.png"), fullPage: true });
 
-      const closureArticle = ownerPage
-        .getByRole("article")
-        .filter({ hasText: closureTitle });
-      await closureArticle.getByRole("button").click();
-      const editEditor = ownerPage.getByRole("dialog", {
-        name: "特殊營業時間／店休",
-      });
-      await editEditor
-        .getByRole("button", { name: "刪除此設定", exact: true })
-        .click();
-      const deleteDialog = ownerPage.getByRole("dialog", {
-        name: "確定刪除這筆特殊營業日設定？",
-      });
+      const article = ownerPage.getByRole("article").filter({ hasText: updatedTitle });
+      await article.getByRole("button").click();
+      await editor.getByRole("button", { name: "刪除此設定", exact: true }).click();
+      const deleteDialog = ownerPage.getByRole("dialog", { name: "確定刪除這筆特殊營業日設定？" });
       const deleteResponsePromise = waitForClosureCommand(ownerPage, "DELETE");
-      await deleteDialog
-        .getByRole("button", { name: "確認刪除", exact: true })
-        .click();
+      await deleteDialog.getByRole("button", { name: "確認刪除", exact: true }).click();
       expect((await deleteResponsePromise).status()).toBe(200);
-      await expect(closureArticle).toHaveCount(0);
+      await expect(article).toHaveCount(0);
       await acknowledgeSettingsFeedback(ownerPage, "特殊營業日已刪除。");
       createdClosureIds.splice(createdClosureIds.indexOf(closureId!), 1);
+      await menuPage.bringToFront();
+      await expect(publicBanner).toHaveCount(0, { timeout: 45_000 });
+      await expect(menuPage.getByRole("dialog").filter({ hasText: updatedTitle })).toHaveCount(0);
+      await qrPage.bringToFront();
+      await expect(qrBanner).toHaveCount(0, { timeout: 45_000 });
+      await expect(qrPage.getByRole("dialog").filter({ hasText: updatedTitle })).toHaveCount(0);
+      await expect(selection).toBeEnabled();
+      expect(await menuPage.evaluate(() => performance.timeOrigin)).toBe(menuDocument);
+      expect(await qrPage.evaluate(() => performance.timeOrigin)).toBe(qrDocument);
+      expect(sessionRequests).toBe(1);
     } finally {
+      await customerContext.close();
       await ownerContext.close();
     }
   });

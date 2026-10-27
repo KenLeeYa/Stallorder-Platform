@@ -1,14 +1,13 @@
-import { CalendarOff, Flame, MapPin, Package, Store } from "lucide-react";
+import { Flame, MapPin, Package, Store } from "lucide-react";
 import { ProductImage } from "@/components/product-image";
-import { MenuNoticeDialogs } from "@/components/menu-notice-dialogs";
+import { PublicMenuLiveContent } from "@/components/public-menu-live-content";
 import type { AppLocale } from "@/lib/app-locale";
 import { publicMessages } from "@/lib/messages/public";
 import { formatMoney } from "@/lib/money";
 import type { PublicMenu, PublicMenuProduct } from "@/lib/public-menu-types";
-import { localizeSpecialClosureTitle } from "@/lib/special-closures-client";
 import { LocationGuideDialog } from "./location-guide-dialog";
 
-export function PublicMenuView({ menu, locale }: { menu: PublicMenu; locale: AppLocale }) {
+export function PublicMenuView({ menu, locale, identifier }: { menu: PublicMenu; locale: AppLocale; identifier: string }) {
   const sections = groupProductsByCategory(menu.products, locale);
   const mapQuery = menu.stall.address?.trim() || menu.stall.location.trim() || menu.stall.name;
   const encodedMapQuery = encodeURIComponent(mapQuery);
@@ -19,8 +18,9 @@ export function PublicMenuView({ menu, locale }: { menu: PublicMenu; locale: App
   const googleMapsNavigationUrl = `https://www.google.com/maps/search/?api=1&query=${encodedMapQuery}`;
 
   return (
-    <main data-testid="storefront-menu-view" className="min-h-screen bg-[#f5f1e8] text-stone-950 print:bg-white">
-      <MenuNoticeDialogs key={JSON.stringify(menu.specialClosure ?? null)} closure={menu.specialClosure} announcement={menu.announcement} locale={locale} timeZone={menu.stall.timezone} />
+    <PublicMenuLiveContent identifier={identifier}
+      menu={{ stall: menu.stall, specialClosure: menu.specialClosure, announcement: menu.announcement }}
+      locale={locale} header={
       <header className="border-b border-stone-900/10 bg-[#0f766e] text-white print:border-stone-300 print:bg-white print:text-stone-950">
         <div className="relative isolate mx-auto max-w-6xl overflow-hidden px-4 py-8 sm:px-6 sm:py-11 lg:px-8">
           {menu.stall.coverImageUrl ? <div data-testid="public-menu-cover-image" className="absolute inset-0 -z-10 overflow-hidden bg-teal-950 print:hidden">
@@ -70,22 +70,7 @@ export function PublicMenuView({ menu, locale }: { menu: PublicMenu; locale: App
           </div>
         </div>
       </header>
-
-      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-9 lg:px-8">
-        {menu.specialClosure ? (
-          <section
-            role={menu.specialClosure.isActive ? "alert" : "status"}
-            data-testid="public-menu-special-closure"
-            className={`mb-7 flex items-start gap-3 rounded-2xl border p-4 shadow-sm ${menu.specialClosure.isActive ? "border-red-300 bg-red-50 text-red-950" : "border-amber-300 bg-amber-50 text-amber-950"}`}
-          >
-            <CalendarOff className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-            <div>
-              <h2 className="font-bold">{localizeSpecialClosureTitle(menu.specialClosure.title, locale)}</h2>
-              <p className="mt-1 text-sm font-semibold">{formatClosureRange(menu.specialClosure, locale)}</p>
-              {menu.specialClosure.message ? <p className="mt-1 text-sm leading-6">{menu.specialClosure.message}</p> : null}
-            </div>
-          </section>
-        ) : null}
+      }>
         {sections.length > 1 ? (
           <nav data-testid="public-menu-category-navigation" aria-label={publicMessages.get(locale, "menuCategoryNavigation")} style={{ position: "sticky", top: "var(--storefront-mode-nav-height, 7rem)" }} className="z-30 -mx-4 mb-7 flex gap-2 overflow-x-auto border-y border-stone-200 bg-[#f5f1e8]/95 px-4 py-3 shadow-sm backdrop-blur print:hidden sm:mx-0 sm:px-3">
             {sections.map((section, index) => (
@@ -136,24 +121,10 @@ export function PublicMenuView({ menu, locale }: { menu: PublicMenu; locale: App
         <footer className="mt-10 border-t border-stone-300 py-5 text-center text-xs leading-5 text-stone-500">
           {publicMessages.get(locale, "menuFooter")}
         </footer>
-      </div>
-    </main>
+    </PublicMenuLiveContent>
   );
 }
 
-function formatClosureRange(
-  closure: NonNullable<PublicMenu["specialClosure"]>,
-  locale: AppLocale,
-) {
-  const formatter = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "UTC" });
-  const start = formatter.format(new Date(`${closure.startsOn}T00:00:00.000Z`));
-  const dates = closure.startsOn === closure.endsOn
-    ? start
-    : `${start} – ${formatter.format(new Date(`${closure.endsOn}T00:00:00.000Z`))}`;
-  return closure.opensAt && closure.closesAt
-    ? `${dates} · ${closure.opensAt}–${closure.closesAt}`
-    : dates;
-}
 
 function MenuProductCard({
   product,

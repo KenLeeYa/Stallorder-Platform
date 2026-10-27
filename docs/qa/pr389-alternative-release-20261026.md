@@ -1,5 +1,49 @@
 # PR389 alternative application release acceptance
 
+## 2026-10-27 reviewed closure-freshness correction
+
+Scope limit: live closure refresh requires the canonical public store identifier. The reproduced special-closure flow retains that identifier even while closed. The pre-existing degraded path that loads with businessStatus CLOSED or orderingState PAUSED can return no initial menu; a later full Edge session omits stall.code, so that path is not covered by this refresh correction. It is not a regression introduced here, must not be counted as accepted, and must not use a guessed slug as a public code. Completing it requires a separately reviewed canonical-identity contract; this successor does not change Edge or the recovery compatibility scope.
+
+The nine source/test postimages in closure-refresh freeze v1 received separate correctness/spec and standards reviews with no remaining required correction. The local focused suite passed 44 tests with zero failures or skips; all nine candidate files passed ESLint with zero errors or warnings, and strict TypeScript checking of the extracted source closure passed. Three original consumer regressions and two delayed recovery cases first reproduced the defect. The shared refresh preserves existing cart/session state, and recovery completes before an initially closed QR can start its first session.
+
+The source-bound local harness used installed Next 16.4.0 and Vitest 4.1.11; it is not a clean build of the candidate Next 16.4.2 and Vitest 4.1.12 dependencies. The actual retained-document browser regression is added but has not run locally. Fresh hosted CI/security/paired Preview and normal kept-open Menu/QR acceptance remain mandatory on this successor. Previous green checks and the failed deployed UI observation belong only to the predecessor. This review does not authorize bypassing a denied operation or declare release qualification.
+
+## 2026-10-27 existing-page closure acceptance
+
+Ordinary Codex in-app browser checks on paired merge `0facbae4992ad0dbaf6ff9c98b582704d6b2dcde`
+(deployment `dpl_FmztqPwqWRTrXUqx3S9Vofis7pVk`) passed synthetic owner login and
+owner/session persistence in a fresh document. An owned one-day closure displayed
+on Menu and disabled QR ordering after normal navigation. Exact fixture deletion
+persisted, but both already-open pages retained the closure approximately 99
+seconds later while visible. Normal reload then removed the notice and restored
+QR controls. No order, payment or cash shift was created. Existing-page closure
+freshness is FAILED on that deployed source, independently of the saved browser
+capability denial. A successful reload does not qualify automatic refresh.
+
+Source review identifies static Menu server props and QR's retained initial
+closure. The existing 30-second/visibility refresh applies to the order tracker,
+not Menu/QR. The previous E2E opened customer pages after closure creation and
+closed them before deletion, so it could not detect this failure. Required
+regression keeps pages open across add/update/remove and preserves cart/session.
+The exact nine-file application/test scope and three documentation files are
+listed in the ADR-006 closure-freshness impact assessment. Its earlier eight-file
+allowance belongs to the historical release-control successor; it is not a
+source-equivalence claim for this closure correction.
+
+The exact cd6f64cd/tree abcd5760 predecessor completed CI 40423247875, security
+40423247871, separate CodeQL analysis 121923526621 and paired 40423247885. Original
+counts were 3810 unit passes / 9 skips, 146 migrations, 1619 pgTAP assertions,
+216 E2E passes / 40 skips, 8 overlapping resilience passes and audit zero. The
+full tested merge tree equaled the source tree. Those results do not qualify
+changed successor code; fresh checks and current deployed UI acceptance are required.
+
+The owner-approved sanitized official support continuation has been referred to
+a support specialist. No supported single-origin reset has been supplied and no
+denied operation has been retried. Ordinary UI work continues; deployed SW
+upgrade, cache behavior and positive SSE technical proof remain separate gaps.
+Release qualification remains false. Protected staging/main checks, immutable
+Plan/Apply and Production affected-flow QA are required after pre-release acceptance.
+
 ## Latest bounded successor evidence (2026-10-27)
 
 Source `4d50033d77671ff45f7cee4348511c9da39697f9`, tree

@@ -270,3 +270,46 @@ operations, changing origin/controller to evade a denial, or substituting
 indirect capture for denied technical evidence. An incomplete required case
 still blocks release. The source-bound evidence matrix and remaining stops are
 recorded in [PR389 alternative release QA](../qa/pr389-alternative-release-20261026.md).
+
+## PR389 closure-freshness correction impact assessment (2026-10-27)
+
+The earlier eight-file release-control allowance above describes that historical
+successor. The owner-authorized correction of the newly reproduced Menu/QR
+freshness defect is bound to predecessor `cd6f64cd858895718665f857884ae5073d97e289`,
+full tree `abcd57605331f4ab3853f1675313a8cc2d7412a5`. Its application/test scope is
+limited to these nine files plus this ADR, the QA record and architecture ledger:
+
+- `src/components/use-public-closure-notice.ts` (new shared read-only refresh hook)
+- `src/components/public-menu-live-content.tsx` (new Menu client notice boundary)
+- `src/components/public-menu-closure-refresh.test.tsx` (new consumer regressions)
+- `src/test/stateful-hook-runtime.ts` (new unit-test helper)
+- `src/components/qr-order-flow-controller.ts`
+- `src/app/store/[identifier]/public-menu-view.tsx`
+- `src/app/store/[identifier]/page.tsx`
+- `src/app/store/[identifier]/public-menu-view.test.tsx`
+- `e2e/staff-kds-print-closure-flow.spec.ts`
+
+Impact: already-open Menu and QR must reflect closure additions, edits and
+withdrawals. QR must preserve cart, draft and a valid session; an initially
+closed QR may start a session only after closure withdrawal and completion of
+existing-order recovery. A delayed recovery lookup must not create a duplicate
+or unnecessary session. Failed closure reads must not reopen a known closure.
+Use the existing public closures endpoint, visible bounded polling and focus/
+visibility refresh; do not change authorization, server ordering checks or
+provider configuration to obtain a passing result.
+
+The prior application-byte-equivalence claim does not cover these changed
+consumers. Their old Menu/QR acceptance is invalidated: require fresh focused
+regressions, lint/type checks, unchanged protected CI/security and paired Preview
+qualification, then actual kept-open Menu/QR add/edit/remove UI and owned cleanup.
+Local mocked hook evidence is not deployed browser acceptance. Retain original
+source/deployment/timestamps for unaffected earlier evidence. Compare the complete
+successor tree and prove all files outside this exact scope unchanged.
+
+This amendment changes no dependency, lockfile, schema, migration, seed, Edge,
+resilience, release workflow or provider setting. In particular the 22 fixed
+recovery-compatibility scopes and full main/staging tree equality checks remain
+unchanged. It adds no release waiver, cost, DR conversion, retry of denied
+operations or replacement capture route. The bounded PR389 alternative remains
+subject to all required technical acceptance, protected promotion, immutable
+Plan/Apply and live Production affected-flow verification.
