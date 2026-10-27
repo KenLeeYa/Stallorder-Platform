@@ -1,5 +1,19 @@
 # PR389 alternative application release acceptance
 
+## 2026-10-27 closure-refresh E2E business-hours prerequisite
+
+The 39cc1be5 CI run 40468536191 failed the new kept-open closure case before creating a closure: the initial QR product selector was disabled. The source-bound seed is open 17:00–23:00 Asia/Taipei and closed on Monday; the failing attempt was at approximately 16:14 Taipei. Public-menu ordering correctly uses those hours. The backend-target supersession case now passed.
+
+This test-only successor captures the seven existing business-hour IDs for the owned synthetic stall, opens those rows for this case, and restores their original opensAt, closesAt, lastOrderAt and isClosed values in a finally transaction. Prisma updatedAt advances normally. Both browser contexts are closed even if restoration fails. No application runtime, assertion, timeout, session-count expectation, workflow or release protection changes.
+
+Four source-bound fixture lifecycle regressions fail against the predecessor and pass with the candidate: outside-hours/Monday setup, browser failure, setup unknown/partial outcome and context-close failure. Together with the unchanged 54 focused cases, local validation is 58 passed, zero failed or skipped; strict extracted E2E typecheck and lint pass. Prisma and browser boundaries are mocked in this local lifecycle harness. Installed Next 16.4.0/Vitest 4.1.11 differ from the candidate dependency versions, so this is not clean-build or hosted E2E qualification. Fresh hosted checks remain required for this successor.
+
+For predecessor 39cc1be5, security 40468536119 and paired Preview 40468536255 succeeded. CI recorded 3828 unit passes/9 skips, 1619 pgTAP passes, eight WebPRNT passes, and 210 E2E passes/25 skips/one failure before the final shard; final-shard E2E, resilience and dependency audit did not run. Hosted Supabase and paired owned-fixture cleanup succeeded; the paired infrastructure remains retained.
+
+Ordinary Codex in-app browser acceptance on test merge 810fabb9 (the identical 39cc1be5 full tree), deployment dpl_B4Q8rFN5LGmwSEEX7d7vXLEALsc7, passed closure creation, title update and withdrawal on the same open Menu/QR documents without reload. QR controls blocked during closure, then reopened while the original session remained valid; the one-item cart was preserved. The owned closure/cart were removed and the three owned tabs stopped; no order, payment or shift was created. This verifies ordinary UI behavior of the unchanged runtime, not Service Worker controller/live API/positive SSE technical acceptance.
+
+Saved full_cdp denial remains unresolved; no denied operation or permission change was attempted. Required technical acceptance, protected staging/main source checks, immutable Plan/Apply and Production affected-flow verification remain open. releaseQualified=false. PR366 and DR conversion/restore gates are independent and incomplete.
+
 ## 2026-10-27 backend-target session supersession correction
 
 CI on c1d9200e exposed a real QR regression: the closure refresh pending guard prevented the second session start required when the backend target changed. Both the initial E2E attempt and its retry failed. The minimal correction invalidates the old attempt immediately when its identity rotates, clears only the obsolete session token/readiness on a target change, and allows only the current attempt to release its pending guard. A closure still defers session creation; reopening starts once, preserving the cart and draft.

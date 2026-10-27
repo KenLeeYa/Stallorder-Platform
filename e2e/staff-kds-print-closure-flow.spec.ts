@@ -817,6 +817,12 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
     const closureTitle = `${runMarker} 今日公休`;
     const updatedTitle = `${closureTitle} 更新`;
     const closureMessage = "設備保養，明日恢復營業。";
+    const originalBusinessHours = await prisma.stallBusinessHour.findMany({
+      where: { organizationId, stallId },
+      orderBy: { dayOfWeek: "asc" },
+      select: { id: true, opensAt: true, closesAt: true, lastOrderAt: true, isClosed: true },
+    });
+    expect(originalBusinessHours).toHaveLength(7);
     const ownerContext = await browser.newContext({
       locale: "zh-TW",
       timezoneId: "Asia/Taipei",
@@ -827,6 +833,13 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       viewport: { width: 390, height: 844 },
     });
     try {
+      // Keep this closure-refresh case independent of the seeded 17:00-23:00
+      // schedule. Restore the exact captured hours even if browser QA fails.
+      const openedHours = await prisma.stallBusinessHour.updateMany({
+        where: { organizationId, stallId, id: { in: originalBusinessHours.map((hour) => hour.id) } },
+        data: { opensAt: "00:00", closesAt: "00:00", lastOrderAt: null, isClosed: false },
+      });
+      expect(openedHours.count).toBe(7);
       const ownerPage = await ownerContext.newPage();
       await login(ownerPage, "owner@stallorder.test", /\/merchant\/dashboard/);
       await ownerPage.goto(`/merchant/stalls/${stallId}/settings/special-hours`);
@@ -914,8 +927,21 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       expect(await qrPage.evaluate(() => performance.timeOrigin)).toBe(qrDocument);
       expect(sessionRequests).toBe(1);
     } finally {
-      await customerContext.close();
-      await ownerContext.close();
+      try {
+        await prisma.$transaction(originalBusinessHours.map((hour) => (
+          prisma.stallBusinessHour.update({
+            where: { id: hour.id },
+            data: {
+              opensAt: hour.opensAt,
+              closesAt: hour.closesAt,
+              lastOrderAt: hour.lastOrderAt,
+              isClosed: hour.isClosed,
+            },
+          })
+        )));
+      } finally {
+        await Promise.all([customerContext.close(), ownerContext.close()]);
+      }
     }
   });
 });
