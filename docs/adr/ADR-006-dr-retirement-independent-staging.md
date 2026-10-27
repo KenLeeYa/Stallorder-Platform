@@ -317,3 +317,12 @@ Plan/Apply and live Production affected-flow verification.
 ### 2026-10-27 closure contract alignment
 
 The closure-freshness successor additionally updates `src/components/special-hours-ui.contract.test.ts` to follow the new server-view to client-shell to reminder wiring. This makes the accumulated bounded correction ten source/test files plus the same three release documents. No runtime byte, migration, Edge function, backend binding or protection is changed by this test-only alignment. The existing reminder/localization/storage assertions remain enforced; 48/48 focused local regressions pass after reproducing the old contract failure. Fresh protected CI/security and paired acceptance remain required, including the unchanged complete-tree and 22-scope recovery compatibility gates.
+
+
+### 2026-10-27 backend-target supersession correction
+
+Fresh CI exposed a session-start regression introduced by the closure pending guard. The necessary corrective successor is bound to c1d9200e3c9da3966e3ac7180b434923eaf405dd / tree e1c819fbc0049f97c44e3871407951bbda26b673. It changes only qr-order-flow-controller.ts, qr-order-session-controller.ts, public-menu-closure-refresh.test.tsx and qr-order-session-controller.test.ts under src/components, plus these same three release documents. The accumulated closure correction is therefore twelve source/test files and three documents; the two session-controller files are the only newly added paths.
+
+Identity rotation must immediately invalidate old attempts even when closure defers the replacement request. A backend change clears the obsolete token/readiness, while same-target starts remain deduplicated. A late old completion must neither release the new pending guard nor overwrite the current session. Preserve cart/draft and existing-order recovery ordering. Six negative cases reproduce the defect before correction; 54 focused tests pass afterwards with lint and extracted-source typecheck. Fresh same-source hosted E2E and paired UI must confirm the fix.
+
+This amendment changes no dependency, schema, seed, migration, Edge, provider binding or release control. Keep all 22 fixed recovery-compatibility scopes, complete-tree equality, protected checks, technical browser evidence and Plan/Apply gates unchanged. The c1 ordinary UI result supports only its original source and must not be relabeled as a successor release pass.

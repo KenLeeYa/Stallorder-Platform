@@ -218,6 +218,7 @@ export function createQrOrderSessionController(
       return sessionRequestId;
     },
     rotateSessionIdentity() {
+      attemptGeneration++;
       sessionRequestId = createUuid();
       sessionOperationId = createOperationId();
     },

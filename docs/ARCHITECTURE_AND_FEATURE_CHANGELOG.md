@@ -1,5 +1,16 @@
 # StallOrder Architecture and Feature Change Ledger
 
+## 2026-10-27 backend-target session supersession correction
+
+CI on c1d9200e exposed a real QR regression: the closure refresh pending guard prevented the second session start required when the backend target changed. Both the initial E2E attempt and its retry failed. The minimal correction invalidates the old attempt immediately when its identity rotates, clears only the obsolete session token/readiness on a target change, and allows only the current attempt to release its pending guard. A closure still defers session creation; reopening starts once, preserving the cart and draft.
+
+The four-file source-bound candidate adds six regressions (RED: 17 passed / 6 failed; GREEN: 54 passed / 0 failed / 0 skipped). Focused lint and strict extracted-source TypeScript pass. This is local harness evidence with the disclosed installed dependency versions, not a claim that hosted E2E passed. Independent review and fresh successor CI/security/paired acceptance are required. No test is disabled or timeout relaxed.
+
+Predecessor c1 CI 40463782852 passed 3822 unit tests (9 skipped), 1619 pgTAP checks and 8 WebPRNT tests, but its executed E2E shards had 182 passed / 11 skipped / 1 failed. Later shards, resilience smoke and audit did not run; hosted Supabase cleanup succeeded. Paired 40463782773 and security/CodeQL succeeded. Ordinary Codex in-app browser on the source-bound paired deployment passed retained-document closure create/update/remove with cart preservation; normal expired-session refresh also restored the draft. The exact owned closure and cart were cleared, with no order/payment/shift created. These receipts retain their original source and do not qualify changed v3 runtime bytes.
+
+Release remains incomplete: fresh successor tests, required technical service-worker/live API/positive SSE proof, protected staging/main promotion, immutable Plan/Apply and Production affected-flow QA remain mandatory. Official support supplied read-only follow-up questions; no supported saved-denial reset has been confirmed and no denied operation was retried. Production remains on 4e95d2ea. No local Docker/carpool operation or new paid resource occurred.
+
+
 ## 2026-10-27 full-suite contract correction
 
 The first hosted successor CI (40462715519, source 34817a6f) passed installation, lint, UI control audit and typecheck, then reported 3821 unit passes, one failure and nine skips. The sole failure was the existing special-hours UI source contract still locating MenuNoticeDialogs in the server view after its client-boundary extraction. The contract now follows PublicMenuView to PublicMenuLiveContent to MenuNoticeDialogs and retains the existing reminder, storage, localization and QR assertions; no test is skipped or disabled. The original contract reproduced locally with three passes and one failure; the corrected contract plus the prior 44 affected regressions passed 48/48 with zero skips. Runtime implementation bytes are unchanged from the reviewed v1. Fresh hosted checks and actual retained-document E2E remain required.

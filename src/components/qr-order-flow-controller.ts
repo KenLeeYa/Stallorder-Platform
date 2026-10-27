@@ -426,8 +426,10 @@ export function useQrOrderFlowController({
       setSessionStartError(errorMessage);
       setMessage(errorMessage);
     } finally {
-      sessionStartPendingRef.current = false;
-      if (sessionController.isCurrentAttempt(result.attempt)) setIsLoading(false);
+      if (sessionController.isCurrentAttempt(result.attempt)) {
+        sessionStartPendingRef.current = false;
+        setIsLoading(false);
+      }
     }
   }, [
     activeOrderingMode,
@@ -598,7 +600,17 @@ export function useQrOrderFlowController({
         updateOrderingAvailability("AVAILABLE");
         if (editMode) return;
         if (!shouldStartSession) return;
-        if (targetChanged) sessionController.rotateSessionIdentity();
+        if (targetChanged) {
+          sessionController.rotateSessionIdentity();
+          sessionStartPendingRef.current = false;
+          sessionReadyRef.current = false;
+          setSession((current) => current ? {
+            ...current,
+            orderSessionToken: "",
+            expiresAt: "",
+          } : current);
+          setSessionTimePhase("INACTIVE");
+        }
         await startOrderSession(deviceId, localeRef.current);
       },
     });

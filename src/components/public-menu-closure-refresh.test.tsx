@@ -93,6 +93,90 @@ function publicMenu(initialMenu:PublicMenu) {
 async function refresh<T>(render:()=>T) { windowTarget.dispatchEvent(new Event('focus')); return settle(render); }
 
 describe('already-open Menu and QR closure updates',()=>{
+  it('supersedes a pending session on a backend switch and ignores its late failure',async()=>{
+    let finish!: (response:Response)=>void;
+    shared.request.mockImplementationOnce(()=>{sessionStarts++;return new Promise<Response>(resolve=>{finish=resolve;});});
+    const render=qr(menu);
+    let result=await settle(render);
+    expect(sessionStarts).toBe(1);
+    shared.availability.mockResolvedValue({activeBackend:'DR',promotionEpoch:4,qrOrdering:'AVAILABLE',staffOnline:'AVAILABLE',offlinePos:'AVAILABLE'});
+    result.refreshAvailability();
+    result=await settle(render);
+    expect(sessionStarts).toBe(2);
+    const requests=shared.request.mock.calls.filter(([name])=>name==='create-order-session');
+    expect(requests[1][1].sessionRequestId).not.toBe(requests[0][1].sessionRequestId);
+    expect(result.session?.orderSessionToken).toBe('existing-session');
+    finish(Response.json({code:'ORDER_CREATE_ERROR'},{status:503}));
+    result=await settle(render);
+    expect(result.orderingAvailability).toBe('AVAILABLE');
+    expect(result.orderingEnabled).toBe(true);
+    expect(result.session?.orderSessionToken).toBe('existing-session');
+    expect(sessionStarts).toBe(2);
+  });
+
+  it('keeps same-target requests deduplicated when an older attempt finishes during its replacement',async()=>{
+    const pending:Array<(response:Response)=>void>=[];
+    shared.request.mockImplementation(()=>{sessionStarts++;return new Promise<Response>(resolve=>pending.push(resolve));});
+    const render=qr(menu);
+    let result=await settle(render);
+    result.refreshAvailability(true);
+    result=await settle(render);
+    expect(sessionStarts).toBe(1);
+    shared.availability.mockResolvedValue({activeBackend:'DR',promotionEpoch:4,qrOrdering:'AVAILABLE',staffOnline:'AVAILABLE',offlinePos:'AVAILABLE'});
+    result.refreshAvailability();
+    result=await settle(render);
+    expect(sessionStarts).toBe(2);
+    pending[0](Response.json({code:'ORDER_CREATE_ERROR'},{status:503}));
+    result=await settle(render);
+    result.refreshAvailability(true);
+    result=await settle(render);
+    expect(sessionStarts).toBe(2);
+    expect(result.session?.orderSessionToken).toBe('');
+    pending[1](Response.json({...menu,orderSessionToken:'new-target-session',expiresAt:'2026-10-27T06:00:00Z'}));
+    result=await settle(render);
+    expect(result.session?.orderSessionToken).toBe('new-target-session');
+    result.refreshAvailability(true);
+    await settle(render);
+    expect(sessionStarts).toBe(3);
+  });
+
+  it.each(['pending','ready'])('invalidates the %s old-target session during closure and starts once after reopening',async(state)=>{
+    let finish!: (response:Response)=>void;
+    if(state==='pending') shared.request.mockImplementationOnce(()=>{sessionStarts++;return new Promise<Response>(resolve=>{finish=resolve;});});
+    const render=qr(menu);
+    let result=await settle(render);
+    if(state==='ready') {
+      result.updateQuantity('p1',2);
+      result.setCustomerName('Synthetic buyer');
+      result=await settle(render);
+    }
+    const savedCart=structuredClone(result.cartLines);
+    payload.closures=[closure];
+    result=await refresh(render);
+    shared.availability.mockResolvedValue({activeBackend:'DR',promotionEpoch:4,qrOrdering:'AVAILABLE',staffOnline:'AVAILABLE',offlinePos:'AVAILABLE'});
+    result.refreshAvailability();
+    result=await settle(render);
+    expect(sessionStarts).toBe(1);
+    expect(result.session?.orderSessionToken).toBe('');
+    expect(result.orderingEnabled).toBe(false);
+    if(state==='pending') {
+      finish(Response.json({...menu,orderSessionToken:'old-target-session',expiresAt:'2026-10-27T06:00:00Z'}));
+      result=await settle(render);
+      expect(result.session?.orderSessionToken).toBe('');
+    }
+    payload.closures=[];
+    result=await refresh(render);
+    expect(sessionStarts).toBe(2);
+    expect(result.orderingEnabled).toBe(true);
+    expect(result.session?.orderSessionToken).toBe('existing-session');
+    expect(result.cartLines).toEqual(savedCart);
+    if(state==='ready') expect(result.customerName).toBe('Synthetic buyer');
+    const requests=shared.request.mock.calls.filter(([name])=>name==='create-order-session');
+    expect(requests[1][1].sessionRequestId).not.toBe(requests[0][1].sessionRequestId);
+    await refresh(render);
+    expect(sessionStarts).toBe(2);
+  });
+
   it.each([404, 503])('waits for the existing-order recovery decision before reopening (status %s)',async(status)=>{
     const qrToken='synthetic-qr-token-for-recovery';
     const trackingToken='synthetic_tracking_token_for_recovery_1234567890';
