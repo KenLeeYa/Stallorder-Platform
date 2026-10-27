@@ -313,3 +313,7 @@ unchanged. It adds no release waiver, cost, DR conversion, retry of denied
 operations or replacement capture route. The bounded PR389 alternative remains
 subject to all required technical acceptance, protected promotion, immutable
 Plan/Apply and live Production affected-flow verification.
+
+### 2026-10-27 closure contract alignment
+
+The closure-freshness successor additionally updates `src/components/special-hours-ui.contract.test.ts` to follow the new server-view to client-shell to reminder wiring. This makes the accumulated bounded correction ten source/test files plus the same three release documents. No runtime byte, migration, Edge function, backend binding or protection is changed by this test-only alignment. The existing reminder/localization/storage assertions remain enforced; 48/48 focused local regressions pass after reproducing the old contract failure. Fresh protected CI/security and paired acceptance remain required, including the unchanged complete-tree and 22-scope recovery compatibility gates.

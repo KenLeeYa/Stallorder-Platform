@@ -46,7 +46,12 @@ describe("special business hours UI contract", () => {
     expect(notice).toContain('role="dialog"');
     expect(notice).toContain('aria-modal="true"');
     expect(qrFlow).toContain("SpecialClosureNoticeDialog");
-    expect(publicMenu).toContain("MenuNoticeDialogs");
+    expect(publicMenu).toContain('from "@/components/public-menu-live-content"');
+    expect(publicMenu).toContain("<PublicMenuLiveContent");
+    const liveMenu = source("./public-menu-live-content.tsx");
+    expect(liveMenu).toContain('from "./menu-notice-dialogs"');
+    expect(liveMenu).toContain("<MenuNoticeDialogs");
+    expect(liveMenu).toContain("locale={locale}");
     const menuNotices = source("./menu-notice-dialogs.tsx");
     expect(menuNotices).toContain("SpecialClosureNoticeDialog");
     expect(menuNotices).toContain("onSettled={settled}");

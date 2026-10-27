@@ -1,5 +1,9 @@
 # PR389 alternative application release acceptance
 
+## 2026-10-27 full-suite contract correction
+
+The first hosted successor CI (40462715519, source 34817a6f) passed installation, lint, UI control audit and typecheck, then reported 3821 unit passes, one failure and nine skips. The sole failure was the existing special-hours UI source contract still locating MenuNoticeDialogs in the server view after its client-boundary extraction. The contract now follows PublicMenuView to PublicMenuLiveContent to MenuNoticeDialogs and retains the existing reminder, storage, localization and QR assertions; no test is skipped or disabled. The original contract reproduced locally with three passes and one failure; the corrected contract plus the prior 44 affected regressions passed 48/48 with zero skips. Runtime implementation bytes are unchanged from the reviewed v1. Fresh hosted checks and actual retained-document E2E remain required.
+
 ## 2026-10-27 reviewed closure-freshness correction
 
 Scope limit: live closure refresh requires the canonical public store identifier. The reproduced special-closure flow retains that identifier even while closed. The pre-existing degraded path that loads with businessStatus CLOSED or orderingState PAUSED can return no initial menu; a later full Edge session omits stall.code, so that path is not covered by this refresh correction. It is not a regression introduced here, must not be counted as accepted, and must not use a guessed slug as a public code. Completing it requires a separately reviewed canonical-identity contract; this successor does not change Edge or the recovery compatibility scope.
