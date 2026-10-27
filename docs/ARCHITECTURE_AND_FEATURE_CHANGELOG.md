@@ -1,5 +1,21 @@
 # StallOrder Architecture and Feature Change Ledger
 
+## 2026-10-27 closure edit locator correction and current Preview evidence
+
+CI 40477392620 on source 3e4e061afe36850b517fd266b81a96b7cab1f572 failed only the kept-open closure case: the edit dialog renders the exact button label “儲存變更”, while the test selected the create label “儲存”. Both attempts timed out at e2e/staff-kds-print-closure-flow.spec.ts:897. The successor changes that single edit locator; creation still uses “儲存”. Application runtime, assertions, timeout, session counts, business-hours restoration and workflows are unchanged.
+
+A source-bound regression executes the actual E2E click against the real component's create/edit labels: the predecessor has one pass and one failure; the correction and prior focused cases pass 60/60, with zero failures or skips. Strict extracted E2E TypeScript and lint pass. Browser/Prisma boundaries in this local harness are mocked; installed Node 24.18.0, Next 16.4.0 and Vitest 4.1.11 do not qualify the candidate's clean build or hosted E2E. Fresh hosted checks and independent review are required before qualification.
+
+The failed predecessor CI passed 3828 unit tests (9 skipped), all 146 distinct migrations, 1619 pgTAP assertions across 72 files, build and 8 WebPRNT cases. Executed E2E shards recorded 210 passes, 25 skips and one failure; the final shard, resilience and dependency audit did not run. Hosted Supabase cleanup succeeded. Security 40477392676 and independent CodeQL check 122099976568 succeeded.
+
+Paired Preview 40477392645 succeeded with owned fixture cleanup. Its test merge 1aae2d8a34254247fe89cb1e187c7d5d12a57677 has the complete 3e4e061a tree d01628f91bbf5265ddbf0013be4a97abb07c7484. Deployment dpl_5Qx1wR7LfB7Kv8zKu6mKvYK8dfvB uses the existing isolated teunnvfakbfzmodajqjz backend. Original artifact 12723230204 is 325360 bytes, SHA256 4a4b0f30e2a1d03f8081428d69ed8331574388a8d55f3c63fa42e71ea7a64d13. Its 320/390/768/1440 viewport images were inspected; its real browser session/order-tracker result explicitly blocks service workers and disables physical printing. Infrastructure remains retained, not deleted.
+
+Ordinary Codex in-app browser acceptance on that same deployment passed synthetic owner login and fresh-document role persistence; same-document Menu/QR closure creation, edit and withdrawal; QR disabled state during closure and restored ordering with the original cart/session. The owned closure was deleted. Synthetic unpaid order 261027-013 progressed through Staff acceptance, making and ready; customer READY dialog appeared and automatically disappeared after the exact order was cancelled. The test print job was cancelled, active print jobs returned to zero, and cancelled audit history remains. No payment, physical print or cash shift was created.
+
+KDS showed an empty board during that order and is NOT_QUALIFIED. Subsequent read-only UI confirms KDS enabled, DEFAULT station enabled and order mode selected; the empty board after cancellation is expected but does not explain the prior observation. No KDS setting was changed. A connected-status label is not positive SSE wire evidence.
+
+Required deployed SW upgrade/controller, worker-controlled live API/cache and positive SSE acceptance remain incomplete. The saved full_cdp denial was not retried; support case 18390247 has no confirmed supported remedy or technical handoff. Protected staging/main checks, immutable Plan/Apply and Production affected-flow QA remain mandatory. Production was freshly read as 4e95d2ea, NORMAL_PRIMARY/PRIMARY epoch 3 and the existing dpl_4v5acoGZU8tkbTAnb6uEwuN5AjJQ. No Production, local Docker/carpool or billing change occurred. releaseQualified=false; PR366/DR restoration and conversion remain independent unfinished gates.
+
 ## 2026-10-27 closure-refresh E2E business-hours prerequisite
 
 The 39cc1be5 CI run 40468536191 failed the new kept-open closure case before creating a closure: the initial QR product selector was disabled. The source-bound seed is open 17:00–23:00 Asia/Taipei and closed on Monday; the failing attempt was at approximately 16:14 Taipei. Public-menu ordering correctly uses those hours. The backend-target supersession case now passed.

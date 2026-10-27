@@ -894,7 +894,7 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
       await ownerPage.getByRole("article").filter({ hasText: closureTitle }).getByRole("button").click();
       await editor.getByLabel("公告標題").fill(updatedTitle);
       const updateResponsePromise = waitForClosureCommand(ownerPage, "UPDATE");
-      await editor.getByRole("button", { name: "儲存", exact: true }).click();
+      await editor.getByRole("button", { name: "儲存變更", exact: true }).click();
       expect((await updateResponsePromise).status()).toBe(200);
       const savedDialog = ownerPage.getByRole("dialog", { name: "操作已完成", exact: true });
       await savedDialog.getByRole("button", { name: "我知道了", exact: true }).click();
