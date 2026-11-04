@@ -164,7 +164,9 @@ export function verifyReviewedEvidence({ rawSarif, reviewBytes, expectedReviewSh
     sourceRunId: run.id, sourceJobId: job.id, sourceScanConclusion: job.conclusion, releaseAuthorized: false };
 }
 
-function github(path) {
+let collectionStage = 'startup';
+function github(path, stage) {
+  collectionStage = stage;
   return execFileSync('gh', ['api', '--hostname', 'github.com', `repos/${repository}/${path}`],
     { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: 60000, stdio: ['ignore', 'pipe', 'pipe'] });
 }
@@ -178,11 +180,12 @@ function main() {
   const review = JSON.parse(reviewBytes);
   for (const id of [review.source.runId, review.source.jobId]) assert.ok(Number.isSafeInteger(id) && id > 0);
   assert.match(review.source.controlCommit, hex40);
-  const run = JSON.parse(github(`actions/runs/${review.source.runId}`));
-  const job = JSON.parse(github(`actions/jobs/${review.source.jobId}`));
-  const workflow = JSON.parse(github(`contents/${workflowPath}?ref=${review.source.controlCommit}`));
+  const run = JSON.parse(github(`actions/runs/${review.source.runId}`, 'source-run'));
+  const job = JSON.parse(github(`actions/jobs/${review.source.jobId}`, 'source-job'));
+  const workflow = JSON.parse(github(`contents/${workflowPath}?ref=${review.source.controlCommit}`, 'source-workflow'));
   assert.equal(workflow.encoding, 'base64'); assert.equal(workflow.path, workflowPath);
-  const lines = github(`actions/jobs/${review.source.jobId}/logs`).split(/\r?\n/);
+  const lines = github(`actions/jobs/${review.source.jobId}/logs`, 'source-log').split(/\r?\n/);
+  collectionStage = 'restore-complete-evidence';
   const records = lines.filter(line => /^\S+Z \{"event":"sarif-(?:capture|chunk)"/.test(line))
     .map(line => JSON.parse(line.slice(line.indexOf('{'))));
   const rawSarif = restoreCapture(records);
@@ -191,8 +194,10 @@ function main() {
   assert.equal(receipts.length, 1, 'ambiguous source reconstruction evidence');
   const git = args => execFileSync('git', ['--no-replace-objects', ...args],
     { cwd: productDirectory, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  collectionStage = 'product-identity';
   const product = { commit: git(['rev-parse', 'HEAD']), tree: git(['rev-parse', 'HEAD^{tree}']),
     clean: git(['status', '--porcelain']) === '' };
+  collectionStage = 'verify-complete-evidence';
   const outcome = verifyReviewedEvidence({ rawSarif, reviewBytes,
     expectedReviewSha256: process.env.DELIVERY_SECURITY_REVIEW_SHA256, product, now: Date.now(),
     provenance: { run, job, productReceipt: receipts[0], workflowBytes: Buffer.from(workflow.content, 'base64') } });
@@ -201,7 +206,9 @@ function main() {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try { main(); } catch (error) {
     // Never echo gh's stderr, signed artifact URLs, tokens or complete logs.
-    console.error(error instanceof assert.AssertionError ? error.message : 'Security evidence collection failed');
+    const httpStatus = String(error?.stderr ?? '').match(/\(HTTP (\d{3})\)/)?.[1];
+    console.error(error instanceof assert.AssertionError ? error.message
+      : `Security evidence collection failed at ${collectionStage}${httpStatus ? ` (HTTP ${httpStatus})` : ''}`);
     process.exitCode = 1;
   }
 }
