@@ -106,9 +106,12 @@ if(process.argv[2]==='prepare') {
     assert.deepEqual(JSON.parse(sql(orderSql)),order);
     const replay=JSON.parse(sql(writeOrder)); assert.equal(replay.ok,true); assert.equal(replay.idempotent_replay,true);
     assert.equal(sql(`SELECT count(*) FROM public.orders WHERE id='${orderId}';`),'1');
+    const orderAfterReplay=JSON.parse(sql(orderSql));
+    assert.deepEqual({...orderAfterReplay,updated_at:order.updated_at},order);
+    assert.ok(Date.parse(orderAfterReplay.updated_at)>=Date.parse(order.updated_at));
     emit('restored-baseline',{migrationCount:146,functionsRestored:4,helperAbsent:true,createdOrderPreserved:true,idempotentReplay:true});
     const second=apply(); sql(recoverySql(before,second)); assert.deepEqual(snapshot(),before);
-    assert.deepEqual(JSON.parse(sql(orderSql)),order);
+    assert.deepEqual(JSON.parse(sql(orderSql)),orderAfterReplay);
     emit('reapply-and-restore',{migrationCount:146,createdOrderPreserved:true});
   } finally {
     sql(`DELETE FROM public.orders WHERE id='${orderId}';
