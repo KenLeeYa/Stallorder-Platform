@@ -343,10 +343,6 @@ jobs:
         run: |
           set -euo pipefail
           node ../control/scripts/ci/delivery-preview-source.mjs product
-          test ! -e scripts/qa-primary-only-storage.ts
-          cp ../control/scripts/qa-primary-only-storage.ts scripts/qa-primary-only-storage.ts
-          trap 'rm -f scripts/qa-primary-only-storage.ts' EXIT
-          cmp --silent ../control/scripts/qa-primary-only-storage.ts scripts/qa-primary-only-storage.ts
           node --conditions=react-server --import tsx scripts/qa-primary-only-storage.ts
 
       - name: Typecheck

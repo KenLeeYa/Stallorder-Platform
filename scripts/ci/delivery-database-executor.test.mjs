@@ -44,16 +44,16 @@ for (const [label, edit] of [
 test('collector passes the exact approved connection only in the environment, enforces read-only, and sanitizes failures', () => {
   const endpoint = { projectId: plan.database.projectId, hostname: 'aws-fixture.pooler.supabase.com',
     port: '5432', username: `postgres.${plan.database.projectId}`, database: 'postgres' };
-  const connection = `postgresql://${endpoint.username}:synthetic-test-password@${endpoint.hostname}:5432/postgres?sslmode=require&connect_timeout=10`;
+  const connection = `postgresql://${endpoint.username}:synthetic-placeholder-password@${endpoint.hostname}:5432/postgres?sslmode=require&connect_timeout=10`;
   let calls = 0;
   const invoke = (binary, args, options) => {
     calls += 1;
-    assert.equal(binary, 'psql'); assert.ok(!args.some(arg => arg.includes('synthetic-test-password')));
+    assert.equal(binary, 'psql'); assert.ok(!args.some(arg => arg.includes('synthetic-placeholder-password')));
     assert.ok(!args.includes('--dbname'));
     assert.equal(options.env.PGHOST, endpoint.hostname);
     assert.equal(options.env.PGUSER, endpoint.username);
     assert.equal(options.env.PGDATABASE, 'postgres');
-    assert.equal(options.env.PGPASSWORD, 'synthetic-test-password');
+    assert.equal(options.env.PGPASSWORD, 'synthetic-placeholder-password');
     assert.equal(options.env.PGSSLMODE, 'require');
     assert.match(options.env.PGOPTIONS, /default_transaction_read_only=on/);
     assert.match(options.env.PGOPTIONS, /statement_timeout=15000/);
