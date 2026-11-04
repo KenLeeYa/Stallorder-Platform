@@ -1,6 +1,6 @@
-tree d215e9f212d5647701f0d19e7212f6f5dadb8f1a
+tree feaf67bea32aa15ba0e67374b8aa4ff4307dc208
 parent 4e95d2ea5d53ae78c5af9c3db044481237674c44
-author KenLeeYa <ada76145@gmail.com> 1793820754 +0800
-committer KenLeeYa <ada76145@gmail.com> 1793820754 +0800
+author KenLeeYa <ada76145@gmail.com> 1793824268 +0800
+committer KenLeeYa <ada76145@gmail.com> 1793824268 +0800
 
-fix(delivery): publish admission state on issued Edge sessions
+fix(delivery): make positive delivery checkout fixtures independent of wall clock

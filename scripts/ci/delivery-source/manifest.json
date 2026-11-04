@@ -1,12 +1,13 @@
 {
   "base": "4e95d2ea5d53ae78c5af9c3db044481237674c44",
-  "commit": "79f5ec8d98d9ccdb61f80d06071a2102908c54df",
-  "tree": "d215e9f212d5647701f0d19e7212f6f5dadb8f1a",
-  "patchSha256": "b655024c6eb6ff40e4670f300cc92b7547a77907e978702114341f4054ad92e3",
-  "commitSha256": "6d08bf2c9d8735c84c6f7dde16146ed7de48cc52397e178c727dd5a0cd0f3b9a",
+  "commit": "b9a98a0bff0490c04b2295e4bcfb2b7781774c91",
+  "tree": "feaf67bea32aa15ba0e67374b8aa4ff4307dc208",
+  "patchSha256": "d24195893da4b921f1418cfd77f1f4ca3bf3d72a3d5ded9a16c5404bba984968",
+  "commitSha256": "a5a739133f790723b62634a720661892f53b7b6b8b9c9679cd0a9dd56bf3d53f",
   "paths": [
     "e2e/api-response-contract-regressions.spec.ts",
     "e2e/ordering-selection.spec.ts",
+    "e2e/staff-pos-line-delivery.spec.ts",
     "package-lock.json",
     "package.json",
     "public/sw.js",

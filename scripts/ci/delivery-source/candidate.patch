@@ -32,6 +32,113 @@ index 557d3355399b6acb47158face2db97245f5629bf..12b3b6b3cb8a29be80ac4369c2fa38e4
      await page.getByTestId("qr-open-product-configurator").click();
      const configurator = page.getByTestId("qr-product-configuration");
      const meat = configurator.getByRole("checkbox", { name: /肉量加倍/ });
+diff --git a/e2e/staff-pos-line-delivery.spec.ts b/e2e/staff-pos-line-delivery.spec.ts
+index c0bfdd4de55eac98c587f7cb7024a38d24c1bd7c..5c8ad04fa5986d48f7f7655d2ecd00ece91a0f57 100644
+--- a/e2e/staff-pos-line-delivery.spec.ts
++++ b/e2e/staff-pos-line-delivery.spec.ts
+@@ -18,6 +18,8 @@ let originalDeliveryEnabled = false;
+ let originalStaffDeliveryEnabled = false;
+ let originalDineInEnabled = false;
+ let originalTakeoutPreorderEnabled = false;
++let settingsCaptured = false;
++let originalBusinessHours: Awaited<ReturnType<typeof prisma.stallBusinessHour.findMany>> = [];
+ let cashShiftId = "";
+ let createdCashShiftId = "";
+ type AuthCookies = Awaited<ReturnType<BrowserContext["cookies"]>>;
+@@ -56,7 +58,7 @@ async function login(page: Page) {
+ }
+ 
+ test.beforeAll(async () => {
+-  const [settings, owner] = await Promise.all([
++  const [settings, owner, businessHours, specialClosureCount] = await Promise.all([
+     prisma.stallOrderingSettings.findUniqueOrThrow({
+       where: { stallId },
+       select: {
+@@ -70,11 +72,23 @@ test.beforeAll(async () => {
+       where: { email: "owner@stallorder.test" },
+       select: { id: true },
+     }),
++    prisma.stallBusinessHour.findMany({ where: { stallId } }),
++    prisma.stallSpecialClosure.count({ where: { stallId } }),
+   ]);
+   originalDeliveryEnabled = settings.deliveryModuleEnabled;
+   originalStaffDeliveryEnabled = settings.staffDeliveryEnabled;
+   originalDineInEnabled = settings.dineInEnabled;
+   originalTakeoutPreorderEnabled = settings.takeoutPreorderEnabled;
++  settingsCaptured = true;
++  expect(businessHours).toHaveLength(7);
++  expect(specialClosureCount).toBe(0);
++  originalBusinessHours = businessHours;
++  // These successful checkout cases require an open merchant at any CI hour.
++  // Closed-window denial is covered by the dedicated delivery boundary suite.
++  await prisma.stallBusinessHour.updateMany({
++    where: { stallId },
++    data: { opensAt: "00:00", closesAt: "00:00", lastOrderAt: null, isClosed: false },
++  });
+   await prisma.stallOrderingSettings.update({
+     where: { stallId },
+     data: {
+@@ -106,25 +120,42 @@ test.beforeAll(async () => {
+ });
+ 
+ test.afterAll(async () => {
+-  if (createdOrderIds.length > 0) {
+-    await prisma.order.deleteMany({ where: { id: { in: createdOrderIds } } });
+-  }
+-  if (createdCashShiftId) {
+-    await prisma.cashShiftReview.deleteMany({
+-      where: { cashShiftId: createdCashShiftId },
+-    });
+-    await prisma.cashShift.deleteMany({ where: { id: createdCashShiftId } });
++  try {
++    if (createdOrderIds.length > 0) {
++      await prisma.order.deleteMany({ where: { id: { in: createdOrderIds } } });
++    }
++    if (createdCashShiftId) {
++      await prisma.cashShiftReview.deleteMany({
++        where: { cashShiftId: createdCashShiftId },
++      });
++      await prisma.cashShift.deleteMany({ where: { id: createdCashShiftId } });
++    }
++  } finally {
++    try {
++      await prisma.$transaction([
++        ...(settingsCaptured ? [prisma.stallOrderingSettings.update({
++          where: { stallId },
++          data: {
++            deliveryModuleEnabled: originalDeliveryEnabled,
++            staffDeliveryEnabled: originalStaffDeliveryEnabled,
++            dineInEnabled: originalDineInEnabled,
++            takeoutPreorderEnabled: originalTakeoutPreorderEnabled,
++          },
++        })] : []),
++        ...originalBusinessHours.map((row) => prisma.stallBusinessHour.update({
++          where: { id: row.id },
++          data: {
++            opensAt: row.opensAt,
++            closesAt: row.closesAt,
++            lastOrderAt: row.lastOrderAt,
++            isClosed: row.isClosed,
++          },
++        })),
++      ]);
++    } finally {
++      await prisma.$disconnect();
++    }
+   }
+-  await prisma.stallOrderingSettings.update({
+-    where: { stallId },
+-    data: {
+-      deliveryModuleEnabled: originalDeliveryEnabled,
+-      staffDeliveryEnabled: originalStaffDeliveryEnabled,
+-      dineInEnabled: originalDineInEnabled,
+-      takeoutPreorderEnabled: originalTakeoutPreorderEnabled,
+-    },
+-  });
+-  await prisma.$disconnect();
+ });
+ 
+ test("內用顧客名稱與桌位欄位在桌面版對齊", async ({ page }, testInfo) => {
 diff --git a/package-lock.json b/package-lock.json
 index dff27175712f4af87dc5945281040614086e112c..5d5eaf19504023f7aeb7205a20789a0ff2389b32 100644
 --- a/package-lock.json

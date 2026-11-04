@@ -1,6 +1,16 @@
 # Exact delivery-hours candidate qualification
 
-## Current product and pending acceptance (2026-11-04 19:39 UTC)
+## Current product and pending acceptance (2026-11-04 20:31 UTC)
+
+Product `b9a98a0bff0490c04b2295e4bcfb2b7781774c91`, tree `feaf67bea32aa15ba0e67374b8aa4ff4307dc208`, contains 39 paths over Production `4e95d2ea5d53ae78c5af9c3db044481237674c44`. Its only difference from 79f5 is the positive delivery E2E fixture: explicitly open all seven days in the owned synthetic database and restore the original settings and hours in a finally transaction. No application, migration or Edge source changed in this successor. The exact new product still requires fresh full CI and security evidence.
+
+Run 12 (41900128379, control 982bae33) passed 112 dedicated delivery checks: actual HTTP DB principal/ACL, all five Edge consumers, session/order/staff confirmation, positive SSE, closed-window denial, desktop/mobile expired history, and the unmodified 600-second deadline expired by the actual installed pg_cron job. Owned fixture cleanup read back zero orders/QR/product/stall. Full E2E then failed two positive session cases with HTTP409; their default seeded opening hours did not cover the CI wall clock. Production-mode resilience was skipped. The failed job remains failed and is not release qualification.
+
+The complete run12 CodeQL SARIF was independently reviewed with 14 bounded false-positive dispositions and complete extraction evidence; its raw failed status is retained. That review cannot qualify this changed product without a new source-bound scan. The new local qualification verifier also accounts for the collector wrapper buffering stdout until process completion, binding original events and capture times to the actual provider step. Its 31 pure tests and independent review are local control evidence only.
+
+Production remains on 4e95 and the affected merchant delivery remains paused. Exact full CI/security, protected admission/installation, actual migration executor, qualified backend recovery, isolated acceptance and live affected-flow verification remain release requirements. No Production release or reopening is authorized by this file.
+
+## Historical 79f5 pending acceptance (superseded by run12 results above)
 
 Product `79f5ec8d98d9ccdb61f80d06071a2102908c54df`, tree `d215e9f212d5647701f0d19e7212f6f5dadb8f1a`, contains 38 paths over Production `4e95d2ea5d53ae78c5af9c3db044481237674c44`. The two additional paths fix and test the DELIVERY session builder's missing `orderingOpenNow: true` after successful authoritative admission. Run 10 (`41895693800`) exposed this real Edge response gap after actual Next principal, password-auth, order, staff confirmation, SSE and origin-boundary checks passed. Its failed result is retained. The local product regressions passed 45/45, and independent source review found no Critical or Important issue in the builder correction. These are not hosted qualification of the new product.
 
