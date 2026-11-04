@@ -1,0 +1,49 @@
+name: Exact delivery database recovery rehearsal
+on:
+  push:
+    branches: [codex/primary-only-preparation]
+    paths:
+      - .github/workflows/delivery-recovery-ci.yml
+      - scripts/ci/delivery-database-recovery.mjs
+      - scripts/ci/delivery-database-recovery.test.mjs
+      - scripts/ci/delivery-database-recovery.hosted.mjs
+permissions:
+  contents: read
+concurrency:
+  group: exact-delivery-recovery
+  cancel-in-progress: false
+jobs:
+  rehearse:
+    if: github.event.repository.private == false && github.event.repository.fork == false && github.event.forced == false && github.event.deleted == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      DELIVERY_RECOVERY_OWNED: synthetic-loopback-only
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: control
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb
+        with:
+          version: 2.109.1
+      - name: Verify exact source and isolated recovery builder
+        run: |
+          node --test control/scripts/ci/delivery-database-recovery.test.mjs
+          node control/scripts/ci/delivery-candidate.mjs materialize
+          node control/scripts/ci/delivery-database-recovery.hosted.mjs prepare
+      - name: Rebuild all146 prior migrations in owned runner
+        id: database
+        working-directory: recovery
+        run: |
+          supabase start
+          supabase db reset
+      - name: Exercise actual migration apply and transactional recovery
+        run: node control/scripts/ci/delivery-database-recovery.hosted.mjs rehearse
+      - name: Stop only owned recovery project
+        if: always() && (steps.database.outcome == 'success' || steps.database.outcome == 'failure' || steps.database.outcome == 'cancelled')
+        working-directory: recovery
+        run: supabase stop --no-backup
