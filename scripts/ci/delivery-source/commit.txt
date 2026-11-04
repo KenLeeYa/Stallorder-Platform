@@ -1,6 +1,6 @@
-tree e72021b95fd88afb1b9a6b9385fce5fa321040ff
+tree 1246b49f7000793819370baad0e947e3e0038495
 parent 4e95d2ea5d53ae78c5af9c3db044481237674c44
-author KenLeeYa <ada76145@gmail.com> 1793813273 +0800
-committer KenLeeYa <ada76145@gmail.com> 1793813273 +0800
+author KenLeeYa <ada76145@gmail.com> 1793814570 +0800
+committer KenLeeYa <ada76145@gmail.com> 1793814570 +0800
 
-fix(delivery): qualify hours and expired history with current dependency security
+fix(delivery): qualify bounded approval and worker origin guards

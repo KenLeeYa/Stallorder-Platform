@@ -551,6 +551,18 @@ index 9c3d89be85a6313c90a7f87d96591851523b09bf..466a154c601759207a7f2de1141b9ccc
      "vite": "8.2.4"
    }
  }
+diff --git a/public/sw.js b/public/sw.js
+index 6fd2006f78e62cdf23c342ac4b0ea91d614ff287..2067e57f08c229d69f5b6326b3672fbfe6569fd1 100644
+--- a/public/sw.js
++++ b/public/sw.js
+@@ -207,6 +207,7 @@ self.addEventListener("activate", (event) => {
+ });
+ 
+ self.addEventListener("message", (event) => {
++  if (event.origin !== self.location.origin) return;
+   if (event.data?.type === "STAFF_PUSH_CAPABILITY") {
+     event.ports?.[0]?.postMessage({ supported: true, silent: false });
+     return;
 diff --git a/scripts/dependency-security.test.mjs b/scripts/dependency-security.test.mjs
 index c3a6e4584e33287993d6d9c4a8c2eee56b5e98eb..e1c63c2d9fb99bb85e3287730144b09bf87bbdf4 100644
 --- a/scripts/dependency-security.test.mjs
@@ -650,6 +662,266 @@ index c3a6e4584e33287993d6d9c4a8c2eee56b5e98eb..e1c63c2d9fb99bb85e3287730144b09b
    it("rejects shell comment terminator injection instead of emitting a command", () => {
      expect(() => require("shell-quote").quote(["echo", "ok", { comment: "x" }, "a\nid;#"])).toThrow(TypeError);
    });
+diff --git a/scripts/lib/production-json-file.mjs b/scripts/lib/production-json-file.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..6632772902925b26384fe04a2ed92280add6864c
+--- /dev/null
++++ b/scripts/lib/production-json-file.mjs
+@@ -0,0 +1,38 @@
++import fs from "node:fs/promises";
++import { constants } from "node:fs";
++
++const MAX_BYTES = 64 * 1_024;
++
++export async function readProductionJsonFile(path, invalidReason) {
++  try {
++    const inspected = await fs.lstat(path);
++    if (!inspected.isFile() || inspected.size > MAX_BYTES) throw new Error(invalidReason);
++    const handle = await fs.open(path,
++      constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0));
++    try {
++      const before = await handle.stat();
++      if (!before.isFile() || before.size > MAX_BYTES
++          || before.dev !== inspected.dev || before.ino !== inspected.ino) {
++        throw new Error(invalidReason);
++      }
++      // Read the inspected handle, with one extra byte to detect growth at the limit.
++      const bytes = Buffer.alloc(MAX_BYTES + 1);
++      let length = 0;
++      while (length < bytes.length) {
++        const { bytesRead } = await handle.read(bytes, length, bytes.length - length, null);
++        if (bytesRead === 0) break;
++        length += bytesRead;
++      }
++      const after = await handle.stat();
++      if (length > MAX_BYTES || length !== before.size || after.size !== before.size
++          || after.mtimeMs !== before.mtimeMs || after.ctimeMs !== before.ctimeMs) {
++        throw new Error(invalidReason);
++      }
++      return JSON.parse(bytes.subarray(0, length).toString("utf8"));
++    } finally {
++      await handle.close();
++    }
++  } catch {
++    throw new Error(invalidReason);
++  }
++}
+diff --git a/scripts/lib/production-json-file.test.mjs b/scripts/lib/production-json-file.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..319eb92d6fdb7dc2e39917377beb44c952c8879d
+--- /dev/null
++++ b/scripts/lib/production-json-file.test.mjs
+@@ -0,0 +1,92 @@
++import { afterEach, describe, expect, it, vi } from "vitest";
++import { mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
++import fs from "node:fs/promises";
++import { resolve, sep } from "node:path";
++import { readProductionJsonFile } from "./production-json-file.mjs";
++
++const fixtureRoot = resolve("artifacts/delivery-hours-20261029/approval-reader-tests");
++const owned = [];
++async function fixture(contents = '{"id":"approved"}') {
++  await mkdir(fixtureRoot, { recursive: true });
++  const dir = await mkdtemp(resolve(fixtureRoot, "case-"));
++  owned.push(dir);
++  const path = resolve(dir, "receipt.json");
++  await writeFile(path, contents);
++  return path;
++}
++afterEach(async () => {
++  vi.restoreAllMocks();
++  for (const dir of owned.splice(0)) {
++    if (!resolve(dir).startsWith(fixtureRoot + sep)) throw new Error("FIXTURE_SCOPE_INVALID");
++    await rm(dir, { recursive: true });
++  }
++});
++
++describe("protected approval file reading", () => {
++  it("reads a bounded ordinary JSON file", async () => {
++    expect(await readProductionJsonFile(await fixture(), "RECEIPT_INVALID"))
++      .toEqual({ id: "approved" });
++  });
++
++  it("rejects oversized input and malformed JSON", async () => {
++    await expect(readProductionJsonFile(await fixture(" ".repeat(65_537)), "RECEIPT_INVALID"))
++      .rejects.toThrow("RECEIPT_INVALID");
++    await expect(readProductionJsonFile(await fixture("{"), "RECEIPT_INVALID"))
++      .rejects.toThrow("RECEIPT_INVALID");
++  });
++
++  it("rejects a directory and a missing file", async () => {
++    const path = await fixture();
++    await expect(readProductionJsonFile(resolve(path, ".."), "RECEIPT_INVALID"))
++      .rejects.toThrow("RECEIPT_INVALID");
++    await expect(readProductionJsonFile(path + ".missing", "RECEIPT_INVALID"))
++      .rejects.toThrow("RECEIPT_INVALID");
++  });
++
++  it("rejects replacement between path inspection and opening", async () => {
++    const path = await fixture();
++    const realLstat = fs.lstat.bind(fs);
++    vi.spyOn(fs, "lstat").mockImplementationOnce(async (...args) => {
++      const stats = await realLstat(...args);
++      await rename(path, path + ".original");
++      await writeFile(path, '{"id":"replacement"}');
++      return stats;
++    });
++    await expect(readProductionJsonFile(path, "RECEIPT_INVALID"))
++      .rejects.toThrow("RECEIPT_INVALID");
++  });
++
++  it("keeps reading the opened file when its path is replaced", async () => {
++    const path = await fixture();
++    const realOpen = fs.open.bind(fs);
++    vi.spyOn(fs, "open").mockImplementationOnce(async (...args) => {
++      const handle = await realOpen(...args);
++      await rename(path, path + ".original");
++      await writeFile(path, '{"id":"replacement"}');
++      return handle;
++    });
++    expect(await readProductionJsonFile(path, "RECEIPT_INVALID"))
++      .toEqual({ id: "approved" });
++  });
++
++  it("rejects growth after inspection and closes its handle", async () => {
++    const path = await fixture();
++    const realOpen = fs.open.bind(fs);
++    let closed = false;
++    vi.spyOn(fs, "open").mockImplementationOnce(async (...args) => {
++      const handle = await realOpen(...args);
++      const realStat = handle.stat.bind(handle);
++      const close = handle.close.bind(handle);
++      handle.close = async () => { closed = true; await close(); };
++      handle.stat = async () => {
++        const stats = await realStat();
++        await writeFile(path, " ".repeat(65_537));
++        return stats;
++      };
++      return handle;
++    });
++    await expect(readProductionJsonFile(path, "RECEIPT_INVALID"))
++      .rejects.toThrow("RECEIPT_INVALID");
++    expect(closed).toBe(true);
++  });
++});
+diff --git a/scripts/lib/production-smoke-csp.mjs b/scripts/lib/production-smoke-csp.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..1c3fd50f9f0fa229c4b4bfa0c2101efd6345137d
+--- /dev/null
++++ b/scripts/lib/production-smoke-csp.mjs
+@@ -0,0 +1,18 @@
++export function allowsTurnstile(csp) {
++  if (!csp.trim()) return false;
++  return csp.split(",").every((policy) => {
++    const directives = new Map();
++    for (const directive of policy.split(";")) {
++      const [name, ...sources] = directive.trim().split(/\s+/u);
++      const key = name.toLowerCase();
++      // Browsers use the first occurrence of a directive within each policy.
++      if (key && !directives.has(key)) directives.set(key, sources);
++    }
++    const scripts = directives.get("script-src-elem") ?? directives.get("script-src")
++      ?? directives.get("default-src") ?? [];
++    const frames = directives.get("frame-src") ?? directives.get("child-src")
++      ?? directives.get("default-src") ?? [];
++    return [scripts, frames].every((sources) =>
++      sources.includes("https://challenges.cloudflare.com") && !sources.includes("'none'"));
++  });
++}
+diff --git a/scripts/lib/production-smoke-csp.test.mjs b/scripts/lib/production-smoke-csp.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..58f7cec53b404a1bcd66fdf2c100371ab3a3c0bb
+--- /dev/null
++++ b/scripts/lib/production-smoke-csp.test.mjs
+@@ -0,0 +1,28 @@
++import { describe, expect, it } from "vitest";
++import { allowsTurnstile } from "./production-smoke-csp.mjs";
++
++const origin = "https://challenges.cloudflare.com";
++describe("Production Turnstile CSP verification", () => {
++  it.each([
++    `script-src 'self' ${origin}; frame-src ${origin}; frame-ancestors 'none'`,
++    `default-src 'self' ${origin}`,
++    `script-src-elem\t${origin}; child-src ${origin}`,
++  ])("accepts exact effective script and frame sources: %s", (csp) => {
++    expect(allowsTurnstile(csp)).toBe(true);
++  });
++
++  it.each([
++    "",
++    `script-src ${origin}.evil.invalid; frame-src ${origin}`,
++    `script-src https://evil.invalid/${origin}; frame-src ${origin}`,
++    `script-src ${origin}@evil.invalid; frame-src ${origin}`,
++    `img-src ${origin}; script-src 'self'; frame-src 'none'`,
++    `script-src ${origin}; frame-src 'self'`,
++    `script-src-elem 'none'; script-src ${origin}; frame-src ${origin}`,
++    `script-src 'self'; script-src ${origin}; frame-src ${origin}`,
++    `default-src ${origin}; frame-src 'none'`,
++    `default-src ${origin}, default-src 'none'`,
++  ])("rejects ineffective or lookalike sources: %s", (csp) => {
++    expect(allowsTurnstile(csp)).toBe(false);
++  });
++});
+diff --git a/scripts/production-approval.mjs b/scripts/production-approval.mjs
+index 13c9366d20da9acd98cb15d8e89131df7a6e0657..3afe846baf3409d0ceb9f547704c50e3cb511fbf 100644
+--- a/scripts/production-approval.mjs
++++ b/scripts/production-approval.mjs
+@@ -1,6 +1,7 @@
+ import { execFileSync } from "node:child_process";
+-import { lstat, mkdir, readFile, writeFile } from "node:fs/promises";
++import { mkdir, writeFile } from "node:fs/promises";
+ import { dirname, resolve } from "node:path";
++import { readProductionJsonFile } from "./lib/production-json-file.mjs";
+ import {
+   createProductionApprovalReceipt,
+   createProductionOperationEvidence,
+@@ -60,11 +61,7 @@ async function verifyEvidence() {
+   requireOwnerActor(context);
+   const runId = required("PRODUCTION_EVIDENCE_RUN_ID");
+   if (runId === context.runId) throw new Error("EVIDENCE_RUN_REPLAY_INVALID");
+-  const stats = await lstat(evidencePath).catch(() => null);
+-  if (!stats?.isFile() || stats.size > 64 * 1_024) {
+-    throw new Error("OPERATION_EVIDENCE_FILE_INVALID");
+-  }
+-  const evidence = JSON.parse(await readFile(evidencePath, "utf8"));
++  const evidence = await readProductionJsonFile(evidencePath, "OPERATION_EVIDENCE_FILE_INVALID");
+   const result = validateProductionOperationEvidence({
+     evidence,
+     expected: {
+@@ -120,11 +117,7 @@ async function verifyReceipt() {
+   requireOwnerActor(context);
+   const planRunId = required("PRODUCTION_APPROVAL_PLAN_RUN_ID");
+   if (planRunId === context.runId) throw new Error("PLAN_RUN_REPLAY_INVALID");
+-  const stats = await lstat(receiptPath).catch(() => null);
+-  if (!stats?.isFile() || stats.size > 64 * 1_024) {
+-    throw new Error("PLAN_RECEIPT_FILE_INVALID");
+-  }
+-  const receipt = JSON.parse(await readFile(receiptPath, "utf8"));
++  const receipt = await readProductionJsonFile(receiptPath, "PLAN_RECEIPT_FILE_INVALID");
+   const { treeSha, stagingTreeSha } = gitTrees();
+   const runMetadata = await githubRun(context.repository, planRunId);
+   const result = validateProductionApprovalReceipt({
+diff --git a/scripts/production-smoke-test.mjs b/scripts/production-smoke-test.mjs
+index e4a338e91453f2e9b4605250ff722eacf141d0ab..f5ba2b2e1bf76272af5be1b7731ece82dc5572c1 100644
+--- a/scripts/production-smoke-test.mjs
++++ b/scripts/production-smoke-test.mjs
+@@ -7,6 +7,7 @@ import {
+   isExpectedPublicSiteResponse,
+ } from "./lib/production-smoke-public-site.mjs";
+ import { fetchWithTransientRetry } from "./lib/production-smoke-request.mjs";
++import { allowsTurnstile } from "./lib/production-smoke-csp.mjs";
+ 
+ const baseUrl = new URL(process.env.PRODUCTION_BASE_URL ?? "https://app.qidaigo.com");
+ const publicSiteUrl = process.env.ROOT_DOMAIN_URL ?? "https://qidaigo.com";
+@@ -100,7 +101,7 @@ async function run() {
+   }
+   const csp = mainResponse.headers.get("content-security-policy") ?? "";
+   assert("CSP denies framing", /frame-ancestors\s+'none'/.test(csp), csp || "missing");
+-  assert("CSP allows Turnstile", csp.includes("https://challenges.cloudflare.com"), csp || "missing");
++  assert("CSP allows Turnstile", allowsTurnstile(csp), csp || "missing");
+   assert("CSP avoids broad wildcard", !/(?:^|;|\s)\*(?:\s|;|$)/.test(csp), csp || "missing");
+   if (baseUrl.protocol === "https:") {
+     assert("HSTS enabled", Boolean(mainResponse.headers.get("strict-transport-security")), mainResponse.headers.get("strict-transport-security") ?? "missing");
 diff --git a/src/app/api/stalls/[stallSlug]/completed-orders/route.test.ts b/src/app/api/stalls/[stallSlug]/completed-orders/route.test.ts
 index 68a11ad91210fa0ec81d0313c762c281572f3fb8..3f12c97753dc54b6b4d8762613ef8e8da2b8d10b 100644
 --- a/src/app/api/stalls/[stallSlug]/completed-orders/route.test.ts
@@ -1541,6 +1813,68 @@ index bc0c96d822a4d6e631447d835aff8045d5a95336..38ab268499103635506f6b44b9e11c4a
              ?? localizedPublicOrderError(browserLocale, result.code),
      };
    }
+diff --git a/src/components/staff-push-worker.test.ts b/src/components/staff-push-worker.test.ts
+index 6047321f73df30c1f02d55c9626b08e3d5946adb..2df21aa6821d0cd817cef4e208ec91d016212bed 100644
+--- a/src/components/staff-push-worker.test.ts
++++ b/src/components/staff-push-worker.test.ts
+@@ -9,9 +9,10 @@ function worker() {
+   const fetch = vi.fn().mockResolvedValue({ status: 204 });
+   const openWindow = vi.fn();
+   const focus = vi.fn();
++  const skipWaiting = vi.fn().mockResolvedValue(undefined);
+   const context = {
+     URL, Map, Set, Date, console, fetch,
+-    self: { location: { hostname: "qa.example.test", href: "https://qa.example.test/sw.js", origin: "https://qa.example.test" },
++    self: { skipWaiting, location: { hostname: "qa.example.test", href: "https://qa.example.test/sw.js", origin: "https://qa.example.test" },
+       addEventListener: (type: string, listener: typeof listeners[string]) => { listeners[type] = listener; },
+       registration: { showNotification }, clients: { matchAll: vi.fn().mockResolvedValue([{ url: "https://qa.example.test/staff/qa", focus }]), openWindow } },
+   };
+@@ -26,7 +27,7 @@ function worker() {
+     listeners.push({ data: { json: () => value }, waitUntil: (promise: Promise<void>) => { work = promise; } });
+     await work;
+   }
+-  return { push, payload, listeners, showNotification, fetch, openWindow, focus };
++  return { push, payload, listeners, showNotification, fetch, openWindow, focus, skipWaiting };
+ }
+ describe("Web Push service worker", () => {
+   it("shows notification and only then sends a display receipt; retry does not duplicate", async () => {
+@@ -48,9 +49,35 @@ describe("Web Push service worker", () => {
+   it("reports the active notification sound policy to the test controls", () => {
+     const w = worker();
+     const postMessage = vi.fn();
+-    w.listeners.message({ data: { type: "STAFF_PUSH_CAPABILITY" }, ports: [{ postMessage }] });
++    w.listeners.message({ origin: "https://qa.example.test", data: { type: "STAFF_PUSH_CAPABILITY" }, ports: [{ postMessage }] });
+     expect(postMessage).toHaveBeenCalledWith({ supported: true, silent: false });
+   });
++  it.each(["https://evil.example", "https://qa.example.test.evil.example", "null", "", undefined])(
++    "ignores control messages from an unverified origin: %s", (origin) => {
++      const w = worker();
++      const postMessage = vi.fn();
++      const waitUntil = vi.fn();
++      for (const type of ["STAFF_PUSH_CAPABILITY", "CHECK_UPDATE_SAFETY", "ACTIVATE_UPDATE"]) {
++        w.listeners.message({ origin, data: { type }, ports: [{ postMessage }],
++          source: { postMessage }, waitUntil });
++      }
++      expect(postMessage).not.toHaveBeenCalled();
++      expect(waitUntil).not.toHaveBeenCalled();
++      expect(w.skipWaiting).not.toHaveBeenCalled();
++    },
++  );
++  it("keeps same-origin update safety and activation working", async () => {
++    const w = worker();
++    const postMessage = vi.fn();
++    const work: Promise<unknown>[] = [];
++    for (const type of ["CHECK_UPDATE_SAFETY", "ACTIVATE_UPDATE"]) {
++      w.listeners.message({ origin: "https://qa.example.test", data: { type },
++        source: { postMessage }, waitUntil: (promise: Promise<unknown>) => work.push(promise) });
++    }
++    await Promise.all(work);
++    expect(postMessage).toHaveBeenCalledWith({ type: "SW_UPDATE_SAFETY", pendingRecords: 0 });
++    expect(w.skipWaiting).toHaveBeenCalledTimes(1);
++  });
+   it("ignores invalid payloads and external notification targets", async () => {
+     const w = worker();
+     await w.push({ ...w.payload, url: "//evil.example/staff/qa" });
 diff --git a/src/lib/delivery-order-i18n.test.ts b/src/lib/delivery-order-i18n.test.ts
 new file mode 100644
 index 0000000000000000000000000000000000000000..f6fac942026670217d1e7380d16e56f9a21e020a

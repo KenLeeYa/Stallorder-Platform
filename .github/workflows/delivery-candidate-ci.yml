@@ -136,7 +136,7 @@ jobs:
           RESULT: ${{ job.status }}
         run: |
           node scripts/ci/delivery-candidate.mjs verify
-          printf 'Control: %s\nProduct: d0e2ce6a3a9bf7f5e34be957fddb49863b73d39a\nResult: %s\nNot a release authorization.\n' "$GITHUB_SHA" "$RESULT" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Control: %s\nProduct: 5037ac0dfb73982b2c693bc91b3f09041258a68f\nResult: %s\nNot a release authorization.\n' "$GITHUB_SHA" "$RESULT" >> "$GITHUB_STEP_SUMMARY"
 
   security:
     if: github.event.repository.private == false && github.event.repository.fork == false && github.event.forced == false && github.event.deleted == false
@@ -181,6 +181,6 @@ jobs:
               }));
             }
           }
-          console.log(JSON.stringify({ productCommit: 'd0e2ce6a3a9bf7f5e34be957fddb49863b73d39a', findings }));
+          console.log(JSON.stringify({ productCommit: '5037ac0dfb73982b2c693bc91b3f09041258a68f', findings }));
           assert.equal(findings, 0, 'Review and resolve CodeQL findings before release');
           JS

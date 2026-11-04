@@ -263,7 +263,7 @@ try {
     && process.env.RUNNER_ENVIRONMENT === "github-hosted" && process.env.RUNNER_OS === "Linux");
   check("exact-product-cwd", resolve(process.cwd()) === root);
   check("exact-product-commit", execFileSync("git", ["rev-parse", "HEAD"], {cwd:root}).toString().trim()
-    === "d0e2ce6a3a9bf7f5e34be957fddb49863b73d39a");
+    === "5037ac0dfb73982b2c693bc91b3f09041258a68f");
   ({ PrismaClient } = createRequire(resolve(root, "package.json"))("@prisma/client"));
   check("explicit-owned-execution", process.env.DELIVERY_ACCEPTANCE_LOCAL_ONLY === "20261029-owned-synthetic");
   check("test-environment", process.env.APP_ENV === "test"
