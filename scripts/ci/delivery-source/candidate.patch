@@ -945,7 +945,7 @@ index e4a338e91453f2e9b4605250ff722eacf141d0ab..f5ba2b2e1bf76272af5be1b7731ece82
      assert("HSTS enabled", Boolean(mainResponse.headers.get("strict-transport-security")), mainResponse.headers.get("strict-transport-security") ?? "missing");
 diff --git a/src/app/api/health/database-principal/route.test.ts b/src/app/api/health/database-principal/route.test.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..7bf67fd29963937b08ad62a151a4da7008c9e154
+index 0000000000000000000000000000000000000000..8b89cae6f366d6bf1266d03a7dec6a1b61ad40ca
 --- /dev/null
 +++ b/src/app/api/health/database-principal/route.test.ts
 @@ -0,0 +1,81 @@
@@ -1023,11 +1023,11 @@ index 0000000000000000000000000000000000000000..7bf67fd29963937b08ad62a151a4da70
 +      expect(response.status).toBe(503);
 +      expect(await response.json()).toEqual({ error: "DATABASE_PRINCIPAL_UNAVAILABLE" });
 +    }
-+    mocks.query.mockRejectedValue(new Error("postgresql://secret-user:secret-password@private-host"));
++    mocks.query.mockRejectedValue(new Error("private database error: synthetic-secret-sentinel"));
 +    const response = await GET(new Request("https://app.example/api/health/database-principal"));
 +    expect(response.status).toBe(503);
-+    expect(await response.text()).not.toContain("secret-password");
-+    expect(JSON.stringify(mocks.log.mock.calls)).not.toContain("secret-password");
++    expect(await response.text()).not.toContain("synthetic-secret-sentinel");
++    expect(JSON.stringify(mocks.log.mock.calls)).not.toContain("synthetic-secret-sentinel");
 +  });
 +});
 diff --git a/src/app/api/health/database-principal/route.ts b/src/app/api/health/database-principal/route.ts

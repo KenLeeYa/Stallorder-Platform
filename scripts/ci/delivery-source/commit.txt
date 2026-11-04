@@ -1,6 +1,6 @@
-tree b2e24c11b7eada00ff3531ecbc503596de80f827
+tree 82eb24921c2d45219e8c28580f8806502af250b1
 parent 4e95d2ea5d53ae78c5af9c3db044481237674c44
-author KenLeeYa <ada76145@gmail.com> 1793817948 +0800
-committer KenLeeYa <ada76145@gmail.com> 1793817948 +0800
+author KenLeeYa <ada76145@gmail.com> 1793818705 +0800
+committer KenLeeYa <ada76145@gmail.com> 1793818705 +0800
 
-fix(delivery): expose protected runtime role evidence and align open-hours fixture
+test(delivery): use noncredential sentinel for principal redaction

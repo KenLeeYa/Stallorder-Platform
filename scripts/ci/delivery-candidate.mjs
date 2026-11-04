@@ -9,8 +9,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const source = resolve(root, 'scripts/ci/delivery-source');
 const frozen = {
   base: '4e95d2ea5d53ae78c5af9c3db044481237674c44',
-  commit: '9ed5a1b57e1c87cd71854f7a726f78a3ee3833c3',
-  tree: 'b2e24c11b7eada00ff3531ecbc503596de80f827',
+  commit: '507e4d3b0b6d652b3506bb4ecd419603b3a906a8',
+  tree: '82eb24921c2d45219e8c28580f8806502af250b1',
 };
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const gitHash = (bytes) => createHash('sha1')
