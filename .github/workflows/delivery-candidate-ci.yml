@@ -10,9 +10,14 @@ on:
       - scripts/ci/delivery-flow.mjs
       - scripts/ci/delivery-flow.config.mjs
       - scripts/ci/delivery-flow.spec.mjs
+      - scripts/ci/delivery-edge-readiness.mjs
+      - scripts/ci/delivery-edge-readiness.test.mjs
       - scripts/ci/delivery-security-native.test.mjs
       - scripts/ci/delivery-security-capture.mjs
       - scripts/ci/delivery-security-capture.test.mjs
+      - scripts/ci/delivery-security-adjudication.mjs
+      - scripts/ci/delivery-security-adjudication.test.mjs
+      - scripts/ci/delivery-reviewed-scan.json
       - scripts/ci/delivery-source/**
 
 permissions:
@@ -48,6 +53,7 @@ jobs:
         run: |
           git -c credential.helper= fetch --no-tags --depth=1 https://github.com/KenLeeYa/Stallorder-Platform.git 4e95d2ea5d53ae78c5af9c3db044481237674c44
           node --test scripts/ci/delivery-candidate.test.mjs
+          node --test scripts/ci/delivery-edge-readiness.test.mjs
           node scripts/ci/delivery-candidate.mjs materialize
       - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb
         with:
@@ -145,6 +151,9 @@ jobs:
     if: github.event.repository.private == false && github.event.repository.fork == false && github.event.forced == false && github.event.deleted == false
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -159,18 +168,10 @@ jobs:
         env:
           DELIVERY_SECURITY_PRODUCT: ../product
         run: node --test control/scripts/ci/delivery-security-native.test.mjs control/scripts/ci/delivery-security-capture.test.mjs
-      - uses: github/codeql-action/init@1fc58d04a4d4374f921bdac573c3811c240f9c26
-        with:
-          languages: javascript-typescript
-          queries: security-extended
-          source-root: product
-          tools: https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.27.4/codeql-bundle-javascript-linux64.tar.zst
-      - uses: github/codeql-action/analyze@1fc58d04a4d4374f921bdac573c3811c240f9c26
-        with:
-          checkout_path: product
-          upload: never
-          upload-database: false
-          output: codeql-results
-          category: exact-delivery-candidate
-      - name: Require no unresolved source security findings
-        run: node control/scripts/ci/delivery-security-capture.mjs codeql-results
+      - name: Verify complete-scan evidence rejection boundaries
+        run: node --test control/scripts/ci/delivery-security-adjudication.test.mjs
+      - name: Require zero unresolved findings in the exact independently reviewed scan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DELIVERY_SECURITY_REVIEW_SHA256: 25743b8c02e362e407c7b7870ae99ea6da7c17387fd81e204c31f40a896f5e13
+        run: node control/scripts/ci/delivery-security-adjudication.mjs product control/scripts/ci/delivery-reviewed-scan.json

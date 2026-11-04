@@ -9,6 +9,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
+import { verifyOwnedEdgeReadiness } from "./delivery-edge-readiness.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../../product");
 const origin = "http://127.0.0.1:3000";
@@ -296,8 +297,25 @@ async function waitForOwnedEdge() {
         emit("edge-startup-observation", observation);
         lastObservation = observation;
       }
-      if (response.status === 204 && response.headers.get("access-control-allow-origin") === origin
-        && response.headers.get("server-timing")?.includes("edge-function;")) return;
+      if (response.status === 204 && response.headers.get("server-timing")?.includes("edge-function;")) {
+        const probe = async probeOrigin => {
+          const result = await fetch(`${edgeOrigin}/functions/v1/create-order-session`, {
+            method: "POST", headers: { origin: probeOrigin, "content-type": "application/json",
+              "x-stallorder-protocol-version": "1" }, body: "{}", redirect: "error",
+            signal: AbortSignal.timeout(5000), cache: "no-store",
+          });
+          const body = await result.json();
+          return { status: result.status, code: body.code,
+            allowOrigin: result.headers.get("access-control-allow-origin"),
+            serverTiming: result.headers.get("server-timing"),
+            cacheControl: result.headers.get("cache-control"), requestId: result.headers.get("x-request-id") };
+        };
+        const allowed = await probe(origin);
+        const denied = await probe("https://untrusted.invalid");
+        const evidence = verifyOwnedEdgeReadiness({ options: observation, allowed, denied });
+        emit("edge-origin-boundary", { ...evidence, allowedStatus: allowed.status, deniedStatus: denied.status });
+        return;
+      }
     } catch { /* The owned functions process may still be starting. */ }
     await delay(500);
   }
