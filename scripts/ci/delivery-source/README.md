@@ -1,6 +1,6 @@
 # Exact delivery-hours candidate qualification
 
-This control workflow reconstructs product commit `fdcaf525dfb85f5cbbc32d402e7e23ca76917c0f`, tree `098b5987c1b4971b09858b1b5411f19b1294369a`, from the existing public Production base `4e95d2ea5d53ae78c5af9c3db044481237674c44`. The binary patch, raw commit and 24-path manifest are verified before dependencies or product scripts execute. The control commit is recorded separately. Dirty preparation files never enter the product checkout.
+This control workflow reconstructs product commit `ea9952abaf26ca327ea9d2ab27b5bb9f00e3ea90`, tree `a7bd76e21c96d859c1243069b263bcc3a5613849`, from the existing public Production base `4e95d2ea5d53ae78c5af9c3db044481237674c44`. The binary patch, raw commit and 25-path manifest are verified before dependencies or product scripts execute. The control commit is recorded separately. Dirty preparation files never enter the product checkout.
 
 The workflow runs only on the existing public preparation branch using standard GitHub-hosted Ubuntu VMs. It uses no deployment environment, provider secret, paid runner, cache upload or artifact storage. Existing `vercel.json` disables deployment for this branch; verify that remote setting and absence of an open branch PR before pushing. This workflow cannot deploy, publish a passing product check or authorize Production.
 

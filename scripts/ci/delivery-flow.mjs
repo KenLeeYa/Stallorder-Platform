@@ -185,6 +185,14 @@ async function holdForUi(detail) {
         sessionId = (await controlDatabase.authSession.findUniqueOrThrow({where:{tokenHash},select:{id:true}})).id;
         const page = await context.newPage();
         await page.goto(detail.staffPath);
+          const reminder = page.getByTestId("staff-start-reminder-backdrop");
+          try {
+            await reminder.waitFor({state:"visible",timeout:10_000});
+            await reminder.getByRole("button",{name:"稍後處理",exact:true}).last().click();
+            await reminder.waitFor({state:"detached",timeout:5_000});
+          } catch (error) {
+            if (error.name !== "TimeoutError" || await reminder.isVisible()) throw error;
+          }
         await page.getByRole("button", {name:"訂單歷史查詢",exact:true}).click();
         const panel = page.locator('section[aria-labelledby="completed-orders-heading"]');
         await panel.getByRole("searchbox").fill(detail.searchLabel);
@@ -255,7 +263,7 @@ try {
     && process.env.RUNNER_ENVIRONMENT === "github-hosted" && process.env.RUNNER_OS === "Linux");
   check("exact-product-cwd", resolve(process.cwd()) === root);
   check("exact-product-commit", execFileSync("git", ["rev-parse", "HEAD"], {cwd:root}).toString().trim()
-    === "fdcaf525dfb85f5cbbc32d402e7e23ca76917c0f");
+    === "ea9952abaf26ca327ea9d2ab27b5bb9f00e3ea90");
   ({ PrismaClient } = createRequire(resolve(root, "package.json"))("@prisma/client"));
   check("explicit-owned-execution", process.env.DELIVERY_ACCEPTANCE_LOCAL_ONLY === "20261029-owned-synthetic");
   check("test-environment", process.env.APP_ENV === "test"

@@ -9,8 +9,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const source = resolve(root, 'scripts/ci/delivery-source');
 const frozen = {
   base: '4e95d2ea5d53ae78c5af9c3db044481237674c44',
-  commit: 'fdcaf525dfb85f5cbbc32d402e7e23ca76917c0f',
-  tree: '098b5987c1b4971b09858b1b5411f19b1294369a',
+  commit: 'ea9952abaf26ca327ea9d2ab27b5bb9f00e3ea90',
+  tree: 'a7bd76e21c96d859c1243069b263bcc3a5613849',
 };
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const gitHash = (bytes) => createHash('sha1')
@@ -24,8 +24,8 @@ export function validateSourceBundle({ manifest, patch, commit }) {
   assert.equal(hash(commit), manifest.commitSha256, 'commit digest mismatch');
   assert.equal(gitHash(commit), frozen.commit, 'Git commit identity mismatch');
   assert.match(commit.toString('utf8'), new RegExp(`^tree ${frozen.tree}\nparent ${frozen.base}\n`));
-  assert.ok(Array.isArray(manifest.paths) && manifest.paths.length === 24, 'paths count');
-  assert.equal(new Set(manifest.paths).size, 24, 'duplicate paths');
+  assert.ok(Array.isArray(manifest.paths) && manifest.paths.length === 25, 'paths count');
+  assert.equal(new Set(manifest.paths).size, 25, 'duplicate paths');
   for (const path of manifest.paths) {
     assert.ok(typeof path === 'string' && !/[:\\\x00-\x1f]/.test(path)
       && path.split('/').every((part) => part && part !== '.' && part !== '..'), 'unsafe paths');

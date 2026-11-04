@@ -14,8 +14,8 @@ const bundle = () => ({
   commit: readFileSync(new URL('commit.txt', dir)),
 });
 
-test('accept the frozen 24-path product, independent of control commit', () => {
-  assert.equal(validateSourceBundle(bundle()).tree, '098b5987c1b4971b09858b1b5411f19b1294369a');
+test('accept the frozen 25-path product, independent of control commit', () => {
+  assert.equal(validateSourceBundle(bundle()).tree, 'a7bd76e21c96d859c1243069b263bcc3a5613849');
 });
 test('reject altered patch bytes before Git or dependency execution', () => {
   const value = bundle(); value.patch = Buffer.concat([value.patch, Buffer.from('\n')]);
@@ -33,8 +33,8 @@ test('reject a different base or tree', () => {
   }
 });
 test('reject duplicate or escaping input paths', () => {
-  for (const invalid of ['../outside', 'src/../../outside', '/outside', 'C:/outside', 'package-lock.json']) {
-    const value = bundle(); value.manifest.paths[1] = invalid;
+  for (const invalid of ['../outside', 'src/../../outside', '/outside', 'C:/outside', 'duplicate']) {
+    const value = bundle(); value.manifest.paths[1] = invalid === 'duplicate' ? value.manifest.paths[0] : invalid;
     assert.throws(() => validateSourceBundle(value), /paths/);
   }
 });

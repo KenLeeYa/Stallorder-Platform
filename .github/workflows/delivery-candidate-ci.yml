@@ -51,6 +51,8 @@ jobs:
           version: 2.109.1
       - name: Install dependencies
         run: npm ci
+      - name: Dependency audit
+        run: node scripts/run-npm-audit.mjs
       - name: Generate Prisma Client
         run: npm run prisma:generate
       - name: Lint
@@ -124,8 +126,6 @@ jobs:
         run: npm run test:e2e
       - name: Production-mode resilience smoke
         run: npm run test:e2e:resilience:production
-      - name: Dependency audit
-        run: node scripts/run-npm-audit.mjs
       - name: Stop only this runner's Supabase test project
         if: always() && (steps.supabase.outcome == 'success' || steps.supabase.outcome == 'failure')
         run: npx supabase stop --no-backup
@@ -136,7 +136,7 @@ jobs:
           RESULT: ${{ job.status }}
         run: |
           node scripts/ci/delivery-candidate.mjs verify
-          printf 'Control: %s\nProduct: fdcaf525dfb85f5cbbc32d402e7e23ca76917c0f\nResult: %s\nNot a release authorization.\n' "$GITHUB_SHA" "$RESULT" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Control: %s\nProduct: ea9952abaf26ca327ea9d2ab27b5bb9f00e3ea90\nResult: %s\nNot a release authorization.\n' "$GITHUB_SHA" "$RESULT" >> "$GITHUB_STEP_SUMMARY"
 
   security:
     if: github.event.repository.private == false && github.event.repository.fork == false && github.event.forced == false && github.event.deleted == false
@@ -155,7 +155,6 @@ jobs:
       - uses: github/codeql-action/init@1fc58d04a4d4374f921bdac573c3811c240f9c26
         with:
           languages: javascript-typescript
-          build-mode: none
           queries: security-extended
           source-root: product
       - uses: github/codeql-action/analyze@1fc58d04a4d4374f921bdac573c3811c240f9c26
@@ -182,6 +181,6 @@ jobs:
               }));
             }
           }
-          console.log(JSON.stringify({ productCommit: 'fdcaf525dfb85f5cbbc32d402e7e23ca76917c0f', findings }));
+          console.log(JSON.stringify({ productCommit: 'ea9952abaf26ca327ea9d2ab27b5bb9f00e3ea90', findings }));
           assert.equal(findings, 0, 'Review and resolve CodeQL findings before release');
           JS

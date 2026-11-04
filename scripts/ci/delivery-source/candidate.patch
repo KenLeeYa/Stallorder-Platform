@@ -1,3 +1,16 @@
+diff --git a/e2e/api-response-contract-regressions.spec.ts b/e2e/api-response-contract-regressions.spec.ts
+index a7f000bdbe2a87294a83c19bd89b4e5d1c3ff3fc..32304bd340d357735e0f9ff0c506de0acec9f132 100644
+--- a/e2e/api-response-contract-regressions.spec.ts
++++ b/e2e/api-response-contract-regressions.spec.ts
+@@ -184,7 +184,7 @@ async function login(page: Page) {
+ async function openPaymentCorrection(page: Page) {
+   await page.goto(`/staff/${stallSlug}`);
+   await dismissStaffStartReminder(page);
+-  await page.getByRole("button", { name: /已完成訂單查詢/ }).click();
++  await page.getByRole("button", { name: "訂單歷史查詢", exact: true }).click();
+   await page.getByPlaceholder("訂單編號、顧客或電話").fill(orderNo);
+   await page.getByRole("button", { name: "查詢", exact: true }).click();
+   const order = page.getByRole("article").filter({ hasText: orderNo });
 diff --git a/package-lock.json b/package-lock.json
 index dff27175712f4af87dc5945281040614086e112c..6e2fbd5b5949709920435716e505366c0a3a98db 100644
 --- a/package-lock.json

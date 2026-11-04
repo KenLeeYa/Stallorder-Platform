@@ -1,10 +1,11 @@
 {
   "base": "4e95d2ea5d53ae78c5af9c3db044481237674c44",
-  "commit": "fdcaf525dfb85f5cbbc32d402e7e23ca76917c0f",
-  "tree": "098b5987c1b4971b09858b1b5411f19b1294369a",
-  "patchSha256": "c9180986ad90b676aeffd030efe48714c523ee04d90247e3a3b6f02384ce19e5",
-  "commitSha256": "45ecfb3b156b067c6d9d503c91e3e9d32aef8755950b9d6efd7e1d48f3d6fe5e",
+  "commit": "ea9952abaf26ca327ea9d2ab27b5bb9f00e3ea90",
+  "tree": "a7bd76e21c96d859c1243069b263bcc3a5613849",
+  "patchSha256": "0267f0b1251bb4460fed4f21b11b793f4b0d83486f505b5de413ecb4c558804c",
+  "commitSha256": "d6c2edb9bd4313e2bc62f05a715542113619291f9d89b7be9b30a6b0931c9e38",
   "paths": [
+    "e2e/api-response-contract-regressions.spec.ts",
     "package-lock.json",
     "package.json",
     "scripts/dependency-security.test.mjs",
