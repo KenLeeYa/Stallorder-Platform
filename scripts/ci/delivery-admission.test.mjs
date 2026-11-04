@@ -36,3 +36,8 @@ for(const [stderr,reason,http] of [
  const result=safeGithubFailure({stderr,status:1});assert.equal(result.reason,reason);assert.equal(result.http,http);
  assert.ok(!JSON.stringify(result).includes('private'));assert.ok(!JSON.stringify(result).includes('https://'));
 });
+
+test('bounded diagnostic strips credentials and signed URLs',()=>{
+ const r=safeGithubFailure({stderr:'download failed https://logs.example/path?sig=private Bearer secret-token ghp_abcdef1234567890 sbp_abcdef1234567890 '+ 'x'.repeat(1000)});
+ assert.ok(r.diagnostic.length<=240); assert.ok(!/https:|private|secret-token|ghp_|sbp_/.test(r.diagnostic));
+});

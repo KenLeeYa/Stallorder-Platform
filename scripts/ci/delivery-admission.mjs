@@ -37,7 +37,12 @@ export function safeGithubFailure(error) {
       : /unexpected EOF/i.test(stderr) ? 'unexpected-eof' : /timeout|timed out/i.test(stderr) ? 'timeout'
         : /EPIPE|broken pipe/i.test(stderr) ? 'broken-pipe' : 'unclassified';
   const code=typeof error?.code==='string'&&/^[A-Z_]+$/.test(error.code)?error.code:undefined;
-  return {reason,http,code,status:Number.isInteger(error?.status)?error.status:undefined};
+  let diagnostic=stderr;
+  for(const token of [process.env.GH_TOKEN,process.env.GITHUB_TOKEN].filter(Boolean)) diagnostic=diagnostic.replaceAll(token,'[credential]');
+  diagnostic=diagnostic.replace(/https?:\/\/\S+/gi,'[url]').replace(/Bearer\s+\S+/gi,'[credential]')
+    .replace(/(?:gh[pousr]_|github_pat_|sbp_)[A-Za-z0-9_]+/g,'[credential]')
+    .replace(/[\x00-\x1f\x7f]/g,' ').slice(0,240);
+  return {reason,http,code,status:Number.isInteger(error?.status)?error.status:undefined,diagnostic};
 }
 function main() {
   assert.equal(process.env.GITHUB_ACTIONS, 'true'); assert.equal(process.env.GITHUB_REPOSITORY, repository);
