@@ -1,3 +1,7 @@
+## 2026-11-05 — Proposed: native password executor qualification
+
+The delivery release control entry gains a fixed-Primary, GET-only endpoint discovery and a native read-only psql role/ACL/version/preimage probe bound to exact product b9a98a0b. Password percent encoding and complete receipt time ordering were independently reviewed and regression-tested (50 executor tests). CI executes these controls explicitly. Actual protected execution, same-authentication Apply, isolated Edge restoration, and Production acceptance remain incomplete. Store delivery stays paused. See docs/DELIVERY_ISOLATED_RELEASE_QUALIFICATION.md.
+
 # StallOrder Architecture and Feature Change Ledger
 
 ## 2026-11-05 — PR389 existing-only delivery qualification controls (Proposed)

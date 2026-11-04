@@ -38,7 +38,7 @@ jobs:
           node-version: 24
       - name: Verify bounded evidence and encrypted recovery controls
         working-directory: control
-        run: node --test scripts/ci/delivery-admission.test.mjs scripts/ci/delivery-qualification.test.mjs scripts/ci/delivery-security-adjudication.test.mjs scripts/ci/delivery-security-capture.test.mjs scripts/ci/delivery-expiry-evidence.test.mjs scripts/ci/delivery-edge-recovery.test.mjs scripts/ci/delivery-edge-recovery.capture.test.mjs
+        run: node --test scripts/ci/delivery-admission.test.mjs scripts/ci/delivery-qualification.test.mjs scripts/ci/delivery-security-adjudication.test.mjs scripts/ci/delivery-security-capture.test.mjs scripts/ci/delivery-expiry-evidence.test.mjs scripts/ci/delivery-edge-recovery.test.mjs scripts/ci/delivery-edge-recovery.capture.test.mjs scripts/ci/delivery-database-executor.test.mjs scripts/ci/delivery-database-executor.capture.test.mjs
       - name: Reconstruct the exact product without executing it
         run: node control/scripts/ci/delivery-candidate.mjs materialize
       - name: Authenticate exact functional and complete reviewed security evidence
@@ -47,6 +47,15 @@ jobs:
           DELIVERY_QUALIFICATION_CONTRACT_SHA256: d9cf6443df96bdf20b4cea11352ea0af4cdd1beaee3754485f27a022dd3b63c1
           DELIVERY_SECURITY_REVIEW_SHA256: 8227da85a0f1f5c788001badebee277766c15e0fd5b5cbfe1500496043364c56
         run: node control/scripts/ci/delivery-admission.mjs
+      - name: Record the native PostgreSQL client used for the executor probe
+        run: psql --version
+      - name: Verify actual Primary migration session privileges without JIT changes
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          DELIVERY_EXECUTOR_SCOPE: PRIMARY_READ_ONLY_EXECUTOR
+          DELIVERY_EXECUTOR_CONTRACT_SHA256: a627422f53a8d0f8c3cf5fa7648db8bb0e9f00edcaa7460abe0cf0bc9184bbfb
+        run: node control/scripts/ci/delivery-database-executor.capture.mjs
       - name: Capture only the five current Primary Edge binaries as an authenticated encrypted archive
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
