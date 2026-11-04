@@ -32,8 +32,8 @@ export function verifyPreviewConfiguration(config) {
  configCheck(u.hash==='','PREVIEW_CONFIG_FRAGMENT');
  configCheck(u.password.length>0,'PREVIEW_CONFIG_PASSWORD');
  const direct=u.hostname==='db.'+PREVIEW_BINDING.project+'.supabase.co';
- // Keep the pinned endpoint region; parent metadata alone does not prove a child region.
- configCheck(direct || /^aws-[0-9]+-ap-northeast-1\.pooler\.supabase\.com$/.test(u.hostname),'PREVIEW_CONFIG_REGION_TARGET');
+ // Pin the region requested for this existing branch; the live child config must match.
+ configCheck(direct || /^aws-[0-9]+-ap-southeast-1\.pooler\.supabase\.com$/.test(u.hostname),'PREVIEW_CONFIG_REGION_TARGET');
  let username;try{username=decodeURIComponent(u.username);}catch{throw new PreviewConfigurationError('PREVIEW_CONFIG_USERNAME');}
  configCheck(username===(direct?'postgres':'postgres.'+PREVIEW_BINDING.project),'PREVIEW_CONFIG_USERNAME');
  configCheck((direct?['5432']:['5432','6543']).includes(u.port),'PREVIEW_CONFIG_PORT');
