@@ -1,0 +1,33 @@
+{
+  "base": "4e95d2ea5d53ae78c5af9c3db044481237674c44",
+  "commit": "fdcaf525dfb85f5cbbc32d402e7e23ca76917c0f",
+  "tree": "098b5987c1b4971b09858b1b5411f19b1294369a",
+  "patchSha256": "c9180986ad90b676aeffd030efe48714c523ee04d90247e3a3b6f02384ce19e5",
+  "commitSha256": "45ecfb3b156b067c6d9d503c91e3e9d32aef8755950b9d6efd7e1d48f3d6fe5e",
+  "paths": [
+    "package-lock.json",
+    "package.json",
+    "scripts/dependency-security.test.mjs",
+    "src/app/api/stalls/[stallSlug]/completed-orders/route.test.ts",
+    "src/app/api/stalls/[stallSlug]/completed-orders/route.ts",
+    "src/components/completed-orders-panel.expired.test.tsx",
+    "src/components/completed-orders-panel.tsx",
+    "src/components/public-order-tracker.pickup-ready.test.tsx",
+    "src/components/public-order-tracker.tsx",
+    "src/components/qr-order-delivery-hours.test.tsx",
+    "src/components/qr-order-flow-controller.ts",
+    "src/components/qr-order-flow-presentation.tsx",
+    "src/components/qr-order-session-application.test.ts",
+    "src/components/qr-order-session-application.ts",
+    "src/lib/delivery-order-i18n.test.ts",
+    "src/lib/delivery-order-i18n.ts",
+    "src/lib/messages/operations.ts",
+    "src/lib/public-menu-preorder.test.ts",
+    "src/lib/public-menu.ts",
+    "src/test/stateful-hook-runtime.ts",
+    "supabase/functions/_shared/public-order-errors.ts",
+    "supabase/migrations/20261029090000_public_delivery_ordering_hours.sql",
+    "supabase/tests/database/public_delivery_ordering_hours.test.sql",
+    "supabase/tests/database/staff_pos_line_delivery.test.sql"
+  ]
+}

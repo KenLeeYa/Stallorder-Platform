@@ -1,0 +1,11 @@
+# Exact delivery-hours candidate qualification
+
+This control workflow reconstructs product commit `fdcaf525dfb85f5cbbc32d402e7e23ca76917c0f`, tree `098b5987c1b4971b09858b1b5411f19b1294369a`, from the existing public Production base `4e95d2ea5d53ae78c5af9c3db044481237674c44`. The binary patch, raw commit and 24-path manifest are verified before dependencies or product scripts execute. The control commit is recorded separately. Dirty preparation files never enter the product checkout.
+
+The workflow runs only on the existing public preparation branch using standard GitHub-hosted Ubuntu VMs. It uses no deployment environment, provider secret, paid runner, cache upload or artifact storage. Existing `vercel.json` disables deployment for this branch; verify that remote setting and absence of an open branch PR before pushing. This workflow cannot deploy, publish a passing product check or authorize Production.
+
+All commands from the frozen product's CI are retained, with isolated runner cleanup. The additional role check imports the product's actual Prisma module and queries its own connection, requiring the observed Primary role attributes and non-superuser function owners. This proves only the isolated runner runtime; it does not establish the deployed Next.js principal. CodeQL scans the separately reconstructed product and does not upload results against the unrelated control commit.
+
+Before release, require successful exact CI, isolated customer and staff flows (including Edge, confirmation, cutoff, real expiry scheduling, history, notifications, positive SSE and cache behavior), an independent compatible predecessor, verified Production runtime/migration principals, recovery evidence and protected Plan/Apply. The merchant's delivery module stays paused until release and affected-flow verification permit a deliberate reopening. PR366 and DR conversion remain separately unqualified.
+
+Local validation: `node --test scripts/ci/delivery-candidate.test.mjs`. Hosted execution is intentionally unavailable on this workstation; do not spoof runner environment variables. Preserve failed runs as evidence, and do not retry operations previously denied by platform policy.

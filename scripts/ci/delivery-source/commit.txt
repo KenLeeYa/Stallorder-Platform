@@ -1,0 +1,9 @@
+tree 098b5987c1b4971b09858b1b5411f19b1294369a
+parent 4e95d2ea5d53ae78c5af9c3db044481237674c44
+author KenLeeYa <ada76145@gmail.com> 1793250682 +0800
+committer KenLeeYa <ada76145@gmail.com> 1793250682 +0800
+
+fix: enforce delivery ordering hours and show expired history
+
+Includes the frozen pickup-ready dialog and dependency security candidate.
+Local source candidate only; DB, Edge, CI, isolated qualification and protected release gates remain required.

@@ -1,0 +1,174 @@
+name: Exact delivery candidate qualification
+
+on:
+  push:
+    branches: [codex/primary-only-preparation]
+    paths:
+      - .github/workflows/delivery-candidate-ci.yml
+      - scripts/ci/delivery-candidate.mjs
+      - scripts/ci/delivery-candidate.test.mjs
+      - scripts/ci/delivery-source/**
+
+permissions:
+  contents: read
+concurrency:
+  group: exact-delivery-candidate
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.event.repository.private == false && github.event.repository.fork == false && github.event.forced == false && github.event.deleted == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: product
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+      DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
+      NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL: http://127.0.0.1:54321/functions/v1
+      ALLOW_DEMO_SEED: "false"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: control
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - name: Verify source bundle and reconstruct the exact product
+        working-directory: control
+        run: |
+          git -c credential.helper= fetch --no-tags --depth=1 https://github.com/KenLeeYa/Stallorder-Platform.git 4e95d2ea5d53ae78c5af9c3db044481237674c44
+          node --test scripts/ci/delivery-candidate.test.mjs
+          node scripts/ci/delivery-candidate.mjs materialize
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb
+        with:
+          version: 2.109.1
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma Client
+        run: npm run prisma:generate
+      - name: Lint
+        run: npm run lint
+      - name: UI control audit
+        run: npm run ui:audit
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+      - name: Start isolated Supabase
+        id: supabase
+        run: npx supabase start
+      - name: Configure local E2E runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(npx supabase status -o env)"
+          for entry in \
+            "NEXT_PUBLIC_SUPABASE_URL=${API_URL}" \
+            "PRIMARY_SUPABASE_URL=${API_URL}" \
+            "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${PUBLISHABLE_KEY}" \
+            "NEXT_PUBLIC_SUPABASE_ANON_KEY=${ANON_KEY}" \
+            "SUPABASE_SECRET_KEY=${SERVICE_ROLE_KEY}" \
+            "PRIMARY_SUPABASE_SECRET_KEY=${SERVICE_ROLE_KEY}"; do
+            value="${entry#*=}"
+            echo "::add-mask::${value}"
+            echo "${entry}" >> "$GITHUB_ENV"
+          done
+          for name in AUDIT_IP_HASH_SECRET SESSION_FINGERPRINT_HASH_SECRET OFFLINE_PERMIT_SIGNING_SECRET; do
+            value="$(openssl rand -hex 32)"
+            echo "::add-mask::${value}"
+            echo "${name}=${value}" >> "$GITHUB_ENV"
+          done
+      - name: Rebuild isolated database from all migrations
+        run: npx supabase db reset
+      - name: Actual application DB principal and definer owner parity
+        env:
+          NODE_ENV: production
+        run: node --import ./node_modules/tsx/dist/loader.mjs ../control/scripts/ci/delivery-candidate.mjs role
+      - name: Database tests
+        run: npm run db:test
+      - name: Database lint
+        run: npx supabase db lint --local --level warning --fail-on warning
+      - name: Production guardrails
+        run: npm run production:check
+      - name: Enable isolated legacy Google OAuth compatibility
+        run: |
+          supabase db query --db-url "$DATABASE_URL" \
+            --file supabase/fixtures/oauth_legacy_google_e2e.sql --log-level error
+      - name: Build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:55431
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
+        run: npm run build
+      - name: Verify independent status Worker bundle
+        run: npm run status:check
+      - name: Install Playwright Chromium and WebKit
+        run: npx playwright install --with-deps chromium webkit
+      - name: WebPRNT native recovery on Chromium and WebKit
+        run: npx playwright test --config playwright.webprnt.config.ts
+      - name: Playwright end-to-end tests
+        env:
+          PLAYWRIGHT_PRODUCTION_SERVER: "true"
+          PLAYWRIGHT_APP_URL: http://127.0.0.1:3000
+        run: npm run test:e2e
+      - name: Production-mode resilience smoke
+        run: npm run test:e2e:resilience:production
+      - name: Dependency audit
+        run: node scripts/run-npm-audit.mjs
+      - name: Stop only this runner's Supabase test project
+        if: always() && (steps.supabase.outcome == 'success' || steps.supabase.outcome == 'failure')
+        run: npx supabase stop --no-backup
+      - name: Record exact source and result
+        if: always()
+        working-directory: control
+        env:
+          RESULT: ${{ job.status }}
+        run: |
+          node scripts/ci/delivery-candidate.mjs verify
+          printf 'Control: %s\nProduct: fdcaf525dfb85f5cbbc32d402e7e23ca76917c0f\nResult: %s\nNot a release authorization.\n' "$GITHUB_SHA" "$RESULT" >> "$GITHUB_STEP_SUMMARY"
+
+  security:
+    if: github.event.repository.private == false && github.event.repository.fork == false && github.event.forced == false && github.event.deleted == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: control
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - name: Reconstruct exact product for source scan
+        run: node control/scripts/ci/delivery-candidate.mjs materialize
+      - uses: github/codeql-action/init@1fc58d04a4d4374f921bdac573c3811c240f9c26
+        with:
+          languages: javascript-typescript
+          build-mode: none
+          queries: security-extended
+          source-root: product
+      - uses: github/codeql-action/analyze@1fc58d04a4d4374f921bdac573c3811c240f9c26
+        with:
+          upload: never
+          output: codeql-results
+          category: exact-delivery-candidate
+      - name: Require no unresolved source security findings
+        run: |
+          node --input-type=module <<'JS'
+          import { readdirSync, readFileSync } from 'node:fs';
+          import assert from 'node:assert/strict';
+          const files = readdirSync('codeql-results').filter(f => f.endsWith('.sarif'));
+          assert.ok(files.length, 'CodeQL must produce SARIF');
+          let findings = 0;
+          for (const file of files) {
+            for (const run of JSON.parse(readFileSync('codeql-results/' + file)).runs) {
+              findings += (run.results ?? []).length;
+              for (const result of run.results ?? []) console.log(result.ruleId, result.message.text);
+            }
+          }
+          console.log(JSON.stringify({ productCommit: 'fdcaf525dfb85f5cbbc32d402e7e23ca76917c0f', findings }));
+          assert.equal(findings, 0, 'Review and resolve CodeQL findings before release');
+          JS

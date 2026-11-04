@@ -1,0 +1,2258 @@
+diff --git a/package-lock.json b/package-lock.json
+index dff27175712f4af87dc5945281040614086e112c..6e2fbd5b5949709920435716e505366c0a3a98db 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -20,7 +20,7 @@
+         "clsx": "^2.1.1",
+         "jose": "^6.2.4",
+         "lucide-react": "^0.562.0",
+-        "next": "16.3.8",
++        "next": "16.4.2",
+         "openai": "7.0.0",
+         "papaparse": "^5.5.4",
+         "pinyin-pro": "^3.28.2",
+@@ -30,7 +30,7 @@
+         "server-only": "0.0.1",
+         "sharp": "0.35.5",
+         "web-push": "3.6.7",
+-        "zod": "^4.2.1"
++        "zod": "4.6.6"
+       },
+       "devDependencies": {
+         "@actions/core": "1.11.1",
+@@ -44,14 +44,14 @@
+         "concurrently": "^10.0.3",
+         "cross-env": "^10.1.0",
+         "eslint": "^9",
+-        "eslint-config-next": "16.3.8",
++        "eslint-config-next": "16.4.2",
+         "fast-glob": "file:vendor/next-root-glob",
+         "prisma": "^6.19.0",
+         "supabase": "^2.109.1",
+         "tailwindcss": "^4",
+         "tsx": "^4.21.0",
+         "typescript": "^5",
+-        "vitest": "^4.1.11",
++        "vitest": "^4.1.12",
+         "wrangler": "4.118.0"
+       },
+       "engines": {
+@@ -1810,15 +1810,15 @@
+       }
+     },
+     "node_modules/@next/env": {
+-      "version": "16.3.8",
+-      "resolved": "https://registry.npmjs.org/@next/env/-/env-16.3.8.tgz",
+-      "integrity": "sha512-Al9zqHVV7TJv0eFuOU4U7Lvv74PTih4Ch63sk2xCIpSTkE3udFnaOcnzP2lQVymiL7yS9Cj2iClUXlR3EQ5sEw==",
++      "version": "16.4.2",
++      "resolved": "https://registry.npmjs.org/@next/env/-/env-16.4.2.tgz",
++      "integrity": "sha512-nTUTFH7G5/J/fmpkjVLegOkqyKOP0CEsJcMsyO4UCYeN1su+YMW/MfaSErnJskL7XM+UDK6aTvslxsRCyya/sA==",
+       "license": "MIT"
+     },
+     "node_modules/@next/eslint-plugin-next": {
+-      "version": "16.3.8",
+-      "resolved": "https://registry.npmjs.org/@next/eslint-plugin-next/-/eslint-plugin-next-16.3.8.tgz",
+-      "integrity": "sha512-eCR9RcLTZrVS+K3+VOhi0xMdUUGNuriCHHhU1ZoABC/QQ/Gp0OWbLKQxV2/9DkmihYdYRcQWFmZXW8M1AMUXYw==",
++      "version": "16.4.2",
++      "resolved": "https://registry.npmjs.org/@next/eslint-plugin-next/-/eslint-plugin-next-16.4.2.tgz",
++      "integrity": "sha512-gCTWlw0e+Y6kajpFyKKgA195jUJCRhlzJE0lV7ufe8a+ghIsANWZ0/FiJwg6DuOG1+OvRbcZDcFBoRh3mNJx0g==",
+       "dev": true,
+       "license": "MIT",
+       "dependencies": {
+@@ -1827,9 +1827,9 @@
+       }
+     },
+     "node_modules/@next/swc-darwin-arm64": {
+-      "version": "16.3.8",
+-      "resolved": "https://registry.npmjs.org/@next/swc-darwin-arm64/-/swc-darwin-arm64-16.3.8.tgz",
+-      "integrity": "sha512-2JPRMh2nmQG5CiL7cXGL9AGwnPWJQ//cTtAUCT+w511QHk79SYz3LGv/pc5X643B/WEO0rvu3Yww0hqwt3kgeA==",
++      "version": "16.4.2",
++      "resolved": "https://registry.npmjs.org/@next/swc-darwin-arm64/-/swc-darwin-arm64-16.4.2.tgz",
++      "integrity": "sha512-ONkhFvZNFWlsEHOM/81AtxdyuJP2KRYKYR0JxPwvcu1AuPMMMgcL+wW2luldJvMtZwKtUxoSkCychW5wIeoYSw==",
+       "cpu": [
+         "arm64"
+       ],
+@@ -1843,9 +1843,9 @@
+       }
+     },
+     "node_modules/@next/swc-darwin-x64": {
+-      "version": "16.3.8",
+-      "resolved": "https://registry.npmjs.org/@next/swc-darwin-x64/-/swc-darwin-x64-16.3.8.tgz",
+-      "integrity": "sha512-GZtCCOBKJ4leVIT/Th0llWKhD1ca92lzbQiS5R5ON9QkoiFnilFsebDae1JU2a3HWoKMEmEZWGs1AGLavVM72Q==",
++      "version": "16.4.2",
++      "resolved": "https://registry.npmjs.org/@next/swc-darwin-x64/-/swc-darwin-x64-16.4.2.tgz",
++      "integrity": "sha512-luPCMbOsCoaF+kXJEUjmjmOZg1lC3BflhmUu+ZmW4tBu2vW/4AXak8JBFvePizGkxVmNiAw/r9ra+6UviCWtWQ==",
+       "cpu": [
+         "x64"
+       ],
+@@ -1859,9 +1859,9 @@
+       }
+     },
+     "node_modules/@next/swc-linux-arm64-gnu": {
+-      "version": "16.3.8",
+-      "resolved": "https://registry.npmjs.org/@next/swc-linux-arm64-gnu/-/swc-linux-arm64-gnu-16.3.8.tgz",
+-      "integrity": "sha512-O659ygeQYqneJ1fBKMpFxIFqYkYswu8IAS1OCKK/4f3ZgJJm1dRz4fVJZRi/kLLWjnBKnebOePA4WNv+sV1pVA==",
++      "version": "16.4.2",
++      "resolved": "https://registry.npmjs.org/@next/swc-linux-arm64-gnu/-/swc-linux-arm64-gnu-16.4.2.tgz",
++      "integrity": "sha512-xhwFTAncJyaCNy5KqKKuKaIIdCy1/1ZV1s5S1G0hhT7wGMkDTlfJ6aQbfRFnIG/s3/kDrxQ8aycVe+c5QnP8ow==",
+       "cpu": [
+         "arm64"
+       ],
+@@ -1878,9 +1878,9 @@
+       }
+     },
+     "node_modules/@next/swc-linux-arm64-musl": {
+-      "version": "16.3.8",
+-      "resolved": "https://registry.npmjs.org/@next/swc-linux-arm64-musl/-/swc-linux-arm64-musl-16.3.8.tgz",
+-      "integrity": "sha512-dSjKSyWpzxoO1d3DIZZcP4XJcNaKeLmxQMFOiYl5vuBRMmweIqnAhty8tAmRsvTss779cK1FtYnDMj40e4TQlg==",
++      "version": "16.4.2",
++      "resolved": "https://registry.npmjs.org/@next/swc-linux-arm64-musl/-/swc-linux-arm64-musl-16.4.2.tgz",
++      "integrity": "sha512-T1PNmfbPcxr5ndtWUL/3wQtLXsz808lq6sc2GrNT5k2oquF7UyqZddHSuAewHVsWsGXe6nsl9HoN1YNriVjuSg==",
+       "cpu": [
+         "arm64"
+       ],
+@@ -1897,9 +1897,9 @@
+       }
+     },
+     "node_modules/@next/swc-linux-x64-gnu": {
+-      "version": "16.3.8",
+-      "resolved": "https://registry.npmjs.org/@next/swc-linux-x64-gnu/-/swc-linux-x64-gnu-16.3.8.tgz",
+-      "integrity": "sha512-lbqOuz3RPRcv+o9msNsJw5x4+Y1ZwPTs6vmL6DCf7i0fZfvng/F59wyeDwqHIvV0mK//RBy/jJkZ+nCKsSMXjQ==",
++      "version": "16.4.2",
++      "resolved": "https://registry.npmjs.org/@next/swc-linux-x64-gnu/-/swc-linux-x64-gnu-16.4.2.tgz",
++      "integrity": "sha512-N9cDUOCGtkJG5PNKDFZUF3xXndrJJcpLp121uAGjIGvO/U2p9tfdNOM9htj7+5f72l0m8rMw/cvYacUJBQoudg==",
+       "cpu": [
+         "x64"
+       ],
+@@ -1916,9 +1916,9 @@
+       }
+     },
+     "node_modules/@next/swc-linux-x64-musl": {
+-      "version": "16.3.8",
+-      "resolved": "https://registry.npmjs.org/@next/swc-linux-x64-musl/-/swc-linux-x64-musl-16.3.8.tgz",
+-      "integrity": "sha512-+316WswI8ScVgZeUd+1KGaXkHhaYQzCjvH/05TZSpJ8zBizb1a4G7DtO7F12jcBIqMOtsz9ji1t48fmKtzqsGA==",
++      "version": "16.4.2",
++      "resolved": "https://registry.npmjs.org/@next/swc-linux-x64-musl/-/swc-linux-x64-musl-16.4.2.tgz",
++      "integrity": "sha512-yY2uh1YhX6ufuYy2FCbw1dqblbhI57GLYAJfCkqD9auTv6pLrH67Uccjc3QMKBeCYAG6lkgu08ExmX1bbjejjQ==",
+       "cpu": [
+         "x64"
+       ],
+@@ -1935,9 +1935,9 @@
+       }
+     },
+     "node_modules/@next/swc-win32-arm64-msvc": {
+-      "version": "16.3.8",
+-      "resolved": "https://registry.npmjs.org/@next/swc-win32-arm64-msvc/-/swc-win32-arm64-msvc-16.3.8.tgz",
+-      "integrity": "sha512-ji0gd4kMYUxO+1fJBIbiBVRCjzG/lloiyCccnlebvb1ZJ5qXCPZqYg4Jl1DrrixnWNMKylzgpmMWx0yNDYXlzw==",
++      "version": "16.4.2",
++      "resolved": "https://registry.npmjs.org/@next/swc-win32-arm64-msvc/-/swc-win32-arm64-msvc-16.4.2.tgz",
++      "integrity": "sha512-j/ArWRIHpMMB6wYLMhr2puTguBt70lNU/Cmjl9p6dTDE8DGknYJMP9PdwPk2dqpCNL/KIX9yfngDvIesxJPmsg==",
+       "cpu": [
+         "arm64"
+       ],
+@@ -1951,9 +1951,9 @@
+       }
+     },
+     "node_modules/@next/swc-win32-x64-msvc": {
+-      "version": "16.3.8",
+-      "resolved": "https://registry.npmjs.org/@next/swc-win32-x64-msvc/-/swc-win32-x64-msvc-16.3.8.tgz",
+-      "integrity": "sha512-WcTlaKt/TWkh5kUjdJcUmB1XgZ+1c6fz4Y9fDHL73YNSdGaUWjceeWrrlwF0nv19iABYWC4iAq1oX1w4Bn0vfg==",
++      "version": "16.4.2",
++      "resolved": "https://registry.npmjs.org/@next/swc-win32-x64-msvc/-/swc-win32-x64-msvc-16.4.2.tgz",
++      "integrity": "sha512-AA4edyWHDko3NCSo0x6GomsdgFb0oR1J3MXU1b5xt6FRFg4AucrMPW3S0hCe/9onU0O1BbpGQBsqo1r0Gneu1g==",
+       "cpu": [
+         "x64"
+       ],
+@@ -3831,15 +3831,6 @@
+         "zod": "4.1.11"
+       }
+     },
+-    "node_modules/@vercel/cli-config/node_modules/zod": {
+-      "version": "4.1.11",
+-      "resolved": "https://registry.npmjs.org/zod/-/zod-4.1.11.tgz",
+-      "integrity": "sha512-WPsqwxITS2tzx1bzhIKsEs19ABD5vmCVa4xBo2tq/SrV4RNZtfws1EnCWQXM6yh8bD08a1idvkB5MZSBiZsjwg==",
+-      "license": "MIT",
+-      "funding": {
+-        "url": "https://github.com/sponsors/colinhacks"
+-      }
+-    },
+     "node_modules/@vercel/cli-exec": {
+       "version": "1.0.1",
+       "resolved": "https://registry.npmjs.org/@vercel/cli-exec/-/cli-exec-1.0.1.tgz",
+@@ -3914,16 +3905,16 @@
+       }
+     },
+     "node_modules/@vitest/expect": {
+-      "version": "4.1.11",
+-      "resolved": "https://registry.npmjs.org/@vitest/expect/-/expect-4.1.11.tgz",
+-      "integrity": "sha512-VX2x5vNJXET47KAFzwERI+KRMtTTCSWTfSMKsW7JsUsXV4psq++e3DvZpuTDOpHcxytiDs6p2nhVb2tVDiiUYw==",
++      "version": "4.1.12",
++      "resolved": "https://registry.npmjs.org/@vitest/expect/-/expect-4.1.12.tgz",
++      "integrity": "sha512-vFlTt+YEu9WBpNjdGayNmlMVzrWPi1+sv853/7t2FU7hpO5gAFBKHzQmkCq5Xjpr+evegF2994LQT3hF3mRlqQ==",
+       "dev": true,
+       "license": "MIT",
+       "dependencies": {
+         "@standard-schema/spec": "^1.1.0",
+         "@types/chai": "^5.2.2",
+-        "@vitest/spy": "4.1.11",
+-        "@vitest/utils": "4.1.11",
++        "@vitest/spy": "4.1.12",
++        "@vitest/utils": "4.1.12",
+         "chai": "^6.2.2",
+         "tinyrainbow": "^3.1.0"
+       },
+@@ -3932,13 +3923,13 @@
+       }
+     },
+     "node_modules/@vitest/mocker": {
+-      "version": "4.1.11",
+-      "resolved": "https://registry.npmjs.org/@vitest/mocker/-/mocker-4.1.11.tgz",
+-      "integrity": "sha512-2XJVD55d1o5AZous5CCGKS74g/riOj9odEt2bQpCVZeblHyHdnMeFl4jl0XjU21stf4mbjUkew2eXQZt65g5CQ==",
++      "version": "4.1.12",
++      "resolved": "https://registry.npmjs.org/@vitest/mocker/-/mocker-4.1.12.tgz",
++      "integrity": "sha512-fKShNpKZzupWZuY0z7egydvL0sqW4INEZBEExMBMAa6izlENEVHwoXgdaTCaBZ5fwlr4xf2o1wXC83n9RpO+NA==",
+       "dev": true,
+       "license": "MIT",
+       "dependencies": {
+-        "@vitest/spy": "4.1.11",
++        "@vitest/spy": "4.1.12",
+         "estree-walker": "^3.0.3",
+         "magic-string": "^0.30.21"
+       },
+@@ -3959,9 +3950,9 @@
+       }
+     },
+     "node_modules/@vitest/pretty-format": {
+-      "version": "4.1.11",
+-      "resolved": "https://registry.npmjs.org/@vitest/pretty-format/-/pretty-format-4.1.11.tgz",
+-      "integrity": "sha512-yiZzPbGTS9Sr/JpFl8zHrcIkAofNbFV6k21vIgQN/cY/oxZeXhJv5sc/MBJ5jFKWmWs+oJHw0UXLZjmf931+Vw==",
++      "version": "4.1.12",
++      "resolved": "https://registry.npmjs.org/@vitest/pretty-format/-/pretty-format-4.1.12.tgz",
++      "integrity": "sha512-XW9O8+Mxx4VpCtkYdMJLZQQwsVryP9wk7cPKDxtXFfwSak6yRh5+2fep/Y0XF/ElBvJHq8bcYdi6aeuai0opZA==",
+       "dev": true,
+       "license": "MIT",
+       "dependencies": {
+@@ -3972,13 +3963,13 @@
+       }
+     },
+     "node_modules/@vitest/runner": {
+-      "version": "4.1.11",
+-      "resolved": "https://registry.npmjs.org/@vitest/runner/-/runner-4.1.11.tgz",
+-      "integrity": "sha512-LztvUgdwMNJMIkj3hQnnxiC2Xy1zNxq928W/xhjCLaNCzqTZOudjwbQf6v9IntZGPw132i2Lq2rgTRZHD3JHNw==",
++      "version": "4.1.12",
++      "resolved": "https://registry.npmjs.org/@vitest/runner/-/runner-4.1.12.tgz",
++      "integrity": "sha512-NKlVKCr5QnCe8jijdMnmkpHHU+WTqiLFR6G0pHji9uRjXK9xJl1k1nTw6F3pOOj2PDcsDt2GKQMI7wIsaT491w==",
+       "dev": true,
+       "license": "MIT",
+       "dependencies": {
+-        "@vitest/utils": "4.1.11",
++        "@vitest/utils": "4.1.12",
+         "pathe": "^2.0.3"
+       },
+       "funding": {
+@@ -3986,14 +3977,14 @@
+       }
+     },
+     "node_modules/@vitest/snapshot": {
+-      "version": "4.1.11",
+-      "resolved": "https://registry.npmjs.org/@vitest/snapshot/-/snapshot-4.1.11.tgz",
+-      "integrity": "sha512-pN7ikn1ON7h8ee4gIAp4AzyK+zBtJPzVbqOgu5LCEh4VaJVbPQcgYQYJIMGQPXVeJJq1fnfazis7a5pFNPahog==",
++      "version": "4.1.12",
++      "resolved": "https://registry.npmjs.org/@vitest/snapshot/-/snapshot-4.1.12.tgz",
++      "integrity": "sha512-ko1y1Qgb/slzQ9mr+b89Cuqud8WG1TKtsPD8r7ZUBdvVOGt85Af2HwCqHujrhwJq95hs/9RM7fcAPg57o1vlzw==",
+       "dev": true,
+       "license": "MIT",
+       "dependencies": {
+-        "@vitest/pretty-format": "4.1.11",
+-        "@vitest/utils": "4.1.11",
++        "@vitest/pretty-format": "4.1.12",
++        "@vitest/utils": "4.1.12",
+         "magic-string": "^0.30.21",
+         "pathe": "^2.0.3"
+       },
+@@ -4002,9 +3993,9 @@
+       }
+     },
+     "node_modules/@vitest/spy": {
+-      "version": "4.1.11",
+-      "resolved": "https://registry.npmjs.org/@vitest/spy/-/spy-4.1.11.tgz",
+-      "integrity": "sha512-apNa/prQy2qCeywhnixOHPRCgGNhvg7T4Dapfl1GahLp/R+uhBm5cPyFoNVyqsNd2h1nJxL6BqqdIjiABL60YA==",
++      "version": "4.1.12",
++      "resolved": "https://registry.npmjs.org/@vitest/spy/-/spy-4.1.12.tgz",
++      "integrity": "sha512-RGq9x4JNGNTZHEJxvN0oSiJjeSCExm0n2gZKKJZHY9cX5AVA6M7VJILBT3ZJ/tJ/0J9uWT7fETV9/btoi//vSg==",
+       "dev": true,
+       "license": "MIT",
+       "funding": {
+@@ -4012,13 +4003,13 @@
+       }
+     },
+     "node_modules/@vitest/utils": {
+-      "version": "4.1.11",
+-      "resolved": "https://registry.npmjs.org/@vitest/utils/-/utils-4.1.11.tgz",
+-      "integrity": "sha512-zTCVGpyFsGWBhllOyKlTw/vnr6D9qxsfSDyfbyZmTyjHw5N/VuvzHpHoQjm2ZJzn4RJgx5w4r7V0er69CmLgPQ==",
++      "version": "4.1.12",
++      "resolved": "https://registry.npmjs.org/@vitest/utils/-/utils-4.1.12.tgz",
++      "integrity": "sha512-Q3awXrwOfEV+qc3WmO5ONyE0yO7Q1gQ9/oyHxGLZ/pl7N3NO/ZztqQwKLuwMkV+CA1JYSIeO3gkHnRDIo4AVaA==",
+       "dev": true,
+       "license": "MIT",
+       "dependencies": {
+-        "@vitest/pretty-format": "4.1.11",
++        "@vitest/pretty-format": "4.1.12",
+         "convert-source-map": "^2.0.0",
+         "tinyrainbow": "^3.1.0"
+       },
+@@ -5415,21 +5406,21 @@
+       }
+     },
+     "node_modules/eslint-config-next": {
+-      "version": "16.3.8",
+-      "resolved": "https://registry.npmjs.org/eslint-config-next/-/eslint-config-next-16.3.8.tgz",
+-      "integrity": "sha512-81vovwMe6NGnoFsl0KUJWzlS+y239i3fdsxs49gSEX3pDQW2cuKy+fxUPXNkQqqx6OCPheYPtBlSufc9aZ0k+w==",
++      "version": "16.4.2",
++      "resolved": "https://registry.npmjs.org/eslint-config-next/-/eslint-config-next-16.4.2.tgz",
++      "integrity": "sha512-P33vjcETMXc+qBjpF77TeJHZLzk6cPcTy8KjpxLucYB3mCIFIORMcZ+cBXcAiIYjE5RM7jyknEEOwMNdnx/ADQ==",
+       "dev": true,
+       "license": "MIT",
+       "dependencies": {
+-        "@next/eslint-plugin-next": "16.3.8",
++        "@next/eslint-plugin-next": "16.4.2",
+         "eslint-import-resolver-node": "^0.3.6",
+         "eslint-import-resolver-typescript": "^3.5.2",
+         "eslint-plugin-import": "^2.32.0",
+         "eslint-plugin-jsx-a11y": "^6.10.0",
+         "eslint-plugin-react": "^7.37.0",
+-        "eslint-plugin-react-hooks": "^7.0.0",
++        "eslint-plugin-react-hooks": "^7.1.0",
+         "globals": "16.4.0",
+-        "typescript-eslint": "^8.46.0"
++        "typescript-eslint": "^8.56.0"
+       },
+       "peerDependencies": {
+         "eslint": ">=9.0.0",
+@@ -7510,12 +7501,12 @@
+       "license": "MIT"
+     },
+     "node_modules/next": {
+-      "version": "16.3.8",
+-      "resolved": "https://registry.npmjs.org/next/-/next-16.3.8.tgz",
+-      "integrity": "sha512-U7QEZaTini6wKrb8A8hqLLqYQyCetegKjCpJOyxk642vWoMoU1x5PyZCJFvgYgiptA8xc5j/9xYlZFO7w9Sjmw==",
++      "version": "16.4.2",
++      "resolved": "https://registry.npmjs.org/next/-/next-16.4.2.tgz",
++      "integrity": "sha512-r+oBJojfefUjOiWkBhXgLS+igxX/7BWyK59uHnyOyplMSLtBZ+QLP3okrdYTbrfrbrmNTVWLBPaHDX9KRaIt3w==",
+       "license": "MIT",
+       "dependencies": {
+-        "@next/env": "16.3.8",
++        "@next/env": "16.4.2",
+         "@swc/helpers": "0.5.23",
+         "baseline-browser-mapping": "^2.9.19",
+         "caniuse-lite": "^1.0.30001579",
+@@ -7529,15 +7520,15 @@
+         "node": ">=20.9.0"
+       },
+       "optionalDependencies": {
+-        "@next/swc-darwin-arm64": "16.3.8",
+-        "@next/swc-darwin-x64": "16.3.8",
+-        "@next/swc-linux-arm64-gnu": "16.3.8",
+-        "@next/swc-linux-arm64-musl": "16.3.8",
+-        "@next/swc-linux-x64-gnu": "16.3.8",
+-        "@next/swc-linux-x64-musl": "16.3.8",
+-        "@next/swc-win32-arm64-msvc": "16.3.8",
+-        "@next/swc-win32-x64-msvc": "16.3.8",
+-        "sharp": "^0.35.4"
++        "@next/swc-darwin-arm64": "16.4.2",
++        "@next/swc-darwin-x64": "16.4.2",
++        "@next/swc-linux-arm64-gnu": "16.4.2",
++        "@next/swc-linux-arm64-musl": "16.4.2",
++        "@next/swc-linux-x64-gnu": "16.4.2",
++        "@next/swc-linux-x64-musl": "16.4.2",
++        "@next/swc-win32-arm64-msvc": "16.4.2",
++        "@next/swc-win32-x64-msvc": "16.4.2",
++        "sharp": "^0.35.5"
+       },
+       "peerDependencies": {
+         "@opentelemetry/api": "^1.1.0",
+@@ -9316,9 +9307,9 @@
+       }
+     },
+     "node_modules/undici": {
+-      "version": "7.29.1",
+-      "resolved": "https://registry.npmjs.org/undici/-/undici-7.29.1.tgz",
+-      "integrity": "sha512-RYONW2MeafgYlkVOKYKkA/Ag7BmXqgIWCa8t1m0JcxrQg9pI9lEqRhAOruOBCbAohOa/gkCF+iPi9hrgvTzu6Q==",
++      "version": "7.30.1",
++      "resolved": "https://registry.npmjs.org/undici/-/undici-7.30.1.tgz",
++      "integrity": "sha512-03KrMbjIFDWQR5RNPrSw3bd1r12JpyFQl9/yxjUbJtqkjmllqC5lFjZh6ujeuJCKr8EOQvRW872Oy/az+nLYxg==",
+       "dev": true,
+       "license": "MIT",
+       "engines": {
+@@ -9786,19 +9777,19 @@
+       }
+     },
+     "node_modules/vitest": {
+-      "version": "4.1.11",
+-      "resolved": "https://registry.npmjs.org/vitest/-/vitest-4.1.11.tgz",
+-      "integrity": "sha512-fhACrNXUidIbGSBr5FlbuBkO7VWC1ZyLl0DO4CU2DrQoAPxX84Ysxs+HeGQpii5lZWV1Q4gBZTTu49mF+A6Edw==",
++      "version": "4.1.12",
++      "resolved": "https://registry.npmjs.org/vitest/-/vitest-4.1.12.tgz",
++      "integrity": "sha512-5eWdz2yb3ajxWF3C8C4TjkXl7FGm3n2E/VlazALrQHzK7nYMSGFnCZto0bbPNl77AwkOZVLk0YnBAejUu0NiWA==",
+       "dev": true,
+       "license": "MIT",
+       "dependencies": {
+-        "@vitest/expect": "4.1.11",
+-        "@vitest/mocker": "4.1.11",
+-        "@vitest/pretty-format": "4.1.11",
+-        "@vitest/runner": "4.1.11",
+-        "@vitest/snapshot": "4.1.11",
+-        "@vitest/spy": "4.1.11",
+-        "@vitest/utils": "4.1.11",
++        "@vitest/expect": "4.1.12",
++        "@vitest/mocker": "4.1.12",
++        "@vitest/pretty-format": "4.1.12",
++        "@vitest/runner": "4.1.12",
++        "@vitest/snapshot": "4.1.12",
++        "@vitest/spy": "4.1.12",
++        "@vitest/utils": "4.1.12",
+         "es-module-lexer": "^2.0.0",
+         "expect-type": "^1.3.0",
+         "magic-string": "^0.30.21",
+@@ -9826,12 +9817,12 @@
+         "@edge-runtime/vm": "*",
+         "@opentelemetry/api": "^1.9.0",
+         "@types/node": "^20.0.0 || ^22.0.0 || >=24.0.0",
+-        "@vitest/browser-playwright": "4.1.11",
+-        "@vitest/browser-preview": "4.1.11",
+-        "@vitest/browser-webdriverio": "4.1.11",
+-        "@vitest/coverage-istanbul": "4.1.11",
+-        "@vitest/coverage-v8": "4.1.11",
+-        "@vitest/ui": "4.1.11",
++        "@vitest/browser-playwright": "4.1.12",
++        "@vitest/browser-preview": "4.1.12",
++        "@vitest/browser-webdriverio": "^4.1.11",
++        "@vitest/coverage-istanbul": "4.1.12",
++        "@vitest/coverage-v8": "4.1.12",
++        "@vitest/ui": "4.1.12",
+         "happy-dom": "*",
+         "jsdom": "*",
+         "vite": "^6.0.0 || ^7.0.0 || ^8.0.0"
+@@ -10257,9 +10248,9 @@
+       }
+     },
+     "node_modules/zod": {
+-      "version": "4.4.3",
+-      "resolved": "https://registry.npmjs.org/zod/-/zod-4.4.3.tgz",
+-      "integrity": "sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==",
++      "version": "4.6.6",
++      "resolved": "https://registry.npmjs.org/zod/-/zod-4.6.6.tgz",
++      "integrity": "sha512-4UmzQUF5fxvfcYHlbjBmejU+w+hbDnWFx4aS8kBx7nPBHcO2SqPbpAG8snbdg+Xse4pRefR98hgjFgIMCI/UhA==",
+       "license": "MIT",
+       "funding": {
+         "url": "https://github.com/sponsors/colinhacks"
+diff --git a/package.json b/package.json
+index 9c3d89be85a6313c90a7f87d96591851523b09bf..59f5dd2ca85a7cddbe1394357c3b9bba3a58a0fb 100644
+--- a/package.json
++++ b/package.json
+@@ -73,7 +73,7 @@
+     "clsx": "^2.1.1",
+     "jose": "^6.2.4",
+     "lucide-react": "^0.562.0",
+-    "next": "16.3.8",
++    "next": "16.4.2",
+     "openai": "7.0.0",
+     "papaparse": "^5.5.4",
+     "pinyin-pro": "^3.28.2",
+@@ -83,7 +83,7 @@
+     "server-only": "0.0.1",
+     "sharp": "0.35.5",
+     "web-push": "3.6.7",
+-    "zod": "^4.2.1"
++    "zod": "4.6.6"
+   },
+   "devDependencies": {
+     "@actions/core": "1.11.1",
+@@ -97,20 +97,23 @@
+     "concurrently": "^10.0.3",
+     "cross-env": "^10.1.0",
+     "eslint": "^9",
+-    "eslint-config-next": "16.3.8",
++    "eslint-config-next": "16.4.2",
+     "fast-glob": "file:vendor/next-root-glob",
+     "prisma": "^6.19.0",
+     "supabase": "^2.109.1",
+     "tailwindcss": "^4",
+     "tsx": "^4.21.0",
+     "typescript": "^5",
+-    "vitest": "^4.1.11",
++    "vitest": "^4.1.12",
+     "wrangler": "4.118.0"
+   },
+   "prisma": {
+     "seed": "tsx prisma/seed.ts"
+   },
+   "overrides": {
++    "@vercel/cli-config": {
++      "zod": "$zod"
++    },
+     "fast-glob": "$fast-glob",
+     "brace-expansion": "5.0.12",
+     "deepmerge-ts": "8.0.1",
+@@ -119,7 +122,7 @@
+     "sharp": "$sharp",
+     "shell-quote": "1.11.0",
+     "source-map-js": "1.2.2",
+-    "undici": "7.29.1",
++    "undici": "7.30.1",
+     "vite": "8.2.4"
+   }
+ }
+diff --git a/scripts/dependency-security.test.mjs b/scripts/dependency-security.test.mjs
+index c3a6e4584e33287993d6d9c4a8c2eee56b5e98eb..1ebfd8161623612d0ca843a99246580ec25f499d 100644
+--- a/scripts/dependency-security.test.mjs
++++ b/scripts/dependency-security.test.mjs
+@@ -1,7 +1,9 @@
+ import { createRequire } from "node:module";
++import { createHash } from "node:crypto";
+ import { readFileSync } from "node:fs";
+ import path from "node:path";
+ import { describe, expect, it } from "vitest";
++import { createStaffOrderSchema } from "../src/lib/staff-order-contract";
+ 
+ const require = createRequire(import.meta.url);
+ const root = path.resolve(import.meta.dirname, "..");
+@@ -17,17 +19,68 @@ describe("security dependency release contract", () => {
+   });
+ 
+   it.each([
+-    ["next", "16.3.8"],
++    ["next", "16.4.2"],
++    ["eslint-config-next", "16.4.2"],
++    ["@next/eslint-plugin-next", "16.4.2"],
+     ["sharp", "0.35.5"],
+     ["brace-expansion", "5.0.12"],
+     ["shell-quote", "1.11.0"],
+-    ["undici", "7.29.1"],
++    ["undici", "7.30.1"],
++    ["zod", "4.6.6"],
+     ["source-map-js", "1.2.2"],
+     ["vite", "8.2.4"],
+   ])("locks %s to its reviewed security release", (name, version) => {
+     expect(lock.packages[`node_modules/${name}`].version).toBe(version);
+   });
+ 
++  it("uses the reviewed Zod release for the application and Vercel CLI config", () => {
++    const configRequire = createRequire(require.resolve("@vercel/cli-config"));
++    expect(configRequire("zod/package.json").version).toBe("4.6.6");
++    expect(Object.entries(lock.packages).filter(([key]) => key.endsWith("node_modules/zod")).map(([, value]) => value.version)).toEqual(["4.6.6"]);
++  });
++
++  it("rejects oversized Staff order collections before validating every element", () => {
++    const result = createStaffOrderSchema.safeParse({
++      idempotencyKey: "11111111-1111-4111-8111-111111111111",
++      fulfillmentType: "TAKEOUT",
++      paymentTiming: "PAY_LATER",
++      items: Array.from({ length: 101 }, () => ({})),
++    });
++    expect(result.success).toBe(false);
++    expect(result.error.issues).toHaveLength(1);
++    expect(result.error.issues).toEqual([expect.objectContaining({ code: "too_big", path: ["items"], maximum: 100 })]);
++  });
++
++  it("preserves valid Staff orders and rejects invalid elements within the collection limit", () => {
++    const order = {
++      idempotencyKey: "11111111-1111-4111-8111-111111111111",
++      fulfillmentType: "TAKEOUT",
++      paymentTiming: "PAY_LATER",
++      items: [{ productId: "22222222-2222-4222-8222-222222222222", quantity: 1 }],
++    };
++    expect(createStaffOrderSchema.safeParse(order).success).toBe(true);
++    const invalid = createStaffOrderSchema.safeParse({ ...order, items: [{}] });
++    expect(invalid.success).toBe(false);
++    expect(invalid.error.issues).toEqual(expect.arrayContaining([expect.objectContaining({ path: ["items", 0, "productId"] })]));
++  });
++
++  it("preserves Vercel CLI config validation without reading credentials", () => {
++    const { globalConfigSchema } = require("@vercel/cli-config");
++    const config = { credStorage: "file", telemetry: { enabled: false }, updates: { auto: false }, fixtureExtension: true };
++    expect(globalConfigSchema.parse(config)).toEqual(config);
++    expect(globalConfigSchema.safeParse({ credStorage: "invalid" }).success).toBe(false);
++    expect(globalConfigSchema.safeParse({ telemetry: { enabled: "false" } }).success).toBe(false);
++  });
++
++  it.each(["SHA256", "sHa256"])("enforces Undici integrity with a %s algorithm token", async (algorithm) => {
++    const { fetch } = require("undici");
++    const digest = createHash("sha256").update("fixture").digest("base64");
++    const response = await fetch("data:text/plain,fixture", { integrity: `${algorithm}-${digest}` });
++    expect(await response.text()).toBe("fixture");
++    const wrongDigest = createHash("sha256").update("different").digest("base64");
++    await expect(fetch("data:text/plain,fixture", { integrity: `${algorithm}-${wrongDigest}` })).rejects.toThrow("fetch failed");
++  });
++
+   it("rejects shell comment terminator injection instead of emitting a command", () => {
+     expect(() => require("shell-quote").quote(["echo", "ok", { comment: "x" }, "a\nid;#"])).toThrow(TypeError);
+   });
+diff --git a/src/app/api/stalls/[stallSlug]/completed-orders/route.test.ts b/src/app/api/stalls/[stallSlug]/completed-orders/route.test.ts
+index 68a11ad91210fa0ec81d0313c762c281572f3fb8..3f12c97753dc54b6b4d8762613ef8e8da2b8d10b 100644
+--- a/src/app/api/stalls/[stallSlug]/completed-orders/route.test.ts
++++ b/src/app/api/stalls/[stallSlug]/completed-orders/route.test.ts
+@@ -121,6 +121,7 @@ describe("completed order protected corrections", () => {
+             OR: [
+               { status: "COMPLETED", completedAt: { gte: new Date("2026-08-22T16:00:00Z"), lt: new Date("2026-08-23T16:00:00Z") } },
+               { status: "CANCELLED", cancelledAt: { gte: new Date("2026-08-22T16:00:00Z"), lt: new Date("2026-08-23T16:00:00Z") } },
++              { status: "EXPIRED", expiredAt: { gte: new Date("2026-08-22T16:00:00Z"), lt: new Date("2026-08-23T16:00:00Z") } },
+             ],
+           }],
+         }),
+@@ -150,6 +151,7 @@ describe("completed order protected corrections", () => {
+               OR: [
+                 { status: "COMPLETED", completedAt: { gte: new Date("2026-08-22T16:00:00Z"), lt: new Date("2026-08-23T16:00:00Z") } },
+                 { status: "CANCELLED", cancelledAt: { gte: new Date("2026-08-22T16:00:00Z"), lt: new Date("2026-08-23T16:00:00Z") } },
++                { status: "EXPIRED", expiredAt: { gte: new Date("2026-08-22T16:00:00Z"), lt: new Date("2026-08-23T16:00:00Z") } },
+               ],
+             },
+             {
+@@ -167,6 +169,101 @@ describe("completed order protected corrections", () => {
+     }
+   });
+ 
++  it.each([
++    ["2026-10-28T15:59:59Z", "2026-10-27T16:00:00Z", "2026-10-28T16:00:00Z"],
++    ["2026-10-28T16:00:00Z", "2026-10-28T16:00:00Z", "2026-10-29T16:00:00Z"],
++  ])("finds expired orders in the stall-local calendar day at %s", async (now, from, to) => {
++    vi.useFakeTimers();
++    vi.setSystemTime(new Date(now));
++    try {
++      const route = await import("./route");
++      const response = await route.GET(
++        new Request("https://example.test/api/stalls/demo/completed-orders?status=EXPIRED&query=261029-001&stallId=other-stall"),
++        { params: Promise.resolve({ stallSlug: "demo" }) },
++      );
++
++      expect(response.status).toBe(200);
++      expect(mocks.authorize).toHaveBeenCalledWith(expect.any(Request), "demo", "VIEW_ORDERS");
++      expect(mocks.orderFindMany).toHaveBeenCalledWith(expect.objectContaining({
++        where: {
++          organizationId,
++          stallId,
++          AND: [
++            { status: "EXPIRED", expiredAt: { gte: new Date(from), lt: new Date(to) } },
++            { OR: [
++              { orderNo: { contains: "261029-001", mode: "insensitive" } },
++              { customerName: { contains: "261029-001", mode: "insensitive" } },
++              { customerPhone: { contains: "261029-001" } },
++            ] },
++          ],
++        },
++        take: 100,
++      }));
++    } finally {
++      vi.useRealTimers();
++    }
++  });
++
++  it("returns the expiry time without exposing order secrets", async () => {
++    const createdAt = new Date("2026-10-29T00:41:16Z");
++    const expiredAt = new Date("2026-10-29T00:52:00Z");
++    mocks.orderFindMany.mockResolvedValueOnce([{
++      id: orderId, orderNo: "261029-001", status: "EXPIRED", createdAt,
++      completedAt: null, cancelledAt: null, expiredAt, payment: null,
++    }]);
++    const route = await import("./route");
++    const response = await route.GET(
++      new Request("https://example.test/api/stalls/demo/completed-orders?status=EXPIRED"),
++      { params: Promise.resolve({ stallSlug: "demo" }) },
++    );
++
++    expect(response.status).toBe(200);
++    await expect(response.json()).resolves.toMatchObject({ orders: [{ status: "EXPIRED", expiredAt: "2026-10-29T00:52:00.000Z" }] });
++    const selection = mocks.orderFindMany.mock.calls[0][0].select;
++    expect(selection.expiredAt).toBe(true);
++    expect(selection).not.toHaveProperty("trackingTokenHash");
++    expect(selection).not.toHaveProperty("pickupCodeHash");
++  });
++
++  it("does not query history for an unauthorized stall", async () => {
++    mocks.authorize.mockResolvedValueOnce({ ok: false, response: Response.json({ error: "Forbidden" }, { status: 403 }) });
++    const route = await import("./route");
++    const response = await route.GET(
++      new Request("https://example.test/api/stalls/other/completed-orders?status=EXPIRED"),
++      { params: Promise.resolve({ stallSlug: "other" }) },
++    );
++
++    expect(response.status).toBe(403);
++    expect(mocks.orderFindMany).not.toHaveBeenCalled();
++    expect(mocks.paymentOptionFindMany).not.toHaveBeenCalled();
++  });
++
++  it("rejects nonterminal status filters instead of exposing active orders", async () => {
++    const route = await import("./route");
++    const response = await route.GET(
++      new Request("https://example.test/api/stalls/demo/completed-orders?status=WAITING_CONFIRMATION"),
++      { params: Promise.resolve({ stallSlug: "demo" }) },
++    );
++
++    expect(response.status).toBe(400);
++    expect(mocks.orderFindMany).not.toHaveBeenCalled();
++  });
++
++  it.each(["CANCEL_COMPLETED_ORDER", "CHANGE_COMPLETED_PAYMENT"])("keeps expired orders read-only for %s", async (operation) => {
++    mocks.orderFindFirst.mockResolvedValueOnce({ id: orderId, orderNo: "A023", status: "EXPIRED", paymentStatus: "UNPAID", payment: null });
++    const response = await patch(operation === "CANCEL_COMPLETED_ORDER" ? {
++      operation, orderId, confirmationOrderNo: "A023", cancellationReason: "CUSTOMER_CANCELLED",
++    } : {
++      operation, orderId, paymentOptionId, reason: "付款方式測試",
++    });
++
++    expect(response.status).toBe(409);
++    expect(mocks.verifyManagerAuthorization).not.toHaveBeenCalled();
++    expect(mocks.transaction).not.toHaveBeenCalled();
++    expect(mocks.orderUpdateMany).not.toHaveBeenCalled();
++    expect(mocks.paymentUpdateMany).not.toHaveBeenCalled();
++  });
++
+   it("changes only the paid payment method and preserves order items and totals", async () => {
+     const response = await patch({
+       operation: "CHANGE_COMPLETED_PAYMENT",
+diff --git a/src/app/api/stalls/[stallSlug]/completed-orders/route.ts b/src/app/api/stalls/[stallSlug]/completed-orders/route.ts
+index 8d466f19e2a89faa0ff2718085d6d14fe5dc7229..7913d8589460f3d8c93b1a0c643aff1922d52283 100644
+--- a/src/app/api/stalls/[stallSlug]/completed-orders/route.ts
++++ b/src/app/api/stalls/[stallSlug]/completed-orders/route.ts
+@@ -16,7 +16,7 @@ import { hashClientIp } from "@/lib/security";
+ 
+ const querySchema = z.object({
+   query: z.string().trim().max(80).default(""),
+-  status: z.enum(["ALL", "COMPLETED", "CANCELLED"]).default("ALL"),
++  status: z.enum(["ALL", "COMPLETED", "CANCELLED", "EXPIRED"]).default("ALL"),
+ });
+ 
+ const commandSchema = z.discriminatedUnion("operation", [
+@@ -74,11 +74,14 @@ export async function GET(request: Request, context: RouteContext) {
+       OR: [
+         { status: "COMPLETED", completedAt: terminalDateFilter },
+         { status: "CANCELLED", cancelledAt: terminalDateFilter },
++        { status: "EXPIRED", expiredAt: terminalDateFilter },
+       ],
+     }
+     : parsed.data.status === "COMPLETED"
+       ? { status: "COMPLETED", completedAt: terminalDateFilter }
+-      : { status: "CANCELLED", cancelledAt: terminalDateFilter };
++      : parsed.data.status === "CANCELLED"
++        ? { status: "CANCELLED", cancelledAt: terminalDateFilter }
++        : { status: "EXPIRED", expiredAt: terminalDateFilter };
+   const searchFilter: Prisma.OrderWhereInput | null = parsed.data.query
+     ? {
+         OR: [
+@@ -114,6 +117,7 @@ export async function GET(request: Request, context: RouteContext) {
+       createdAt: true,
+       completedAt: true,
+       cancelledAt: true,
++      expiredAt: true,
+       cancellationReason: true,
+       cancellationDetail: true,
+       payment: {
+@@ -160,6 +164,7 @@ export async function GET(request: Request, context: RouteContext) {
+       createdAt: order.createdAt.toISOString(),
+       completedAt: order.completedAt?.toISOString() ?? null,
+       cancelledAt: order.cancelledAt?.toISOString() ?? null,
++      expiredAt: order.expiredAt?.toISOString() ?? null,
+       payment: order.payment ? { ...order.payment, paidAt: order.payment.paidAt.toISOString() } : null,
+     })),
+     paymentOptions,
+diff --git a/src/components/completed-orders-panel.expired.test.tsx b/src/components/completed-orders-panel.expired.test.tsx
+new file mode 100644
+index 0000000000000000000000000000000000000000..bff3960dd49cddf5d9a38eb08c83fc452c27b9ea
+--- /dev/null
++++ b/src/components/completed-orders-panel.expired.test.tsx
+@@ -0,0 +1,160 @@
++import { Children, isValidElement, type ReactElement, type ReactNode } from "react";
++import { renderToStaticMarkup } from "react-dom/server";
++import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
++import type { AppLocale } from "@/lib/app-locale";
++import { formatAppDateTime } from "@/lib/locale-format";
++import { createOperationsTranslator, getOperationsMessage } from "@/lib/messages/operations";
++
++const hooks = vi.hoisted(() => ({ values: [] as unknown[], cursor: 0, locale: "zh-TW" as AppLocale }));
++
++vi.mock("react", async (importOriginal) => {
++  const actual = await importOriginal<typeof import("react")>();
++  return {
++    ...actual,
++    useCallback: <T extends (...args: never[]) => unknown>(callback: T) => callback,
++    useState: <T,>(initial: T | (() => T)) => {
++      const index = hooks.cursor++;
++      if (!(index in hooks.values)) hooks.values[index] = typeof initial === "function" ? (initial as () => T)() : initial;
++      return [hooks.values[index] as T, (next: T | ((current: T) => T)) => {
++        hooks.values[index] = typeof next === "function" ? (next as (current: T) => T)(hooks.values[index] as T) : next;
++      }];
++    },
++  };
++});
++
++vi.mock("@/components/operations-locale", () => ({
++  useOperationsLocale: () => ({ locale: hooks.locale, t: createOperationsTranslator(hooks.locale) }),
++}));
++
++import { CompletedOrdersPanel } from "./completed-orders-panel";
++
++const expiredOrder = {
++  id: "33333333-3333-4333-8333-333333333333",
++  orderNo: "261029-999",
++  customerName: "測試顧客",
++  customerPhone: null,
++  fulfillmentType: "DELIVERY",
++  tableLabel: null,
++  status: "EXPIRED",
++  paymentStatus: "UNPAID",
++  subtotal: 120,
++  discountAmount: 0,
++  discountLabel: null,
++  total: 120,
++  note: null,
++  createdAt: "2026-10-29T00:41:16.000Z",
++  completedAt: null,
++  cancelledAt: null,
++  expiredAt: "2026-10-29T00:52:00.000Z",
++  cancellationReason: null,
++  cancellationDetail: null,
++  payment: null,
++  items: [{ id: "item-1", name: "測試餐點", quantity: 1, unitPrice: 120, note: null, noteOptions: [] }],
++};
++
++type ElementProps = {
++  children?: ReactNode;
++  "aria-expanded"?: boolean;
++  "aria-label"?: string;
++  "data-testid"?: string;
++  onClick?: () => void;
++  onChange?: (event: { target: { value: string } }) => void;
++  onSubmit?: (event: { preventDefault: () => void }) => void;
++};
++
++function findElement(node: ReactNode, matches: (element: ReactElement<ElementProps>) => boolean): ReactElement<ElementProps> {
++  for (const child of Children.toArray(node)) {
++    if (!isValidElement<ElementProps>(child)) continue;
++    if (matches(child)) return child;
++    try { return findElement(child.props.children, matches); } catch { /* Continue with the next sibling. */ }
++  }
++  throw new Error("Expected UI control was not rendered.");
++}
++
++function renderPanel() {
++  hooks.cursor = 0;
++  return CompletedOrdersPanel({ stallSlug: "demo", currency: "TWD", requiresAuthorizationCode: true, canPrintReceipt: true });
++}
++
++async function openHistory() {
++  findElement(renderPanel(), (element) => element.type === "button").props.onClick!();
++  await vi.waitFor(() => expect(renderToStaticMarkup(renderPanel())).toContain(expiredOrder.orderNo));
++}
++
++function expandOrder() {
++  findElement(renderPanel(), (element) => element.type === "button" && renderToStaticMarkup(element).includes(`#${expiredOrder.orderNo}`)).props.onClick!();
++  return renderToStaticMarkup(renderPanel());
++}
++
++const fetchMock = vi.fn();
++
++describe("expired orders in Staff history", () => {
++  beforeEach(() => {
++    hooks.values = [];
++    hooks.cursor = 0;
++    hooks.locale = "zh-TW";
++    fetchMock.mockReset().mockImplementation(async () => Response.json({ orders: [expiredOrder], paymentOptions: [] }));
++    vi.stubGlobal("fetch", fetchMock);
++  });
++
++  afterEach(() => { vi.unstubAllGlobals(); });
++
++  it.each(["zh-TW", "en", "ja", "ko", "vi", "th"] as const)("explains expiry and keeps the order read-only in %s", async (locale) => {
++    hooks.locale = locale;
++    await openHistory();
++    expandOrder();
++    const html = renderToStaticMarkup(findElement(renderPanel(), (element) => element.type === "article"));
++
++    expect(html).toContain(getOperationsMessage(locale, "completedOrders.expired"));
++    expect(html).not.toContain(getOperationsMessage(locale, "completedOrders.cancelled"));
++    expect(html).toContain(getOperationsMessage(locale, "completedOrders.expiredWarning"));
++    expect(html).toContain(formatAppDateTime(locale, expiredOrder.expiredAt, { dateStyle: "short", timeStyle: "short" }));
++    expect(html).toContain("測試餐點");
++    expect(html).not.toContain(getOperationsMessage(locale, "completedOrders.cancelledPaymentWarning"));
++    for (const action of ["change-payment", "cancel", "print"]) {
++      expect(html).not.toContain(`data-testid="completed-order-${action}"`);
++    }
++    expect(fetchMock).toHaveBeenCalledTimes(1);
++    expect(fetchMock).toHaveBeenCalledWith("/api/stalls/demo/completed-orders?query=&status=ALL", { cache: "no-store" });
++  });
++
++  it("offers an expired filter and sends it with the search without mutations", async () => {
++    await openHistory();
++    expect(renderToStaticMarkup(renderPanel())).toContain('<option value="EXPIRED">已逾期</option>');
++    findElement(renderPanel(), (element) => element.type === "select").props.onChange!({ target: { value: "EXPIRED" } });
++    findElement(renderPanel(), (element) => element.type === "input").props.onChange!({ target: { value: expiredOrder.orderNo } });
++    const preventDefault = vi.fn();
++    findElement(renderPanel(), (element) => element.type === "form").props.onSubmit!({ preventDefault });
++
++    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
++    expect(preventDefault).toHaveBeenCalledOnce();
++    expect(fetchMock).toHaveBeenLastCalledWith(`/api/stalls/demo/completed-orders?query=${expiredOrder.orderNo}&status=EXPIRED`, { cache: "no-store" });
++  });
++
++  it("preserves completed correction actions and cancelled-order explanation", async () => {
++    fetchMock.mockImplementation(async () => Response.json({ orders: [{ ...expiredOrder, status: "COMPLETED", expiredAt: null, completedAt: expiredOrder.expiredAt }], paymentOptions: [] }));
++    await openHistory();
++    const completedHtml = expandOrder();
++    for (const action of ["change-payment", "cancel", "print"]) {
++      expect(completedHtml).toContain(`data-testid="completed-order-${action}"`);
++    }
++
++    fetchMock.mockImplementation(async () => Response.json({ orders: [{ ...expiredOrder, status: "CANCELLED", expiredAt: null, cancelledAt: expiredOrder.expiredAt }], paymentOptions: [] }));
++    findElement(renderPanel(), (element) => element.type === "form").props.onSubmit!({ preventDefault: vi.fn() });
++    await vi.waitFor(() => expect(renderToStaticMarkup(renderPanel())).toContain(getOperationsMessage("zh-TW", "completedOrders.cancelledPaymentWarning")));
++    expect(renderToStaticMarkup(renderPanel())).not.toContain('data-testid="completed-order-cancel"');
++  });
++
++  it("hides a pending completed-order correction if a refresh returns the order as expired", async () => {
++    fetchMock.mockImplementationOnce(async () => Response.json({ orders: [{ ...expiredOrder, status: "COMPLETED", expiredAt: null, completedAt: expiredOrder.expiredAt }], paymentOptions: [] }));
++    await openHistory();
++    expandOrder();
++    findElement(renderPanel(), (element) => element.props["data-testid"] === "completed-order-cancel").props.onClick!();
++    expect(renderToStaticMarkup(renderPanel())).toContain(getOperationsMessage("zh-TW", "completedOrders.confirmOrderNo"));
++    findElement(renderPanel(), (element) => element.type === "form").props.onSubmit!({ preventDefault: vi.fn() });
++
++    await vi.waitFor(() => expect(renderToStaticMarkup(renderPanel())).toContain(getOperationsMessage("zh-TW", "completedOrders.expiredWarning")));
++    expect(renderToStaticMarkup(renderPanel())).not.toContain(getOperationsMessage("zh-TW", "completedOrders.confirmOrderNo"));
++    expect(fetchMock.mock.calls.every(([, options]) => !options.method)).toBe(true);
++  });
++});
+diff --git a/src/components/completed-orders-panel.tsx b/src/components/completed-orders-panel.tsx
+index ec213e756b18cb6eb66ea75e1445881e451cc279..0d53f858308d3165f65cff10ee7443baa2af90bd 100644
+--- a/src/components/completed-orders-panel.tsx
++++ b/src/components/completed-orders-panel.tsx
+@@ -18,7 +18,7 @@ type CompletedOrder = {
+   customerPhone: string | null;
+   fulfillmentType: "TAKEOUT" | "DINE_IN" | "DELIVERY";
+   tableLabel: string | null;
+-  status: "COMPLETED" | "CANCELLED";
++  status: "COMPLETED" | "CANCELLED" | "EXPIRED";
+   paymentStatus: "UNPAID" | "PENDING_RECONCILIATION" | "PAID" | "REFUNDED";
+   subtotal: number;
+   discountAmount: number;
+@@ -28,6 +28,7 @@ type CompletedOrder = {
+   createdAt: string;
+   completedAt: string | null;
+   cancelledAt: string | null;
++  expiredAt: string | null;
+   cancellationReason: CancellationReason | null;
+   cancellationDetail: string | null;
+   payment: {
+@@ -79,7 +80,7 @@ export function CompletedOrdersPanel({
+   const [orders, setOrders] = useState<CompletedOrder[]>([]);
+   const [paymentOptions, setPaymentOptions] = useState<PaymentOption[]>([]);
+   const [query, setQuery] = useState("");
+-  const [status, setStatus] = useState<"ALL" | "COMPLETED" | "CANCELLED">("ALL");
++  const [status, setStatus] = useState<"ALL" | "COMPLETED" | "CANCELLED" | "EXPIRED">("ALL");
+   const [loading, setLoading] = useState(false);
+   const [message, setMessage] = useState("");
+   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+@@ -226,6 +227,7 @@ export function CompletedOrdersPanel({
+               <option value="ALL">{t("completedOrders.all")}</option>
+               <option value="COMPLETED">{t("completedOrders.completed")}</option>
+               <option value="CANCELLED">{t("completedOrders.cancelled")}</option>
++              <option value="EXPIRED">{t("completedOrders.expired")}</option>
+             </select>
+             <button type="submit" disabled={loading} className="h-10 rounded-md bg-stone-900 px-4 text-sm font-semibold text-white disabled:opacity-50">
+               {loading ? t("common.loading") : t("completedOrders.search")}
+@@ -235,7 +237,7 @@ export function CompletedOrdersPanel({
+           <div className="mt-4 divide-y divide-stone-200 border-y border-stone-200">
+             {orders.map((order) => {
+               const expanded = expandedIds.has(order.id);
+-              const action = pendingAction?.orderId === order.id ? pendingAction : null;
++              const action = order.status === "COMPLETED" && pendingAction?.orderId === order.id ? pendingAction : null;
+               return (
+                 <article key={order.id} className="py-4">
+                   <div className="flex flex-wrap items-start justify-between gap-3">
+@@ -251,13 +253,13 @@ export function CompletedOrdersPanel({
+                     >
+                       <span className="font-semibold text-stone-950">#{order.orderNo} · {order.customerName || t("completedOrders.walkIn")}</span>
+                       <span className="mt-1 block text-xs text-stone-600">
+-                        {formatAppDateTime(locale, order.completedAt ?? order.createdAt, { dateStyle: "short", timeStyle: "short" })}
++                        {formatAppDateTime(locale, (order.status === "EXPIRED" ? order.expiredAt : order.completedAt) ?? order.createdAt, { dateStyle: "short", timeStyle: "short" })}
+                         {` · ${order.payment?.methodLabel ?? t("completedOrders.noPayment")}`}
+                         {` · ${formatMoney(order.total, currency, locale)}`}
+                       </span>
+                     </button>
+-                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${order.status === "COMPLETED" ? "bg-emerald-100 text-emerald-800" : "bg-stone-200 text-stone-700"}`}>
+-                      {order.status === "COMPLETED" ? t("completedOrders.completed") : t("completedOrders.cancelled")}
++                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${order.status === "COMPLETED" ? "bg-emerald-100 text-emerald-800" : order.status === "EXPIRED" ? "bg-amber-100 text-amber-900" : "bg-stone-200 text-stone-700"}`}>
++                      {order.status === "COMPLETED" ? t("completedOrders.completed") : order.status === "EXPIRED" ? t("completedOrders.expired") : t("completedOrders.cancelled")}
+                     </span>
+                   </div>
+                   {expanded ? (
+@@ -291,7 +293,7 @@ export function CompletedOrdersPanel({
+                           {canPrintReceipt ? <button data-testid="completed-order-print" type="button" title={t("completedOrders.printReceipt")} aria-label={t("completedOrders.printReceipt")} disabled={loading} onClick={() => void printReceipt(order.id)} className="grid h-11 w-11 place-items-center rounded-md border border-stone-300 bg-white text-sm font-semibold disabled:opacity-50 sm:inline-flex sm:w-auto sm:gap-2 sm:px-3"><Printer className="h-5 w-5 sm:h-4 sm:w-4" /><span className="sr-only sm:not-sr-only">{t("completedOrders.printReceipt")}</span></button> : null}
+                         </div>
+                       ) : (
+-                        <p className="mt-4 text-xs font-medium text-stone-600">{t("completedOrders.cancelledPaymentWarning")}</p>
++                        <p className="mt-4 text-xs font-medium text-stone-600">{order.status === "EXPIRED" ? t("completedOrders.expiredWarning") : t("completedOrders.cancelledPaymentWarning")}</p>
+                       )}
+                       {action ? (
+                         <div className="mt-4 rounded-md border border-amber-300 bg-amber-50 p-4">
+diff --git a/src/components/public-order-tracker.pickup-ready.test.tsx b/src/components/public-order-tracker.pickup-ready.test.tsx
+new file mode 100644
+index 0000000000000000000000000000000000000000..5c5a772b01ec1f7a46b64e8332b38504445ec7d5
+--- /dev/null
++++ b/src/components/public-order-tracker.pickup-ready.test.tsx
+@@ -0,0 +1,188 @@
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
++import { publicOrderMessages } from '@/lib/messages/public-order';
++
++type OrderStatus = 'WAITING_CONFIRMATION' | 'CONFIRMED' | 'PREPARING' | 'PACKING' | 'READY' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED';
++type Fulfillment = 'TAKEOUT' | 'DINE_IN' | 'DELIVERY';
++type Order = ReturnType<typeof order>;
++
++const shared = await vi.hoisted(async () => {
++  const { createHookRuntime } = await import('../test/stateful-hook-runtime');
++  return {
++    runtime: createHookRuntime(),
++    onData: undefined as undefined | ((value: Order) => void),
++    refresh: vi.fn(async () => undefined),
++    play: vi.fn(async () => undefined),
++  };
++});
++
++// This exercises the real component callbacks and returned JSX. The deterministic
++// hook runtime is not React scheduling, hydration, DOM, or browser acceptance.
++vi.mock('react', async (importOriginal) => ({
++  ...await importOriginal<typeof import('react')>(),
++  ...shared.runtime.hooks,
++}));
++vi.mock('@/lib/use-live-resource', () => ({
++  LiveResourceRetryError: class extends Error {},
++  useLiveResource: (options: { onData: (value: Order) => void }) => {
++    shared.onData = options.onData;
++    return { refresh: shared.refresh };
++  },
++}));
++vi.mock('@/components/locale-provider', () => ({ useAppLocale: () => ({ locale: 'zh-TW' }) }));
++vi.mock('@/components/line-notification-controls', () => ({ LineNotificationControls: () => null }));
++vi.mock('@/components/public-order-feedback-dialog', () => ({ PublicOrderFeedbackDialog: () => null }));
++vi.mock('@/components/public-order-closure-notice', () => ({ PublicOrderClosureNotice: () => null }));
++vi.mock('@/lib/browser-alert-sound', () => ({
++  playAlertSound: shared.play,
++  primeAlertSound: vi.fn(async () => undefined),
++}));
++vi.mock('@/lib/public-order-client', () => ({
++  getOrCreateDeviceId: () => '11111111-1111-4111-8111-111111111111',
++  createPublicOrderOperationId: () => '22222222-2222-4222-8222-222222222222',
++  publicOrderCircuitHeaders: () => ({}),
++  parseEdgeResponse: (response: Response) => response.json(),
++  requestPublicOrder: () => { throw new Error('Unexpected request: this contract test has no live API'); },
++  respondToFulfillmentTime: () => { throw new Error('Unexpected fulfillment response'); },
++}));
++
++import { PublicOrderCancelDialog, PublicOrderTracker } from './public-order-tracker';
++
++function order(orderStatus: OrderStatus = 'READY', fulfillmentType: Fulfillment = 'TAKEOUT') {
++  return {
++    orderNo: 'SYNTHETIC-PICKUP-0001', orderStatus, fulfillmentType,
++    paymentStatus: 'UNPAID' as const, totalAmount: 95, currency: 'TWD',
++    createdAt: '2026-10-28T00:00:00.000Z', confirmedAt: null, completedAt: null,
++    stallName: 'Synthetic Pickup Fixture', publicMenuIdentifier: null,
++    pickupVerificationCode: '2468' as string | null, tableLabel: null,
++    customerPhone: null, deliveryAddress: null, estimatedWaitMinutes: 10,
++    quotedWaitMinutes: null, quotedReadyAt: null, lastTableOrderAt: null,
++    stallTimezone: 'Asia/Taipei', requestedFulfillmentAt: null,
++    committedFulfillmentAt: null, pendingFulfillmentAt: null,
++    fulfillmentTimeState: 'NOT_REQUESTED' as const, fulfillmentTimeVersion: 0,
++    fulfillmentTimeResponseExpiresAt: null, fulfillmentTimeChangeReason: null,
++    merchantAmendment: null,
++    items: [{ id: 'synthetic-item-1', name: 'Synthetic tea', quantity: 1,
++      note: null, noteOptions: [], status: 'READY' as const }],
++  };
++}
++
++type Element = ReactElement<Record<string, unknown>>;
++function elements(node: ReactNode): Element[] {
++  return Children.toArray(node).flatMap(child => {
++    if (!isValidElement<Record<string, unknown>>(child)) return [];
++    return [child, ...elements(child.props.children as ReactNode)];
++  });
++}
++function text(node: ReactNode): string {
++  return Children.toArray(node).map(child => isValidElement<Record<string, unknown>>(child)
++    ? text(child.props.children as ReactNode) : String(child)).join('');
++}
++function render() {
++  return shared.runtime.render(() => PublicOrderTracker({ trackingToken: 'synthetic-tracking-token' }));
++}
++function receive(value: Order) {
++  expect(shared.onData).toBeTypeOf('function');
++  shared.onData!(value);
++  return render();
++}
++function pickupDialogs(tree: ReactNode) {
++  return elements(tree).filter(element => element.props['aria-labelledby'] === 'pickup-ready-dialog-title');
++}
++function click(element: Element) {
++  expect(element.props.onClick).toBeTypeOf('function');
++  (element.props.onClick as () => void)();
++}
++
++describe('pickup readiness component contract', () => {
++  beforeEach(() => {
++    shared.runtime.reset();
++    shared.onData = undefined;
++    shared.refresh.mockClear();
++    shared.play.mockClear();
++    vi.stubGlobal('window', new EventTarget());
++    vi.stubGlobal('fetch', vi.fn(() => { throw new Error('Unexpected network request'); }));
++    render();
++  });
++  afterEach(() => {
++    shared.runtime.stop();
++    vi.unstubAllGlobals();
++  });
++
++  it('shows the current TAKEOUT READY code and announces it once', () => {
++    const tree = receive(order());
++    expect(pickupDialogs(tree)).toHaveLength(1);
++    const code = elements(tree).find(element => element.props['data-testid'] === 'pickup-ready-dialog-code');
++    expect(text(code!.props.children as ReactNode)).toBe('2468');
++    receive(order());
++    expect(shared.play).toHaveBeenCalledExactlyOnceWith({ preset: 'URGENT', volume: 100, repeatCount: 3 });
++  });
++
++  const notReady: OrderStatus[] = ['WAITING_CONFIRMATION', 'CONFIRMED', 'PREPARING', 'PACKING', 'COMPLETED', 'CANCELLED', 'EXPIRED'];
++  it.each(notReady)('does not announce an initial %s order', status => {
++    expect(pickupDialogs(receive(order(status)))).toHaveLength(0);
++    expect(shared.play).not.toHaveBeenCalled();
++  });
++  it.each(notReady)('closes after READY becomes %s and does not resurrect an old alert', status => {
++    expect(pickupDialogs(receive(order()))).toHaveLength(1);
++    expect(pickupDialogs(receive(order(status)))).toHaveLength(0);
++    expect(pickupDialogs(receive(order()))).toHaveLength(0);
++    expect(shared.play).toHaveBeenCalledTimes(1);
++  });
++
++  it.each(['DINE_IN', 'DELIVERY'] as const)('never announces an initial %s READY order', fulfillment => {
++    expect(pickupDialogs(receive(order('READY', fulfillment)))).toHaveLength(0);
++    expect(shared.play).not.toHaveBeenCalled();
++  });
++  it.each(['DINE_IN', 'DELIVERY'] as const)('clears the old alert on a %s transition before returning to TAKEOUT', fulfillment => {
++    receive(order());
++    expect(pickupDialogs(receive(order('READY', fulfillment)))).toHaveLength(0);
++    expect(pickupDialogs(receive(order()))).toHaveLength(0);
++    expect(shared.play).toHaveBeenCalledTimes(1);
++  });
++
++  it('keeps an explicitly dismissed alert closed through duplicate READY updates', () => {
++    const dialog = pickupDialogs(receive(order()))[0];
++    const dismiss = elements(dialog).find(element => element.type === 'button' && typeof element.props['aria-label'] === 'string');
++    click(dismiss!);
++    expect(pickupDialogs(render())).toHaveLength(0);
++    expect(pickupDialogs(receive(order()))).toHaveLength(0);
++    expect(shared.play).toHaveBeenCalledTimes(1);
++  });
++
++  it('announces a different READY order with its own code', () => {
++    receive(order());
++    const tree = receive({ ...order(), orderNo: 'SYNTHETIC-PICKUP-0002', pickupVerificationCode: '3579' });
++    expect(pickupDialogs(tree)).toHaveLength(1);
++    const code = elements(tree).find(element => element.props['data-testid'] === 'pickup-ready-dialog-code');
++    expect(text(code!.props.children as ReactNode)).toBe('3579');
++    expect(shared.play).toHaveBeenCalledTimes(2);
++  });
++
++  it('does not render an empty pickup code', () => {
++    expect(pickupDialogs(receive({ ...order(), pickupVerificationCode: null }))).toHaveLength(0);
++  });
++
++  it('hides READY after successful local cancellation, even if READY arrived while DELETE was pending', async () => {
++    const waitingTree = receive(order('WAITING_CONFIRMATION'));
++    const cancelButton = elements(waitingTree).find(element => element.type === 'button'
++      && text(element.props.children as ReactNode) === publicOrderMessages.get('zh-TW', 'cancelOrder'));
++    click(cancelButton!);
++    const cancelDialog = elements(render()).find(element => element.type === PublicOrderCancelDialog);
++    expect(cancelDialog).toBeDefined();
++    let resolveDelete!: (response: Response) => void;
++    const fetchMock = vi.fn(() => new Promise<Response>(resolve => { resolveDelete = resolve; }));
++    vi.stubGlobal('fetch', fetchMock);
++    (cancelDialog!.props.onConfirm as () => void)();
++    expect(fetchMock).toHaveBeenCalledWith('/api/public/orders/synthetic-tracking-token', expect.objectContaining({ method: 'DELETE' }));
++    expect(pickupDialogs(receive(order()))).toHaveLength(1);
++
++    resolveDelete(Response.json({ orderStatus: 'CANCELLED' }));
++    await vi.waitFor(() => expect(shared.refresh).toHaveBeenCalledTimes(1));
++    const cancelledTree = render();
++    expect(text(cancelledTree)).toContain(publicOrderMessages.get('zh-TW', 'statusCancelled'));
++    expect(pickupDialogs(cancelledTree)).toHaveLength(0);
++    expect(pickupDialogs(receive(order()))).toHaveLength(0);
++    expect(shared.play).toHaveBeenCalledTimes(1);
++  });
++});
+diff --git a/src/components/public-order-tracker.tsx b/src/components/public-order-tracker.tsx
+index c1f7e94cdff3383589bc73048eac436ad7c7d729..4922d9643ad18dac474e5439bf34bd27f4a813a4 100644
+--- a/src/components/public-order-tracker.tsx
++++ b/src/components/public-order-tracker.tsx
+@@ -719,11 +719,9 @@ export function PublicOrderTracker({
+         setAmendmentNotice(nextOrder.merchantAmendment);
+         void playAlertSound({ preset: "CHIME", volume: 100, repeatCount: 2 });
+       }
+-      if (
+-        nextOrder.fulfillmentType === "TAKEOUT"
+-        && nextOrder.orderStatus === "READY"
+-        && announcedReadyOrderRef.current !== nextOrder.orderNo
+-      ) {
++      if (nextOrder.fulfillmentType !== "TAKEOUT" || nextOrder.orderStatus !== "READY") {
++        setShowPickupReadyDialog(false);
++      } else if (announcedReadyOrderRef.current !== nextOrder.orderNo) {
+         announcedReadyOrderRef.current = nextOrder.orderNo;
+         setShowPickupReadyDialog(true);
+         void playAlertSound({ preset: "URGENT", volume: 100, repeatCount: 3 });
+@@ -983,7 +981,7 @@ export function PublicOrderTracker({
+           <LineNotificationControls trackingToken={trackingToken} />
+         </section>
+       ) : null}
+-      {showPickupReadyDialog && order?.fulfillmentType === "TAKEOUT" && order.pickupVerificationCode
++      {showPickupReadyDialog && order?.fulfillmentType === "TAKEOUT" && order.orderStatus === "READY" && order.pickupVerificationCode
+         ? (
+           <div className="fixed inset-0 z-50 grid place-items-center bg-stone-950/65 p-4" role="presentation">
+             <section
+diff --git a/src/components/qr-order-delivery-hours.test.tsx b/src/components/qr-order-delivery-hours.test.tsx
+new file mode 100644
+index 0000000000000000000000000000000000000000..460fe877ac551fc798e0a20ca7a4fcf861ed9bfc
+--- /dev/null
++++ b/src/components/qr-order-delivery-hours.test.tsx
+@@ -0,0 +1,90 @@
++import { renderToStaticMarkup } from "react-dom/server";
++import { describe, expect, it } from "vitest";
++import { LocaleProvider } from "@/components/locale-provider";
++import { useQrOrderFlowController, type QrOrderFlowControllerInput } from "@/components/qr-order-flow-controller";
++import { QrOrderFlowPresentation } from "@/components/qr-order-flow-presentation";
++import { deliveryOrderMessages } from "@/lib/delivery-order-i18n";
++import { qrOrderMessages } from "@/lib/qr-order-i18n";
++import type { PublicMenu } from "@/lib/public-menu-types";
++
++const menu: PublicMenu = {
++  orderingMode: "DELIVERY",
++  orderingOpenNow: false,
++  onlineMenuPath: "/store/test-stall",
++  preorderSlots: ["2099-10-29T06:00:00.000Z"],
++  lotteryEnabled: false,
++  deliveryNotice: "請確認外送地址。",
++  stall: { name: "測試店家", slug: "test-stall", location: "台中", currency: "TWD", timezone: "Asia/Taipei", fulfillmentType: "DELIVERY", table: null },
++  products: [{ id: "product-1", name: "測試餐點", description: "", price: 100, kind: "SINGLE", category: "主餐", rank: null, isBestSeller: false, isSoldOut: false, isOrderDiscountEligible: true, imageUrl: null, translations: [], noteGroups: [], bundleChoiceGroups: [] }],
++  supportedLocales: ["zh-TW"],
++  estimatedWaitMinutes: 10,
++  estimatedWaitMinMinutes: 5,
++  estimatedWaitMaxMinutes: 10,
++  waitAcknowledgmentThresholdMinutes: null,
++  requiresWaitAcknowledgment: false,
++  lastTableOrderAt: null,
++  limits: { maxItemQuantity: 5, maxUniqueProducts: 5, maxTotalQuantity: 10, maxNoteLength: 300 },
++};
++
++function renderFlow(overrides: Partial<QrOrderFlowControllerInput> = {}, message = "") {
++  const renderedControllers: Array<ReturnType<typeof useQrOrderFlowController>> = [];
++  function Flow() {
++    const controller = useQrOrderFlowController({ qrToken: "delivery-token", orderingMode: "DELIVERY", entryChannel: "SHARED_LINK", initialMenu: menu, ...overrides });
++    renderedControllers.push(controller);
++    return <QrOrderFlowPresentation controller={{ ...controller, message }} />;
++  }
++  const html = renderToStaticMarkup(<LocaleProvider initialLocale="zh-TW" hasLocaleCookie><Flow /></LocaleProvider>);
++  const controller = renderedControllers[0];
++  if (!controller) throw new Error("Controller did not render");
++  return { html, controller };
++}
++
++describe("delivery ordering hours in the public order flow", () => {
++  it.each([false, undefined])("blocks a shared delivery link with orderingOpenNow=%s, even with a future delivery slot", (orderingOpenNow) => {
++    const { html, controller } = renderFlow({ initialMenu: { ...menu, orderingOpenNow } });
++    expect(controller.outsideBusinessHours).toBe(true);
++    expect(controller.orderingEnabled).toBe(false);
++    expect(html).toContain('role="alertdialog"');
++    expect(html).toContain(deliveryOrderMessages["zh-TW"].outsideBusinessHours);
++    expect(html).not.toContain(qrOrderMessages["zh-TW"].outsideBusinessHoursAction);
++    expect(html).not.toContain(deliveryOrderMessages["zh-TW"].noticeDismiss);
++  });
++
++  it("keeps the reason inline beside disabled controls without offering a pickup redirect", () => {
++    const { html, controller } = renderFlow();
++    expect(controller.outsideBusinessHours).toBe(true);
++    expect(html).toContain('data-testid="delivery-ordering-hours"');
++    expect(html).toContain(deliveryOrderMessages["zh-TW"].outsideBusinessHours);
++    expect(html).toMatch(/<div role="status" data-testid="delivery-ordering-hours"/);
++    expect(html).toMatch(/<button[^>]+aria-label="增加 測試餐點"[^>]+disabled=""/);
++    expect(html).not.toContain(qrOrderMessages["zh-TW"].outsideBusinessHoursAction);
++  });
++
++  it("shows only one dialog when session admission reports the same closed delivery window", () => {
++    const { html } = renderFlow({}, deliveryOrderMessages["zh-TW"].outsideBusinessHours);
++    expect(html.match(/role="alertdialog"/g)).toHaveLength(1);
++    expect(html).toContain('data-testid="delivery-ordering-hours"');
++    expect(html).not.toContain(deliveryOrderMessages["zh-TW"].noticeDismiss);
++  });
++
++  it("allows the ordinary delivery notice when the authoritative admission window is open", () => {
++    const { html, controller } = renderFlow({ initialMenu: { ...menu, orderingOpenNow: true } });
++    expect(controller.outsideBusinessHours).toBe(false);
++    expect(html).toContain(deliveryOrderMessages["zh-TW"].noticeDismiss);
++    expect(html).not.toContain(deliveryOrderMessages["zh-TW"].outsideBusinessHours);
++  });
++
++  it("preserves QR closure handling and the takeout preorder policy", () => {
++    const qrMenu: PublicMenu = { ...menu, orderingMode: "DEFAULT", stall: { ...menu.stall, fulfillmentType: "TAKEOUT" } };
++    const qr = renderFlow({ orderingMode: "DEFAULT", entryChannel: "QR", initialMenu: qrMenu });
++    expect(qr.controller.outsideBusinessHours).toBe(true);
++    expect(qr.html).toContain(qrOrderMessages["zh-TW"].outsideBusinessHoursAction);
++    const preorder = renderFlow({ orderingMode: "PREORDER", initialMenu: { ...qrMenu, orderingMode: "PREORDER" } });
++    expect(preorder.controller.outsideBusinessHours).toBe(false);
++    expect(preorder.html).not.toContain(deliveryOrderMessages["zh-TW"].outsideBusinessHours);
++  });
++
++  it("does not apply new-order admission to editing an existing delivery order", () => {
++    expect(renderFlow({ editTrackingToken: "existing-order" }).controller.outsideBusinessHours).toBe(false);
++  });
++});
+diff --git a/src/components/qr-order-flow-controller.ts b/src/components/qr-order-flow-controller.ts
+index 4bd09148c5220c5fe2844d465062db2af9f5205d..bb4b39bfd7d948e588c411d32a32c94b2091b7fc 100644
+--- a/src/components/qr-order-flow-controller.ts
++++ b/src/components/qr-order-flow-controller.ts
+@@ -178,9 +178,10 @@ export function useQrOrderFlowController({
+     && (sessionTimePhase === "EXPIRING" || sessionTimePhase === "EXPIRED");
+   const cartDialogOpen = cartOpen && !sessionExpiryDialogOpen;
+   const specialClosureActive = session?.specialClosure?.isActive === true;
+-  const outsideBusinessHours = !editMode
+-    && entryChannel === "QR"
+-    && (session?.orderingOpenNow ?? usableInitialMenu?.orderingOpenNow) === false;
++  const orderingOpenNow = session?.orderingOpenNow ?? usableInitialMenu?.orderingOpenNow;
++  const outsideBusinessHours = !editMode && (activeOrderingMode === "DELIVERY"
++    ? orderingOpenNow !== true
++    : entryChannel === "QR" && orderingOpenNow === false);
+   const orderingEnabled = orderingAvailability === "AVAILABLE"
+     && sessionReady
+     && !specialClosureActive
+@@ -345,6 +346,7 @@ export function useQrOrderFlowController({
+         result,
+         browserLocale,
+         currentLocale: localeRef.current,
++        orderingMode: activeOrderingMode,
+         hasUsableInitialMenu: Boolean(usableInitialMenu),
+         currentAvailability: availabilityStatusRef.current,
+       });
+@@ -800,7 +802,9 @@ export function useQrOrderFlowController({
+       invoiceBuyerSelection: invoiceCheckout ? effectiveInvoiceBuyerSelection : null,
+       localizedProductName: (product) => localizedProduct(product).name,
+       messages: {
+-        orderingUnavailable: copy.degradedMessage,
++        orderingUnavailable: activeOrderingMode === "DELIVERY" && outsideBusinessHours
++          ? deliveryCopy.outsideBusinessHours
++          : copy.degradedMessage,
+         emptyCart: copy.selectAtLeastOne,
+         unappliedFulfillmentTime: copy.applyPickupTimeRequired,
+         sessionLoading: copy.sessionLoading,
+@@ -856,7 +860,7 @@ export function useQrOrderFlowController({
+       sessionController,
+       networkError: copy.networkError,
+       localizeError: (code: string) => (
+-        localizedDeliveryOrderError(locale, code) ?? localizedPublicOrderError(locale, code)
++        localizedDeliveryOrderError(locale, code, activeOrderingMode) ?? localizedPublicOrderError(locale, code)
+       ),
+       effects,
+     };
+diff --git a/src/components/qr-order-flow-presentation.tsx b/src/components/qr-order-flow-presentation.tsx
+index 279722528f742c1884fcff7d13cbe3a2735891b4..4b991e477efaf38846b8f0a028812d78bb349c44 100644
+--- a/src/components/qr-order-flow-presentation.tsx
++++ b/src/components/qr-order-flow-presentation.tsx
+@@ -219,7 +219,7 @@ export function QrOrderFlowPresentation({
+   const lotterySpendRemaining = session.lotteryReward?.spendEnabled
+     ? Math.max(0, session.lotteryReward.spendThresholdAmount - total)
+     : 0;
+-  const deliveryNotice = activeOrderingMode === "DELIVERY"
++  const deliveryNotice = activeOrderingMode === "DELIVERY" && !outsideBusinessHours
+     ? session.deliveryNotice?.trim() ?? ""
+     : "";
+   const addedProductIds = new Set(cartLines.map((line) => line.productId));
+@@ -359,6 +359,12 @@ export function QrOrderFlowPresentation({
+           </div>
+         </div>
+         <p className="mt-2 text-sm font-semibold text-stone-700">{session.stall.fulfillmentType === "DINE_IN" ? copy.dineIn(session.stall.table?.label ?? "") : session.stall.fulfillmentType === "DELIVERY" ? deliveryCopy.delivery : copy.takeout}</p>
++        {activeOrderingMode === "DELIVERY" && outsideBusinessHours && !session.specialClosure?.isActive ? (
++          <div role="status" data-testid="delivery-ordering-hours" className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-950">
++            <h2 className="font-semibold">{deliveryCopy.outsideBusinessHoursTitle}</h2>
++            <p className="mt-1 text-sm leading-6">{deliveryCopy.outsideBusinessHours}</p>
++          </div>
++        ) : null}
+         {activeOrderingMode === "PREORDER" ? <p className="mt-2 rounded-md bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-900">{copy.preorderOnlyNotice}</p> : null}
+         {session.specialClosure ? (
+           <section
+@@ -594,13 +600,15 @@ export function QrOrderFlowPresentation({
+       {degradedMode && !message && !sessionStartError && !outsideBusinessHours && !session.specialClosure?.isActive ? <OrderingUnavailableDialog
+         key={orderingAvailability} locale={locale} maintenance={orderingAvailability === "MAINTENANCE"}
+         busy={availabilityRefreshing} onRetry={() => refreshAvailability(true)} /> : null}
+-      {outsideBusinessHours && !outsideBusinessHoursDismissed && !session.specialClosure?.isActive ? (
++      {outsideBusinessHours && !outsideBusinessHoursDismissed && !session.specialClosure?.isActive && (activeOrderingMode !== "DELIVERY" || !message) ? (
+         <PublicOrderFeedbackDialog
+-          title={copy.outsideBusinessHoursTitle}
+-          message={copy.outsideBusinessHoursDescription}
+-          primaryLabel={copy.outsideBusinessHoursAction}
++          title={activeOrderingMode === "DELIVERY" ? deliveryCopy.outsideBusinessHoursTitle : copy.outsideBusinessHoursTitle}
++          message={activeOrderingMode === "DELIVERY" ? deliveryCopy.outsideBusinessHours : copy.outsideBusinessHoursDescription}
++          primaryLabel={activeOrderingMode === "DELIVERY" ? copy.retryAvailability : copy.outsideBusinessHoursAction}
+           secondaryLabel={copy.close}
+-          onPrimary={() => window.location.assign(session.onlineMenuPath ?? `/store/${encodeURIComponent(session.stall.code ?? session.stall.slug)}`)}
++          onPrimary={activeOrderingMode === "DELIVERY"
++            ? reloadWithPersistedCart
++            : () => window.location.assign(session.onlineMenuPath ?? `/store/${encodeURIComponent(session.stall.code ?? session.stall.slug)}`)}
+           onSecondary={() => setOutsideBusinessHoursDismissed(true)}
+         />
+       ) : null}
+diff --git a/src/components/qr-order-session-application.test.ts b/src/components/qr-order-session-application.test.ts
+index 9b18e35d0f51c4bcaa7e7a5e3a0e6615ab317681..d42a73ef6870cf987520ce10b07826e196d8e6b2 100644
+--- a/src/components/qr-order-session-application.test.ts
++++ b/src/components/qr-order-session-application.test.ts
+@@ -88,6 +88,40 @@ describe("QR order session application transition", () => {
+     });
+   });
+ 
++  it.each(["DELIVERY_OUTSIDE_ORDERING_HOURS", "QR_LAST_ORDER_PASSED"])(
++    "explains delivery admission failure %s without directing the customer to a counter",
++    (code) => {
++      const transition = resolveQrOrderSessionTransition({
++        result: { kind: "FAILURE", attempt: 1, reason: "EDGE", code, status: 409 },
++        browserLocale: "zh-TW",
++        currentLocale: "zh-TW",
++        orderingMode: "DELIVERY",
++        hasUsableInitialMenu: true,
++        currentAvailability: "AVAILABLE",
++      });
++      expect(transition.kind).toBe("FAILURE");
++      if (transition.kind !== "FAILURE") throw new Error("Expected an admission failure");
++      expect(transition.message).toContain("外送接單");
++      expect(transition.message).not.toContain("櫃檯");
++      expect(transition.availability).toBe("UNAVAILABLE");
++    },
++  );
++
++  it("preserves the physical QR cutoff guidance", () => {
++    const transition = resolveQrOrderSessionTransition({
++      result: { kind: "FAILURE", attempt: 1, reason: "EDGE", code: "QR_LAST_ORDER_PASSED", status: 409 },
++      browserLocale: "zh-TW",
++      currentLocale: "zh-TW",
++      orderingMode: "DEFAULT",
++      hasUsableInitialMenu: true,
++      currentAvailability: "AVAILABLE",
++    });
++    expect(transition).toMatchObject({
++      kind: "FAILURE",
++      message: localizedPublicOrderError("zh-TW", "QR_LAST_ORDER_PASSED"),
++    });
++  });
++
+   it("derives the complete restored PREORDER session transition", () => {
+     const acceptedSession = session("PREORDER");
+     const cartRecovery = {
+diff --git a/src/components/qr-order-session-application.ts b/src/components/qr-order-session-application.ts
+index bc0c96d822a4d6e631447d835aff8045d5a95336..38ab268499103635506f6b44b9e11c4ab288dca9 100644
+--- a/src/components/qr-order-session-application.ts
++++ b/src/components/qr-order-session-application.ts
+@@ -34,6 +34,7 @@ export function resolveQrOrderSessionTransition({
+   result,
+   browserLocale,
+   currentLocale,
++  orderingMode,
+   hasUsableInitialMenu,
+   currentAvailability,
+   now,
+@@ -41,6 +42,7 @@ export function resolveQrOrderSessionTransition({
+   result: QrOrderSessionResult;
+   browserLocale: QrLocale;
+   currentLocale: QrLocale;
++  orderingMode?: "DEFAULT" | "DELIVERY" | "PREORDER";
+   hasUsableInitialMenu: boolean;
+   currentAvailability: AvailabilityStatus;
+   now?: number;
+@@ -61,7 +63,7 @@ export function resolveQrOrderSessionTransition({
+         ? qrOrderMessages[browserLocale].networkError
+         : result.reason === "INVALID_RESUME"
+           ? qrOrderMessages[browserLocale].sessionStartError
+-          : localizedDeliveryOrderError(browserLocale, result.code)
++          : localizedDeliveryOrderError(browserLocale, result.code, orderingMode)
+             ?? localizedPublicOrderError(browserLocale, result.code),
+     };
+   }
+diff --git a/src/lib/delivery-order-i18n.test.ts b/src/lib/delivery-order-i18n.test.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..f6fac942026670217d1e7380d16e56f9a21e020a
+--- /dev/null
++++ b/src/lib/delivery-order-i18n.test.ts
+@@ -0,0 +1,20 @@
++import { describe, expect, it } from "vitest";
++import { localizedDeliveryOrderError } from "./delivery-order-i18n";
++import { errorMessage, statusForCode } from "../../supabase/functions/_shared/public-order-errors";
++
++describe("delivery admission errors", () => {
++  it("reports a closed delivery window as a conflict with delivery guidance", () => {
++    expect(statusForCode("DELIVERY_OUTSIDE_ORDERING_HOURS")).toBe(409);
++    expect(errorMessage("DELIVERY_OUTSIDE_ORDERING_HOURS")).toContain("外送接單");
++  });
++
++  it.each(["zh-TW", "en", "ja", "ko", "vi", "th"] as const)("localizes delivery closure and cutoff in %s", (locale) => {
++    const closed = localizedDeliveryOrderError(locale, "DELIVERY_OUTSIDE_ORDERING_HOURS", "DELIVERY");
++    const cutoff = localizedDeliveryOrderError(locale, "QR_LAST_ORDER_PASSED", "DELIVERY");
++    expect(closed).toBeTypeOf("string");
++    expect(cutoff).toBeTypeOf("string");
++    expect(closed!.length).toBeGreaterThan(20);
++    expect(cutoff!.length).toBeGreaterThan(20);
++    expect(localizedDeliveryOrderError(locale, "QR_LAST_ORDER_PASSED", "DEFAULT")).toBeNull();
++  });
++});
+diff --git a/src/lib/delivery-order-i18n.ts b/src/lib/delivery-order-i18n.ts
+index 556dc6b6108b6e67c4117de58c1e6d991bf8da20..a8cc019d05a1d8906ed419639de6458e96e42c79 100644
+--- a/src/lib/delivery-order-i18n.ts
++++ b/src/lib/delivery-order-i18n.ts
+@@ -8,6 +8,9 @@ type DeliveryOrderMessages = {
+   addressPlaceholder: string;
+   detailsRequired: string;
+   unavailable: string;
++  outsideBusinessHoursTitle: string;
++  outsideBusinessHours: string;
++  lastOrderPassed: string;
+   modeConflict: string;
+   noticeTitle: string;
+   noticeDismiss: string;
+@@ -22,6 +25,9 @@ export const deliveryOrderMessages: Record<QrLocale, DeliveryOrderMessages> = {
+     addressPlaceholder: "請輸入完整地址、門牌與樓層",
+     detailsRequired: "請填寫有效的聯絡電話與外送地址。",
+     unavailable: "目前未開放線上外送，請稍後再試或聯絡店家。",
++    outsideBusinessHoursTitle: "目前未開放外送接單",
++    outsideBusinessHours: "目前不在外送接單時段，請於營業且尚未截止接單時再試。指定送達時間不會延長接單時段。",
++    lastOrderPassed: "已超過外送接單截止時間，請於下次接單時段再試或聯絡店家。",
+     modeConflict: "此點餐連結的訂購方式不相符，請重新開啟 LINE 外送連結。",
+     noticeTitle: "外送前請先確認",
+     noticeDismiss: "我知道了，繼續點餐",
+@@ -34,6 +40,9 @@ export const deliveryOrderMessages: Record<QrLocale, DeliveryOrderMessages> = {
+     addressPlaceholder: "Enter the full address, unit, and floor",
+     detailsRequired: "Enter a valid contact phone number and delivery address.",
+     unavailable: "Online delivery is currently unavailable. Please try again later or contact the store.",
++    outsideBusinessHoursTitle: "Delivery ordering is closed",
++    outsideBusinessHours: "Delivery orders are accepted only during current ordering hours. Please try again while the store is open and before its order cutoff. Choosing a delivery time does not extend ordering hours.",
++    lastOrderPassed: "The delivery order cutoff has passed. Please try again during the next ordering period or contact the store.",
+     modeConflict: "This ordering link does not match the delivery mode. Reopen the LINE delivery link.",
+     noticeTitle: "Before ordering delivery",
+     noticeDismiss: "Got it — continue",
+@@ -46,6 +55,9 @@ export const deliveryOrderMessages: Record<QrLocale, DeliveryOrderMessages> = {
+     addressPlaceholder: "住所、番地、建物名、階数を入力",
+     detailsRequired: "有効な電話番号とお届け先住所を入力してください。",
+     unavailable: "現在オンライン配達はご利用いただけません。時間をおいて再度お試しいただくか、店舗へお問い合わせください。",
++    outsideBusinessHoursTitle: "配達注文の受付時間外です",
++    outsideBusinessHours: "現在は配達注文の受付時間外です。営業時間内かつ注文締切前に再度お試しください。配達時刻を指定しても受付時間は延長されません。",
++    lastOrderPassed: "配達注文の締切時刻を過ぎています。次の受付時間に再度お試しいただくか、店舗へお問い合わせください。",
+     modeConflict: "注文方法が配達リンクと一致しません。LINE の配達リンクを開き直してください。",
+     noticeTitle: "配達注文前のご案内",
+     noticeDismiss: "確認して注文を続ける",
+@@ -58,6 +70,9 @@ export const deliveryOrderMessages: Record<QrLocale, DeliveryOrderMessages> = {
+     addressPlaceholder: "상세 주소와 층수를 입력",
+     detailsRequired: "올바른 연락처와 배달 주소를 입력해 주세요.",
+     unavailable: "현재 온라인 배달을 이용할 수 없습니다. 잠시 후 다시 시도하거나 매장에 문의해 주세요.",
++    outsideBusinessHoursTitle: "배달 주문 접수 시간이 아닙니다",
++    outsideBusinessHours: "현재 배달 주문 접수 시간이 아닙니다. 영업시간 내 주문 마감 전에 다시 시도해 주세요. 배달 시간을 선택해도 접수 시간이 연장되지 않습니다.",
++    lastOrderPassed: "배달 주문 마감 시간이 지났습니다. 다음 접수 시간에 다시 시도하거나 매장에 문의해 주세요.",
+     modeConflict: "주문 방식이 배달 링크와 일치하지 않습니다. LINE 배달 링크를 다시 열어 주세요.",
+     noticeTitle: "배달 주문 전 안내",
+     noticeDismiss: "확인하고 계속 주문",
+@@ -70,6 +85,9 @@ export const deliveryOrderMessages: Record<QrLocale, DeliveryOrderMessages> = {
+     addressPlaceholder: "Nhập đầy đủ địa chỉ, số nhà và tầng",
+     detailsRequired: "Vui lòng nhập số điện thoại liên hệ và địa chỉ giao hàng hợp lệ.",
+     unavailable: "Dịch vụ giao hàng trực tuyến hiện chưa khả dụng. Vui lòng thử lại sau hoặc liên hệ cửa hàng.",
++    outsideBusinessHoursTitle: "Hiện chưa nhận đơn giao hàng",
++    outsideBusinessHours: "Hiện ngoài giờ nhận đơn giao hàng. Vui lòng thử lại trong giờ mở cửa và trước giờ ngừng nhận đơn. Chọn thời gian giao hàng không kéo dài giờ nhận đơn.",
++    lastOrderPassed: "Đã qua giờ ngừng nhận đơn giao hàng. Vui lòng thử lại vào khung giờ nhận đơn tiếp theo hoặc liên hệ cửa hàng.",
+     modeConflict: "Hình thức đặt món không khớp với liên kết giao hàng. Vui lòng mở lại liên kết giao hàng trên LINE.",
+     noticeTitle: "Lưu ý trước khi đặt giao hàng",
+     noticeDismiss: "Đã hiểu — tiếp tục",
+@@ -82,13 +100,22 @@ export const deliveryOrderMessages: Record<QrLocale, DeliveryOrderMessages> = {
+     addressPlaceholder: "กรอกที่อยู่ เลขที่ และชั้นให้ครบถ้วน",
+     detailsRequired: "กรุณากรอกหมายเลขโทรศัพท์และที่อยู่จัดส่งที่ถูกต้อง",
+     unavailable: "ขณะนี้ยังไม่เปิดให้บริการจัดส่งออนไลน์ โปรดลองอีกครั้งภายหลังหรือติดต่อร้านค้า",
++    outsideBusinessHoursTitle: "ขณะนี้ไม่เปิดรับคำสั่งจัดส่ง",
++    outsideBusinessHours: "ขณะนี้อยู่นอกเวลารับคำสั่งซื้อจัดส่ง โปรดลองอีกครั้งขณะร้านเปิดและก่อนเวลาปิดรับคำสั่งซื้อ การเลือกเวลาจัดส่งไม่ขยายเวลารับคำสั่งซื้อ",
++    lastOrderPassed: "เลยเวลาปิดรับคำสั่งซื้อจัดส่งแล้ว โปรดลองอีกครั้งในช่วงรับคำสั่งซื้อถัดไปหรือติดต่อร้านค้า",
+     modeConflict: "รูปแบบคำสั่งซื้อไม่ตรงกับลิงก์จัดส่ง กรุณาเปิดลิงก์จัดส่งจาก LINE อีกครั้ง",
+     noticeTitle: "โปรดอ่านก่อนสั่งจัดส่ง",
+     noticeDismiss: "รับทราบ — สั่งต่อ",
+   },
+ };
+ 
+-export function localizedDeliveryOrderError(locale: QrLocale, code: string) {
++export function localizedDeliveryOrderError(
++  locale: QrLocale,
++  code: string,
++  orderingMode?: "DEFAULT" | "DELIVERY" | "PREORDER",
++) {
++  if (code === "DELIVERY_OUTSIDE_ORDERING_HOURS") return deliveryOrderMessages[locale].outsideBusinessHours;
++  if (code === "QR_LAST_ORDER_PASSED" && orderingMode === "DELIVERY") return deliveryOrderMessages[locale].lastOrderPassed;
+   if (code === "DELIVERY_UNAVAILABLE") return deliveryOrderMessages[locale].unavailable;
+   if (code === "INVALID_DELIVERY_DETAILS") return deliveryOrderMessages[locale].detailsRequired;
+   if (code === "ORDER_MODE_CONFLICT") return deliveryOrderMessages[locale].modeConflict;
+diff --git a/src/lib/messages/operations.ts b/src/lib/messages/operations.ts
+index 0e2a1aa078a03a1e5544ffbafa9b228387a3a4c9..d005b4822f204f0e19d90a4b1426da4bea30c904 100644
+--- a/src/lib/messages/operations.ts
++++ b/src/lib/messages/operations.ts
+@@ -373,8 +373,8 @@ const definitions = {
+   "kitchen.alert.enable": { "zh-TW": "開啟新單提示音", en: "Enable new-order sound", ja: "新規注文音をオン", ko: "신규 주문 소리 켜기", vi: "Bật âm báo đơn mới", th: "เปิดเสียงออเดอร์ใหม่" },
+   "kitchen.alert.disable": { "zh-TW": "關閉新單提示音", en: "Disable new-order sound", ja: "新規注文音をオフ", ko: "신규 주문 소리 끄기", vi: "Tắt âm báo đơn mới", th: "ปิดเสียงออเดอร์ใหม่" },
+   "staff.title": { "zh-TW": "店員訂單看板", en: "Staff order board", ja: "スタッフ注文ボード", ko: "직원 주문 보드", vi: "Bảng đơn nhân viên", th: "บอร์ดออเดอร์พนักงาน" },
+-  "completedOrders.title": localized("已完成訂單查詢", "Completed order history", "完了注文履歴", "완료 주문 내역", "Lịch sử đơn hoàn tất", "ประวัติออเดอร์ที่เสร็จแล้ว"),
+-  "completedOrders.description": localized("查詢訂單明細、在授權後取消已完成訂單，或只更正付款方式。", "Review details, cancel a completed order with authorization, or correct only its payment method.", "明細確認、承認後の取消、支払方法のみの訂正ができます。", "상세 확인, 승인 후 취소 또는 결제 수단만 수정할 수 있습니다.", "Xem chi tiết, hủy sau khi được duyệt hoặc chỉ sửa phương thức thanh toán.", "ดูรายละเอียด ยกเลิกเมื่อได้รับอนุมัติ หรือแก้เฉพาะวิธีชำระเงิน"),
++  "completedOrders.title": localized("訂單歷史查詢", "Order history", "注文履歴", "주문 내역", "Lịch sử đơn hàng", "ประวัติออเดอร์"),
++  "completedOrders.description": localized("查詢已完成、已取消與已逾期訂單。已完成訂單可在授權後取消或更正付款方式。", "Review completed, cancelled and expired orders. Completed orders can be cancelled or have their payment method corrected with authorization.", "完了・取消・期限切れの注文を確認できます。完了注文は承認後に取消や支払方法の訂正ができます。", "완료, 취소 및 만료된 주문을 확인합니다. 완료된 주문은 승인 후 취소하거나 결제 수단을 수정할 수 있습니다.", "Xem đơn hoàn tất, đã hủy và hết hạn. Đơn hoàn tất có thể được hủy hoặc sửa phương thức thanh toán sau khi được duyệt.", "ดูออเดอร์ที่เสร็จแล้ว ยกเลิกแล้ว และหมดอายุ ออเดอร์ที่เสร็จแล้วสามารถยกเลิกหรือแก้วิธีชำระเงินได้เมื่อได้รับอนุมัติ"),
+   "completedOrders.todayOnly": localized("預設僅顯示攤位時區的當日訂單。", "Shows only today's orders in the stall time zone by default.", "初期表示は店舗タイムゾーンの当日注文のみです。", "기본값은 매장 시간대의 오늘 주문만 표시합니다.", "Mặc định chỉ hiển thị đơn hôm nay theo múi giờ của quầy.", "ค่าเริ่มต้นแสดงเฉพาะออเดอร์วันนี้ตามเขตเวลาของร้าน"),
+   "completedOrders.loadFailed": localized("目前無法載入已完成訂單。", "Completed orders cannot be loaded right now.", "完了注文を読み込めません。", "완료 주문을 불러올 수 없습니다.", "Hiện không thể tải đơn hoàn tất.", "ขณะนี้โหลดออเดอร์ที่เสร็จแล้วไม่ได้"),
+   "completedOrders.updateFailed": localized("目前無法更新此訂單。", "This order cannot be updated right now.", "この注文を更新できません。", "현재 이 주문을 업데이트할 수 없습니다.", "Hiện không thể cập nhật đơn này.", "ขณะนี้อัปเดตออเดอร์นี้ไม่ได้"),
+@@ -388,6 +388,7 @@ const definitions = {
+   "completedOrders.all": localized("全部", "All", "すべて", "전체", "Tất cả", "ทั้งหมด"),
+   "completedOrders.completed": localized("已完成", "Completed", "完了", "완료", "Hoàn tất", "เสร็จแล้ว"),
+   "completedOrders.cancelled": localized("已取消", "Cancelled", "取消済み", "취소됨", "Đã hủy", "ยกเลิกแล้ว"),
++  "completedOrders.expired": localized("已逾期", "Expired", "期限切れ", "만료됨", "Hết hạn", "หมดอายุ"),
+   "completedOrders.walkIn": localized("現場顧客", "Walk-in customer", "店頭顧客", "현장 고객", "Khách tại quầy", "ลูกค้าหน้าร้าน"),
+   "completedOrders.noPayment": localized("無付款紀錄", "No payment record", "支払記録なし", "결제 기록 없음", "Không có thanh toán", "ไม่มีประวัติชำระเงิน"),
+   "completedOrders.subtotal": localized("商品小計", "Subtotal", "小計", "소계", "Tạm tính", "ยอดย่อย"),
+@@ -397,6 +398,7 @@ const definitions = {
+   "completedOrders.changePayment": localized("更正付款方式", "Correct payment method", "支払方法を訂正", "결제 수단 수정", "Sửa phương thức thanh toán", "แก้ไขวิธีชำระเงิน"),
+   "completedOrders.cancelOrder": localized("取消已完成訂單", "Cancel completed order", "完了注文を取消", "완료 주문 취소", "Hủy đơn đã hoàn tất", "ยกเลิกออเดอร์ที่เสร็จแล้ว"),
+   "completedOrders.cancelledPaymentWarning": localized("取消訂單不會自動退款；付款與退款狀態需另行核對。", "Cancelling does not automatically refund payment; reconcile payment and refund separately.", "取消しても自動返金されません。支払と返金を別途確認してください。", "취소해도 자동 환불되지 않습니다. 결제와 환불을 별도로 확인하세요.", "Hủy đơn không tự hoàn tiền; cần đối soát riêng.", "การยกเลิกไม่คืนเงินอัตโนมัติ ต้องตรวจสอบการชำระและคืนเงินแยกกัน"),
++  "completedOrders.expiredWarning": localized("商家未在確認期限內接單，訂單已自動逾期。此紀錄僅供查閱，請勿繼續製作或收款。", "The merchant did not accept this order before the confirmation deadline, so it expired automatically. This record is read-only; do not prepare the order or collect payment.", "確認期限までに店舗が受注しなかったため、自動的に期限切れになりました。この記録は閲覧専用です。調理や代金の受領は行わないでください。", "매장이 확인 기한 내에 주문을 수락하지 않아 자동으로 만료되었습니다. 조회 전용 기록입니다. 조리하거나 결제를 받지 마세요.", "Cửa hàng không nhận đơn trước hạn xác nhận nên đơn tự động hết hạn. Bản ghi chỉ để xem; không chế biến hoặc thu tiền.", "ร้านไม่ได้รับออเดอร์ภายในกำหนดยืนยัน ออเดอร์จึงหมดอายุอัตโนมัติ บันทึกนี้ดูได้อย่างเดียว โปรดอย่าเตรียมอาหารหรือเก็บเงิน"),
+   "completedOrders.confirmOrderNo": localized("再次輸入訂單編號", "Re-enter order number", "注文番号を再入力", "주문 번호 다시 입력", "Nhập lại mã đơn", "ป้อนเลขออเดอร์อีกครั้ง"),
+   "completedOrders.cancelReason": localized("取消原因", "Cancellation reason", "取消理由", "취소 사유", "Lý do hủy", "เหตุผลการยกเลิก"),
+   "completedOrders.reasonDetail": localized("補充說明", "Additional details", "補足説明", "추가 설명", "Chi tiết bổ sung", "รายละเอียดเพิ่มเติม"),
+diff --git a/src/lib/public-menu-preorder.test.ts b/src/lib/public-menu-preorder.test.ts
+index 33cf3c1a62c7d0d0454c6d12b9f82b94755923ca..7825d4b5b8fc498181f1c9f3d4d243fa16984bfb 100644
+--- a/src/lib/public-menu-preorder.test.ts
++++ b/src/lib/public-menu-preorder.test.ts
+@@ -329,6 +329,45 @@ describe("Next public preorder menu", () => {
+     ))).toBe(false);
+   });
+ 
++  it.each([
++    { name: "outside hours", rows: [{ code: "DELIVERY_OUTSIDE_ORDERING_HOURS" }], open: false },
++    { name: "last-order cutoff", rows: [{ code: "QR_LAST_ORDER_PASSED" }], open: false },
++    { name: "open admission window", rows: [{ code: null }], open: true },
++    { name: "missing result", rows: [], open: false },
++    { name: "malformed result", rows: [{}], open: false },
++    { name: "missing helper", rows: null, open: false },
++  ])("uses current delivery admission and fails closed for $name", async ({ rows, open }) => {
++    const context = await qrCodeFindUnique();
++    qrCodeFindUnique.mockResolvedValue({
++      ...context,
++      fulfillmentTypeContext: "DELIVERY",
++      stall: {
++        ...context.stall,
++        businessStatus: "OPEN",
++        orderingState: "OPEN",
++        orderingSettings: { ...context.stall.orderingSettings, deliveryModuleEnabled: true },
++      },
++    });
++    queryRaw.mockImplementation((template: TemplateStringsArray) => {
++      if (String(template).includes("delivery_ordering_unavailable_code")) {
++        if (rows === null) throw new Error("function does not exist");
++        return rows;
++      }
++      return String(template).includes("get_takeout_preorder_slots")
++        ? [{ slots: ["2099-08-03T05:00:00.000Z"] }]
++        : [];
++    });
++    const { getCachedPublicMenuForQrToken } = await import("./public-menu");
++
++    const menu = await getCachedPublicMenuForQrToken("closed-delivery-qr", "DELIVERY");
++
++    expect(menu).toMatchObject({
++      orderingMode: "DELIVERY",
++      orderingOpenNow: open,
++      preorderSlots: ["2099-08-03T05:00:00.000Z"],
++    });
++  });
++
+   it("offers fulfillment slots to a delivery-only QR session", async () => {
+     const context = await qrCodeFindUnique();
+     qrCodeFindUnique.mockClear();
+diff --git a/src/lib/public-menu.ts b/src/lib/public-menu.ts
+index 180d8382985d89673af52df3680a408d54376a49..535b659aaf5accd35f7ae7203f1581e235fdcbf3 100644
+--- a/src/lib/public-menu.ts
++++ b/src/lib/public-menu.ts
+@@ -85,7 +85,7 @@ export async function getCachedPublicMenuForQrToken(
+       ? settings.deliveryModuleEnabled
+       : settings.takeoutPreorderEnabled);
+ 
+-  const [menu, capacity, rawPreorderSlots, specialClosures, invoiceCheckout] = await Promise.all([
++  const [menu, capacity, rawPreorderSlots, specialClosures, invoiceCheckout, deliveryOrderingOpenNow] = await Promise.all([
+     getCachedStallMenu(context.stallId),
+     resolvedOrderingMode === "PREORDER"
+       ? Promise.resolve(null)
+@@ -96,6 +96,9 @@ export async function getCachedPublicMenuForQrToken(
+       : Promise.resolve([]),
+     getPublicSpecialClosures(context.stallId, context.stall.timezone),
+     getPublicEInvoiceCheckoutConfig(context.stallId),
++    resolvedOrderingMode === "DELIVERY"
++      ? getDeliveryOrderingOpenNow(context.stallId)
++      : Promise.resolve(false),
+   ]);
+   if (!menu || (resolvedOrderingMode === "PREORDER" && rawPreorderSlots.length === 0)) return null;
+   const preorderSlots = filterPreorderSlotsForSpecialClosures(
+@@ -134,7 +137,9 @@ export async function getCachedPublicMenuForQrToken(
+     ...menu,
+     products,
+     orderingMode: resolvedOrderingMode,
+-    orderingOpenNow: resolvedOrderingMode === "DEFAULT" ? orderingOpenNow : true,
++    orderingOpenNow: resolvedOrderingMode === "DELIVERY"
++      ? deliveryOrderingOpenNow
++      : resolvedOrderingMode === "DEFAULT" ? orderingOpenNow : true,
+     onlineMenuPath: buildPublicStorefrontPath(context.stall.code),
+     preorderSlots,
+     lotteryEnabled: resolvedOrderingMode === "DEFAULT"
+@@ -504,6 +509,18 @@ function publicQrContextSupportsPreorder(
+     && context.fulfillmentTypeContext !== "DELIVERY";
+ }
+ 
++async function getDeliveryOrderingOpenNow(stallId: string) {
++  try {
++    const rows = await prisma.$queryRaw<Array<{ code: string | null }>>`
++      select public.delivery_ordering_unavailable_code(${stallId}::uuid) as code
++    `;
++    return rows[0]?.code === null;
++  } catch {
++    // Missing or unavailable admission policy must never reopen delivery ordering.
++    return false;
++  }
++}
++
+ async function getTakeoutPreorderSlots(stallId: string) {
+   const rows = await prisma.$queryRaw<Array<{ slots: unknown }>>`
+     select public.get_takeout_preorder_slots(${stallId}::uuid, now()) as slots
+diff --git a/src/test/stateful-hook-runtime.ts b/src/test/stateful-hook-runtime.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..055f683f411606980c01840d50427bf990e69281
+--- /dev/null
++++ b/src/test/stateful-hook-runtime.ts
+@@ -0,0 +1,86 @@
++import type { Dispatch, ReactNode, SetStateAction } from 'react';
++
++// Deterministic Node-only consumer regression support. Real browser QA remains
++// required; this does not model React scheduling, hydration or the DOM.
++export function createHookRuntime() {
++  type Slot = { value?: unknown; set?: (value: unknown) => void; deps?: readonly unknown[]; cleanup?: () => void };
++  type Frame = { slots: Slot[]; index: number };
++  const frames = new Map<unknown, Frame>();
++  const wrappers = new Map<unknown, (props: unknown) => ReactNode>();
++  let current: Frame;
++  let pending: Array<() => void> = [];
++  let dirty = true;
++  let stopped = false;
++  const equal = (a: readonly unknown[] | undefined, b: readonly unknown[] | undefined) =>
++    Boolean(a && b && a.length === b.length && a.every((value, index) => Object.is(value, b[index])));
++  const slot = () => [current, current.index++] as const;
++  const run = <T>(key: unknown, fn: () => T) => {
++    const previous = current;
++    current = frames.get(key) ?? { slots: [], index: 0 };
++    frames.set(key, current);
++    current.index = 0;
++    try { return fn(); } finally { current = previous; }
++  };
++  const state = <T>(initial: T | (() => T)): [T, Dispatch<SetStateAction<T>>] => {
++    const [frame, index] = slot();
++    if (!frame.slots[index]) {
++      const item: Slot = { value: typeof initial === 'function' ? (initial as () => T)() : initial };
++      item.set = (value: unknown) => {
++        if (stopped) return;
++        const next = typeof value === 'function' ? (value as (old: unknown) => unknown)(item.value) : value;
++        if (!Object.is(next, item.value)) { item.value = next; dirty = true; }
++      };
++      frame.slots[index] = item;
++    }
++    const item = frame.slots[index];
++    return [item.value as T, item.set as Dispatch<SetStateAction<T>>];
++  };
++  const memo = <T>(fn: () => T, deps: readonly unknown[]): T => {
++    const [frame, index] = slot();
++    if (!frame.slots[index] || !equal(frame.slots[index].deps, deps)) frame.slots[index] = { value: fn(), deps };
++    return frame.slots[index].value as T;
++  };
++  const effect = (fn: () => void | (() => void), deps?: readonly unknown[]) => {
++    const [frame, index] = slot();
++    const item = frame.slots[index];
++    if (item && equal(item.deps, deps)) return;
++    frame.slots[index] = { deps, cleanup: item?.cleanup };
++    pending.push(() => {
++      frame.slots[index].cleanup?.();
++      frame.slots[index].cleanup = fn() || undefined;
++    });
++  };
++  return {
++    hooks: {
++      useState: state, useEffect: effect, useLayoutEffect: effect,
++      useMemo: memo, useCallback: <T>(fn: T, deps: readonly unknown[]) => memo(() => fn, deps),
++      useRef: <T>(value: T) => memo(() => ({ current: value }), []),
++      useReducer: <T, A>(reducer: (value: T, action: A) => T, initial: T) => {
++        const [value, set] = state(initial);
++        return [value, memo(() => (action: A) => set(old => reducer(old, action)), [])];
++      },
++      useSyncExternalStore: <T>(_subscribe: unknown, snapshot: () => T) => snapshot(),
++    },
++    wrap<T>(type: T): T {
++      if (typeof type !== 'function') return type;
++      const component = type as (props: unknown) => ReactNode;
++      if (!wrappers.has(type)) wrappers.set(type, props => run(type, () => component(props)));
++      return wrappers.get(type) as T;
++    },
++    render<T>(fn: () => T) {
++      dirty = false;
++      const value = run('root', fn);
++      const effects = pending;
++      pending = [];
++      effects.forEach(callback => callback());
++      return value;
++    },
++    get dirty() { return dirty; },
++    stop() {
++      stopped = true;
++      for (const frame of frames.values()) for (const item of frame.slots) item?.cleanup?.();
++      pending = [];
++    },
++    reset() { frames.clear(); wrappers.clear(); pending = []; dirty = true; stopped = false; },
++  };
++}
+diff --git a/supabase/functions/_shared/public-order-errors.ts b/supabase/functions/_shared/public-order-errors.ts
+index 86c636cf21bc8f53ea54f6be9c81c061f2023bae..85ce9091f150c72676b11a7710f0fa5c86392613 100644
+--- a/supabase/functions/_shared/public-order-errors.ts
++++ b/supabase/functions/_shared/public-order-errors.ts
+@@ -1,6 +1,7 @@
+ export function errorMessage(code: string) {
+   const deliveryMessages: Record<string, string> = {
+     DELIVERY_UNAVAILABLE: "目前未開放線上外送。",
++    DELIVERY_OUTSIDE_ORDERING_HOURS: "目前不在外送接單時段，請於營業且尚未截止接單時再試。",
+     INVALID_CUSTOMER_DETAILS: "請填寫顧客姓名與有效的聯絡電話。",
+     INVALID_DELIVERY_DETAILS: "請填寫有效的聯絡電話與外送地址。",
+     ORDER_MODE_CONFLICT: "點餐連結與訂購方式不相符，請重新開啟正確連結。",
+@@ -102,7 +103,7 @@ export function errorMessage(code: string) {
+ 
+ export function statusForCode(code: string) {
+   if (["QR_NOT_FOUND", "SESSION_NOT_FOUND", "ORDER_NOT_FOUND"].includes(code)) return 404;
+-  if (["QR_LAST_ORDER_PASSED", "PRODUCT_STOCK_INSUFFICIENT", "QR_REVOKED", "QR_PAUSED", "QR_EXPIRED", "QR_NOT_ACTIVE", "TABLE_UNAVAILABLE", "QR_SESSION_MISMATCH", "STALL_CLOSED", "STALL_SPECIAL_CLOSURE", "ORDERING_PAUSED", "STALL_SOLD_OUT", "TENANT_INACTIVE", "SESSION_EXPIRED", "SESSION_REPLAYED", "SESSION_DEVICE_MISMATCH", "SESSION_TOKEN_COLLISION", "DELIVERY_UNAVAILABLE", "ORDER_MODE_CONFLICT", "CAPACITY_PAUSED", "PRODUCT_CAPACITY_EXCEEDED", "PICKUP_CODE_CAPACITY_EXCEEDED", "LOCATION_UNAVAILABLE", "EVENT_NOT_ACTIVE", "EVENT_EXPIRED", "SCHEDULE_NOT_ACTIVE", "SCHEDULE_CLOSED", "SCHEDULE_CONTEXT_MISMATCH", "PREORDER_DISABLED", "PREORDER_TIME_INVALID", "PREORDER_TIME_UNAVAILABLE", "PREORDER_CONTEXT_UNAVAILABLE", "FULFILLMENT_TIME_UNAVAILABLE", "FULFILLMENT_TIME_PROPOSAL_STALE", "FULFILLMENT_TIME_PROPOSAL_EXPIRED", "LOTTERY_UNAVAILABLE", "LOTTERY_NOT_ELIGIBLE", "LOTTERY_DRAW_INVALID", "LOTTERY_DRAW_EXPIRED", "LOTTERY_ALREADY_REDEEMED", "IDEMPOTENCY_CONFLICT", "ORDER_ALREADY_CONFIRMED", "ORDER_ALREADY_STARTED", "PRINT_ALREADY_STARTED", "PAYMENT_ALREADY_RECORDED", "DISCOUNT_ALREADY_APPLIED"].includes(code)) return 409;
++  if (["DELIVERY_OUTSIDE_ORDERING_HOURS", "QR_LAST_ORDER_PASSED", "PRODUCT_STOCK_INSUFFICIENT", "QR_REVOKED", "QR_PAUSED", "QR_EXPIRED", "QR_NOT_ACTIVE", "TABLE_UNAVAILABLE", "QR_SESSION_MISMATCH", "STALL_CLOSED", "STALL_SPECIAL_CLOSURE", "ORDERING_PAUSED", "STALL_SOLD_OUT", "TENANT_INACTIVE", "SESSION_EXPIRED", "SESSION_REPLAYED", "SESSION_DEVICE_MISMATCH", "SESSION_TOKEN_COLLISION", "DELIVERY_UNAVAILABLE", "ORDER_MODE_CONFLICT", "CAPACITY_PAUSED", "PRODUCT_CAPACITY_EXCEEDED", "PICKUP_CODE_CAPACITY_EXCEEDED", "LOCATION_UNAVAILABLE", "EVENT_NOT_ACTIVE", "EVENT_EXPIRED", "SCHEDULE_NOT_ACTIVE", "SCHEDULE_CLOSED", "SCHEDULE_CONTEXT_MISMATCH", "PREORDER_DISABLED", "PREORDER_TIME_INVALID", "PREORDER_TIME_UNAVAILABLE", "PREORDER_CONTEXT_UNAVAILABLE", "FULFILLMENT_TIME_UNAVAILABLE", "FULFILLMENT_TIME_PROPOSAL_STALE", "FULFILLMENT_TIME_PROPOSAL_EXPIRED", "LOTTERY_UNAVAILABLE", "LOTTERY_NOT_ELIGIBLE", "LOTTERY_DRAW_INVALID", "LOTTERY_DRAW_EXPIRED", "LOTTERY_ALREADY_REDEEMED", "IDEMPOTENCY_CONFLICT", "ORDER_ALREADY_CONFIRMED", "ORDER_ALREADY_STARTED", "PRINT_ALREADY_STARTED", "PAYMENT_ALREADY_RECORDED", "DISCOUNT_ALREADY_APPLIED"].includes(code)) return 409;
+   if (["RATE_LIMITED", "TOO_MANY_PENDING_ORDERS", "LOTTERY_RATE_LIMITED"].includes(code)) return 429;
+   if (code === "TURNSTILE_UNAVAILABLE") return 503;
+   if (["REQUEST_SOURCE_UNAVAILABLE", "CIRCUIT_B_UNAVAILABLE", "QR_ORDERING_DEGRADED", "QR_ORDERING_UNAVAILABLE", "FULFILLMENT_TIME_SERVICE_UNAVAILABLE"].includes(code)) return 503;
+diff --git a/supabase/migrations/20261029090000_public_delivery_ordering_hours.sql b/supabase/migrations/20261029090000_public_delivery_ordering_hours.sql
+new file mode 100644
+index 0000000000000000000000000000000000000000..f00da644e58c6ead7c9f8fa8dc16d76c6f32e076
+--- /dev/null
++++ b/supabase/migrations/20261029090000_public_delivery_ordering_hours.sql
+@@ -0,0 +1,113 @@
++-- Public delivery requires a merchant who can confirm the order now. A future
++-- requested delivery time does not defer the existing confirmation deadline.
++create function public.delivery_ordering_unavailable_code(
++  p_stall_id uuid, p_now timestamptz default now()
++)
++returns text
++language sql stable security definer set search_path = '' as $$
++  with local_clock as (
++    select p_now at time zone stall.timezone as local_now
++    from public.stalls stall where stall.id = p_stall_id
++  ), current_override as (
++    select closure.id
++    from public.stall_special_closures closure cross join local_clock clock
++    where closure.stall_id = p_stall_id
++      and clock.local_now::date between closure.starts_on and closure.ends_on
++    order by closure.starts_on, closure.id limit 1
++  ), active_window as (
++    select ordering_window.last_order_at, clock.local_now
++    from local_clock clock cross join generate_series(-1, 0) offset_day
++    cross join lateral app_private.stall_ordering_window(
++      p_stall_id, clock.local_now::date + offset_day
++    ) ordering_window
++    where clock.local_now >= ordering_window.opens_at and clock.local_now < ordering_window.closes_at
++      -- Special hours are same-day windows. Today's special date supersedes
++      -- the previous weekly overnight tail, including a full-day closure.
++      and (offset_day = 0 or not exists (select 1 from current_override))
++    order by ordering_window.opens_at desc limit 1
++  )
++  select case
++    when not exists (select 1 from active_window) then 'DELIVERY_OUTSIDE_ORDERING_HOURS'
++    when (select local_now >= last_order_at from active_window) then 'QR_LAST_ORDER_PASSED'
++    else null
++  end;
++$$;
++revoke all on function public.delivery_ordering_unavailable_code(uuid,timestamptz)
++  from public, anon, authenticated;
++grant execute on function public.delivery_ordering_unavailable_code(uuid,timestamptz)
++  to service_role;
++
++-- Calculate the new schedule result at the established check point. The
++-- canonical function still returns resumable/idempotent orders before denial.
++do $migration$
++declare
++  v_oid regprocedure := 'public.public_order_preflight(text,text,text,text,text,text,text,text,text,uuid,text,timestamptz,uuid,jsonb,boolean,text)'::regprocedure;
++  v_source text := pg_get_functiondef(v_oid);
++  v_anchor text := '  v_schedule_code := public.validate_ordering_schedule_context(v_qr.id, v_ordering_mode);';
++begin
++  if (length(v_source) - length(replace(v_source, v_anchor, ''))) / length(v_anchor) <> 1 then
++    raise exception 'DELIVERY_PREFLIGHT_ANCHOR_MISMATCH';
++  end if;
++  execute replace(v_source, v_anchor, v_anchor || E'\n'
++    || '  if v_schedule_code is null and v_ordering_mode = ''DELIVERY'' then' || E'\n'
++    || '    v_schedule_code := public.delivery_ordering_unavailable_code(v_qr.stall_id, now());' || E'\n'
++    || '  end if;');
++end;
++$migration$;
++
++-- New legacy/targeted sessions must enforce the same policy even when called
++-- directly by a trusted circuit. Existing outer session replay stays intact.
++do $migration$
++declare
++  v_oid regprocedure;
++  v_source text;
++  v_anchor text := '    v_code := public.validate_ordering_schedule_context(v_qr.id, p_ordering_mode);';
++begin
++  foreach v_oid in array array[
++    'public.issue_order_session_with_schedule(text,text,text,text,text,text,text,text)'::regprocedure,
++    'app_private.issue_order_session_with_schedule_targeted(text,text,text,text,text,text,text,text)'::regprocedure
++  ] loop
++    v_source := pg_get_functiondef(v_oid);
++    if (length(v_source) - length(replace(v_source, v_anchor, ''))) / length(v_anchor) <> 1 then
++      raise exception 'DELIVERY_SESSION_ANCHOR_MISMATCH: %', v_oid;
++    end if;
++    execute replace(v_source, v_anchor, v_anchor || E'\n'
++      || '    if v_code is null and p_ordering_mode = ''DELIVERY'' then' || E'\n'
++      || '      v_code := public.delivery_ordering_unavailable_code(v_qr.stall_id, clock_timestamp());' || E'\n'
++      || '    end if;');
++  end loop;
++end;
++$migration$;
++
++-- Every public delivery wrapper reaches this shared insert writer. Enforce
++-- the calendar after its replay/session/QR/manual-state checks and before any
++-- rate-limit consumption or order writes. Return the normal audited JSON error.
++do $migration$
++declare
++  v_oid regprocedure := 'public.create_public_order_legacy(uuid,text,text,text,text,text,text,uuid,text,text,text,jsonb,text,text,text)'::regprocedure;
++  v_source text := pg_get_functiondef(v_oid);
++  v_declaration text := '  v_existing jsonb;';
++  v_anchor text := '  if jsonb_typeof(p_items) <> ''array'' or jsonb_array_length(p_items) = 0 then';
++  v_guard text := $guard$  if v_session.ordering_mode = 'DELIVERY' then
++    v_delivery_code := public.delivery_ordering_unavailable_code(v_session.stall_id, clock_timestamp());
++    if v_delivery_code is not null then
++      perform public.record_public_order_attempt(
++        p_request_id, 'ORDER_SUBMIT', 'DENIED', v_delivery_code,
++        v_session.tenant_id, v_session.stall_id, v_session.qr_code_id,
++        v_session.id, p_ip_hash, p_device_hash, p_qr_token_hash,
++        p_session_token_hash, p_behavior_hash, p_idempotency_hash
++      );
++      return jsonb_build_object('ok', false, 'code', v_delivery_code);
++    end if;
++  end if;
++
++$guard$;
++begin
++  if (length(v_source) - length(replace(v_source, v_declaration, ''))) / length(v_declaration) <> 1
++    or (length(v_source) - length(replace(v_source, v_anchor, ''))) / length(v_anchor) <> 1 then
++    raise exception 'DELIVERY_WRITER_ANCHOR_MISMATCH';
++  end if;
++  v_source := replace(v_source, v_declaration, v_declaration || E'\n  v_delivery_code text;');
++  execute replace(v_source, v_anchor, v_guard || v_anchor);
++end;
++$migration$;
+diff --git a/supabase/tests/database/public_delivery_ordering_hours.test.sql b/supabase/tests/database/public_delivery_ordering_hours.test.sql
+new file mode 100644
+index 0000000000000000000000000000000000000000..b96756156171b6cbf11243060cf7444973f66965
+--- /dev/null
++++ b/supabase/tests/database/public_delivery_ordering_hours.test.sql
+@@ -0,0 +1,274 @@
++begin;
++create extension if not exists pgtap with schema extensions;
++set local search_path = public, extensions;
++select no_plan();
++
++delete from public.public_order_attempts;
++delete from public.public_rate_limit_buckets;
++delete from public.rate_limit_buckets;
++delete from public.order_sessions;
++delete from public.orders;
++delete from public.stall_order_counters;
++delete from public.stall_special_closures where stall_id = '22222222-2222-4222-8222-222222222222';
++update public.qr_codes set state = 'ACTIVE', expires_at = null,
++  dining_table_id = null, location_id = null, market_event_id = null,
++  stall_schedule_id = null, fulfillment_type_context = null
++where id = '33333333-3333-4333-8333-333333333333';
++update public.stalls set is_active = true, ordering_enabled = true,
++  business_status = 'OPEN', ordering_state = 'OPEN', is_sold_out = false,
++  timezone = 'Asia/Taipei'
++where id = '22222222-2222-4222-8222-222222222222';
++update public.stall_ordering_settings set delivery_module_enabled = true,
++  takeout_preorder_enabled = true, preorder_min_lead_minutes = 5,
++  preorder_max_days = 7, preorder_slot_minutes = 5
++where stall_id = '22222222-2222-4222-8222-222222222222';
++update public.stall_capacity_settings set pause_source = 'NONE',
++  auto_pause_enabled = false, manual_wait_minutes = null
++where stall_id = '22222222-2222-4222-8222-222222222222';
++update public.stall_business_hours set opens_at = '00:00', closes_at = '00:00',
++  last_order_at = null, is_closed = false
++where stall_id = '22222222-2222-4222-8222-222222222222';
++
++create function pg_temp.delivery_preflight(
++  p_scope text, p_mode text default 'DELIVERY', p_requested timestamptz default null
++) returns jsonb language sql as $$
++  select public.public_order_preflight_with_special_closure(
++    p_scope, 'demo-aming-chicken-qr-2026-rotate-me', p_mode,
++    repeat('d',64), repeat('i',64), repeat('q',64), repeat('b',64),
++    'delivery-hours-' || lower(p_scope),
++    case when p_scope = 'ORDER' then repeat('s',64) else null end,
++    case when p_scope = 'ORDER' then 'ad210000-0000-4000-8000-000000000001'::uuid else null end,
++    repeat('h',64), p_requested, null, '[]'::jsonb, true, null
++  );
++$$;
++
++create function pg_temp.delivery_write(p_entrypoint text default 'targeted', p_requested timestamptz default null)
++returns jsonb language plpgsql as $$
++declare
++  v_items jsonb := jsonb_build_array(jsonb_build_object(
++    'product_id','44444444-4444-4444-8444-444444444441', 'quantity',1,
++    'note','', 'modifier_option_ids','[]'::jsonb, 'bundle_choice_ids','[]'::jsonb
++  ));
++begin
++  if p_entrypoint = 'base' then
++    return public.create_public_delivery_order(
++      'ad200000-0000-4000-8000-000000000001', 'demo-aming-chicken-qr-2026-rotate-me',
++      repeat('s',64), repeat('d',64), repeat('i',64), repeat('q',64), repeat('b',64),
++      'ad210000-0000-4000-8000-000000000001', repeat('h',64),
++      'Synthetic delivery customer', '0900000000', 'Synthetic delivery address', '',
++      v_items, repeat('t',64), repeat('p',64), 'delivery-hours-base'
++    );
++  elsif p_entrypoint = 'legacy' then
++    return public.create_public_order_with_fulfillment_time(
++      'ad200000-0000-4000-8000-000000000001', 'demo-aming-chicken-qr-2026-rotate-me',
++      repeat('s',64), repeat('d',64), repeat('i',64), repeat('q',64), repeat('b',64),
++      'ad210000-0000-4000-8000-000000000001', repeat('h',64),
++      'Synthetic delivery customer', '0900000000', 'Synthetic delivery address', '',
++      v_items, repeat('t',64), repeat('p',64), 'delivery-hours-legacy', true, p_requested, null
++    );
++  end if;
++  return public.create_public_order_with_fulfillment_time_targeted(
++    'ad200000-0000-4000-8000-000000000001', 'demo-aming-chicken-qr-2026-rotate-me',
++    repeat('s',64), repeat('d',64), repeat('i',64), repeat('q',64), repeat('b',64),
++    'ad210000-0000-4000-8000-000000000001', repeat('h',64),
++    'Synthetic delivery customer', '0900000000', 'Synthetic delivery address', '',
++    v_items, repeat('t',64), repeat('p',64), 'delivery-hours-targeted', true, p_requested, null
++  );
++end;
++$$;
++
++select is(public.issue_idempotent_order_session_with_schedule_targeted(
++  'demo-aming-chicken-qr-2026-rotate-me', repeat('s',64), repeat('i',64),
++  repeat('d',64), repeat('q',64), repeat('b',64), 'delivery-hours-session', 'DELIVERY'
++)->>'ok', 'true', 'open-hours fixture issues a real delivery session');
++
++insert into public.stall_special_closures(organization_id,stall_id,starts_on,ends_on,title,message,updated_at)
++values('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222',
++  (now() at time zone 'Asia/Taipei')::date, (now() at time zone 'Asia/Taipei')::date,
++  'Synthetic full-day closure','',now());
++select is(pg_temp.delivery_preflight('SESSION')->>'code', 'DELIVERY_OUTSIDE_ORDERING_HOURS',
++  'canonical delivery admission enforces a full-day special closure');
++delete from public.stall_special_closures where stall_id='22222222-2222-4222-8222-222222222222';
++
++-- A still-live switch must not admit orders while the configured calendar is closed.
++update public.stall_business_hours set is_closed = true
++where stall_id = '22222222-2222-4222-8222-222222222222';
++select is(pg_temp.delivery_preflight('SESSION')->>'code', 'DELIVERY_OUTSIDE_ORDERING_HOURS',
++  'new delivery SESSION is denied outside business hours despite the OPEN switch');
++select is(pg_temp.delivery_preflight('ORDER')->>'code', 'DELIVERY_OUTSIDE_ORDERING_HOURS',
++  'new immediate delivery ORDER is denied outside business hours');
++select is(pg_temp.delivery_preflight('SESSION','DEFAULT')->>'ok', 'true',
++  'DEFAULT retains its existing OPEN-switch behavior with the same closed calendar');
++select ok(result->>'idempotent_replay'='true' and result->>'order_session_id'=
++  (select id::text from public.order_sessions where token_hash=repeat('s',64)),
++  'legacy session retry returns the same issued session after closure')
++from (select public.issue_idempotent_order_session_with_schedule(
++  'demo-aming-chicken-qr-2026-rotate-me', repeat('s',64), repeat('i',64),
++  repeat('d',64), repeat('q',64), repeat('b',64), 'delivery-hours-session-legacy-retry', 'DELIVERY'
++) as result) replay;
++select ok(result->>'idempotent_replay'='true' and result->>'order_session_id'=
++  (select id::text from public.order_sessions where token_hash=repeat('s',64)),
++  'targeted session retry returns the same issued session after closure')
++from (select public.issue_idempotent_order_session_with_schedule_targeted(
++  'demo-aming-chicken-qr-2026-rotate-me', repeat('s',64), repeat('i',64),
++  repeat('d',64), repeat('q',64), repeat('b',64), 'delivery-hours-session-targeted-retry', 'DELIVERY'
++) as result) replay;
++select is(public.issue_order_session_with_schedule(
++  'demo-aming-chicken-qr-2026-rotate-me', repeat('x',64), repeat('i',64),
++  repeat('d',64), repeat('q',64), repeat('b',64), 'delivery-hours-legacy-session', 'DELIVERY'
++)->>'code', 'DELIVERY_OUTSIDE_ORDERING_HOURS', 'legacy delivery session writer cannot bypass the calendar');
++select is(public.issue_idempotent_order_session_with_schedule_targeted(
++  'demo-aming-chicken-qr-2026-rotate-me', repeat('y',64), repeat('i',64),
++  repeat('d',64), repeat('q',64), repeat('b',64), 'delivery-hours-targeted-session', 'DELIVERY'
++)->>'code', 'DELIVERY_OUTSIDE_ORDERING_HOURS', 'targeted delivery session writer cannot bypass the calendar');
++select is(pg_temp.delivery_write('targeted')->>'code', 'DELIVERY_OUTSIDE_ORDERING_HOURS',
++  'targeted delivery writer rechecks hours after an earlier session was issued');
++select is(pg_temp.delivery_write('legacy')->>'code', 'DELIVERY_OUTSIDE_ORDERING_HOURS',
++  'legacy fulfillment writer cannot bypass the calendar');
++select is(pg_temp.delivery_write('base')->>'code', 'DELIVERY_OUTSIDE_ORDERING_HOURS',
++  'base delivery writer cannot bypass the calendar');
++select is((select count(*)::integer from public.orders), 0, 'denied writers create no order');
++select is((select status::text from public.order_sessions where token_hash = repeat('s',64)),
++  'ACTIVE', 'denied writers leave the active session reusable');
++select ok(exists(select 1 from public.public_order_attempts where request_id = 'delivery-hours-base'
++  and outcome = 'DENIED' and reason_code = 'DELIVERY_OUTSIDE_ORDERING_HOURS'),
++  'transaction denial retains correlated audit evidence');
++
++-- A valid future delivery slot cannot compensate for an absent merchant now.
++update public.stall_business_hours set is_closed = false
++where stall_id = '22222222-2222-4222-8222-222222222222'
++  and day_of_week = extract(dow from (now() at time zone 'Asia/Taipei')::date + 1)::integer;
++select is(pg_temp.delivery_preflight('ORDER', 'DELIVERY',
++  ((now() at time zone 'Asia/Taipei')::date + 1 + time '12:00') at time zone 'Asia/Taipei'
++)->>'code', 'DELIVERY_OUTSIDE_ORDERING_HOURS', 'future delivery still requires an open merchant now');
++select is(pg_temp.delivery_write('targeted',
++  ((now() at time zone 'Asia/Taipei')::date + 1 + time '12:00') at time zone 'Asia/Taipei'
++)->>'code', 'DELIVERY_OUTSIDE_ORDERING_HOURS', 'targeted future delivery writer also requires an open merchant now');
++select is(pg_temp.delivery_preflight('SESSION', 'PREORDER')->>'ok', 'true',
++  'takeout PREORDER remains available while closed when future slots exist');
++
++-- Current acceptance does not weaken the existing requested-slot validation.
++update public.stall_business_hours set is_closed = (day_of_week <>
++  extract(dow from now() at time zone 'Asia/Taipei')::integer)
++where stall_id = '22222222-2222-4222-8222-222222222222';
++select is(pg_temp.delivery_preflight('ORDER', 'DELIVERY',
++  ((now() at time zone 'Asia/Taipei')::date + 1 + time '12:00') at time zone 'Asia/Taipei'
++)->>'code', 'PREORDER_TIME_INVALID', 'an open merchant still rejects a requested closed-day slot');
++update public.stalls set ordering_state='PAUSED', business_status='PAUSED'
++where id='22222222-2222-4222-8222-222222222222';
++select is(pg_temp.delivery_write()->>'code','ORDERING_PAUSED','open hours do not override a manual pause');
++update public.stalls set ordering_state='OPEN', business_status='OPEN'
++where id='22222222-2222-4222-8222-222222222222';
++update public.stall_ordering_settings set delivery_module_enabled=false
++where stall_id='22222222-2222-4222-8222-222222222222';
++select is(pg_temp.delivery_write()->>'code','DELIVERY_UNAVAILABLE','open hours do not override a disabled delivery module');
++update public.stall_ordering_settings set delivery_module_enabled=true
++where stall_id='22222222-2222-4222-8222-222222222222';
++update public.stall_business_hours set last_order_at=to_char(now() at time zone 'Asia/Taipei','HH24:MI')
++where stall_id='22222222-2222-4222-8222-222222222222';
++select is(pg_temp.delivery_preflight('SESSION')->>'code','QR_LAST_ORDER_PASSED','SESSION applies the current cutoff');
++select is(pg_temp.delivery_preflight('ORDER')->>'code','QR_LAST_ORDER_PASSED','ORDER applies the current cutoff');
++select is(pg_temp.delivery_write()->>'code','QR_LAST_ORDER_PASSED','transaction writer applies the current cutoff');
++update public.stall_business_hours set last_order_at=null
++where stall_id='22222222-2222-4222-8222-222222222222';
++select is(pg_temp.delivery_write()->>'ok', 'true', 'valid immediate delivery creates an order in open hours');
++update public.stall_business_hours set is_closed = true
++where stall_id = '22222222-2222-4222-8222-222222222222';
++select is(pg_temp.delivery_preflight('SESSION') #>> '{resumable_order,order_id}',
++  'ad200000-0000-4000-8000-000000000001', 'a closed calendar does not hide a resumable delivery order');
++select is(pg_temp.delivery_preflight('ORDER') #>> '{idempotent_order,order_id}',
++  'ad200000-0000-4000-8000-000000000001', 'canonical replay precedes the closed-calendar denial');
++select is(pg_temp.delivery_write()->>'idempotent_replay', 'true', 'targeted writer replays an existing delivery after closure');
++select is(pg_temp.delivery_write('base')->>'idempotent_replay', 'true', 'base writer replays an existing delivery after closure');
++select is((select count(*)::integer from public.orders), 1, 'replays never duplicate the delivery');
++
++-- A valid future request is allowed while a merchant is currently accepting
++-- orders, but it must still be confirmed within the ordinary ten-minute limit.
++update public.stall_business_hours set is_closed=false
++where stall_id='22222222-2222-4222-8222-222222222222';
++update public.stall_ordering_settings set unconfirmed_order_timeout_seconds=600
++where stall_id='22222222-2222-4222-8222-222222222222';
++select is(public.issue_idempotent_order_session_with_schedule_targeted(
++  'demo-aming-chicken-qr-2026-rotate-me', repeat('f',64), repeat('i',64),
++  repeat('e',64), repeat('q',64), repeat('b',64), 'delivery-hours-future-session', 'DELIVERY'
++)->>'ok', 'true', 'a separate future-delivery fixture obtains a real session while open');
++create temporary table delivery_future_result as
++select public.create_public_order_with_fulfillment_time_targeted(
++  'ad200000-0000-4000-8000-000000000002', 'demo-aming-chicken-qr-2026-rotate-me',
++  repeat('f',64), repeat('e',64), repeat('i',64), repeat('q',64), repeat('b',64),
++  'ad210000-0000-4000-8000-000000000002', repeat('h',64),
++  'Synthetic future delivery customer', '0900000000', 'Synthetic delivery address', '',
++  jsonb_build_array(jsonb_build_object(
++    'product_id','44444444-4444-4444-8444-444444444441','quantity',1,
++    'note','','modifier_option_ids','[]'::jsonb,'bundle_choice_ids','[]'::jsonb
++  )), repeat('u',64), repeat('v',64), 'delivery-hours-future-order', true,
++  ((now() at time zone 'Asia/Taipei')::date + 1 + time '12:00') at time zone 'Asia/Taipei', null
++) as result;
++select is((select result->>'ok' from delivery_future_result), 'true',
++  'an open merchant accepts a valid future delivery slot');
++select ok(exists(select 1 from public.orders
++  where id='ad200000-0000-4000-8000-000000000002'
++    and requested_fulfillment_at = (((now() at time zone 'Asia/Taipei')::date + 1 + time '12:00') at time zone 'Asia/Taipei')
++    and fulfillment_time_state='REQUESTED'
++    and fulfillment_type='DELIVERY' and status='WAITING_CONFIRMATION'
++    and confirmation_expires_at - created_at = interval '10 minutes'),
++  'future delivery retains its requested slot and the immediate ten-minute confirmation deadline');
++
++-- Deterministic clock cases exercise the production calendar helper itself.
++select has_function('public', 'delivery_ordering_unavailable_code', array['uuid','timestamp with time zone']);
++select ok(not has_function_privilege('anon','public.delivery_ordering_unavailable_code(uuid,timestamptz)','execute')
++  and not has_function_privilege('authenticated','public.delivery_ordering_unavailable_code(uuid,timestamptz)','execute'),
++  'untrusted roles cannot query delivery admission directly');
++select ok(has_function_privilege('service_role','public.delivery_ordering_unavailable_code(uuid,timestamptz)','execute'),
++  'trusted service role can query delivery admission');
++update public.stall_business_hours set opens_at = '14:00', closes_at = '19:30',
++  last_order_at = '19:20', is_closed = false
++where stall_id = '22222222-2222-4222-8222-222222222222';
++select is(public.delivery_ordering_unavailable_code('22222222-2222-4222-8222-222222222222','2026-10-29T08:41:00+08:00'),
++  'DELIVERY_OUTSIDE_ORDERING_HOURS','incident-like morning admission is denied');
++select is(public.delivery_ordering_unavailable_code('22222222-2222-4222-8222-222222222222','2026-10-29T14:00:00+08:00'),
++  null::text,'exact opening time is included');
++select is(public.delivery_ordering_unavailable_code('22222222-2222-4222-8222-222222222222','2026-10-29T19:19:59+08:00'),
++  null::text,'one second before cutoff is accepted');
++select is(public.delivery_ordering_unavailable_code('22222222-2222-4222-8222-222222222222','2026-10-29T19:20:00+08:00'),
++  'QR_LAST_ORDER_PASSED','exact cutoff is excluded');
++select is(public.delivery_ordering_unavailable_code('22222222-2222-4222-8222-222222222222','2026-10-29T19:30:00+08:00'),
++  'DELIVERY_OUTSIDE_ORDERING_HOURS','exact closing time is excluded');
++update public.stall_business_hours set opens_at='22:00', closes_at='02:00', last_order_at='01:40'
++where stall_id='22222222-2222-4222-8222-222222222222';
++select is(public.delivery_ordering_unavailable_code('22222222-2222-4222-8222-222222222222','2026-10-30T01:39:59+08:00'),
++  null::text,'previous-day overnight window is accepted');
++select is(public.delivery_ordering_unavailable_code('22222222-2222-4222-8222-222222222222','2026-10-30T01:40:00+08:00'),
++  'QR_LAST_ORDER_PASSED','overnight cutoff is excluded');
++select is(public.delivery_ordering_unavailable_code('22222222-2222-4222-8222-222222222222','2026-10-30T02:00:00+08:00'),
++  'DELIVERY_OUTSIDE_ORDERING_HOURS','overnight closing time is excluded');
++insert into public.stall_special_closures(organization_id,stall_id,starts_on,ends_on,title,message,updated_at)
++values('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222',
++  '2026-10-30','2026-10-30','Synthetic closure','',now());
++select is(public.delivery_ordering_unavailable_code('22222222-2222-4222-8222-222222222222','2026-10-30T01:00:00+08:00'),
++  'DELIVERY_OUTSIDE_ORDERING_HOURS','today closure overrides the previous-night tail');
++update public.stall_special_closures set opens_at='12:00', closes_at='15:00', last_order_at='14:50'
++where stall_id='22222222-2222-4222-8222-222222222222';
++select is(public.delivery_ordering_unavailable_code('22222222-2222-4222-8222-222222222222','2026-10-30T12:00:00+08:00'),
++  null::text,'special opening overrides the weekly hours');
++select is(public.delivery_ordering_unavailable_code('22222222-2222-4222-8222-222222222222','2026-10-30T14:50:00+08:00'),
++  'QR_LAST_ORDER_PASSED','special cutoff overrides the weekly cutoff');
++select is(public.delivery_ordering_unavailable_code('22222222-2222-4222-8222-222222222222','2026-10-30T22:00:00+08:00'),
++  'DELIVERY_OUTSIDE_ORDERING_HOURS','weekly hours do not reopen a completed special window');
++update public.stall_special_closures set ends_on='2026-10-31'
++where stall_id='22222222-2222-4222-8222-222222222222';
++select is(public.delivery_ordering_unavailable_code('22222222-2222-4222-8222-222222222222','2026-10-31T12:00:00+08:00'),
++  null::text,'multi-day special hours apply on each covered date');
++delete from public.stall_special_closures where stall_id='22222222-2222-4222-8222-222222222222';
++update public.stall_business_hours set opens_at='00:00', closes_at='00:00', last_order_at=null
++where stall_id='22222222-2222-4222-8222-222222222222';
++select is(public.delivery_ordering_unavailable_code('22222222-2222-4222-8222-222222222222','2026-10-30T00:00:00+08:00'),
++  null::text,'equal opening and closing times form a 24-hour window');
++delete from public.stall_business_hours where stall_id='22222222-2222-4222-8222-222222222222';
++select is(public.delivery_ordering_unavailable_code('22222222-2222-4222-8222-222222222222','2026-10-30T12:00:00+08:00'),
++  'DELIVERY_OUTSIDE_ORDERING_HOURS','missing weekly hours fail closed');
++select is(public.delivery_ordering_unavailable_code('ad990000-0000-4000-8000-000000000001','2026-10-30T12:00:00+08:00'),
++  'DELIVERY_OUTSIDE_ORDERING_HOURS','missing stall fails closed');
++
++select * from finish();
++rollback;
+diff --git a/supabase/tests/database/staff_pos_line_delivery.test.sql b/supabase/tests/database/staff_pos_line_delivery.test.sql
+index c5f04215bde868669c4bfe042942724f0cab07cb..a1708d33e6fb8b3ab8715af6f1d4cb09fdcb0e30 100644
+--- a/supabase/tests/database/staff_pos_line_delivery.test.sql
++++ b/supabase/tests/database/staff_pos_line_delivery.test.sql
+@@ -51,6 +51,12 @@ update public.stall_ordering_settings
+ set delivery_module_enabled = true, print_module_enabled = true, kds_module_enabled = true
+ where stall_id = '22222222-2222-4222-8222-222222222222';
+ 
++-- This suite verifies successful delivery creation during business hours.
++-- Use a deterministic open calendar instead of depending on the host clock.
++update public.stall_business_hours
++set opens_at = '00:00', closes_at = '00:00', last_order_at = null, is_closed = false
++where stall_id = '22222222-2222-4222-8222-222222222222';
++
+ insert into public.order_sessions (
+   id, tenant_id, organization_id, stall_id, qr_code_id, token_hash,
+   device_hash, ip_hash, status, ordering_mode, expires_at, created_at
