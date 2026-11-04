@@ -1,6 +1,6 @@
-tree a7bd76e21c96d859c1243069b263bcc3a5613849
+tree e72021b95fd88afb1b9a6b9385fce5fa321040ff
 parent 4e95d2ea5d53ae78c5af9c3db044481237674c44
-author KenLeeYa <ada76145@gmail.com> 1793812115 +0800
-committer KenLeeYa <ada76145@gmail.com> 1793812115 +0800
+author KenLeeYa <ada76145@gmail.com> 1793813273 +0800
+committer KenLeeYa <ada76145@gmail.com> 1793813273 +0800
 
-fix: qualify delivery hours and expired history with aligned E2E selector
+fix(delivery): qualify hours and expired history with current dependency security

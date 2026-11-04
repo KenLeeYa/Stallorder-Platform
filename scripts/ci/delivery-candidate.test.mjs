@@ -15,7 +15,7 @@ const bundle = () => ({
 });
 
 test('accept the frozen 25-path product, independent of control commit', () => {
-  assert.equal(validateSourceBundle(bundle()).tree, 'a7bd76e21c96d859c1243069b263bcc3a5613849');
+  assert.equal(validateSourceBundle(bundle()).tree, 'e72021b95fd88afb1b9a6b9385fce5fa321040ff');
 });
 test('reject altered patch bytes before Git or dependency execution', () => {
   const value = bundle(); value.patch = Buffer.concat([value.patch, Buffer.from('\n')]);

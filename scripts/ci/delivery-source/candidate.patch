@@ -12,7 +12,7 @@ index a7f000bdbe2a87294a83c19bd89b4e5d1c3ff3fc..32304bd340d357735e0f9ff0c506de0a
    await page.getByRole("button", { name: "查詢", exact: true }).click();
    const order = page.getByRole("article").filter({ hasText: orderNo });
 diff --git a/package-lock.json b/package-lock.json
-index dff27175712f4af87dc5945281040614086e112c..6e2fbd5b5949709920435716e505366c0a3a98db 100644
+index dff27175712f4af87dc5945281040614086e112c..5d5eaf19504023f7aeb7205a20789a0ff2389b32 100644
 --- a/package-lock.json
 +++ b/package-lock.json
 @@ -20,7 +20,7 @@
@@ -50,7 +50,21 @@ index dff27175712f4af87dc5945281040614086e112c..6e2fbd5b5949709920435716e505366c
          "wrangler": "4.118.0"
        },
        "engines": {
-@@ -1810,15 +1810,15 @@
+@@ -1740,6 +1740,13 @@
+         "url": "https://opencollective.com/libvips"
+       }
+     },
++    "node_modules/@isaacs/nonrecursive-glob-match": {
++      "version": "1.0.1",
++      "resolved": "https://registry.npmjs.org/@isaacs/nonrecursive-glob-match/-/nonrecursive-glob-match-1.0.1.tgz",
++      "integrity": "sha512-rNKPuTXBacPpn5+CP+S3/UI6uq/0jHZjPpaBLaRE3blpgX+E+ZUIrGfViPvUjUnQG6W1+3OTFUiVRCjTffs2+Q==",
++      "dev": true,
++      "license": "BlueOak-1.0.0"
++    },
+     "node_modules/@jridgewell/gen-mapping": {
+       "version": "0.3.13",
+       "resolved": "https://registry.npmjs.org/@jridgewell/gen-mapping/-/gen-mapping-0.3.13.tgz",
+@@ -1810,15 +1817,15 @@
        }
      },
      "node_modules/@next/env": {
@@ -72,7 +86,7 @@ index dff27175712f4af87dc5945281040614086e112c..6e2fbd5b5949709920435716e505366c
        "dev": true,
        "license": "MIT",
        "dependencies": {
-@@ -1827,9 +1827,9 @@
+@@ -1827,9 +1834,9 @@
        }
      },
      "node_modules/@next/swc-darwin-arm64": {
@@ -85,7 +99,7 @@ index dff27175712f4af87dc5945281040614086e112c..6e2fbd5b5949709920435716e505366c
        "cpu": [
          "arm64"
        ],
-@@ -1843,9 +1843,9 @@
+@@ -1843,9 +1850,9 @@
        }
      },
      "node_modules/@next/swc-darwin-x64": {
@@ -98,7 +112,7 @@ index dff27175712f4af87dc5945281040614086e112c..6e2fbd5b5949709920435716e505366c
        "cpu": [
          "x64"
        ],
-@@ -1859,9 +1859,9 @@
+@@ -1859,9 +1866,9 @@
        }
      },
      "node_modules/@next/swc-linux-arm64-gnu": {
@@ -111,7 +125,7 @@ index dff27175712f4af87dc5945281040614086e112c..6e2fbd5b5949709920435716e505366c
        "cpu": [
          "arm64"
        ],
-@@ -1878,9 +1878,9 @@
+@@ -1878,9 +1885,9 @@
        }
      },
      "node_modules/@next/swc-linux-arm64-musl": {
@@ -124,7 +138,7 @@ index dff27175712f4af87dc5945281040614086e112c..6e2fbd5b5949709920435716e505366c
        "cpu": [
          "arm64"
        ],
-@@ -1897,9 +1897,9 @@
+@@ -1897,9 +1904,9 @@
        }
      },
      "node_modules/@next/swc-linux-x64-gnu": {
@@ -137,7 +151,7 @@ index dff27175712f4af87dc5945281040614086e112c..6e2fbd5b5949709920435716e505366c
        "cpu": [
          "x64"
        ],
-@@ -1916,9 +1916,9 @@
+@@ -1916,9 +1923,9 @@
        }
      },
      "node_modules/@next/swc-linux-x64-musl": {
@@ -150,7 +164,7 @@ index dff27175712f4af87dc5945281040614086e112c..6e2fbd5b5949709920435716e505366c
        "cpu": [
          "x64"
        ],
-@@ -1935,9 +1935,9 @@
+@@ -1935,9 +1942,9 @@
        }
      },
      "node_modules/@next/swc-win32-arm64-msvc": {
@@ -163,7 +177,7 @@ index dff27175712f4af87dc5945281040614086e112c..6e2fbd5b5949709920435716e505366c
        "cpu": [
          "arm64"
        ],
-@@ -1951,9 +1951,9 @@
+@@ -1951,9 +1958,9 @@
        }
      },
      "node_modules/@next/swc-win32-x64-msvc": {
@@ -176,7 +190,7 @@ index dff27175712f4af87dc5945281040614086e112c..6e2fbd5b5949709920435716e505366c
        "cpu": [
          "x64"
        ],
-@@ -3831,15 +3831,6 @@
+@@ -3831,15 +3838,6 @@
          "zod": "4.1.11"
        }
      },
@@ -192,7 +206,7 @@ index dff27175712f4af87dc5945281040614086e112c..6e2fbd5b5949709920435716e505366c
      "node_modules/@vercel/cli-exec": {
        "version": "1.0.1",
        "resolved": "https://registry.npmjs.org/@vercel/cli-exec/-/cli-exec-1.0.1.tgz",
-@@ -3914,16 +3905,16 @@
+@@ -3914,16 +3912,16 @@
        }
      },
      "node_modules/@vitest/expect": {
@@ -214,7 +228,7 @@ index dff27175712f4af87dc5945281040614086e112c..6e2fbd5b5949709920435716e505366c
          "chai": "^6.2.2",
          "tinyrainbow": "^3.1.0"
        },
-@@ -3932,13 +3923,13 @@
+@@ -3932,13 +3930,13 @@
        }
      },
      "node_modules/@vitest/mocker": {
@@ -232,7 +246,7 @@ index dff27175712f4af87dc5945281040614086e112c..6e2fbd5b5949709920435716e505366c
          "estree-walker": "^3.0.3",
          "magic-string": "^0.30.21"
        },
-@@ -3959,9 +3950,9 @@
+@@ -3959,9 +3957,9 @@
        }
      },
      "node_modules/@vitest/pretty-format": {
@@ -245,7 +259,7 @@ index dff27175712f4af87dc5945281040614086e112c..6e2fbd5b5949709920435716e505366c
        "dev": true,
        "license": "MIT",
        "dependencies": {
-@@ -3972,13 +3963,13 @@
+@@ -3972,13 +3970,13 @@
        }
      },
      "node_modules/@vitest/runner": {
@@ -263,7 +277,7 @@ index dff27175712f4af87dc5945281040614086e112c..6e2fbd5b5949709920435716e505366c
          "pathe": "^2.0.3"
        },
        "funding": {
-@@ -3986,14 +3977,14 @@
+@@ -3986,14 +3984,14 @@
        }
      },
      "node_modules/@vitest/snapshot": {
@@ -283,7 +297,7 @@ index dff27175712f4af87dc5945281040614086e112c..6e2fbd5b5949709920435716e505366c
          "magic-string": "^0.30.21",
          "pathe": "^2.0.3"
        },
-@@ -4002,9 +3993,9 @@
+@@ -4002,9 +4000,9 @@
        }
      },
      "node_modules/@vitest/spy": {
@@ -296,7 +310,7 @@ index dff27175712f4af87dc5945281040614086e112c..6e2fbd5b5949709920435716e505366c
        "dev": true,
        "license": "MIT",
        "funding": {
-@@ -4012,13 +4003,13 @@
+@@ -4012,13 +4010,13 @@
        }
      },
      "node_modules/@vitest/utils": {
@@ -314,7 +328,7 @@ index dff27175712f4af87dc5945281040614086e112c..6e2fbd5b5949709920435716e505366c
          "convert-source-map": "^2.0.0",
          "tinyrainbow": "^3.1.0"
        },
-@@ -5415,21 +5406,21 @@
+@@ -5415,21 +5413,21 @@
        }
      },
      "node_modules/eslint-config-next": {
@@ -342,7 +356,26 @@ index dff27175712f4af87dc5945281040614086e112c..6e2fbd5b5949709920435716e505366c
        },
        "peerDependencies": {
          "eslint": ">=9.0.0",
-@@ -7510,12 +7501,12 @@
+@@ -7438,13 +7436,14 @@
+       "license": "ISC"
+     },
+     "node_modules/minimatch": {
+-      "version": "10.2.5",
+-      "resolved": "https://registry.npmjs.org/minimatch/-/minimatch-10.2.5.tgz",
+-      "integrity": "sha512-MULkVLfKGYDFYejP07QOurDLLQpcjk7Fw+7jXS2R2czRQzR56yHRveU5NDJEOviH+hETZKSkIk5c+T23GjFUMg==",
++      "version": "11.0.1",
++      "resolved": "https://registry.npmjs.org/minimatch/-/minimatch-11.0.1.tgz",
++      "integrity": "sha512-t+Vn6DX4wPCxS23y03C0uhF7S1jpi1GfqPrnlEipCJaA2ykiNbMkVlDutZtmvLfRcUN6R8AYVlzTsQrT4RZoLQ==",
+       "dev": true,
+       "license": "BlueOak-1.0.0",
+       "dependencies": {
+-        "brace-expansion": "^5.0.5"
++        "brace-expansion": "^5.0.12",
++        "@isaacs/nonrecursive-glob-match": "^1.0.1"
+       },
+       "engines": {
+         "node": "18 || 20 || >=22"
+@@ -7510,12 +7509,12 @@
        "license": "MIT"
      },
      "node_modules/next": {
@@ -359,7 +392,7 @@ index dff27175712f4af87dc5945281040614086e112c..6e2fbd5b5949709920435716e505366c
          "@swc/helpers": "0.5.23",
          "baseline-browser-mapping": "^2.9.19",
          "caniuse-lite": "^1.0.30001579",
-@@ -7529,15 +7520,15 @@
+@@ -7529,15 +7528,15 @@
          "node": ">=20.9.0"
        },
        "optionalDependencies": {
@@ -384,7 +417,7 @@ index dff27175712f4af87dc5945281040614086e112c..6e2fbd5b5949709920435716e505366c
        },
        "peerDependencies": {
          "@opentelemetry/api": "^1.1.0",
-@@ -9316,9 +9307,9 @@
+@@ -9316,9 +9315,9 @@
        }
      },
      "node_modules/undici": {
@@ -397,7 +430,7 @@ index dff27175712f4af87dc5945281040614086e112c..6e2fbd5b5949709920435716e505366c
        "dev": true,
        "license": "MIT",
        "engines": {
-@@ -9786,19 +9777,19 @@
+@@ -9786,19 +9785,19 @@
        }
      },
      "node_modules/vitest": {
@@ -427,7 +460,7 @@ index dff27175712f4af87dc5945281040614086e112c..6e2fbd5b5949709920435716e505366c
          "es-module-lexer": "^2.0.0",
          "expect-type": "^1.3.0",
          "magic-string": "^0.30.21",
-@@ -9826,12 +9817,12 @@
+@@ -9826,12 +9825,12 @@
          "@edge-runtime/vm": "*",
          "@opentelemetry/api": "^1.9.0",
          "@types/node": "^20.0.0 || ^22.0.0 || >=24.0.0",
@@ -446,7 +479,7 @@ index dff27175712f4af87dc5945281040614086e112c..6e2fbd5b5949709920435716e505366c
          "happy-dom": "*",
          "jsdom": "*",
          "vite": "^6.0.0 || ^7.0.0 || ^8.0.0"
-@@ -10257,9 +10248,9 @@
+@@ -10257,9 +10256,9 @@
        }
      },
      "node_modules/zod": {
@@ -460,7 +493,7 @@ index dff27175712f4af87dc5945281040614086e112c..6e2fbd5b5949709920435716e505366c
        "funding": {
          "url": "https://github.com/sponsors/colinhacks"
 diff --git a/package.json b/package.json
-index 9c3d89be85a6313c90a7f87d96591851523b09bf..59f5dd2ca85a7cddbe1394357c3b9bba3a58a0fb 100644
+index 9c3d89be85a6313c90a7f87d96591851523b09bf..466a154c601759207a7f2de1141b9ccc30562def 100644
 --- a/package.json
 +++ b/package.json
 @@ -73,7 +73,7 @@
@@ -481,7 +514,7 @@ index 9c3d89be85a6313c90a7f87d96591851523b09bf..59f5dd2ca85a7cddbe1394357c3b9bba
    },
    "devDependencies": {
      "@actions/core": "1.11.1",
-@@ -97,20 +97,23 @@
+@@ -97,29 +97,32 @@
      "concurrently": "^10.0.3",
      "cross-env": "^10.1.0",
      "eslint": "^9",
@@ -507,7 +540,9 @@ index 9c3d89be85a6313c90a7f87d96591851523b09bf..59f5dd2ca85a7cddbe1394357c3b9bba
      "fast-glob": "$fast-glob",
      "brace-expansion": "5.0.12",
      "deepmerge-ts": "8.0.1",
-@@ -119,7 +122,7 @@
+-    "minimatch": "10.2.5",
++    "minimatch": "11.0.1",
+     "postcss": "8.5.26",
      "sharp": "$sharp",
      "shell-quote": "1.11.0",
      "source-map-js": "1.2.2",
@@ -517,7 +552,7 @@ index 9c3d89be85a6313c90a7f87d96591851523b09bf..59f5dd2ca85a7cddbe1394357c3b9bba
    }
  }
 diff --git a/scripts/dependency-security.test.mjs b/scripts/dependency-security.test.mjs
-index c3a6e4584e33287993d6d9c4a8c2eee56b5e98eb..1ebfd8161623612d0ca843a99246580ec25f499d 100644
+index c3a6e4584e33287993d6d9c4a8c2eee56b5e98eb..e1c63c2d9fb99bb85e3287730144b09bf87bbdf4 100644
 --- a/scripts/dependency-security.test.mjs
 +++ b/scripts/dependency-security.test.mjs
 @@ -1,7 +1,9 @@
@@ -530,7 +565,7 @@ index c3a6e4584e33287993d6d9c4a8c2eee56b5e98eb..1ebfd8161623612d0ca843a99246580e
  
  const require = createRequire(import.meta.url);
  const root = path.resolve(import.meta.dirname, "..");
-@@ -17,17 +19,68 @@ describe("security dependency release contract", () => {
+@@ -17,17 +19,82 @@ describe("security dependency release contract", () => {
    });
  
    it.each([
@@ -540,6 +575,8 @@ index c3a6e4584e33287993d6d9c4a8c2eee56b5e98eb..1ebfd8161623612d0ca843a99246580e
 +    ["@next/eslint-plugin-next", "16.4.2"],
      ["sharp", "0.35.5"],
      ["brace-expansion", "5.0.12"],
++    ["minimatch", "11.0.1"],
++    ["@isaacs/nonrecursive-glob-match", "1.0.1"],
      ["shell-quote", "1.11.0"],
 -    ["undici", "7.29.1"],
 +    ["undici", "7.30.1"],
@@ -550,6 +587,18 @@ index c3a6e4584e33287993d6d9c4a8c2eee56b5e98eb..1ebfd8161623612d0ca843a99246580e
      expect(lock.packages[`node_modules/${name}`].version).toBe(version);
    });
  
++  it.each([
++    "a/**/../b/c/**/../d/e",
++    "**/../a/b/**/../c/d/**/../e/f",
++  ])("bounds preprocessing amplification without rejecting valid glob syntax: %s", (pattern) => {
++    const { Minimatch } = require("minimatch");
++    const matcher = new Minimatch(pattern, { optimizationLevel: 2, braceExpandMax: 2 });
++    expect(matcher.globParts.length).toBeLessThanOrEqual(2);
++    expect(matcher.globParts.length).toBeGreaterThan(0);
++    expect(new Minimatch("src/**/*.ts").match("src/lib/example.ts")).toBe(true);
++    expect(new Minimatch("src/**/*.ts").match("src/lib/example.js")).toBe(false);
++  });
++
 +  it("uses the reviewed Zod release for the application and Vercel CLI config", () => {
 +    const configRequire = createRequire(require.resolve("@vercel/cli-config"));
 +    expect(configRequire("zod/package.json").version).toBe("4.6.6");
