@@ -12,7 +12,7 @@ export const SNAPSHOT_SQL = `SELECT jsonb_build_object(
   'principal', (SELECT jsonb_build_object('currentUser',current_user,'sessionUser',session_user,
     'database',current_database(),'superuser',rolsuper,'bypassRls',rolbypassrls)
     FROM pg_catalog.pg_roles WHERE rolname=current_user),
-  'functions', (SELECT jsonb_agg(jsonb_build_object('signature',s.signature,'oid',p.oid,
+  'functions', (SELECT jsonb_agg(jsonb_build_object('signature',s.signature,'oid',p.oid::bigint,
     'definition',pg_catalog.pg_get_functiondef(p.oid),'owner',pg_catalog.pg_get_userbyid(p.proowner),
     'acl',to_jsonb(p.proacl::text[]),'config',to_jsonb(p.proconfig),'securityDefiner',p.prosecdef)
     ORDER BY s.ordinal)

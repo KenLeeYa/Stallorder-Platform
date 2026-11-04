@@ -43,6 +43,9 @@ if(process.argv[2]==='prepare') {
     return r.stdout.trim();
   }
   const snapshot=()=>JSON.parse(sql(SNAPSHOT_SQL+';'));
+  const oidShape=JSON.parse(sql("SELECT jsonb_build_object('native',to_jsonb('pg_catalog.pg_proc'::regclass::oid),'numeric',to_jsonb(('pg_catalog.pg_proc'::regclass::oid)::bigint));"));
+  assert.equal(typeof oidShape.numeric,'number'); assert.ok(Number.isSafeInteger(oidShape.numeric));
+  emit('native-oid-json-shape',{nativeType:typeof oidShape.native,numericType:typeof oidShape.numeric});
   const before=snapshot();
   assert.deepEqual(before.migrations.map(m=>m.version),versionFiles.slice(0,146).map(name=>name.slice(0,14)));
   const expectedDefinitions=[
