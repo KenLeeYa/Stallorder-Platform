@@ -23,8 +23,10 @@ const prefix = `ODI-${runId.slice(0, 8)}`;
 const owned = {
   productId: randomUUID(), qrId: randomUUID(), otherStallId: randomUUID(),
   otherOrderId: randomUUID(), circuitOverrideId: randomUUID(), orderIds: [], authSessionId: null,
+  adminAuthSessionId: null,
 };
 const cookies = new Map();
+const ownedAuthSessions = [];
 const checks = [];
 const requestIds = [];
 const phases = { fixture: false, otherStall: false, otherOrder: false, product: false, qr: false };
@@ -33,6 +35,7 @@ let controlDatabase;
 let originalHours;
 let originalSettings;
 let originalProfile;
+let originalAdminProfile;
 let failure = null;
 let cleanupFailure = null;
 let lastStep = "local-guards";
@@ -110,6 +113,7 @@ async function api(name, path, { method = "GET", body, flow, authenticated = fal
     circuit: response.headers.get("x-order-circuit"),
     cacheControl: response.headers.get("cache-control") });
   return { status: response.status, data, code, circuit: response.headers.get("x-order-circuit"),
+    cacheControl: response.headers.get("cache-control"),
     edgeRuntime: edge && Boolean(response.headers.get("server-timing")?.includes("edge-function;"))
       && response.headers.get("cache-control")?.includes("no-store") };
 }
@@ -279,11 +283,19 @@ async function createDelivery(label, edge = false) {
 async function waitForOwnedEdge() {
   lastStep = "owned-edge-startup";
   const deadline = Date.now() + 45_000;
+  let lastObservation = null;
   while (Date.now() < deadline) {
     try {
       const response = await fetch(`${edgeOrigin}/functions/v1/create-order-session`, {
         method: "OPTIONS", headers: { origin }, redirect: "error", signal: AbortSignal.timeout(3000),
       });
+      const observation = { status: response.status,
+        allowOrigin: response.headers.get("access-control-allow-origin"),
+        serverTiming: response.headers.get("server-timing") };
+      if (JSON.stringify(observation) !== JSON.stringify(lastObservation)) {
+        emit("edge-startup-observation", observation);
+        lastObservation = observation;
+      }
       if (response.status === 204 && response.headers.get("access-control-allow-origin") === origin
         && response.headers.get("server-timing")?.includes("edge-function;")) return;
     } catch { /* The owned functions process may still be starting. */ }
@@ -298,7 +310,7 @@ try {
     && process.env.RUNNER_ENVIRONMENT === "github-hosted" && process.env.RUNNER_OS === "Linux");
   check("exact-product-cwd", resolve(process.cwd()) === root);
   check("exact-product-commit", execFileSync("git", ["rev-parse", "HEAD"], {cwd:root}).toString().trim()
-    === "5037ac0dfb73982b2c693bc91b3f09041258a68f");
+    === "9ed5a1b57e1c87cd71854f7a726f78a3ee3833c3");
   ({ PrismaClient } = createRequire(resolve(root, "package.json"))("@prisma/client"));
   check("explicit-owned-execution", process.env.DELIVERY_ACCEPTANCE_LOCAL_ONLY === "20261029-owned-synthetic");
   check("test-environment", process.env.APP_ENV === "test"
@@ -405,6 +417,48 @@ try {
 
   const unauthenticated = await api("staff-without-login", `/api/stalls/${stallSlug}/completed-orders?status=EXPIRED`);
   check("staff-login-required", unauthenticated.status === 401);
+  const anonymousPrincipal = await api("anonymous-principal-refused", "/api/health/database-principal");
+  check("anonymous-cannot-read-runtime-principal", anonymousPrincipal.status === 401
+    && anonymousPrincipal.cacheControl?.includes("no-store") && !anonymousPrincipal.data?.currentUser);
+  originalAdminProfile = await controlDatabase.profile.findUniqueOrThrow({
+    where: { email: "platform.admin@stallorder.test" },
+    select: { id: true, lastLoginAt: true, platformRole: true },
+  });
+  check("synthetic-platform-admin", originalAdminProfile.platformRole === "PLATFORM_ADMIN");
+  check("no-preexisting-stale-admin-sessions", await controlDatabase.authSession.count({ where: {
+    profileId: originalAdminProfile.id, expiresAt: { lte: new Date(Date.now() - 30 * 24 * 60 * 60_000) },
+  } }) === 0);
+  const adminLogin = await api("real-platform-admin-password-login", "/api/auth/login", {
+    method: "POST", captureCookies: true,
+    body: { email: "platform.admin@stallorder.test", password: "StallOrderDemo!2026" },
+  });
+  check("real-admin-password-session", adminLogin.status === 200 && cookies.has("stallorder_session"));
+  const adminTokenHash = createHash("sha256").update(decodeURIComponent(cookies.get("stallorder_session"))).digest("hex");
+  ownedAuthSessions.push({ tokenHash: adminTokenHash, profileId: originalAdminProfile.id });
+  const adminSession = await appDatabase.authSession.findUniqueOrThrow({ where: { tokenHash: adminTokenHash },
+    select: { id: true, profileId: true, revokedAt: true } });
+  owned.adminAuthSessionId = adminSession.id;
+  check("stored-admin-session", adminSession.profileId === originalAdminProfile.id && adminSession.revokedAt === null);
+  const principalStartedAt = new Date();
+  const principalResponse = await api("actual-next-principal", "/api/health/database-principal", { authenticated: true });
+  const principalFinishedAt = new Date();
+  const principal = principalResponse.data;
+  check("actual-next-http-runtime-principal", principalResponse.status === 200
+    && principalResponse.cacheControl?.includes("private") && principalResponse.cacheControl.includes("no-store")
+    && principal?.schema === "stallorder-database-principal/v1"
+    && principal.currentUser === role.current_user && principal.sessionUser === role.session_user
+    && principal.database === role.database && principal.superuser === false && principal.bypassRls === true
+    && principal.helperExists === true && principal.helperExecute === true
+    && Date.parse(principal.observedAt) >= principalStartedAt.getTime()
+    && Date.parse(principal.observedAt) <= principalFinishedAt.getTime());
+  emit("next-http-runtime-principal", { ...principal, requestStartedAt: principalStartedAt.toISOString(),
+    requestFinishedAt: principalFinishedAt.toISOString(),
+    evidenceScope: "exact candidate owned runner Next HTTP process; not old Production", productionRuntimeVerified: false });
+  await controlDatabase.authSession.update({ where: { id: owned.adminAuthSessionId }, data: { revokedAt: new Date() } });
+  const revokedPrincipal = await api("revoked-admin-principal-refused", "/api/health/database-principal", { authenticated: true });
+  check("revoked-admin-cannot-read-runtime-principal", revokedPrincipal.status === 401
+    && revokedPrincipal.cacheControl?.includes("no-store") && !revokedPrincipal.data?.currentUser);
+  cookies.clear();
   lastStep = "pre-login-stale-session-preservation";
   const staleAuthSessions = await controlDatabase.authSession.count({
     where: {
@@ -420,9 +474,13 @@ try {
   check("real-password-session", login.status === 200 && cookies.has("stallorder_session")
     && cookies.has("stallorder_csrf") && cookies.has("stallorder_auth_device"));
   const tokenHash = createHash("sha256").update(decodeURIComponent(cookies.get("stallorder_session"))).digest("hex");
+  ownedAuthSessions.push({ tokenHash, profileId: profile.id });
   const authSession = await appDatabase.authSession.findUniqueOrThrow({ where: { tokenHash }, select: { id: true, profileId: true, revokedAt: true } });
   owned.authSessionId = authSession.id;
   check("stored-staff-session", authSession.profileId === profile.id && authSession.revokedAt === null);
+  const staffPrincipal = await api("staff-principal-refused", "/api/health/database-principal", { authenticated: true });
+  check("staff-cannot-read-runtime-principal", staffPrincipal.status === 404
+    && staffPrincipal.cacheControl?.includes("no-store") && !staffPrincipal.data?.currentUser);
 
   const stream = await subscribeOrders();
   const mutationStarted = Date.now();
@@ -585,6 +643,11 @@ try {
         where: { id: owned.circuitOverrideId },
       }) === 0);
       if (owned.authSessionId) await controlDatabase.authSession.deleteMany({ where: { id: owned.authSessionId } });
+      if (owned.adminAuthSessionId) await controlDatabase.authSession.deleteMany({ where: { id: owned.adminAuthSessionId } });
+      if (ownedAuthSessions.length) {
+        await controlDatabase.authSession.deleteMany({ where: { OR: ownedAuthSessions } });
+        check("owned-auth-sessions-removed", await controlDatabase.authSession.count({ where: { OR: ownedAuthSessions } }) === 0);
+      }
       await controlDatabase.order.deleteMany({ where: { id: { in: owned.orderIds } } });
       if (phases.otherOrder) await controlDatabase.order.deleteMany({ where: { id: owned.otherOrderId } });
       if (phases.qr) {
@@ -603,6 +666,7 @@ try {
         } });
         await controlDatabase.stallOrderingSettings.update({ where: { stallId }, data: originalSettings });
         if (originalProfile) await controlDatabase.profile.update({ where: { id: originalProfile.id }, data: { lastLoginAt: originalProfile.lastLoginAt } });
+        if (originalAdminProfile) await controlDatabase.profile.update({ where: { id: originalAdminProfile.id }, data: { lastLoginAt: originalAdminProfile.lastLoginAt } });
       }
       const remainingOrders = await controlDatabase.order.count({ where: { id: { in: [...owned.orderIds, owned.otherOrderId] } } });
       const remainingQr = await controlDatabase.qrCode.count({ where: { id: owned.qrId } });

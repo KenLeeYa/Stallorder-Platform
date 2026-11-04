@@ -139,7 +139,7 @@ jobs:
           RESULT: ${{ job.status }}
         run: |
           node scripts/ci/delivery-candidate.mjs verify
-          printf 'Control: %s\nProduct: 5037ac0dfb73982b2c693bc91b3f09041258a68f\nResult: %s\nNot a release authorization.\n' "$GITHUB_SHA" "$RESULT" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Control: %s\nProduct: 9ed5a1b57e1c87cd71854f7a726f78a3ee3833c3\nResult: %s\nNot a release authorization.\n' "$GITHUB_SHA" "$RESULT" >> "$GITHUB_STEP_SUMMARY"
 
   security:
     if: github.event.repository.private == false && github.event.repository.fork == false && github.event.forced == false && github.event.deleted == false

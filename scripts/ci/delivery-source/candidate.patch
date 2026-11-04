@@ -11,6 +11,27 @@ index a7f000bdbe2a87294a83c19bd89b4e5d1c3ff3fc..32304bd340d357735e0f9ff0c506de0a
    await page.getByPlaceholder("訂單編號、顧客或電話").fill(orderNo);
    await page.getByRole("button", { name: "查詢", exact: true }).click();
    const order = page.getByRole("article").filter({ hasText: orderNo });
+diff --git a/e2e/ordering-selection.spec.ts b/e2e/ordering-selection.spec.ts
+index 557d3355399b6acb47158face2db97245f5629bf..12b3b6b3cb8a29be80ac4369c2fa38e46722b087 100644
+--- a/e2e/ordering-selection.spec.ts
++++ b/e2e/ordering-selection.spec.ts
+@@ -21,7 +21,7 @@ for (const orderingMode of ["DEFAULT", "PREORDER", "DELIVERY"] as const) {
+       status: 201,
+       headers: { "access-control-allow-origin": "*" },
+       json: {
+-        orderingMode, orderSessionToken: `stos_${"c".repeat(43)}`,
++        orderingMode, orderingOpenNow: true, orderSessionToken: `stos_${"c".repeat(43)}`,
+         expiresAt: "2099-08-03T02:00:00.000Z",
+         preorderSlots: ["2099-08-03T04:00:00.000Z"], lotteryEnabled: false,
+         stall: { name: "勾選介面測試攤位", slug: "selection-e2e", location: "本機介面測試",
+@@ -48,6 +48,7 @@ for (const orderingMode of ["DEFAULT", "PREORDER", "DELIVERY"] as const) {
+       : orderingMode === "PREORDER" ? "/s/aming-chicken" : "/delivery/aming-chicken");
+     await expect(page.getByRole("heading", { name: "勾選介面測試攤位" })).toBeVisible();
+     if (orderingMode === "PREORDER") await page.getByRole("button", { name: "套用這個時間", exact: true }).click();
++    await expect(page.getByTestId("qr-open-product-configurator")).toBeEnabled();
+     await page.getByTestId("qr-open-product-configurator").click();
+     const configurator = page.getByTestId("qr-product-configuration");
+     const meat = configurator.getByRole("checkbox", { name: /肉量加倍/ });
 diff --git a/package-lock.json b/package-lock.json
 index dff27175712f4af87dc5945281040614086e112c..5d5eaf19504023f7aeb7205a20789a0ff2389b32 100644
 --- a/package-lock.json
@@ -922,6 +943,150 @@ index e4a338e91453f2e9b4605250ff722eacf141d0ab..f5ba2b2e1bf76272af5be1b7731ece82
    assert("CSP avoids broad wildcard", !/(?:^|;|\s)\*(?:\s|;|$)/.test(csp), csp || "missing");
    if (baseUrl.protocol === "https:") {
      assert("HSTS enabled", Boolean(mainResponse.headers.get("strict-transport-security")), mainResponse.headers.get("strict-transport-security") ?? "missing");
+diff --git a/src/app/api/health/database-principal/route.test.ts b/src/app/api/health/database-principal/route.test.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..7bf67fd29963937b08ad62a151a4da7008c9e154
+--- /dev/null
++++ b/src/app/api/health/database-principal/route.test.ts
+@@ -0,0 +1,81 @@
++import { beforeEach, describe, expect, it, vi } from "vitest";
++
++const mocks = vi.hoisted(() => ({ authorize: vi.fn(), query: vi.fn(), log: vi.fn() }));
++vi.mock("@/lib/authorization", () => ({ authorizePlatformAdminApiRequest: mocks.authorize }));
++vi.mock("@/lib/prisma", () => ({ prisma: { $queryRaw: mocks.query } }));
++vi.mock("@/lib/audit", () => ({ logEvent: mocks.log }));
++
++describe("deployed database principal probe", () => {
++  beforeEach(() => {
++    vi.clearAllMocks();
++    mocks.authorize.mockResolvedValue({ ok: true });
++    mocks.query.mockResolvedValue([{ currentUser: "postgres", sessionUser: "postgres", database: "postgres",
++      superuser: false, bypassRls: true, helperExists: true, helperExecute: true,
++      observedAt: new Date("2026-11-04T18:00:00.000Z") }]);
++  });
++
++  it.each([401, 404])("refuses status %s before querying the database", async (status) => {
++    mocks.authorize.mockResolvedValue({ ok: false, response: new Response("{}", { status }) });
++    const { GET } = await import("./route");
++    const response = await GET(new Request("https://app.example/api/health/database-principal"));
++    expect(response.status).toBe(status);
++    expect(response.headers.get("cache-control")).toBe("private, no-store");
++    expect(mocks.query).not.toHaveBeenCalled();
++  });
++
++  it("reports the actual direct query and keeps the response private and uncached", async () => {
++    const { GET } = await import("./route");
++    const response = await GET(new Request("https://app.example/api/health/database-principal"));
++    expect(response.status).toBe(200);
++    expect(response.headers.get("cache-control")).toBe("private, no-store");
++    expect(response.headers.get("vary")).toBe("Accept, Cookie");
++    expect(await response.json()).toEqual({ schema: "stallorder-database-principal/v1",
++      currentUser: "postgres", sessionUser: "postgres", database: "postgres", superuser: false,
++      bypassRls: true, helperExists: true, helperExecute: true, observedAt: "2026-11-04T18:00:00.000Z" });
++    expect(mocks.query).toHaveBeenCalledOnce();
++    const statement = mocks.query.mock.calls[0][0].join("");
++    expect(statement).toContain("current_user::text");
++    expect(statement).toContain("session_user::text");
++    expect(statement).toContain("statement_timestamp()");
++    expect(statement).not.toMatch(/SET\s+(?:ROLE|SESSION)|SECURITY\s+DEFINER/i);
++    expect(mocks.query.mock.calls[0]).toHaveLength(1);
++  });
++
++  it("reports missing migration helper without assuming execution permission", async () => {
++    mocks.query.mockResolvedValue([{ currentUser: "postgres", sessionUser: "postgres", database: "postgres",
++      superuser: false, bypassRls: true, helperExists: false, helperExecute: null,
++      observedAt: new Date("2026-11-04T18:00:00.000Z") }]);
++    const { GET } = await import("./route");
++    const body = await (await GET(new Request("https://app.example/api/health/database-principal"))).json();
++    expect(body.helperExists).toBe(false);
++    expect(body.helperExecute).toBeNull();
++  });
++
++  it("reports unsafe role attributes and denied execution without normalizing them to expected values", async () => {
++    mocks.query.mockResolvedValue([{ currentUser: "unexpected_role", sessionUser: "unexpected_login", database: "postgres",
++      superuser: true, bypassRls: false, helperExists: true, helperExecute: false,
++      observedAt: new Date("2026-11-04T18:00:00.000Z") }]);
++    const { GET } = await import("./route");
++    const body = await (await GET(new Request("https://app.example/api/health/database-principal"))).json();
++    expect(body.currentUser).toBe("unexpected_role");
++    expect(body.sessionUser).toBe("unexpected_login");
++    expect(body.superuser).toBe(true);
++    expect(body.bypassRls).toBe(false);
++    expect(body.helperExecute).toBe(false);
++  });
++
++  it("does not turn missing rows or query errors into verified identity or expose database details", async () => {
++    const { GET } = await import("./route");
++    for (const rows of [[], [{ currentUser: "postgres" }]]) {
++      mocks.query.mockResolvedValue(rows);
++      const response = await GET(new Request("https://app.example/api/health/database-principal"));
++      expect(response.status).toBe(503);
++      expect(await response.json()).toEqual({ error: "DATABASE_PRINCIPAL_UNAVAILABLE" });
++    }
++    mocks.query.mockRejectedValue(new Error("postgresql://secret-user:secret-password@private-host"));
++    const response = await GET(new Request("https://app.example/api/health/database-principal"));
++    expect(response.status).toBe(503);
++    expect(await response.text()).not.toContain("secret-password");
++    expect(JSON.stringify(mocks.log.mock.calls)).not.toContain("secret-password");
++  });
++});
+diff --git a/src/app/api/health/database-principal/route.ts b/src/app/api/health/database-principal/route.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..afcd453d54bc63f1991f044a14ea9d1647d9c475
+--- /dev/null
++++ b/src/app/api/health/database-principal/route.ts
+@@ -0,0 +1,51 @@
++import { NextResponse } from "next/server";
++import { logEvent } from "@/lib/audit";
++import { prisma } from "@/lib/prisma";
++import { authorizeHealthApiRequest, healthResponseHeaders } from "@/server/resilience/health-authorization";
++
++export const dynamic = "force-dynamic";
++
++type Principal = {
++  currentUser: string;
++  sessionUser: string;
++  database: string;
++  superuser: boolean;
++  bypassRls: boolean;
++  helperExists: boolean;
++  helperExecute: boolean | null;
++  observedAt: Date;
++};
++
++export async function GET(request: Request) {
++  const authorization = await authorizeHealthApiRequest(request);
++  if (!authorization.ok) return authorization.response;
++  try {
++    const rows = await prisma.$queryRaw<Principal[]>`
++      SELECT current_user::text AS "currentUser", session_user::text AS "sessionUser",
++        current_database()::text AS "database", r.rolsuper AS "superuser", r.rolbypassrls AS "bypassRls",
++        to_regprocedure('public.delivery_ordering_unavailable_code(uuid,timestamptz)') IS NOT NULL AS "helperExists",
++        has_function_privilege(current_user,
++          to_regprocedure('public.delivery_ordering_unavailable_code(uuid,timestamptz)'), 'EXECUTE') AS "helperExecute",
++        statement_timestamp() AS "observedAt"
++      FROM pg_catalog.pg_roles r WHERE r.rolname = current_user
++    `;
++    const row = rows[0];
++    if (rows.length !== 1 || !row || ![row.currentUser, row.sessionUser, row.database]
++      .every(value => typeof value === "string" && value.length > 0)
++      || typeof row.superuser !== "boolean" || typeof row.bypassRls !== "boolean"
++      || typeof row.helperExists !== "boolean"
++      || (row.helperExists ? typeof row.helperExecute !== "boolean" : row.helperExecute !== null)
++      || !(row.observedAt instanceof Date) || !Number.isFinite(row.observedAt.getTime())) {
++      throw new Error("DATABASE_PRINCIPAL_RESULT_INVALID");
++    }
++    return NextResponse.json({ schema: "stallorder-database-principal/v1",
++      currentUser: row.currentUser, sessionUser: row.sessionUser, database: row.database,
++      superuser: row.superuser, bypassRls: row.bypassRls, helperExists: row.helperExists,
++      helperExecute: row.helperExecute, observedAt: row.observedAt.toISOString(),
++    }, { headers: healthResponseHeaders });
++  } catch {
++    logEvent("error", "DATABASE_PRINCIPAL_PROBE_FAILED", {});
++    return NextResponse.json({ error: "DATABASE_PRINCIPAL_UNAVAILABLE" },
++      { status: 503, headers: healthResponseHeaders });
++  }
++}
 diff --git a/src/app/api/stalls/[stallSlug]/completed-orders/route.test.ts b/src/app/api/stalls/[stallSlug]/completed-orders/route.test.ts
 index 68a11ad91210fa0ec81d0313c762c281572f3fb8..3f12c97753dc54b6b4d8762613ef8e8da2b8d10b 100644
 --- a/src/app/api/stalls/[stallSlug]/completed-orders/route.test.ts

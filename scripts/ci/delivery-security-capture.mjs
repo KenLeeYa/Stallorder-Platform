@@ -51,17 +51,26 @@ export function restoreCapture(records) {
   assert.equal(bytes.length, header.bytes); assert.equal(hash(bytes), header.sha256);
   return bytes;
 }
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+async function emitRecord(record) {
+  await new Promise((resolve, reject) => process.stdout.write(JSON.stringify(record) + '\n',
+    error => error ? reject(error) : resolve()));
+}
+async function main() {
   const directory = process.argv[2]; assert.ok(directory);
   const files = readdirSync(directory).filter(path => path.endsWith('.sarif'));
   assert.equal(files.length, 1, 'one complete SARIF required');
   const raw = readFileSync(resolve(directory, files[0]));
-  for (const record of encodeCapture(raw)) console.log(JSON.stringify(record));
+  // Await pipe backpressure before the fail-closed exit. An uncaught assertion
+  // previously terminated Linux before buffered SARIF chunks reached the runner.
+  for (const record of encodeCapture(raw)) await emitRecord(record);
   const sarif = JSON.parse(raw);
   assert.equal(sarif.version, '2.1.0'); assert.equal(sarif.runs?.length, 1);
   const results = sarif.runs[0].results; assert.ok(Array.isArray(results));
-  for (const result of results) console.log(JSON.stringify({ ruleId: result.ruleId,
-    message: result.message?.text, locations: result.locations }));
-  console.log(JSON.stringify({ rawSarifSha256: hash(raw), findings: results.length, releaseAuthorized: false }));
+  for (const result of results) await emitRecord({ ruleId: result.ruleId,
+    message: result.message?.text, locations: result.locations });
+  await emitRecord({ rawSarifSha256: hash(raw), findings: results.length, releaseAuthorized: false });
   assert.equal(results.length, 0, 'Raw source security gate remains blocked pending complete review');
+}
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch(error => { console.error(error.message); process.exitCode = 1; });
 }
