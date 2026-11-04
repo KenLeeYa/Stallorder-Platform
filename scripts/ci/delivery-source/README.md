@@ -1,6 +1,16 @@
 # Exact delivery-hours candidate qualification
 
-## Current complete-scan qualification contract (2026-11-05)
+## Current product and pending acceptance (2026-11-04 19:39 UTC)
+
+Product `79f5ec8d98d9ccdb61f80d06071a2102908c54df`, tree `d215e9f212d5647701f0d19e7212f6f5dadb8f1a`, contains 38 paths over Production `4e95d2ea5d53ae78c5af9c3db044481237674c44`. The two additional paths fix and test the DELIVERY session builder's missing `orderingOpenNow: true` after successful authoritative admission. Run 10 (`41895693800`) exposed this real Edge response gap after actual Next principal, password-auth, order, staff confirmation, SSE and origin-boundary checks passed. Its failed result is retained. The local product regressions passed 45/45, and independent source review found no Critical or Important issue in the builder correction. These are not hosted qualification of the new product.
+
+The workflow requires a fresh complete CodeQL scan for this changed product. The previous 507e review below cannot qualify 79f5. Runs 10 and 11 also failed while collecting the prior scan's source log; that hosted evidence-collection problem remains unresolved, not waived. The current raw scan gate remains fail-closed.
+
+The owned acceptance now additionally exercises `manage-line-link` STATUS and `prepare-reorder`, with no external LINE message. It waits for an unmodified 600-second order deadline and the installed `pg_cron` job, recording the actual execution ID, command, database, role, timestamps, order event, history and active-list outcome. The prior accelerated fixture test remains explicitly separate. The bounded comparator's missing-ID and wrong-execution-field regressions were observed failing and then fixed. Actual natural-expiry and all-five-Edge execution for this product are still pending.
+
+Production remains on 4e95, with the affected store's delivery paused. Full exact CI, security disposition, isolated Preview, actual protected migration executor, compatible recovery and protected release gates remain open. No Production release or reopening is authorized by this file.
+
+## Historical 507e complete-scan qualification contract (2026-11-05)
 
 Product `507e4d3b0b6d652b3506bb4ecd419603b3a906a8` contains 36 paths over Production. Run `41892463366`, security job `126793180856`, scanned this exact clean product with CodeQL 2.27.4 and security-extended. Its complete 1,992,591-byte SARIF is SHA-256 `505970c89f5b019d57fafefb40b53e18ff565e21eac696feb51632f61776a80f`. Independent source review confirmed all 14 bounded false-positive dispositions, 1,725 expected files extracted, and no extraction errors or suppressions. The original scan remains failed; its result is never rewritten.
 

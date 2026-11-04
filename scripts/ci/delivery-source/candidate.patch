@@ -2380,6 +2380,46 @@ index 0000000000000000000000000000000000000000..055f683f411606980c01840d50427bf9
 +    reset() { frames.clear(); wrappers.clear(); pending = []; dirty = true; stopped = false; },
 +  };
 +}
+diff --git a/supabase/functions/_shared/public-order-contract.test.ts b/supabase/functions/_shared/public-order-contract.test.ts
+index f4c7534ed562459d1c992be55e55de0bcba49658..fb6d7035d7cf921e7d09bd32ed4648f11ebc1545 100644
+--- a/supabase/functions/_shared/public-order-contract.test.ts
++++ b/supabase/functions/_shared/public-order-contract.test.ts
+@@ -127,6 +127,21 @@ describe("canonical public order pure contract", () => {
+     });
+   });
+ 
++  it("marks an issued delivery session open after the authoritative admission checks", () => {
++    expect(buildPublicOrderSessionResponse({
++      orderSessionToken: "session-token",
++      expiresAt: "2026-08-13T04:10:00.000Z",
++      orderingMode: "DELIVERY",
++    })).toMatchObject({ orderingMode: "DELIVERY", orderingOpenNow: true });
++    for (const orderingMode of ["DEFAULT", "PREORDER"] as const) {
++      expect(buildPublicOrderSessionResponse({
++        orderSessionToken: "session-token",
++        expiresAt: "2026-08-13T04:10:00.000Z",
++        orderingMode,
++      })).not.toHaveProperty("orderingOpenNow");
++    }
++  });
++
+   it("serializes immediate, preorder, and resume session contracts", () => {
+     expect(buildPublicOrderSessionResponse({
+       orderSessionToken: "session-token",
+diff --git a/supabase/functions/_shared/public-order-contract.ts b/supabase/functions/_shared/public-order-contract.ts
+index fb112a5d03ff094bd60e5ee986975fbf2b836b40..da7fe512c22275be29fc60d9a5088f836e1e2bcf 100644
+--- a/supabase/functions/_shared/public-order-contract.ts
++++ b/supabase/functions/_shared/public-order-contract.ts
+@@ -158,6 +158,9 @@ export function buildPublicOrderSessionResponse(input: {
+     orderSessionToken: input.orderSessionToken,
+     expiresAt: input.expiresAt,
+     orderingMode: input.orderingMode,
++    // Both transports build this only after database admission and session issuance.
++    // Submission still rechecks opening hours if the window closes afterwards.
++    ...(input.orderingMode === "DELIVERY" ? { orderingOpenNow: true } : {}),
+     estimatedWaitMinutes: preorderSession
+       ? 0
+       : input.capacity?.quote_max_minutes ?? fallbackWaitMinutes,
 diff --git a/supabase/functions/_shared/public-order-errors.ts b/supabase/functions/_shared/public-order-errors.ts
 index 86c636cf21bc8f53ea54f6be9c81c061f2023bae..85ce9091f150c72676b11a7710f0fa5c86392613 100644
 --- a/supabase/functions/_shared/public-order-errors.ts

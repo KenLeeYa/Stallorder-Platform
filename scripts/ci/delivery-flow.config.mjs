@@ -13,7 +13,7 @@ export default defineConfig({
   ...base,
   testDir: here,
   testMatch: 'delivery-flow.spec.mjs',
-  timeout: 300_000,
+  timeout: 960_000,
   retries: 0,
   workers: 1,
   reporter: 'list',

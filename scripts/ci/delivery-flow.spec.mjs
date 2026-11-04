@@ -12,7 +12,7 @@ test('exact product delivery creation, confirmation, expiry, history, SSE and re
           ACCEPTANCE_DATABASE_URL: process.env.DATABASE_URL,
           DELIVERY_ACCEPTANCE_LOCAL_ONLY: '20261029-owned-synthetic' },
         maxBuffer: 4 * 1024 * 1024,
-        timeout: 240_000,
+        timeout: 900_000,
       });
     console.log(stdout);
     if (stderr) console.error(stderr);

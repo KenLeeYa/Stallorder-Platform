@@ -1,6 +1,6 @@
-tree 82eb24921c2d45219e8c28580f8806502af250b1
+tree d215e9f212d5647701f0d19e7212f6f5dadb8f1a
 parent 4e95d2ea5d53ae78c5af9c3db044481237674c44
-author KenLeeYa <ada76145@gmail.com> 1793818705 +0800
-committer KenLeeYa <ada76145@gmail.com> 1793818705 +0800
+author KenLeeYa <ada76145@gmail.com> 1793820754 +0800
+committer KenLeeYa <ada76145@gmail.com> 1793820754 +0800
 
-test(delivery): use noncredential sentinel for principal redaction
+fix(delivery): publish admission state on issued Edge sessions

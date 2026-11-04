@@ -1,9 +1,9 @@
 {
   "base": "4e95d2ea5d53ae78c5af9c3db044481237674c44",
-  "commit": "507e4d3b0b6d652b3506bb4ecd419603b3a906a8",
-  "tree": "82eb24921c2d45219e8c28580f8806502af250b1",
-  "patchSha256": "18dc8b268be1a12ae93e851f1f92630092d7c1a87e8e5f522c3206387f4a90d9",
-  "commitSha256": "09f6d3e19ae73c40bf9392b45ea0d61c6f8fd6e54c0ef9a90f65e9e86473f619",
+  "commit": "79f5ec8d98d9ccdb61f80d06071a2102908c54df",
+  "tree": "d215e9f212d5647701f0d19e7212f6f5dadb8f1a",
+  "patchSha256": "b655024c6eb6ff40e4670f300cc92b7547a77907e978702114341f4054ad92e3",
+  "commitSha256": "6d08bf2c9d8735c84c6f7dde16146ed7de48cc52397e178c727dd5a0cd0f3b9a",
   "paths": [
     "e2e/api-response-contract-regressions.spec.ts",
     "e2e/ordering-selection.spec.ts",
@@ -37,6 +37,8 @@
     "src/lib/public-menu-preorder.test.ts",
     "src/lib/public-menu.ts",
     "src/test/stateful-hook-runtime.ts",
+    "supabase/functions/_shared/public-order-contract.test.ts",
+    "supabase/functions/_shared/public-order-contract.ts",
     "supabase/functions/_shared/public-order-errors.ts",
     "supabase/migrations/20261029090000_public_delivery_ordering_hours.sql",
     "supabase/tests/database/public_delivery_ordering_hours.test.sql",

@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
 import { verifyOwnedEdgeReadiness } from "./delivery-edge-readiness.mjs";
+import { verifyNaturalExpiry } from "./delivery-expiry-evidence.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../../product");
 const origin = "http://127.0.0.1:3000";
@@ -89,7 +90,8 @@ async function api(name, path, { method = "GET", body, flow, authenticated = fal
   const url = new URL(path, targetOrigin);
   assert.equal(url.origin, targetOrigin, "owned-loopback-api-only");
   if (edge) {
-    assert.ok(["/functions/v1/create-order-session", "/functions/v1/create-public-order", "/functions/v1/get-public-order"].includes(url.pathname));
+    assert.ok(["/functions/v1/create-order-session", "/functions/v1/create-public-order", "/functions/v1/get-public-order",
+      "/functions/v1/manage-line-link", "/functions/v1/prepare-reorder"].includes(url.pathname));
     assert.equal(method, "POST");
     assert.ok(!authenticated && !captureCookies, "no-staff-cookies-to-edge");
   }
@@ -115,6 +117,8 @@ async function api(name, path, { method = "GET", body, flow, authenticated = fal
     cacheControl: response.headers.get("cache-control") });
   return { status: response.status, data, code, circuit: response.headers.get("x-order-circuit"),
     cacheControl: response.headers.get("cache-control"),
+    edgeResponse: edge && response.headers.get("cache-control")?.includes("no-store")
+      && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId ?? ""),
     edgeRuntime: edge && Boolean(response.headers.get("server-timing")?.includes("edge-function;"))
       && response.headers.get("cache-control")?.includes("no-store") };
 }
@@ -328,7 +332,7 @@ try {
     && process.env.RUNNER_ENVIRONMENT === "github-hosted" && process.env.RUNNER_OS === "Linux");
   check("exact-product-cwd", resolve(process.cwd()) === root);
   check("exact-product-commit", execFileSync("git", ["rev-parse", "HEAD"], {cwd:root}).toString().trim()
-    === "507e4d3b0b6d652b3506bb4ecd419603b3a906a8");
+    === "79f5ec8d98d9ccdb61f80d06071a2102908c54df");
   ({ PrismaClient } = createRequire(resolve(root, "package.json"))("@prisma/client"));
   check("explicit-owned-execution", process.env.DELIVERY_ACCEPTANCE_LOCAL_ONLY === "20261029-owned-synthetic");
   check("test-environment", process.env.APP_ENV === "test"
@@ -391,7 +395,7 @@ try {
   // confined to the owned disposable runner database and removed in finally.
   await controlDatabase.resilienceFeatureFlagOverride.create({ data: {
     id: owned.circuitOverrideId, flagId: circuitFlag.id, scopeType: "GLOBAL", enabled: true,
-    reason: `${prefix} isolated delivery acceptance`, expiresAt: new Date(Date.now() + 10 * 60_000),
+    reason: `${prefix} isolated delivery acceptance`, expiresAt: new Date(Date.now() + 20 * 60_000),
   } });
   lastStep = "fixture-open-hours-and-delivery-settings";
   await controlDatabase.stallBusinessHour.updateMany({ where: { stallId },
@@ -523,13 +527,40 @@ try {
   check("confirmed-order-persisted", confirmedReadback.status === "CONFIRMED" && confirmedReadback.confirmedAt !== null);
 
   const edgeConfirmed = await createDelivery("edge-confirm", true);
+  const lineStatus = await api("edge-line-link-status", "/functions/v1/manage-line-link", {
+    method: "POST", edge: true, flow: edgeConfirmed,
+    body: { trackingToken: edgeConfirmed.trackingToken, deviceId: edgeConfirmed.deviceId, action: "STATUS" },
+  });
+  check("edge-line-link-status-without-external-message", lineStatus.status === 200 && lineStatus.edgeResponse
+    && typeof lineStatus.data.available === "boolean" && lineStatus.data.linked === false
+    && typeof lineStatus.data.repeatOrderAvailable === "boolean");
+  const reorder = await api("edge-prepare-delivery-reorder", "/functions/v1/prepare-reorder", {
+    method: "POST", edge: true, flow: edgeConfirmed,
+    body: { trackingToken: edgeConfirmed.trackingToken, deviceId: edgeConfirmed.deviceId },
+  });
+  check("edge-reorder-preserves-delivery-context", reorder.status === 200 && reorder.edgeResponse
+    && reorder.data.orderingMode === "DELIVERY" && reorder.data.qrToken === `${prefix}-${runId}`
+    && reorder.data.orderPath === `/store/${encodeURIComponent(stall.code)}?view=delivery`
+    && reorder.data.availableItems.some(item => item.productId === owned.productId && item.quantity === 1));
   const edgeConfirmation = await api("staff-confirm-edge-order", `/api/stalls/${stallSlug}/orders/${edgeConfirmed.id}`, {
     method: "PATCH", authenticated: true, body: { status: "CONFIRMED" },
   });
   check("edge-order-staff-confirmation", edgeConfirmation.status === 200
     && (await appDatabase.order.findUniqueOrThrow({ where: { id: edgeConfirmed.id }, select: { status: true } })).status === "CONFIRMED");
+  const confirmedReorder = await api("edge-confirmed-reorder-refused", "/functions/v1/prepare-reorder", {
+    method: "POST", edge: true, flow: edgeConfirmed,
+    body: { trackingToken: edgeConfirmed.trackingToken, deviceId: edgeConfirmed.deviceId },
+  });
+  check("edge-confirmed-order-cannot-reorder", confirmedReorder.status === 409 && confirmedReorder.edgeResponse
+    && confirmedReorder.code === "ORDER_ALREADY_CONFIRMED");
 
   const expired = await createDelivery("expire");
+  const natural = await createDelivery("natural-expire", true);
+  const naturalSelect = { id: true, status: true, createdAt: true, confirmationExpiresAt: true, expiredAt: true };
+  const naturalBefore = await appDatabase.order.findUniqueOrThrow({ where: { id: natural.id }, select: naturalSelect });
+  const naturalStartedAt = new Date();
+  check("natural-expiry-original-ten-minute-window", naturalBefore.status === "WAITING_CONFIRMATION"
+    && naturalBefore.confirmationExpiresAt.getTime() - naturalBefore.createdAt.getTime() === 600_000);
   const unopened = await issue(newFlow("close-after-session"));
   const edgeUnopened = await issue(newFlow("edge-close-after-session", true));
   const countBeforeClosed = await controlDatabase.order.count();
@@ -637,10 +668,83 @@ try {
   });
   check("cross-stall-order-mutation-refused", crossMutation.status === 404);
   check("foreign-order-unchanged", (await controlDatabase.order.findUniqueOrThrow({ where: { id: owned.otherOrderId }, select: { status: true } })).status === "EXPIRED");
+  // No deadline writes or manual expiry calls below. Wait for the installed
+  // pg_cron job, and bind the order transition to its actual execution record.
+  lastStep = "natural-cron-expiry";
+  const precisionCases = await controlDatabase.$queryRaw`
+    with cases(start_at, end_at, expired_at, expected) as (values
+      ('2026-11-04T19:10:01.000100Z'::timestamptz, '2026-11-04T19:10:01.000450Z'::timestamptz,
+       '2026-11-04T19:10:01.000'::timestamp(3), true),
+      ('2026-11-04T19:10:00.999500Z'::timestamptz, '2026-11-04T19:10:01.000350Z'::timestamptz,
+       '2026-11-04T19:10:01.000'::timestamp(3), true),
+      ('2026-11-04T19:10:01.001100Z'::timestamptz, '2026-11-04T19:10:01.002000Z'::timestamptz,
+       '2026-11-04T19:10:01.000'::timestamp(3), false))
+    select ((start_at at time zone 'UTC')::timestamp(3) <= expired_at
+      and (end_at at time zone 'UTC')::timestamp(3) >= expired_at) = expected as correct from cases`;
+  check("postgres-microsecond-boundary-regressions", precisionCases.length === 3 && precisionCases.every(row => row.correct));
+  const cronRows = await controlDatabase.$queryRaw`
+    select jobid::integer, jobname, schedule, command, database, username, active
+    from cron.job where jobname = 'stallorder-expire-unconfirmed-orders'`;
+  check("natural-expiry-single-installed-cron", cronRows.length === 1);
+  const cronJob = cronRows[0];
+  const naturalDeadline = naturalBefore.confirmationExpiresAt.getTime();
+  check("natural-wait-starts-before-deadline", Date.now() < naturalDeadline);
+  emit("natural-expiry-wait-started", { before: naturalBefore, startedAt: naturalStartedAt, job: cronJob });
+  let naturalAfter;
+  let cronExecution;
+  let progressAt = 0;
+  while (Date.now() <= naturalDeadline + 180_000) {
+    naturalAfter = await appDatabase.order.findUniqueOrThrow({ where: { id: natural.id }, select: naturalSelect });
+    assert.equal(naturalAfter.createdAt.getTime(), naturalBefore.createdAt.getTime(), "natural creation time changed");
+    assert.equal(naturalAfter.confirmationExpiresAt.getTime(), naturalDeadline, "natural deadline changed");
+    assert.ok(["WAITING_CONFIRMATION", "EXPIRED"].includes(naturalAfter.status), "unexpected natural order state");
+    if (naturalAfter.status === "EXPIRED") {
+      const executions = await controlDatabase.$queryRaw`
+        select jobid::integer, runid::integer, command, database, username, status,
+          (start_time at time zone 'UTC')::timestamp(3) as start_time,
+          (end_time at time zone 'UTC')::timestamp(3) as end_time,
+          to_char(start_time at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as start_time_raw,
+          to_char(end_time at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as end_time_raw
+        from cron.job_run_details where jobid = ${cronJob.jobid} and status = 'succeeded'
+          and (start_time at time zone 'UTC')::timestamp(3) <= ${naturalAfter.expiredAt}::timestamp(3)
+          and (end_time at time zone 'UTC')::timestamp(3) >= ${naturalAfter.expiredAt}::timestamp(3)
+        order by runid desc limit 2`;
+      if (executions.length) {
+        assert.equal(executions.length, 1, "ambiguous cron execution");
+        cronExecution = executions[0];
+        break;
+      }
+    }
+    if (Date.now() >= progressAt) {
+      emit("natural-expiry-wait", { elapsedMs: Date.now() - naturalBefore.createdAt.getTime(), status: naturalAfter.status });
+      progressAt = Date.now() + 60_000;
+    }
+    await delay(2_000);
+  }
+  const naturalEvidence = {
+    before: naturalBefore, after: naturalAfter, job: cronJob, execution: cronExecution,
+    startedAt: naturalStartedAt, observedAt: new Date(),
+    eventCount: await appDatabase.orderEvent.count({ where: { orderId: natural.id, eventType: "UNCONFIRMED_ORDER_EXPIRED" } }),
+    confirmedStatus: (await appDatabase.order.findUniqueOrThrow({ where: { id: edgeConfirmed.id }, select: { status: true } })).status,
+  };
+  const naturalResult = verifyNaturalExpiry(naturalEvidence);
+  emit("natural-expiry-evidence", { ...naturalEvidence, ...naturalResult, deadlineModified: false, manualExpiryDuringWait: false });
+  check("natural-ten-minute-cron-expiry", naturalResult.realCronTimingVerified);
+  const naturalHistory = await api("natural-expired-history", `/api/stalls/${stallSlug}/completed-orders?status=EXPIRED&query=${encodeURIComponent(prefix)}`, { authenticated: true });
+  check("natural-expiry-visible-in-history", naturalHistory.status === 200
+    && naturalHistory.data.orders.some(order => order.id === natural.id && order.status === "EXPIRED"));
+  const naturalActive = await api("natural-expiry-removed-from-active", `/api/stalls/${stallSlug}/orders`, { authenticated: true });
+  check("natural-expiry-not-active", naturalActive.status === 200 && naturalActive.data.orders.every(order => order.id !== natural.id));
+  const expiredReorder = await api("edge-expired-reorder-refused", "/functions/v1/prepare-reorder", {
+    method: "POST", edge: true, flow: natural,
+    body: { trackingToken: natural.trackingToken, deviceId: natural.deviceId },
+  });
+  check("edge-expired-order-cannot-reorder", expiredReorder.status === 409 && expiredReorder.edgeResponse
+    && expiredReorder.code === "ORDER_ALREADY_STARTED");
   emit("flow-complete", { checkCount: checks.length, browserUiVerified: false,
     edgeCircuitAOrderFlowVerified: true,
-    edgeFunctionsExercised: ["create-order-session", "create-public-order", "get-public-order"],
-    realCronTimingVerified: false, notificationDeliveryVerified: false,
+    edgeFunctionsExercised: ["create-order-session", "create-public-order", "get-public-order", "manage-line-link", "prepare-reorder"],
+    realCronTimingVerified: true, productionSchedulerVerified: false, notificationDeliveryVerified: false,
     evidenceScope: "isolated actual Edge + Next API + PostgreSQL + password auth; offline Turnstile test mode" });
   await holdForUi({
     staffPath: `/staff/${stallSlug}`, searchLabel: prefix,
