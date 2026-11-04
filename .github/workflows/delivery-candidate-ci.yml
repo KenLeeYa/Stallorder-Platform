@@ -7,6 +7,9 @@ on:
       - .github/workflows/delivery-candidate-ci.yml
       - scripts/ci/delivery-candidate.mjs
       - scripts/ci/delivery-candidate.test.mjs
+      - scripts/ci/delivery-flow.mjs
+      - scripts/ci/delivery-flow.config.mjs
+      - scripts/ci/delivery-flow.spec.mjs
       - scripts/ci/delivery-source/**
 
 permissions:
@@ -109,6 +112,11 @@ jobs:
         run: npx playwright install --with-deps chromium webkit
       - name: WebPRNT native recovery on Chromium and WebKit
         run: npx playwright test --config playwright.webprnt.config.ts
+      - name: Exact delivery API and responsive history acceptance
+        env:
+          PLAYWRIGHT_PRODUCTION_SERVER: "true"
+          PLAYWRIGHT_APP_URL: http://127.0.0.1:3000
+        run: npx playwright test --config ../control/scripts/ci/delivery-flow.config.mjs
       - name: Playwright end-to-end tests
         env:
           PLAYWRIGHT_PRODUCTION_SERVER: "true"
@@ -152,7 +160,9 @@ jobs:
           source-root: product
       - uses: github/codeql-action/analyze@1fc58d04a4d4374f921bdac573c3811c240f9c26
         with:
+          checkout_path: product
           upload: never
+          upload-database: false
           output: codeql-results
           category: exact-delivery-candidate
       - name: Require no unresolved source security findings
@@ -166,7 +176,10 @@ jobs:
           for (const file of files) {
             for (const run of JSON.parse(readFileSync('codeql-results/' + file)).runs) {
               findings += (run.results ?? []).length;
-              for (const result of run.results ?? []) console.log(result.ruleId, result.message.text);
+              for (const result of run.results ?? []) console.log(JSON.stringify({
+                ruleId: result.ruleId, message: result.message.text,
+                locations: result.locations, codeFlows: result.codeFlows,
+              }));
             }
           }
           console.log(JSON.stringify({ productCommit: 'fdcaf525dfb85f5cbbc32d402e7e23ca76917c0f', findings }));
