@@ -21,7 +21,7 @@ const runId = randomUUID();
 const prefix = `ODI-${runId.slice(0, 8)}`;
 const owned = {
   productId: randomUUID(), qrId: randomUUID(), otherStallId: randomUUID(),
-  otherOrderId: randomUUID(), orderIds: [], authSessionId: null,
+  otherOrderId: randomUUID(), circuitOverrideId: randomUUID(), orderIds: [], authSessionId: null,
 };
 const cookies = new Map();
 const checks = [];
@@ -312,7 +312,20 @@ try {
     where: { stallId }, select: { deliveryModuleEnabled: true },
   });
   const category = await controlDatabase.productCategory.findFirstOrThrow({ where: { organizationId, isActive: true }, select: { id: true } });
+  const circuitFlag = await controlDatabase.resilienceFeatureFlag.findUniqueOrThrow({
+    where: { code: "DUAL_ORDER_INTAKE_ENABLED" },
+    select: { id: true, defaultEnabled: true, overrides: true },
+  });
+  check("circuit-b-default-deny-preserved", circuitFlag.defaultEnabled === false
+    && circuitFlag.overrides.every(row => row.expiresAt && row.expiresAt <= new Date()));
   phases.fixture = true;
+  lastStep = "fixture-short-lived-circuit-b-override";
+  // The production-mode server must use its real feature gate. This lease is
+  // confined to the owned disposable runner database and removed in finally.
+  await controlDatabase.resilienceFeatureFlagOverride.create({ data: {
+    id: owned.circuitOverrideId, flagId: circuitFlag.id, scopeType: "GLOBAL", enabled: true,
+    reason: `${prefix} isolated delivery acceptance`, expiresAt: new Date(Date.now() + 10 * 60_000),
+  } });
   lastStep = "fixture-open-hours-and-delivery-settings";
   await controlDatabase.stallBusinessHour.updateMany({ where: { stallId },
     data: { opensAt: "00:00", closesAt: "00:00", lastOrderAt: null, isClosed: false } });
@@ -510,6 +523,10 @@ try {
   if (controlDatabase && phases.fixture) {
     try {
       lastStep = "owned-fixture-cleanup";
+      await controlDatabase.resilienceFeatureFlagOverride.deleteMany({ where: { id: owned.circuitOverrideId } });
+      check("owned-circuit-override-removed", await controlDatabase.resilienceFeatureFlagOverride.count({
+        where: { id: owned.circuitOverrideId },
+      }) === 0);
       if (owned.authSessionId) await controlDatabase.authSession.deleteMany({ where: { id: owned.authSessionId } });
       await controlDatabase.order.deleteMany({ where: { id: { in: owned.orderIds } } });
       if (phases.otherOrder) await controlDatabase.order.deleteMany({ where: { id: owned.otherOrderId } });
