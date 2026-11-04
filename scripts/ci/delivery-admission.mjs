@@ -11,9 +11,17 @@ import { verifyReviewedEvidence } from './delivery-security-adjudication.mjs';
 const repository = 'KenLeeYa/Stallorder-Platform';
 const hash = value => createHash('sha256').update(value).digest('hex');
 let stage = 'startup';
+// gh API's documented ANSI opt-in is used only for raw job logs captured to
+// a pipe. Never echo these bytes or inherit terminal stdout; hashes and parsed
+// receipts are the only output. No access, token, or workflow permissions change.
+export function githubReadArguments(path) {
+  const args=['api','--hostname','github.com',`repos/${repository}/${path}`];
+  if(/^actions\/jobs\/[1-9][0-9]*\/logs$/.test(path)) args.push('--allow-escape-sequences');
+  return args;
+}
 function github(path, label) {
   stage = label;
-  return execFileSync('gh', ['api', '--hostname', 'github.com', `repos/${repository}/${path}`],
+  return execFileSync('gh', githubReadArguments(path),
     { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: 60000, stdio: ['ignore', 'pipe', 'pipe'] });
 }
 function sourceFile(path, commit, label) {

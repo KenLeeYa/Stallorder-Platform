@@ -41,3 +41,9 @@ test('bounded diagnostic strips credentials and signed URLs',()=>{
  const r=safeGithubFailure({stderr:'download failed https://logs.example/path?sig=private Bearer secret-token ghp_abcdef1234567890 sbp_abcdef1234567890 '+ 'x'.repeat(1000)});
  assert.ok(r.diagnostic.length<=240); assert.ok(!/https:|private|secret-token|ghp_|sbp_/.test(r.diagnostic));
 });
+
+import { githubReadArguments } from './delivery-admission.mjs';
+test('raw escape allowance is limited to authenticated job-log capture',()=>{
+ assert.deepEqual(githubReadArguments('actions/jobs/126846074318/logs'),['api','--hostname','github.com','repos/KenLeeYa/Stallorder-Platform/actions/jobs/126846074318/logs','--allow-escape-sequences']);
+ for(const path of ['actions/runs/1','contents/a?ref=abc','actions/jobs/1/logs?x=1']) assert.equal(githubReadArguments(path).includes('--allow-escape-sequences'),false);
+});
