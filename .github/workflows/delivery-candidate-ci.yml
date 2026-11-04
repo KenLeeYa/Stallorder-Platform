@@ -10,6 +10,9 @@ on:
       - scripts/ci/delivery-flow.mjs
       - scripts/ci/delivery-flow.config.mjs
       - scripts/ci/delivery-flow.spec.mjs
+      - scripts/ci/delivery-security-native.test.mjs
+      - scripts/ci/delivery-security-capture.mjs
+      - scripts/ci/delivery-security-capture.test.mjs
       - scripts/ci/delivery-source/**
 
 permissions:
@@ -118,7 +121,7 @@ jobs:
         env:
           PLAYWRIGHT_PRODUCTION_SERVER: "true"
           PLAYWRIGHT_APP_URL: http://127.0.0.1:3000
-        run: npx playwright test --config ../control/scripts/ci/delivery-flow.config.mjs
+        run: npx concurrently --kill-others --success command-1 "npm run functions:serve:e2e" "npx playwright test --config ../control/scripts/ci/delivery-flow.config.mjs"
       - name: Playwright end-to-end tests
         env:
           PLAYWRIGHT_PRODUCTION_SERVER: "true"
@@ -152,11 +155,16 @@ jobs:
           node-version: 24
       - name: Reconstruct exact product for source scan
         run: node control/scripts/ci/delivery-candidate.mjs materialize
+      - name: Verify native Linux approval-file boundaries
+        env:
+          DELIVERY_SECURITY_PRODUCT: ../product
+        run: node --test control/scripts/ci/delivery-security-native.test.mjs control/scripts/ci/delivery-security-capture.test.mjs
       - uses: github/codeql-action/init@1fc58d04a4d4374f921bdac573c3811c240f9c26
         with:
           languages: javascript-typescript
           queries: security-extended
           source-root: product
+          tools: https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.27.4/codeql-bundle-javascript-linux64.tar.zst
       - uses: github/codeql-action/analyze@1fc58d04a4d4374f921bdac573c3811c240f9c26
         with:
           checkout_path: product
@@ -165,22 +173,4 @@ jobs:
           output: codeql-results
           category: exact-delivery-candidate
       - name: Require no unresolved source security findings
-        run: |
-          node --input-type=module <<'JS'
-          import { readdirSync, readFileSync } from 'node:fs';
-          import assert from 'node:assert/strict';
-          const files = readdirSync('codeql-results').filter(f => f.endsWith('.sarif'));
-          assert.ok(files.length, 'CodeQL must produce SARIF');
-          let findings = 0;
-          for (const file of files) {
-            for (const run of JSON.parse(readFileSync('codeql-results/' + file)).runs) {
-              findings += (run.results ?? []).length;
-              for (const result of run.results ?? []) console.log(JSON.stringify({
-                ruleId: result.ruleId, message: result.message.text,
-                locations: result.locations, codeFlows: result.codeFlows,
-              }));
-            }
-          }
-          console.log(JSON.stringify({ productCommit: '5037ac0dfb73982b2c693bc91b3f09041258a68f', findings }));
-          assert.equal(findings, 0, 'Review and resolve CodeQL findings before release');
-          JS
+        run: node control/scripts/ci/delivery-security-capture.mjs codeql-results

@@ -12,6 +12,7 @@ import { execFileSync } from "node:child_process";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../../product");
 const origin = "http://127.0.0.1:3000";
+const edgeOrigin = "http://127.0.0.1:54321";
 let PrismaClient;
 const stallId = "22222222-2222-4222-8222-222222222222";
 const organizationId = "11111111-1111-4111-8111-111111111111";
@@ -70,6 +71,7 @@ function headers(flow, authenticated = false) {
     "content-type": "application/json", "x-stallorder-protocol-version": "1",
     "x-stallorder-operation-id": randomUUID(),
     "x-vercel-forwarded-for": flow?.ip ?? "198.18.29.200",
+    "cf-connecting-ip": flow?.ip ?? "198.18.29.200",
     ...(flow?.deviceId ? { "x-stallorder-device-id": flow.deviceId } : {}),
     ...(authenticated ? {
       cookie: [...cookies].map(([name, value]) => `${name}=${value}`).join("; "),
@@ -77,10 +79,16 @@ function headers(flow, authenticated = false) {
     } : {}),
   };
 }
-async function api(name, path, { method = "GET", body, flow, authenticated = false, captureCookies = false } = {}) {
+async function api(name, path, { method = "GET", body, flow, authenticated = false, captureCookies = false, edge = false } = {}) {
   lastStep = name;
-  const url = new URL(path, origin);
-  assert.equal(url.origin, origin, "same-origin-api-only");
+  const targetOrigin = edge ? edgeOrigin : origin;
+  const url = new URL(path, targetOrigin);
+  assert.equal(url.origin, targetOrigin, "owned-loopback-api-only");
+  if (edge) {
+    assert.ok(["/functions/v1/create-order-session", "/functions/v1/create-public-order", "/functions/v1/get-public-order"].includes(url.pathname));
+    assert.equal(method, "POST");
+    assert.ok(!authenticated && !captureCookies, "no-staff-cookies-to-edge");
+  }
   const response = await fetch(url, {
     method, headers: headers(flow, authenticated),
     ...(body ? { body: JSON.stringify(body) } : {}),
@@ -98,9 +106,12 @@ async function api(name, path, { method = "GET", body, flow, authenticated = fal
   const data = await response.json().catch(() => null);
   const code = typeof data?.code === "string" && /^[A-Z0-9_]+$/.test(data.code) ? data.code : undefined;
   emit("http", { name, status: response.status, code, requestId,
+    transport: edge ? "owned-edge-function" : "owned-next-server",
     circuit: response.headers.get("x-order-circuit"),
     cacheControl: response.headers.get("cache-control") });
-  return { status: response.status, data, code, circuit: response.headers.get("x-order-circuit") };
+  return { status: response.status, data, code, circuit: response.headers.get("x-order-circuit"),
+    edgeRuntime: edge && Boolean(response.headers.get("server-timing")?.includes("edge-function;"))
+      && response.headers.get("cache-control")?.includes("no-store") };
 }
 async function subscribeOrders() {
   lastStep = "sse-subscribe";
@@ -212,16 +223,16 @@ async function holdForUi(detail) {
   } finally { await browser.close(); }
 }
 
-function newFlow(label) {
-  return { label, id: randomUUID(), deviceId: randomUUID(), ip: `198.18.${randomInt(1, 254)}.${randomInt(1, 254)}` };
+function newFlow(label, edge = false) {
+  return { label, edge, id: randomUUID(), deviceId: randomUUID(), ip: `198.18.${randomInt(1, 254)}.${randomInt(1, 254)}` };
 }
 async function issue(flow) {
-  const result = await api(`${flow.label}-session`, "/api/public/order-session", {
-    method: "POST", flow,
+  const result = await api(`${flow.label}-session`, flow.edge ? "/functions/v1/create-order-session" : "/api/public/order-session", {
+    method: "POST", flow, edge: flow.edge,
     body: { qrToken: `${prefix}-${runId}`, deviceId: flow.deviceId,
       orderingMode: "DELIVERY", sessionRequestId: randomUUID(), includeMenu: true },
   });
-  check(`${flow.label}-session-issued`, result.status === 201 && result.circuit === "B");
+  check(`${flow.label}-session-issued`, result.status === 201 && (flow.edge ? result.edgeRuntime : result.circuit === "B"));
   check(`${flow.label}-menu-open`, result.data.orderingMode === "DELIVERY" && result.data.orderingOpenNow === true);
   check(`${flow.label}-session-token-present`, typeof result.data.orderSessionToken === "string" && result.data.orderSessionToken.length >= 40);
   flow.sessionToken = result.data.orderSessionToken;
@@ -229,8 +240,8 @@ async function issue(flow) {
 }
 async function submit(flow) {
   owned.orderIds.push(flow.id);
-  return api(`${flow.label}-submit`, "/api/public/orders", {
-    method: "POST", flow,
+  return api(`${flow.label}-submit`, flow.edge ? "/functions/v1/create-public-order" : "/api/public/orders", {
+    method: "POST", flow, edge: flow.edge,
     body: { qrToken: `${prefix}-${runId}`, deviceId: flow.deviceId,
       orderingMode: "DELIVERY", orderSessionToken: flow.sessionToken,
       clientOrderId: flow.id, idempotencyKey: randomUUID(), turnstileIdempotencyKey: randomUUID(),
@@ -239,10 +250,10 @@ async function submit(flow) {
       waitAcknowledged: true, items: [{ productId: owned.productId, quantity: 1 }] },
   });
 }
-async function createDelivery(label) {
-  const flow = await issue(newFlow(label));
+async function createDelivery(label, edge = false) {
+  const flow = await issue(newFlow(label, edge));
   const result = await submit(flow);
-  check(`${label}-order-created`, result.status === 201 && result.circuit === "B"
+  check(`${label}-order-created`, result.status === 201 && (edge ? result.edgeRuntime : result.circuit === "B")
     && result.data.orderStatus === "WAITING_CONFIRMATION" && result.data.fulfillmentType === "DELIVERY");
   check(`${label}-tracking-token-present`, typeof result.data.trackingToken === "string");
   flow.trackingToken = result.data.trackingToken;
@@ -254,7 +265,31 @@ async function createDelivery(label) {
   check(`${label}-customer-can-track`, tracked.status === 200
     && tracked.data?.order?.orderStatus === "WAITING_CONFIRMATION"
     && tracked.data.order.fulfillmentType === "DELIVERY");
+  if (edge) {
+    const edgeTracked = await api(`${label}-edge-tracking`, "/functions/v1/get-public-order", {
+      method: "POST", flow, edge: true, body: { trackingToken: flow.trackingToken, deviceId: flow.deviceId },
+    });
+    check(`${label}-edge-and-next-tracking-parity`, edgeTracked.status === 200 && edgeTracked.edgeRuntime
+      && edgeTracked.data?.order?.orderStatus === tracked.data.order.orderStatus
+      && edgeTracked.data.order.fulfillmentType === "DELIVERY");
+  }
   return flow;
+}
+
+async function waitForOwnedEdge() {
+  lastStep = "owned-edge-startup";
+  const deadline = Date.now() + 45_000;
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(`${edgeOrigin}/functions/v1/create-order-session`, {
+        method: "OPTIONS", headers: { origin }, redirect: "error", signal: AbortSignal.timeout(3000),
+      });
+      if (response.status === 204 && response.headers.get("access-control-allow-origin") === origin
+        && response.headers.get("server-timing")?.includes("edge-function;")) return;
+    } catch { /* The owned functions process may still be starting. */ }
+    await delay(500);
+  }
+  assert.fail("owned-edge-runtime-not-ready");
 }
 
 try {
@@ -287,6 +322,8 @@ try {
   emit("runtime-role", { ...role, evidenceScope: "same-DATABASE_URL-as-Next; synthetic local role, not Production" });
   check("restricted-app-role", role.current_user === "postgres" && role.session_user === "postgres" && role.rolsuper === false);
   check("helper-acl", role.service_member && role.delivery_execute && role.slots_execute && !role.anon_execute && !role.authenticated_execute);
+  await waitForOwnedEdge();
+  check("owned-edge-runtime-ready", true);
   const sourceHashes = {};
   for (const path of [
     "supabase/migrations/20261029090000_public_delivery_ordering_hours.sql",
@@ -409,8 +446,16 @@ try {
   const confirmedReadback = await appDatabase.order.findUniqueOrThrow({ where: { id: confirmed.id }, select: { status: true, confirmedAt: true, orderNo: true } });
   check("confirmed-order-persisted", confirmedReadback.status === "CONFIRMED" && confirmedReadback.confirmedAt !== null);
 
+  const edgeConfirmed = await createDelivery("edge-confirm", true);
+  const edgeConfirmation = await api("staff-confirm-edge-order", `/api/stalls/${stallSlug}/orders/${edgeConfirmed.id}`, {
+    method: "PATCH", authenticated: true, body: { status: "CONFIRMED" },
+  });
+  check("edge-order-staff-confirmation", edgeConfirmation.status === 200
+    && (await appDatabase.order.findUniqueOrThrow({ where: { id: edgeConfirmed.id }, select: { status: true } })).status === "CONFIRMED");
+
   const expired = await createDelivery("expire");
   const unopened = await issue(newFlow("close-after-session"));
+  const edgeUnopened = await issue(newFlow("edge-close-after-session", true));
   const countBeforeClosed = await controlDatabase.order.count();
   await controlDatabase.stallBusinessHour.updateMany({ where: { stallId }, data: { isClosed: true } });
   const closedGate = (await appDatabase.$queryRaw`select public.delivery_ordering_unavailable_code(${stallId}::uuid) as code`)[0];
@@ -423,8 +468,18 @@ try {
   check("closed-session-refused", deniedSession.status === 409 && deniedSession.code === "DELIVERY_OUTSIDE_ORDERING_HOURS");
   const deniedOrder = await submit(unopened);
   check("closed-existing-session-submit-refused", deniedOrder.status === 409 && deniedOrder.code === "DELIVERY_OUTSIDE_ORDERING_HOURS");
+  const edgeDeniedSession = await api("edge-closed-new-session", "/functions/v1/create-order-session", {
+    method: "POST", edge: true, flow: newFlow("edge-closed-new-session", true), body: {
+      qrToken: `${prefix}-${runId}`, deviceId: randomUUID(), orderingMode: "DELIVERY", sessionRequestId: randomUUID(),
+    },
+  });
+  check("edge-closed-session-refused", edgeDeniedSession.status === 409 && edgeDeniedSession.edgeRuntime
+    && edgeDeniedSession.code === "DELIVERY_OUTSIDE_ORDERING_HOURS");
+  const edgeDeniedOrder = await submit(edgeUnopened);
+  check("edge-closed-existing-session-submit-refused", edgeDeniedOrder.status === 409 && edgeDeniedOrder.edgeRuntime
+    && edgeDeniedOrder.code === "DELIVERY_OUTSIDE_ORDERING_HOURS");
   check("closed-does-not-create-order", await controlDatabase.order.count() === countBeforeClosed
-    && await controlDatabase.order.count({ where: { id: unopened.id } }) === 0);
+    && await controlDatabase.order.count({ where: { id: { in: [unopened.id, edgeUnopened.id] } } }) === 0);
 
   lastStep = "owned-expiry-preconditions";
   const foreignDueOrders = await controlDatabase.order.count({ where: {
@@ -507,8 +562,10 @@ try {
   check("cross-stall-order-mutation-refused", crossMutation.status === 404);
   check("foreign-order-unchanged", (await controlDatabase.order.findUniqueOrThrow({ where: { id: owned.otherOrderId }, select: { status: true } })).status === "EXPIRED");
   emit("flow-complete", { checkCount: checks.length, browserUiVerified: false,
-    edgeCircuitAVerified: false, realCronTimingVerified: false, notificationDeliveryVerified: false,
-    evidenceScope: "isolated actual Next API + PostgreSQL + password auth; offline Turnstile test mode" });
+    edgeCircuitAOrderFlowVerified: true,
+    edgeFunctionsExercised: ["create-order-session", "create-public-order", "get-public-order"],
+    realCronTimingVerified: false, notificationDeliveryVerified: false,
+    evidenceScope: "isolated actual Edge + Next API + PostgreSQL + password auth; offline Turnstile test mode" });
   await holdForUi({
     staffPath: `/staff/${stallSlug}`, searchLabel: prefix,
     confirmed: { orderId: confirmed.id, orderNo: confirmedReadback.orderNo, customerLabel: `${prefix} confirm` },
