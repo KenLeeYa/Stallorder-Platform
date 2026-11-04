@@ -22,7 +22,8 @@ export function verifyPreviewConfiguration(config) {
  const u=new URL(config.POSTGRES_URL); assert.equal(u.protocol,'postgresql:'); assert.equal(u.pathname,'/postgres');
  assert.equal(u.hash,''); assert.ok(u.password.length>0);
  const direct=u.hostname==='db.'+PREVIEW_BINDING.project+'.supabase.co';
- assert.ok(direct || /^aws-[0-9]+-ap-southeast-1\.pooler\.supabase\.com$/.test(u.hostname));
+ // Fresh provider metadata binds the parent to Tokyo; never accept an arbitrary region.
+ assert.ok(direct || /^aws-[0-9]+-ap-northeast-1\.pooler\.supabase\.com$/.test(u.hostname),'PREVIEW_CONFIGURATION_REGION_TARGET');
  assert.equal(decodeURIComponent(u.username),direct?'postgres':'postgres.'+PREVIEW_BINDING.project);
  assert.ok((direct?['5432']:['5432','6543']).includes(u.port));
  const allowed={sslmode:['require','verify-full'],pgbouncer:['true']};

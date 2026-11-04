@@ -17,7 +17,7 @@ for(const [name,mutate] of [
 ])test('rejects '+name,()=>{const x=fixture();mutate(x);assert.throws(()=>verifyExistingPreview(x));});
 
 import { verifyPreviewConfiguration, verifyPreviewInvocation } from './delivery-preview-binding.mjs';
-const config=()=>({POSTGRES_URL:'postgresql://postgres.teunnvfakbfzmodajqjz:synthetic@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require',SUPABASE_URL:'https://teunnvfakbfzmodajqjz.supabase.co',SUPABASE_ANON_KEY:'synthetic-public-key'});
+const config=()=>({POSTGRES_URL:'postgresql://postgres.teunnvfakbfzmodajqjz:synthetic@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres?sslmode=require',SUPABASE_URL:'https://teunnvfakbfzmodajqjz.supabase.co',SUPABASE_ANON_KEY:'synthetic-public-key'});
 test('verifies actual pooler and API target without returning credentials',()=>{
  const c=config();const out=verifyPreviewConfiguration(c);
  assert.deepEqual(out,{projectRef:PREVIEW_BINDING.project});assert.ok(!JSON.stringify(out).includes('synthetic'));
@@ -58,3 +58,5 @@ for(const field of ['POSTGRES_URL','SUPABASE_URL','SUPABASE_ANON_KEY']) for(cons
  const c=config(); c[field]+=delimiter+'EPHEMERAL_DATABASE_URL=postgresql://synthetic.invalid/postgres';
  assert.throws(()=>verifyPreviewConfiguration(c));
 });
+
+test("rejects a pooler outside the provider-readback parent region",()=>{const c=config(); c.POSTGRES_URL=c.POSTGRES_URL.replace("ap-northeast-1","ap-southeast-1");assert.throws(()=>verifyPreviewConfiguration(c));});
