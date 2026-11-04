@@ -82,3 +82,14 @@ test('reports only fixed diagnostic codes and never assertion values or credenti
  assert.equal(previewBindingFailureCode(new Error('SECRET-MARKER')),'PREVIEW_BINDING_REJECTED');
  assert.equal(previewBindingFailureCode({code:'SECRET-MARKER'}),'PREVIEW_BINDING_REJECTED');
 });
+
+test('accepts only the fixed CLI connection timeout from pinned Supabase 2.109.1',()=>{
+ const c=config();c.POSTGRES_URL+='&connect_timeout=10';
+ assert.equal(verifyPreviewConfiguration(c).projectRef,PREVIEW_BINDING.project);
+ c.POSTGRES_URL=c.POSTGRES_URL.replace('connect_timeout=10','connect_timeout=0');
+ assert.throws(()=>verifyPreviewConfiguration(c));
+});
+test('rejects duplicate provider timeout and JIT options before runtime export',()=>{
+ const c=config();c.POSTGRES_URL+='&connect_timeout=10&connect_timeout=10';assert.throws(()=>verifyPreviewConfiguration(c));
+ c.POSTGRES_URL=config().POSTGRES_URL+'&options=-c%20jit%3Dtrue';assert.throws(()=>verifyPreviewConfiguration(c));
+});

@@ -37,7 +37,7 @@ export function verifyPreviewConfiguration(config) {
  let username;try{username=decodeURIComponent(u.username);}catch{throw new PreviewConfigurationError('PREVIEW_CONFIG_USERNAME');}
  configCheck(username===(direct?'postgres':'postgres.'+PREVIEW_BINDING.project),'PREVIEW_CONFIG_USERNAME');
  configCheck((direct?['5432']:['5432','6543']).includes(u.port),'PREVIEW_CONFIG_PORT');
- const allowed={sslmode:['require','verify-full'],pgbouncer:['true']};
+ const allowed={sslmode:['require','verify-full'],pgbouncer:['true'],connect_timeout:['10']};
  for(const [key,value] of u.searchParams) {
   configCheck(allowed[key]?.includes(value),'PREVIEW_CONFIG_QUERY_OPTION');
   configCheck(u.searchParams.getAll(key).length===1,'PREVIEW_CONFIG_QUERY_DUPLICATE');
