@@ -60,3 +60,25 @@ for(const field of ['POSTGRES_URL','SUPABASE_URL','SUPABASE_ANON_KEY']) for(cons
 });
 
 test("rejects a pooler outside the provider-readback parent region",()=>{const c=config(); c.POSTGRES_URL=c.POSTGRES_URL.replace("ap-northeast-1","ap-southeast-1");assert.throws(()=>verifyPreviewConfiguration(c));});
+
+import { previewBindingFailureCode } from './delivery-preview-binding.mjs';
+test('accepts the libpq postgres URI alias with identical target restrictions',()=>{
+ const c=config();c.POSTGRES_URL=c.POSTGRES_URL.replace('postgresql:','postgres:');
+ assert.equal(verifyPreviewConfiguration(c).projectRef,PREVIEW_BINDING.project);
+ c.POSTGRES_URL=c.POSTGRES_URL.replace(PREVIEW_BINDING.project,PREVIEW_BINDING.parent);
+ assert.throws(()=>verifyPreviewConfiguration(c));
+});
+test('reports only fixed diagnostic codes and never assertion values or credentials',()=>{
+ for(const [mutate,expected] of [
+  [c=>c.POSTGRES_URL='https://SECRET-MARKER.invalid','PREVIEW_CONFIG_PROTOCOL'],
+  [c=>c.POSTGRES_URL=c.POSTGRES_URL.replace('ap-northeast-1','ap-southeast-1'),'PREVIEW_CONFIG_REGION_TARGET'],
+  [c=>c.SUPABASE_URL='https://SECRET-MARKER.invalid','PREVIEW_CONFIG_API_TARGET'],
+  [c=>delete c.SUPABASE_ANON_KEY,'PREVIEW_CONFIG_REQUIRED_FIELD'],
+  [c=>c.POSTGRES_URL+='&host=SECRET-MARKER','PREVIEW_CONFIG_QUERY_OPTION'],
+ ]) {const c=config();mutate(c);let error;try{verifyPreviewConfiguration(c);}catch(e){error=e;}
+  assert.ok(error);assert.equal(previewBindingFailureCode(error),expected);
+  assert.ok(!previewBindingFailureCode(error).includes('SECRET-MARKER'));
+ }
+ assert.equal(previewBindingFailureCode(new Error('SECRET-MARKER')),'PREVIEW_BINDING_REJECTED');
+ assert.equal(previewBindingFailureCode({code:'SECRET-MARKER'}),'PREVIEW_BINDING_REJECTED');
+});

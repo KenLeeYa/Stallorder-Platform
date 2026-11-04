@@ -11,25 +11,36 @@ export function verifyExistingPreview({parent,branches}) {
  assert.ok(['ACTIVE_HEALTHY','MIGRATIONS_FAILED'].includes(b.status),'branch provisioning not terminal');
  return {projectRef:PREVIEW_BINDING.project,createAllowed:false,deleteAllowed:false,schemaQualified:false};
 }
+class PreviewConfigurationError extends Error {
+ constructor(code) { super(code); this.code=code; }
+}
+function configCheck(condition,code) { if(!condition) throw new PreviewConfigurationError(code); }
+export function previewBindingFailureCode(error) {
+ return error instanceof PreviewConfigurationError ? error.code : 'PREVIEW_BINDING_REJECTED';
+}
 export function verifyPreviewConfiguration(config) {
- assert.ok(config && typeof config==='object');
+ configCheck(config && typeof config==='object','PREVIEW_CONFIG_SHAPE');
  for(const field of ['POSTGRES_URL','SUPABASE_URL','SUPABASE_ANON_KEY']) {
-  assert.equal(typeof config[field],'string');
-  assert.ok(config[field].length>0 && !/[\x00-\x1f\x7f]/.test(config[field]),'unsafe environment value');
+  configCheck(typeof config[field]==='string' && config[field].length>0,'PREVIEW_CONFIG_REQUIRED_FIELD');
+  configCheck(!/[\x00-\x1f\x7f]/.test(config[field]),'PREVIEW_CONFIG_CONTROL_CHARACTER');
  }
- assert.equal(config.SUPABASE_URL,'https://'+PREVIEW_BINDING.project+'.supabase.co');
- assert.equal(typeof config.SUPABASE_ANON_KEY,'string'); assert.ok(config.SUPABASE_ANON_KEY.length>0);
- const u=new URL(config.POSTGRES_URL); assert.equal(u.protocol,'postgresql:'); assert.equal(u.pathname,'/postgres');
- assert.equal(u.hash,''); assert.ok(u.password.length>0);
+ configCheck(config.SUPABASE_URL==='https://'+PREVIEW_BINDING.project+'.supabase.co','PREVIEW_CONFIG_API_TARGET');
+ let u;try{u=new URL(config.POSTGRES_URL);}catch{throw new PreviewConfigurationError('PREVIEW_CONFIG_URI');}
+ // libpq accepts both spellings; every identity and connection restriction below is shared.
+ configCheck(['postgresql:','postgres:'].includes(u.protocol),'PREVIEW_CONFIG_PROTOCOL');
+ configCheck(u.pathname==='/postgres','PREVIEW_CONFIG_DATABASE');
+ configCheck(u.hash==='','PREVIEW_CONFIG_FRAGMENT');
+ configCheck(u.password.length>0,'PREVIEW_CONFIG_PASSWORD');
  const direct=u.hostname==='db.'+PREVIEW_BINDING.project+'.supabase.co';
- // Fresh provider metadata binds the parent to Tokyo; never accept an arbitrary region.
- assert.ok(direct || /^aws-[0-9]+-ap-northeast-1\.pooler\.supabase\.com$/.test(u.hostname),'PREVIEW_CONFIGURATION_REGION_TARGET');
- assert.equal(decodeURIComponent(u.username),direct?'postgres':'postgres.'+PREVIEW_BINDING.project);
- assert.ok((direct?['5432']:['5432','6543']).includes(u.port));
+ // Keep the pinned endpoint region; parent metadata alone does not prove a child region.
+ configCheck(direct || /^aws-[0-9]+-ap-northeast-1\.pooler\.supabase\.com$/.test(u.hostname),'PREVIEW_CONFIG_REGION_TARGET');
+ let username;try{username=decodeURIComponent(u.username);}catch{throw new PreviewConfigurationError('PREVIEW_CONFIG_USERNAME');}
+ configCheck(username===(direct?'postgres':'postgres.'+PREVIEW_BINDING.project),'PREVIEW_CONFIG_USERNAME');
+ configCheck((direct?['5432']:['5432','6543']).includes(u.port),'PREVIEW_CONFIG_PORT');
  const allowed={sslmode:['require','verify-full'],pgbouncer:['true']};
  for(const [key,value] of u.searchParams) {
-  assert.ok(allowed[key]?.includes(value),'unknown or unsafe connection option');
-  assert.equal(u.searchParams.getAll(key).length,1,'duplicate connection option');
+  configCheck(allowed[key]?.includes(value),'PREVIEW_CONFIG_QUERY_OPTION');
+  configCheck(u.searchParams.getAll(key).length===1,'PREVIEW_CONFIG_QUERY_DUPLICATE');
  }
  return {projectRef:PREVIEW_BINDING.project};
 }
@@ -65,5 +76,5 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
     verifyExistingPreview({parent:process.env.SUPABASE_PARENT_PROJECT_REF,branches:JSON.parse(input)});
    console.log(result.projectRef);
   }
- } catch { console.error('Existing PR389 Preview binding failed; creation and deletion are forbidden.'); process.exitCode=1; }
+ } catch(error) { console.error(previewBindingFailureCode(error)+': Existing PR389 Preview binding failed; creation and deletion are forbidden.'); process.exitCode=1; }
 }

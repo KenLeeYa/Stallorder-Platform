@@ -1,5 +1,10 @@
 # StallOrder Architecture and Feature Change Ledger
 
+## 2026-11-05 — PR389 existing-only delivery qualification controls (Proposed)
+
+Bound the frozen delivery product and separately qualified control checkout to the existing paired Preview resource. Replaced obsolete create/delete workflow assertions with exact binding, stable DB, real deployment-source and owned-cleanup checks; added credential-free connection diagnostics while preserving endpoint restrictions. The complete local workflow contract passed 31 tests, binding tests passed 55. Hosted control verification and actual Preview acceptance remain required; no Production release or store reopening is claimed. See [qualification control](DELIVERY_ISOLATED_RELEASE_QUALIFICATION.md).
+
+
 ## 2026-10-27 synthetic cleanup and retained-session observation candidate
 
 PR389 predecessor 1777673f37ffd86dee1d37ae06f8e8549b5c1779 (tree 72a67d94daa18b12d43cf3f0dc49af4100daf244; same-tree test merge 62e5fe2c5e56b46e6486ebf56cfa877768276e1e) reached a new isolated Preview cleanup failure. Paired run 40484703290, job 122123469176, completed the synthetic OAuth/delivery assertions, including replay protection, canonical order creation, KDS linkage and payment-reconciliation protection. Its finally cleanup then raised Prisma 6.19.3 P2028 at authSession.deleteMany inside cleanupSyntheticState. The separate final fixture-cleanup step succeeded, but hosted browser QA did not run and no browser artifact exists; this run remains failed.
