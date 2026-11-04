@@ -86,7 +86,9 @@ jobs:
         run: npx supabase stop --no-backup
 
   verify-remote:
-    if: github.event_name == 'workflow_dispatch' || github.ref_name == 'main'
+    # Control installation must not create temporary Production DB access.
+    # Remote Plan/Apply retains all existing manual predecessor and approval gates.
+    if: github.event_name == 'workflow_dispatch'
     needs: verify-local
     runs-on: ubuntu-latest
     timeout-minutes: 25

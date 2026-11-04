@@ -12,7 +12,8 @@ export default defineConfig({
     },
   },
   test: {
-    exclude: [...configDefaults.exclude, "e2e/**"],
+    // These control suites run explicitly with node --test in the required CI job.
+    exclude: [...configDefaults.exclude, "e2e/**", "scripts/ci/delivery-*.test.mjs"],
     maxWorkers: 4,
   },
 });

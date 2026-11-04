@@ -14,36 +14,53 @@ permissions:
   contents: read
 
 concurrency:
-  group: ephemeral-preview-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: stallorder-preview-pr389-writer
+  cancel-in-progress: false
 
 jobs:
   validate:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (
-        github.event.action != 'closed' &&
-        github.event.pull_request.head.repo.full_name == github.repository
-      )
+    if: github.event_name == 'workflow_dispatch' || github.event.action != 'closed'
     runs-on: ubuntu-latest
     timeout-minutes: 50
     environment:
       name: Preview
+    defaults:
+      run:
+        working-directory: control
     env:
       DO_NOT_TRACK: "1"
       SUPABASE_PARENT_PROJECT_REF: ${{ vars.SUPABASE_PARENT_PROJECT_REF }}
-      PREVIEW_BRANCH_NAME: ${{ github.event_name == 'pull_request' && format('pr-{0}-oauth-delivery', github.event.pull_request.number) || format('manual-{0}', github.run_id) }}
-      PREVIEW_RESOURCE_KEY: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('manual-{0}', github.run_id) }}
-      PREVIEW_GIT_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+      PREVIEW_BRANCH_NAME: pr-389-oauth-delivery
+      PREVIEW_RESOURCE_KEY: pr-389
+      PREVIEW_GIT_BRANCH: codex/conversion-source-checks-20261023
+      DELIVERY_PRODUCT_COMMIT: b9a98a0bff0490c04b2295e4bcfb2b7781774c91
       NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
       ALLOW_DEMO_SEED: "false"
     steps:
-      - uses: actions/checkout@v4
+      - name: Reject external repository sources before checkout
+        working-directory: ${{ github.workspace }}
+        env:
+          SOURCE_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$SOURCE_REPOSITORY" = "$GITHUB_REPOSITORY" || {
+            echo '::error::This validation resource only accepts the reviewed repository.'
+            exit 1
+          }
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: control
+          persist-credentials: false
+
+      - name: Require approved installation or promotion source
+        run: node scripts/ci/delivery-preview-binding.mjs invocation
 
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
+          cache-dependency-path: control/package-lock.json
 
       - uses: supabase/setup-cli@v1
         with:
@@ -100,90 +117,43 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Create or reuse data-less Preview Branch
+      - name: Reconstruct the exact product independently of the control checkout
+        run: node scripts/ci/delivery-candidate.mjs materialize
+
+      - name: Install the exact product dependencies
+        working-directory: product
+        run: npm ci
+
+      - name: Bind actual shared fixture and Storage sources before any provider write
+        run: node scripts/ci/delivery-preview-source.mjs shared
+
+      - name: Verify the one existing data-less Preview Branch
         id: preview
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        shell: bash
         run: |
+          set -euo pipefail
           branches="$(supabase branches list \
             --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
-            --output json \
-            --log-level error)"
-          branch_ref="$(
-            jq -r --arg name "$PREVIEW_BRANCH_NAME" \
-              '.[] | select(.name == $name) | .project_ref' <<<"$branches"
-          )"
-
-          if [ -z "$branch_ref" ]; then
-            supabase branches create "$PREVIEW_BRANCH_NAME" \
-              --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
-              --region ap-southeast-1 \
-              --size nano \
-              --git-branch "$PREVIEW_GIT_BRANCH" \
-              --log-level error >/dev/null
-          fi
-
-          branch_status=""
-          preview_project_status=""
-          for attempt in $(seq 1 60); do
-            branches="$(supabase branches list \
-              --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
-              --output json \
-              --log-level error)"
-            branch_json="$(
-              jq -c --arg name "$PREVIEW_BRANCH_NAME" \
-                '.[] | select(.name == $name and .with_data == false)' <<<"$branches"
-            )"
-            branch_ref="$(
-              jq -r '.project_ref // empty' <<<"$branch_json"
-            )"
-            branch_status="$(jq -r '.status // empty' <<<"$branch_json")"
-            preview_project_status="$(
-              jq -r '.preview_project_status // empty' <<<"$branch_json"
-            )"
-            case "$branch_status" in
-              ACTIVE_HEALTHY|MIGRATIONS_FAILED) branch_action_terminal=true ;;
-              *) branch_action_terminal=false ;;
-            esac
-            if [ -n "$branch_ref" ] \
-              && [ "$branch_ref" != "$SUPABASE_PARENT_PROJECT_REF" ] \
-              && [ "$preview_project_status" = "ACTIVE_HEALTHY" ] \
-              && [ "$branch_action_terminal" = "true" ]; then
-              break
-            fi
-            sleep 5
-          done
-
-          test -n "$branch_ref" && test "$branch_ref" != "$SUPABASE_PARENT_PROJECT_REF" || {
-            echo "::error::Data-less Preview Branch did not become available."
-            exit 1
-          }
-          [ "$preview_project_status" = "ACTIVE_HEALTHY" ] || {
-            echo "::error::Preview Branch database did not become healthy."
-            exit 1
-          }
-          case "$branch_status" in
-            ACTIVE_HEALTHY) ;;
-            MIGRATIONS_FAILED)
-              echo "::warning::Hosted Branching migrations ended before the isolated reviewed migration gate."
-              ;;
-            *)
-              echo "::error::Hosted Preview Branch action did not reach a terminal state."
-              exit 1
-              ;;
-          esac
+            --output json --log-level error)"
+          branch_ref="$(printf '%s' "$branches" | node scripts/ci/delivery-preview-binding.mjs branches)"
           echo "branch_ref=$branch_ref" >> "$GITHUB_OUTPUT"
 
       - name: Load and mask Preview Branch configuration
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        shell: bash
         run: |
+          set -euo pipefail
           config="$(
             supabase branches get "$PREVIEW_BRANCH_NAME" \
               --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
               --output json \
               --log-level error
           )"
+          # Validate the actual endpoint before any DB, fixture or Edge write.
+          printf '%s' "$config" | node scripts/ci/delivery-preview-binding.mjs config >/dev/null
           raw_transaction_url="$(jq -r '.POSTGRES_URL' <<<"$config")"
           supabase_url="$(jq -r '.SUPABASE_URL' <<<"$config")"
           anon_key="$(jq -r '.SUPABASE_ANON_KEY' <<<"$config")"
@@ -238,6 +208,7 @@ jobs:
           }
 
       - name: Apply reviewed migrations and synthetic fixtures
+        working-directory: product
         run: |
           set -o pipefail
           test "${{ steps.preview.outputs.branch_ref }}" != "$SUPABASE_PARENT_PROJECT_REF" || {
@@ -276,6 +247,7 @@ jobs:
           done
 
       - name: Verify isolated migration history
+        working-directory: product
         run: supabase migration list --db-url "$EPHEMERAL_DATABASE_URL"
 
       - name: Reset reusable Preview-only fixture state
@@ -286,9 +258,11 @@ jobs:
             --log-level error
 
       - name: Run isolated database tests
+        working-directory: product
         run: supabase test db supabase/tests/database --db-url "$EPHEMERAL_DATABASE_URL"
 
       - name: Lint isolated database
+        working-directory: product
         run: supabase db lint --db-url "$EPHEMERAL_DATABASE_URL" --schema public,app_private,internal --level warning --fail-on warning
 
       - name: Apply Preview-only OAuth and delivery fixture
@@ -310,6 +284,7 @@ jobs:
         run: node --import tsx scripts/configure-preview-order-runtime.ts
 
       - name: Deploy Edge Functions to isolated branch
+        working-directory: product
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         shell: bash
@@ -355,17 +330,33 @@ jobs:
       - name: Generate Prisma Client
         run: npm run prisma:generate
 
+      - name: Generate the exact product Prisma Client
+        working-directory: product
+        run: npm run prisma:generate
+
       - name: Verify live Primary-only Storage on the isolated branch
+        working-directory: product
         env:
           VERCEL_ENV: "preview"
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           STORAGE_QA_BRANCH_REF: ${{ steps.preview.outputs.branch_ref }}
-        run: node --conditions=react-server --import tsx scripts/qa-primary-only-storage.ts
+        run: |
+          set -euo pipefail
+          node ../control/scripts/ci/delivery-preview-source.mjs product
+          test ! -e scripts/qa-primary-only-storage.ts
+          cp ../control/scripts/qa-primary-only-storage.ts scripts/qa-primary-only-storage.ts
+          trap 'rm -f scripts/qa-primary-only-storage.ts' EXIT
+          cmp --silent ../control/scripts/qa-primary-only-storage.ts scripts/qa-primary-only-storage.ts
+          node --conditions=react-server --import tsx scripts/qa-primary-only-storage.ts
 
       - name: Typecheck
+        working-directory: product
         run: npm run typecheck
 
       - name: Build against isolated configuration
+        working-directory: product
+        env:
+          VERCEL_GIT_COMMIT_SHA: ${{ env.DELIVERY_PRODUCT_COMMIT }}
         run: npm run build
 
       - name: Check optional Vercel Preview authorization
@@ -405,6 +396,7 @@ jobs:
           fi
 
       - name: Deploy matching Vercel Preview
+        working-directory: product
         id: vercel-preview
         if: steps.vercel-auth.outputs.enabled == 'true'
         env:
@@ -415,6 +407,7 @@ jobs:
           LINE_PREVIEW_CHANNEL_SECRET: ${{ secrets.LINE_PREVIEW_CHANNEL_SECRET }}
         run: |
           set -euo pipefail
+          node ../control/scripts/ci/delivery-preview-source.mjs product
           mkdir -p .vercel
           jq -n \
             --arg orgId "$VERCEL_ORG_ID" \
@@ -450,8 +443,10 @@ jobs:
               --meta "stallorderPreviewRun=$GITHUB_RUN_ID" \
               --meta "stallorderPreviewResource=$PREVIEW_RESOURCE_KEY" \
               --meta "stallorderPreviewGitBranch=$PREVIEW_GIT_BRANCH" \
-              --meta "githubDeployment=1" \
+              --meta "githubCommitSha=$DELIVERY_PRODUCT_COMMIT" \
               --meta "githubCommitRef=$PREVIEW_GIT_BRANCH" \
+              --build-env "VERCEL_GIT_COMMIT_SHA=$DELIVERY_PRODUCT_COMMIT" \
+              --env "VERCEL_GIT_COMMIT_SHA=$DELIVERY_PRODUCT_COMMIT" \
               --build-env "DATABASE_URL=$DATABASE_URL" \
               --build-env "DIRECT_URL=$DIRECT_URL" \
               --build-env "NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL" \
@@ -513,6 +508,8 @@ jobs:
               --raw \
               --token "$VERCEL_TOKEN"
           )"
+          provider_origin="$(printf '%s' "$deployment_details" | DELIVERY_DEPLOYMENT_ID="$deployment_id" DELIVERY_DEPLOYMENT_URL="$deployment_url" node ../control/scripts/ci/delivery-preview-deployment.mjs)"
+          test "$provider_origin" = "$deployment_url"
           actual_git_branch="$(
             jq -r '.meta.githubCommitRef // empty' <<<"$deployment_details"
           )"
@@ -600,6 +597,15 @@ jobs:
           echo "deployment_id=$deployment_id" >> "$GITHUB_OUTPUT"
           echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
 
+      - name: Bind the exact provider-readback origin to the isolated Edge runtime
+        if: steps.vercel-auth.outputs.enabled == 'true'
+        env:
+          VERCEL_ENV: "preview"
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PREVIEW_ORDER_BRANCH_REF: ${{ steps.preview.outputs.branch_ref }}
+          PREVIEW_ORDER_BASE_URL: ${{ steps.vercel-preview.outputs.url }}
+        run: node --import tsx scripts/configure-preview-order-runtime.ts
+
       - name: Run matching Preview read-only smoke
         if: steps.vercel-auth.outputs.enabled == 'true'
         env:
@@ -630,20 +636,21 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Verify real public-order browser flow
+        working-directory: product
         if: steps.vercel-auth.outputs.enabled == 'true'
         env:
           VERCEL_ENV: "preview"
           PREVIEW_ORDER_BASE_URL: ${{ steps.vercel-preview.outputs.url }}
           PREVIEW_ORDER_BRANCH_REF: ${{ steps.preview.outputs.branch_ref }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
-        run: node --import tsx scripts/qa-preview-public-order.ts
+        run: node ../control/node_modules/tsx/dist/cli.mjs ../control/scripts/qa-preview-public-order.ts
 
       - name: Preserve public-order browser QA evidence
         if: always() && steps.vercel-auth.outputs.enabled == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: preview-public-order-${{ github.run_id }}
-          path: artifacts/preview-public-order*
+          path: product/artifacts/preview-public-order*
           if-no-files-found: warn
           retention-days: 14
 
@@ -667,112 +674,9 @@ jobs:
             --file supabase/fixtures/line_live_preview.sql \
             --log-level error
 
-      - name: Remove manual Vercel Preview
-        if: always() && github.event_name == 'workflow_dispatch' && steps.vercel-preview.outputs.deployment_id != ''
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: |
-          npx --yes vercel@58.3.0 remove \
-            "${{ steps.vercel-preview.outputs.deployment_id }}" \
-            --yes \
-            --token "$VERCEL_TOKEN" || true
-
-      - name: Remove manual Preview Branch
-        if: always() && github.event_name == 'workflow_dispatch'
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: |
-          supabase branches delete "$PREVIEW_BRANCH_NAME" \
-            --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
-            --yes \
-            --log-level error || true
-
-  cleanup:
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.event.action == 'closed' &&
-      github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    environment:
-      name: Preview
-    env:
-      DO_NOT_TRACK: "1"
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_PARENT_PROJECT_REF: ${{ vars.SUPABASE_PARENT_PROJECT_REF }}
-      PREVIEW_BRANCH_NAME: pr-${{ github.event.pull_request.number }}-oauth-delivery
-      PREVIEW_RESOURCE_KEY: pr-${{ github.event.pull_request.number }}
+  retain-delivery-preview:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
     steps:
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-
-      - uses: supabase/setup-cli@v1
-        with:
-          version: 2.109.1
-
-      - name: Remove closed Pull Request Vercel Previews
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
-        run: |
-          set -euo pipefail
-          if [ -z "${VERCEL_TOKEN:-}" ] \
-            || [ -z "${VERCEL_ORG_ID:-}" ] \
-            || [ -z "${VERCEL_PROJECT_ID:-}" ]; then
-            exit 0
-          fi
-          mkdir -p .vercel
-          jq -n \
-            --arg orgId "$VERCEL_ORG_ID" \
-            --arg projectId "$VERCEL_PROJECT_ID" \
-            '{orgId: $orgId, projectId: $projectId}' > .vercel/project.json
-          deployments="$(
-            npx --yes vercel@58.3.0 list "$VERCEL_PROJECT_ID" \
-              --meta "stallorderPreviewResource=$PREVIEW_RESOURCE_KEY" \
-              --limit 100 \
-              --json \
-              --token "$VERCEL_TOKEN"
-          )"
-          jq -e '(.deployments | type) == "array"' <<<"$deployments" >/dev/null || {
-            echo "::error::Unexpected Vercel deployment list response."
-            exit 1
-          }
-          while IFS= read -r deployment_url; do
-            [ -n "$deployment_url" ] || continue
-            if npx --yes vercel@58.3.0 remove "$deployment_url" \
-              --yes \
-              --token "$VERCEL_TOKEN"; then
-              echo "Removed Vercel Preview $deployment_url."
-            else
-              echo "::warning::Vercel Preview removal returned nonzero for $deployment_url; verifying final state."
-            fi
-          done < <(
-            jq -r '.deployments[]?.url // empty' \
-              <<<"$deployments" | sort -u
-          )
-          remaining="$(
-            npx --yes vercel@58.3.0 list "$VERCEL_PROJECT_ID" \
-              --meta "stallorderPreviewResource=$PREVIEW_RESOURCE_KEY" \
-              --limit 100 \
-              --json \
-              --token "$VERCEL_TOKEN"
-          )"
-          jq -e '(.deployments | type) == "array"' <<<"$remaining" >/dev/null || {
-            echo "::error::Unexpected Vercel deployment list response after cleanup."
-            exit 1
-          }
-          jq -e '.deployments | length == 0' <<<"$remaining" >/dev/null || {
-            echo "::error::Matching Vercel Preview deployments remain after cleanup."
-            exit 1
-          }
-
-      - name: Remove closed Pull Request Preview Branch
-        run: |
-          test -n "${SUPABASE_ACCESS_TOKEN:-}" || exit 0
-          test -n "${SUPABASE_PARENT_PROJECT_REF:-}" || exit 0
-          supabase branches delete "$PREVIEW_BRANCH_NAME" \
-            --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
-            --yes \
-            --log-level error || true
+      - run: echo 'Existing paired PR389 resources retained for the reviewed delivery release; no creation or resource deletion is authorized.'

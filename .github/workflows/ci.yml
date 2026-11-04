@@ -37,6 +37,8 @@ jobs:
         run: npm ci
       - name: Generate Prisma Client
         run: npm run prisma:generate
+      - name: Delivery control invariants
+        run: node --test scripts/ci/delivery-candidate.test.mjs scripts/ci/delivery-admission.test.mjs scripts/ci/delivery-qualification.test.mjs scripts/ci/delivery-security-adjudication.test.mjs scripts/ci/delivery-security-capture.test.mjs scripts/ci/delivery-expiry-evidence.test.mjs scripts/ci/delivery-preview-binding.test.mjs scripts/ci/delivery-preview-deployment.test.mjs scripts/ci/delivery-preview-source.test.mjs scripts/ci/delivery-edge-recovery.test.mjs scripts/ci/delivery-edge-recovery.capture.test.mjs
       - name: Lint
         run: npm run lint
       - name: UI control audit
