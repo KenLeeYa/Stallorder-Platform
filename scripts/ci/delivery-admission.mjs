@@ -29,6 +29,16 @@ export function assertUnchangedExecution(before, after) {
     }
   }
 }
+export function safeGithubFailure(error) {
+  const stderr=String(error?.stderr??'');
+  const http=stderr.match(/HTTP[ :]+(\d{3})/)?.[1];
+  const reason=/blocked|policy|denied|forbidden|unauthorized/i.test(stderr)||['401','403'].includes(http)
+    ? 'authorization' : http ? 'http-error' : /reset by peer|ECONNRESET/i.test(stderr) ? 'connection-reset'
+      : /unexpected EOF/i.test(stderr) ? 'unexpected-eof' : /timeout|timed out/i.test(stderr) ? 'timeout'
+        : /EPIPE|broken pipe/i.test(stderr) ? 'broken-pipe' : 'unclassified';
+  const code=typeof error?.code==='string'&&/^[A-Z_]+$/.test(error.code)?error.code:undefined;
+  return {reason,http,code,status:Number.isInteger(error?.status)?error.status:undefined};
+}
 function main() {
   assert.equal(process.env.GITHUB_ACTIONS, 'true'); assert.equal(process.env.GITHUB_REPOSITORY, repository);
   assert.equal(process.env.GITHUB_REF, 'refs/heads/codex/primary-only-preparation');
@@ -92,10 +102,7 @@ function main() {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try { main(); } catch (error) {
     // Diagnostics must not echo stderr, signed log URLs, tokens or input values.
-    const http = String(error?.stderr ?? '').match(/\(HTTP (\d{3})\)/)?.[1];
-    const code = typeof error?.code === 'string' && /^[A-Z_]+$/.test(error.code) ? error.code : undefined;
-    const status = Number.isInteger(error?.status) ? error.status : undefined;
-    console.error(JSON.stringify({ event: 'delivery-admission-failed', stage, http, code, status }));
+    console.error(JSON.stringify({ event: 'delivery-admission-failed', stage, ...safeGithubFailure(error) }));
     process.exitCode = 1;
   }
 }

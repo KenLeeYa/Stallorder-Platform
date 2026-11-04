@@ -21,3 +21,18 @@ for (const name of ['run', 'job', 'securityJob']) {
     });
   }
 }
+
+import { safeGithubFailure } from './delivery-admission.mjs';
+for(const [stderr,reason,http] of [
+ ['read tcp: connection reset by peer','connection-reset',undefined],
+ ['unexpected EOF','unexpected-eof',undefined],
+ ['net/http: TLS handshake timeout','timeout',undefined],
+ ['HTTP 403: Resource not accessible by integration','authorization','403'],
+ ['HTTP 404: Not Found','http-error','404'],
+ ['blocked by policy','authorization',undefined],
+ ['write EPIPE','broken-pipe',undefined],
+ ['failed secret https://example.test/?token=private','unclassified',undefined],
+]) test('reports bounded GitHub diagnostics: '+reason+' '+(http??stderr.slice(0,8)),()=>{
+ const result=safeGithubFailure({stderr,status:1});assert.equal(result.reason,reason);assert.equal(result.http,http);
+ assert.ok(!JSON.stringify(result).includes('private'));assert.ok(!JSON.stringify(result).includes('https://'));
+});
