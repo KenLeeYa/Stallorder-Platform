@@ -1,3 +1,7 @@
+## 2026-11-05 — PR390 synthetic credential handoff alignment
+
+Control CI 42022142261 reproduced three synthetic CLI failures because its fixture still used completed PR389. Only the fixture event number changes to the separately reviewed PR390. Root reproduced all three failures before the correction; combined access/binding tests passed 88/88 afterward. Actual invocation/target/token guards and the shared pr-389 resource remain unchanged. Hosted full CI and Preview must pass again; no release authorization or merchant reopening.
+
 ## 2026-11-05 — PR390 exact installation admission
 
 PR389 and promotion PR387 have merged. Transfer only the fixed installation PR number from389 to390 for the same owner repository, existing codex/conversion-source-checks-20261023 branch and staging target. Retain the exact existing pr-389-oauth-delivery resource, all project/parent/region/config checks, source guards and shared writer queue. Old PR389 and arbitrary other PR numbers are rejected. The reproducing two cases failed before the one-literal change;58 binding tests and lint now pass. Fresh hosted qualification is required. No new resource, product release, protection change or merchant reopening.
