@@ -7,7 +7,8 @@ import { PrismaClient } from "@prisma/client";
 import { chromium, expect } from "@playwright/test";
 import { assertIsolatedStorageQa } from "./qa-primary-only-storage";
 import { preparePreviewFixture, restorePreviewFixture, type PreviewFixtureState } from "./qa-preview-fixture-state";
-import { verifyPreviewDatabasePrincipal } from "./qa-preview-database-principal";
+import { readPreviewPrincipalDiagnostic, verifyPreviewDatabasePrincipal } from "./qa-preview-database-principal";
+import { finishPreviewQa, previewQaFailure } from "./qa-preview-cleanup";
 
 const ORGANIZATION = "11111111-1111-4111-8111-111111111111";
 const STALL = "22222222-2222-4222-8222-222222222222";
@@ -43,6 +44,7 @@ async function main() {
   const browser = await chromium.launch();
   let orderId = "";
   let fixtureState: PreviewFixtureState | undefined;
+  let failure: Error | undefined;
   try {
     phase = "actual-next-database-principal";
     const principal = await verifyPreviewDatabasePrincipal(prisma, { origin: base.origin, headers,
@@ -102,26 +104,28 @@ async function main() {
       origin: base.origin, widths: [320, 390, 768, 1440], realBrowserSession: true, realBrowserOrderTracker: true,
       physicalPrinting: "disabled", turnstile: "official-test-key", serviceWorkers: "blocked-for-protection-header-test" }, null, 2));
     console.log("PASS: hosted QR session, 4 responsive widths, mobile checkout and actual order tracker.");
-  } finally {
-    try {
+  } catch (error) { failure = previewQaFailure(error); }
+  await finishPreviewQa(failure, {
+    order: async () => {
       if (orderId) await prisma.order.deleteMany({ where: { id: orderId, organizationId: ORGANIZATION, stallId: STALL, isTest: true } });
-    } finally {
-      try {
-        await browser.close();
-      } finally {
-        try {
-          if (fixtureState) {
-            await restorePreviewFixture(prisma, fixtureState);
-            console.log("PASS: borrowed hours and printer fixture restored with exact readback.");
-          }
-        } finally { await prisma.$disconnect(); }
+    },
+    browser: () => browser.close(),
+    fixture: async () => {
+      if (fixtureState) {
+        await restorePreviewFixture(prisma, fixtureState);
+        console.log("PASS: borrowed hours and printer fixture restored with exact readback.");
       }
-    }
-  }
+    },
+    database: () => prisma.$disconnect(),
+  });
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) void main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : "";
-  console.error(/^PREVIEW_[A-Z_]+$/.test(message) ? message : "PREVIEW_PUBLIC_ORDER_BROWSER_QA_FAILED", { phase });
+  const principal = readPreviewPrincipalDiagnostic(error);
+  const candidateCleanup = error && typeof error === "object" && "previewCleanupFailures" in error
+    ? error.previewCleanupFailures : undefined;
+  const cleanup = Array.isArray(candidateCleanup)
+    ? ["order", "browser", "fixture", "database"].filter(step => candidateCleanup.includes(step)) : undefined;
+  console.error("PREVIEW_PUBLIC_ORDER_BROWSER_QA_FAILED", { phase, principal, cleanup });
   process.exitCode = 1;
 });

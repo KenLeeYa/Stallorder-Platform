@@ -1,3 +1,9 @@
+
+## 2026-11-05 — Preview principal failure and cleanup diagnostics (Candidate)
+
+- Exact product remains `0d2b27144fcf589bb887e669c09e82158e3de7a2`. The latest Preview deployed that product, but its actual-principal stage failed with only a generic message; no acceptance assertion or role permission is changed.
+- Add fixed, allowlisted diagnostic stages and error codes. Preserve the original failure when browser, fixture or database cleanup also fails; attempt all existing cleanup operations and fail on any cleanup error. Never print tokens, query text, response bodies or arbitrary exception messages.
+- Validation: 37 focused principal/cleanup/fixture tests pass and the five changed TypeScript files lint clean. Actual hosted revalidation and exact leftover-fixture reconciliation remain open; Production is unchanged and merchant delivery remains paused.
 ## 2026-11-05 — Preview QA credential placeholder correction
 
 CI run41985749061/job127105956495 failed the unchanged Production credential guard on a synthetic principal-test password. Mark only that fake URI password explicitly as example-preview-placeholder; no runtime, secret, target, assertion, scanner or product changes. Focused principal/fixture regression26/26 passed and independent byte review confirmed the one-literal diff. Frozen product0d2b27144fcf589bb887e669c09e82158e3de7a2 remains unchanged; new control CI and hosted acceptance are still required.

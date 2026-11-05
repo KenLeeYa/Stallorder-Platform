@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "@prisma/client";
-import { assertPreviewDatabasePrincipal, verifyPreviewDatabasePrincipal } from "./qa-preview-database-principal";
+import { assertPreviewDatabasePrincipal, previewPrincipalFailureDetails, readPreviewPrincipalDiagnostic, verifyPreviewDatabasePrincipal } from "./qa-preview-database-principal";
 
 const start = Date.parse("2026-11-05T06:00:00.000Z");
 const principal = { schema: "stallorder-database-principal/v1", currentUser: "postgres",
@@ -9,6 +9,39 @@ const principal = { schema: "stallorder-database-principal/v1", currentUser: "po
 const response = (body: unknown, status=200, cache="private, no-store") =>
   Response.json(body, { status, headers: { "cache-control": cache } });
 describe("actual Preview Next database principal", () => {
+  it("does not invoke accessors while projecting diagnostic fields", () => {
+    const reason = vi.fn(() => "SYNTHETIC_SECRET_SENTINEL");
+    const result = readPreviewPrincipalDiagnostic({ previewPrincipalDiagnostic: {
+      failure: { stage: "cleanup", get reason() { return reason(); } },
+    } });
+    expect(result).toEqual({ failure: undefined, finalStage: undefined });
+    expect(reason).not.toHaveBeenCalled();
+    expect(readPreviewPrincipalDiagnostic(Object.create({ previewPrincipalDiagnostic: {
+      failure: { stage: "cleanup", reason: "P2028" },
+    } }))).toBeUndefined();
+  });
+  it("only serializes known diagnostic fields and constant codes", () => {
+    const diagnostic = readPreviewPrincipalDiagnostic({ previewPrincipalDiagnostic: {
+      failure: { stage: "principal-response", reason: "PREVIEW_PRINCIPAL_INVALID", secret: "private" },
+      finalStage: { stage: "cleanup", reason: "P2028", private: "private" }, secret: "private",
+    } });
+    expect(diagnostic).toEqual({ failure: { stage: "principal-response", reason: "PREVIEW_PRINCIPAL_INVALID" },
+      finalStage: { stage: "cleanup", reason: "P2028" } });
+    expect(readPreviewPrincipalDiagnostic({ previewPrincipalDiagnostic: {
+      failure: { stage: "arbitrary secret", reason: "PREVIEW_SECRET" }, finalStage: "private",
+    } })).toEqual({ failure: undefined, finalStage: undefined });
+  });
+  it("keeps a bounded assertion or Prisma code without exposing error values", () => {
+    expect(previewPrincipalFailureDetails(Object.assign(Error("PREVIEW_PRINCIPAL_INVALID\nprivate token value"),
+      { actual: "secret", expected: "other secret" }), "principal-response"))
+      .toEqual({ stage: "principal-response", reason: "PREVIEW_PRINCIPAL_INVALID" });
+    expect(previewPrincipalFailureDetails(Object.assign(Error("connection string with password"), { code: "P2028" }), "cleanup"))
+      .toEqual({ stage: "cleanup", reason: "P2028" });
+    expect(previewPrincipalFailureDetails(Error("unexpected secret"), "fixture-create"))
+      .toEqual({ stage: "fixture-create", reason: "UNCLASSIFIED" });
+    expect(previewPrincipalFailureDetails(Error("PREVIEW_" + "SENSITIVE_".repeat(20000)), "fixture-create"))
+      .toEqual({ stage: "fixture-create", reason: "UNCLASSIFIED" });
+  });
   it("accepts only a fresh protected response from the actual application query", async () => {
     await expect(assertPreviewDatabasePrincipal(response(principal), start, start+200)).resolves.toEqual(principal);
   });
