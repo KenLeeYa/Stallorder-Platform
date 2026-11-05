@@ -1,3 +1,9 @@
+## 2026-11-05 — Exact product Run17 authenticated admission (Candidate)
+
+Bind product0d2b27144fcf589bb887e669c09e82158e3de7a2 / tree e3c02e6b0ecf37526a77ff9c6eb4eb2111411ef0 to native run41985742680, verify127109297704 and security127109297191. All118 dedicated checks and the full native verify job passed. Complete immutable SARIF has14 independently reviewed false positives and0unresolved; raw security failure remains preserved. Authenticated source/job/log and final metadata readback are required; no stale Run13 evidence is substituted.
+
+The SSE verifier accepts either exact generic or delivery event from the source-bound same-owned-order collector; correlation, ordering, freshness and cleanup assertions remain intact.94 focused control tests pass; protected admission execution, current paired Preview, actual recovery and Production PlanApply/live verification remain open. releaseAuthorized=false.
+
 # StallOrder Architecture and Feature Change Ledger
 
 ## 2026-11-05: Fresh exact delivery qualification and recovery evidence

@@ -133,6 +133,10 @@ test('admits the exact native SSE correlation record and counts it once', () => 
   assert.equal(result.checkCount, REQUIRED_CHECKS.length);
   assert.equal(result.releaseAuthorized,false);
 });
+test('admits the delivery-specific event for the same native owned order correlation', () => {
+  const f=fixture(); nativeSse(f).databaseEventType='PUBLIC_DELIVERY_ORDER_CREATED';
+  assert.equal(verifyDeliveryQualification({...f.input,log:f.encode()}).releaseAuthorized,false);
+});
 for (const [name, change] of [
   ['wrong SSE event', e => { e.event='heartbeat'; }],
   ['failed SSE check', e => { e.passed=false; }],

@@ -52,14 +52,23 @@ export function safeGithubFailure(error) {
     .replace(/[\x00-\x1f\x7f]/g,' ').slice(0,240);
   return {reason,http,code,status:Number.isInteger(error?.status)?error.status:undefined,diagnostic};
 }
+export function validateAdmissionContext(env) {
+  assert.equal(env.GITHUB_ACTIONS,'true');assert.equal(env.GITHUB_REPOSITORY,repository);
+  assert.equal(env.RUNNER_ENVIRONMENT,'github-hosted');assert.equal(env.RUNNER_OS,'Linux');
+  assert.match(env.GITHUB_SHA??'',/^[a-f0-9]{40}$/);assert.match(env.GITHUB_RUN_ID??'',/^[1-9][0-9]*$/);
+  const protectedMain=env.GITHUB_REF==='refs/heads/main';
+  const workflow=protectedMain?'production-delivery-evidence.yml':'delivery-candidate-admission.yml';
+  assert.equal(env.GITHUB_REF,protectedMain?'refs/heads/main':'refs/heads/codex/primary-only-preparation');
+  assert.equal(env.GITHUB_WORKFLOW_REF,repository+'/.github/workflows/'+workflow+'@'+env.GITHUB_REF);
+  if(protectedMain){assert.equal(env.GITHUB_REPOSITORY_OWNER,'KenLeeYa');assert.equal(env.GITHUB_ACTOR,env.GITHUB_REPOSITORY_OWNER);assert.equal(env.GITHUB_TRIGGERING_ACTOR,env.GITHUB_REPOSITORY_OWNER);}
+  return {releaseAuthorized:false};
+}
 function main() {
-  assert.equal(process.env.GITHUB_ACTIONS, 'true'); assert.equal(process.env.GITHUB_REPOSITORY, repository);
-  assert.equal(process.env.GITHUB_REF, 'refs/heads/codex/primary-only-preparation');
-  assert.equal(process.env.RUNNER_ENVIRONMENT, 'github-hosted'); assert.equal(process.env.RUNNER_OS, 'Linux');
-  const contractBytes = readFileSync(new URL('./delivery-qualification-run13-source.json', import.meta.url));
+  validateAdmissionContext(process.env);
+  const contractBytes = readFileSync(new URL('./delivery-qualification-run17-source.json', import.meta.url));
   assert.equal(hash(contractBytes), process.env.DELIVERY_QUALIFICATION_CONTRACT_SHA256);
   const contract = JSON.parse(contractBytes);
-  const reviewBytes = readFileSync(new URL('./delivery-reviewed-run13-scan.json', import.meta.url));
+  const reviewBytes = readFileSync(new URL('./delivery-reviewed-run17-scan.json', import.meta.url));
   assert.equal(hash(reviewBytes), process.env.DELIVERY_SECURITY_REVIEW_SHA256);
   const review = JSON.parse(reviewBytes);
   assert.equal(contract.runId, review.source.runId); assert.equal(contract.controlCommit, review.source.controlCommit);

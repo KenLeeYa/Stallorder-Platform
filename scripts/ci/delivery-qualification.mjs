@@ -150,7 +150,9 @@ export function verifyDeliveryQualification({ contract, run, job, workflowBytes,
     for (const key of ['orderId', 'databaseEventId']) {
       assert.match(event[key] ?? '', /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/);
     }
-    assert.equal(event.databaseEventType, 'PUBLIC_ORDER_CREATED');
+    // Delivery admission records both events in one transaction. The collector
+    // uses the latest owned-order event, with UUID as a timestamp tie-breaker.
+    assert.ok(['PUBLIC_ORDER_CREATED', 'PUBLIC_DELIVERY_ORDER_CREATED'].includes(event.databaseEventType));
     assert.equal(event.streamPayloadContainsOrderId, false);
   }
   const checks = events.filter(e => e.event === 'check' || e.event === 'orders');
