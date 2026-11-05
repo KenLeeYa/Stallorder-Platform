@@ -93,7 +93,7 @@ for(const [status,credential] of [[200,token],[401,token],[200,token+'%0A%0D%25'
  const dir=fs.mkdtempSync(path.join(root,'.preview-access-test-'));
  try {
   const eventFile=path.join(dir,'event.json'),envFile=path.join(dir,'job-env');
-  fs.writeFileSync(eventFile,JSON.stringify({pull_request:{number:394,head:{repo:{full_name:'KenLeeYa/Stallorder-Platform'},ref:'codex/conversion-source-checks-20261023'},base:{ref:'staging'}}}));
+  fs.writeFileSync(eventFile,JSON.stringify({pull_request:{number:396,head:{repo:{full_name:'KenLeeYa/Stallorder-Platform'},ref:'codex/conversion-source-checks-20261023'},base:{ref:'staging'}}}));
   const preload=path.join(dir,'transport.mjs');
   fs.writeFileSync(preload,[
    "import https from 'node:https';import {syncBuiltinESMExports} from 'node:module';import {EventEmitter} from 'node:events';",
