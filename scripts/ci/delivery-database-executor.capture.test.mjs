@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {validateDatabaseCaptureContext,validatePrimaryEndpoint,captureDatabaseExecutor} from './delivery-database-executor.capture.mjs';
+import {validateDatabaseCaptureContext,validatePrimaryEndpoint,captureDatabaseExecutor,databaseCaptureFailureCode} from './delivery-database-executor.capture.mjs';
 const ref='eyuctbnlvnbnivwasvqr';
 const env=()=>({GITHUB_ACTIONS:'true',GITHUB_REPOSITORY:'KenLeeYa/Stallorder-Platform',GITHUB_REPOSITORY_OWNER:'KenLeeYa',GITHUB_ACTOR:'KenLeeYa',GITHUB_TRIGGERING_ACTOR:'KenLeeYa',RUNNER_ENVIRONMENT:'github-hosted',RUNNER_OS:'Linux',GITHUB_REF:'refs/heads/main',GITHUB_WORKFLOW_REF:'KenLeeYa/Stallorder-Platform/.github/workflows/production-delivery-evidence.yml@refs/heads/main',GITHUB_SHA:'a'.repeat(40),GITHUB_RUN_ID:'12345',GITHUB_RUN_ATTEMPT:'1',GITHUB_EVENT_NAME:'workflow_dispatch',DELIVERY_EXECUTOR_SCOPE:'PRIMARY_READ_ONLY_EXECUTOR'});
 const project=()=>({id:ref,status:'ACTIVE_HEALTHY',region:'ap-northeast-1',database:{host:'db.'+ref+'.supabase.co'}});
@@ -32,6 +32,24 @@ test('provider drift after the query invalidates the whole capture',async()=>{
 });
 test('oversized response fails before psql',async()=>{
  let queries=0;await assert.rejects(()=>captureDatabaseExecutor({env:env(),token:'sbp_'+'a'.repeat(40),password:'synthetic',fetchImpl:async()=>new Response('x'.repeat(131073)),collect:()=>{queries++;}}));assert.equal(queries,0);
+});
+
+test('capture diagnostics identify a fixed failing stage without returning secret-bearing errors',async()=>{
+ const secret='synthetic-private-error';
+ const goodFetch=async url=>new Response(JSON.stringify(url.endsWith('/pooler')?poolers():project()));
+ const goodCollect=()=>{const at=new Date().toISOString();return {executor:{observedAt:at},requestStartedAt:at,requestFinishedAt:at};};
+ for(const [overrides,code] of [
+  [{env:{...env(),GITHUB_ACTOR:secret}},'DELIVERY_DATABASE_CAPTURE_CONTEXT'],
+  [{password:''},'DELIVERY_DATABASE_CAPTURE_CREDENTIAL_INPUT'],
+  [{fetchImpl:async()=>{throw new Error(secret);}},'DELIVERY_DATABASE_CAPTURE_PROVIDER_READ'],
+  [{fetchImpl:async url=>new Response(JSON.stringify(url.endsWith('/pooler')?[]:project()))},'DELIVERY_DATABASE_CAPTURE_ENDPOINT'],
+  [{collect:()=>{throw new Error(secret);}},'DELIVERY_DATABASE_CAPTURE_COLLECTOR'],
+ ]) {
+  let failure;try{await captureDatabaseExecutor({env:env(),token:'sbp_'+'a'.repeat(40),password:'synthetic',fetchImpl:goodFetch,collect:goodCollect,...overrides});}catch(error){failure=error;}
+  assert.ok(failure);assert.equal(databaseCaptureFailureCode(failure),code);
+  assert.ok(!String(failure).includes(secret));assert.equal(failure.cause,undefined);
+ }
+ assert.equal(databaseCaptureFailureCode(new Error('DELIVERY_DATABASE_CAPTURE_ENDPOINT '+secret)),'DELIVERY_DATABASE_EXECUTOR_CAPTURE_FAILED');
 });
 
 import {readFileSync} from 'node:fs';
