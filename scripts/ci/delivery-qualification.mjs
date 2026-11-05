@@ -19,6 +19,8 @@ export const REQUIRED_STEPS = Object.freeze([
 export const REQUIRED_CHECKS = Object.freeze([
   'hosted-owned-runner', 'exact-product-commit', 'restricted-app-role', 'helper-acl',
   'anonymous-cannot-read-runtime-principal', 'actual-next-http-runtime-principal',
+  'principal-new-bucket-counted', 'principal-180-budget-enforced', 'principal-expired-own-bucket-reset',
+  'principal-active-cardinality-enforced', 'principal-foreign-expired-bucket-preserved',
   'revoked-admin-cannot-read-runtime-principal', 'staff-cannot-read-runtime-principal',
   'sse-own-order-mutation-correlated', 'staff-sees-waiting-delivery', 'confirmed-order-persisted',
   'edge-confirm-menu-open', 'edge-order-staff-confirmation', 'edge-line-link-status-without-external-message',
@@ -148,7 +150,9 @@ export function verifyDeliveryQualification({ contract, run, job, workflowBytes,
     for (const key of ['orderId', 'databaseEventId']) {
       assert.match(event[key] ?? '', /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/);
     }
-    assert.equal(event.databaseEventType, 'PUBLIC_ORDER_CREATED');
+    // Delivery admission records both events in one transaction. The collector
+    // uses the latest owned-order event, with UUID as a timestamp tie-breaker.
+    assert.ok(['PUBLIC_ORDER_CREATED', 'PUBLIC_DELIVERY_ORDER_CREATED'].includes(event.databaseEventType));
     assert.equal(event.streamPayloadContainsOrderId, false);
   }
   const checks = events.filter(e => e.event === 'check' || e.event === 'orders');

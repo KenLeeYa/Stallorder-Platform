@@ -1,7 +1,7 @@
 {
   "schema": "stallorder-delivery-executor-contract/v1",
-  "productCommit": "b9a98a0bff0490c04b2295e4bcfb2b7781774c91",
-  "productTree": "feaf67bea32aa15ba0e67374b8aa4ff4307dc208",
+  "productCommit": "0d2b27144fcf589bb887e669c09e82158e3de7a2",
+  "productTree": "e3c02e6b0ecf37526a77ff9c6eb4eb2111411ef0",
   "database": {
     "projectId": "eyuctbnlvnbnivwasvqr",
     "migration": {

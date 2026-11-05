@@ -24,7 +24,7 @@ test('capture uses only bounded fixed GETs, verifies readback, and keeps passwor
  const calls=[];let queries=0;
  const fetchImpl=async(url,init)=>{calls.push(url);assert.equal(init.method,'GET');assert.equal(init.redirect,'error');assert.ok(init.signal);return new Response(JSON.stringify(url.endsWith('/pooler')?poolers():project()));};
  const out=await captureDatabaseExecutor({env:env(),token:'sbp_'+'a'.repeat(40),password:'synthetic-db-password',fetchImpl,collect:({connection,plan,endpoint})=>{queries++;assert.ok(connection.includes('synthetic-db-password'));assert.ok(!connection.includes('jit'));assert.equal(plan.database.executor.authentication,'database-password');return{executor:{observedAt:new Date().toISOString(),name:'postgres'},endpoint,requestStartedAt:new Date().toISOString(),requestFinishedAt:new Date().toISOString(),releaseAuthorized:false};}});
- assert.equal(calls.length,4);assert.equal(queries,1);assert.equal(out.releaseAuthorized,false);assert.equal(out.productCommit,'b9a98a0bff0490c04b2295e4bcfb2b7781774c91');assert.ok(!JSON.stringify(out).includes('synthetic-db-password'));
+ assert.equal(calls.length,4);assert.equal(queries,1);assert.equal(out.releaseAuthorized,false);assert.equal(out.productCommit,'0d2b27144fcf589bb887e669c09e82158e3de7a2');assert.ok(!JSON.stringify(out).includes('synthetic-db-password'));
 });
 test('provider drift after the query invalidates the whole capture',async()=>{
  let calls=0;const fetchImpl=async(url)=>{calls++;const p=project();if(calls>2)p.status='COMING_UP';return new Response(JSON.stringify(url.endsWith('/pooler')?poolers():p));};

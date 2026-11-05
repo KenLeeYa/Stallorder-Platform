@@ -1,3 +1,10 @@
+## 2026-11-05 — Exact Run17 protected read-only evidence capture
+
+- PR389 control `7d43d1eac4143c08fe4aadff7cd1f5eed58d228c` passed full CI, source-security, required Vercel and isolated Preview. Hosted actual database principal, QR/session, responsive checkout, tracker and owned cleanup passed; skipped read-only smoke checks remain skipped. The product stays `0d2b27144fcf589bb887e669c09e82158e3de7a2`, tree `e3c02e6b0ecf37526a77ff9c6eb4eb2111411ef0`, 50 paths.
+- Rebind protected read-only Primary executor and encrypted five-Edge capture to genuine Run17 evidence, its complete independently reviewed scan and the current product. Include the already tested principal-check and delivery SSE verifier changes. Original failed CodeQL status and bounded adjudications remain intact; no validity timestamp is extended.
+- Preserve manual owner dispatch, protected production environment, public hosted Ubuntu runner, exact current-main identity, clean checkout, identical verified staging tree and all capture checks. This installs evidence controls only; no Production migration, Edge mutation, deployment or merchant delivery reopening occurs on merge.
+- Actual Primary password-role/preimage capture, durable isolated replay/restore and protected DB/Edge/App Plan/Apply remain required. `releaseAuthorized=false`, `productionReleased=false`.
+
 ## 2026-11-05 — Atomic Preview principal cleanup
 
 - Exact product remains `0d2b27144fcf589bb887e669c09e82158e3de7a2`. Control54e full CI and source security passed; its hosted principal checks completed before default Prisma cleanup failed with P2028. The failure remains recorded.
