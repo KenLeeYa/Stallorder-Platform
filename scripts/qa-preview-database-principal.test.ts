@@ -30,7 +30,7 @@ const input = { origin: "https://stallorder-platform-test123-ada76145-8663s-proj
   headers: { "x-vercel-protection-bypass": "synthetic-test-only" }, sourceSha: "a".repeat(40),
   ref: "teunnvfakbfzmodajqjz", parentRef: "eyuctbnlvnbnivwasvqr",
   supabaseUrl: "https://teunnvfakbfzmodajqjz.supabase.co",
-  databaseUrl: "postgresql://postgres.teunnvfakbfzmodajqjz:synthetic@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres" };
+  databaseUrl: "postgresql://postgres.teunnvfakbfzmodajqjz:example-preview-placeholder@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres" };
 function fixture(fault?: "before-commit" | "after-commit" | "principal" | "extra-audit" | "extra-session" | "foreign-bucket") {
   let profile: {id:string;email:string;authUserId:null;platformRole:string|null}|null=null;
   let session=false; let revoked=false; let bucket=false; let audit=false;

@@ -1,3 +1,7 @@
+## 2026-11-05 — Preview QA credential placeholder correction
+
+CI run41985749061/job127105956495 failed the unchanged Production credential guard on a synthetic principal-test password. Mark only that fake URI password explicitly as example-preview-placeholder; no runtime, secret, target, assertion, scanner or product changes. Focused principal/fixture regression26/26 passed and independent byte review confirmed the one-literal diff. Frozen product0d2b27144fcf589bb887e669c09e82158e3de7a2 remains unchanged; new control CI and hosted acceptance are still required.
+
 ## 2026-11-05 — Exact delivery successor and hosted principal isolation
 
 Product `0d2b27144fcf589bb887e669c09e82158e3de7a2` / tree `e3c02e6b0ecf37526a77ff9c6eb4eb2111411ef0` is frozen over unchanged Production4e95. Diagnostic rate limiting retains180/5min and active cardinality while preserving other identities expired buckets. Real paired Preview probes the deployed Next SQL role, anonymous/nonadmin/revoked access denials, source revision, foreign bucket digest and exact synthetic session/audit/profile cleanup. Reusable hours/printer fixtures receive conflict-safe byte-precise restoration.
