@@ -1,0 +1,11 @@
+{
+  "schema": "stallorder-paired-edge-installation/v1",
+  "repository": "KenLeeYa/Stallorder-Platform",
+  "repositoryId": 1298874780,
+  "workflow": ".github/workflows/production-delivery-edge-rehearsal.yml",
+  "workflowId": 408525851,
+  "isolatedProject": "teunnvfakbfzmodajqjz",
+  "productCommit": "0d2b27144fcf589bb887e669c09e82158e3de7a2",
+  "firstRunNumber": 1,
+  "maxRunAttempt": 1
+}
