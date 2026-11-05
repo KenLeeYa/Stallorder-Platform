@@ -1,8 +1,8 @@
-tree 403431450581d02a465e1719ece41f581d58b123
+tree e3c02e6b0ecf37526a77ff9c6eb4eb2111411ef0
 parent 4e95d2ea5d53ae78c5af9c3db044481237674c44
-author KenLeeYa <ada76145@gmail.com> 1793860700 +0800
-committer KenLeeYa <ada76145@gmail.com> 1793860700 +0800
+author KenLeeYa <ada76145@gmail.com> 1793862053 +0800
+committer KenLeeYa <ada76145@gmail.com> 1793862053 +0800
 
-fix: retain canonical tracking checks in isolated native Preview
+fix: isolate database principal rate limit cleanup
 
-Require explicit local-only origin opt-in with all runtime endpoints on loopback; hosted Preview still requires canonical provider identity.
+Retain authentication, request budgets and cardinality; preserve other identities expired buckets.

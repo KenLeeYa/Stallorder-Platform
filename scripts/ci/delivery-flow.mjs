@@ -29,6 +29,7 @@ const owned = {
 };
 const cookies = new Map();
 const ownedAuthSessions = [];
+const ownedRateLimitKeys = [];
 const checks = [];
 const requestIds = [];
 const phases = { fixture: false, otherStall: false, otherOrder: false, product: false, qr: false };
@@ -332,7 +333,7 @@ try {
     && process.env.RUNNER_ENVIRONMENT === "github-hosted" && process.env.RUNNER_OS === "Linux");
   check("exact-product-cwd", resolve(process.cwd()) === root);
   check("exact-product-commit", execFileSync("git", ["rev-parse", "HEAD"], {cwd:root}).toString().trim()
-    === "36046cca7b8ec1be7156bc0eada03dd196cc191c");
+    === "0d2b27144fcf589bb887e669c09e82158e3de7a2");
   ({ PrismaClient } = createRequire(resolve(root, "package.json"))("@prisma/client"));
   check("explicit-owned-execution", process.env.DELIVERY_ACCEPTANCE_LOCAL_ONLY === "20261029-owned-synthetic");
   check("test-environment", process.env.APP_ENV === "test"
@@ -461,6 +462,13 @@ try {
     select: { id: true, profileId: true, revokedAt: true } });
   owned.adminAuthSessionId = adminSession.id;
   check("stored-admin-session", adminSession.profileId === originalAdminProfile.id && adminSession.revokedAt === null);
+  const adminBucketKey = createHash("sha256").update(`platform-billing-api:${originalAdminProfile.id}`).digest("hex");
+  check("principal-bucket-initially-absent", await controlDatabase.rateLimitBucket.count({ where: { key: adminBucketKey } }) === 0);
+  const canaryKey = createHash("sha256").update(`principal-canary:${runId}`).digest("hex");
+  ownedRateLimitKeys.push(adminBucketKey, canaryKey);
+  const canary = await controlDatabase.rateLimitBucket.create({ data: {
+    key: canaryKey, scope: "unrelated-principal-canary", count: 9, expiresAt: new Date(Date.now() - 60_000),
+  } });
   const principalStartedAt = new Date();
   const principalResponse = await api("actual-next-principal", "/api/health/database-principal", { authenticated: true });
   const principalFinishedAt = new Date();
@@ -476,6 +484,26 @@ try {
   emit("next-http-runtime-principal", { ...principal, requestStartedAt: principalStartedAt.toISOString(),
     requestFinishedAt: principalFinishedAt.toISOString(),
     evidenceScope: "exact candidate owned runner Next HTTP process; not old Production", productionRuntimeVerified: false });
+  check("principal-new-bucket-counted", (await controlDatabase.rateLimitBucket.findUniqueOrThrow({ where: { key: adminBucketKey } })).count === 1);
+  await controlDatabase.rateLimitBucket.update({ where: { key: adminBucketKey }, data: { count: 180, expiresAt: new Date(Date.now() + 300_000) } });
+  const limitedPrincipal = await api("principal-budget-refused", "/api/health/database-principal", { authenticated: true });
+  check("principal-180-budget-enforced", limitedPrincipal.status === 429 && limitedPrincipal.cacheControl?.includes("no-store") && !limitedPrincipal.data?.currentUser);
+  await controlDatabase.rateLimitBucket.update({ where: { key: adminBucketKey }, data: { expiresAt: new Date(Date.now() - 1_000) } });
+  const resetPrincipal = await api("principal-expired-budget-reset", "/api/health/database-principal", { authenticated: true });
+  check("principal-expired-own-bucket-reset", resetPrincipal.status === 200
+    && (await controlDatabase.rateLimitBucket.findUniqueOrThrow({ where: { key: adminBucketKey } })).count === 1);
+  const cardinalityKeys = Array.from({ length: 10_000 }, (_, index) => createHash("sha256").update(`principal-cardinality:${runId}:${index}`).digest("hex"));
+  ownedRateLimitKeys.push(...cardinalityKeys);
+  await controlDatabase.rateLimitBucket.delete({ where: { key: adminBucketKey } });
+  await controlDatabase.rateLimitBucket.createMany({ data: cardinalityKeys.map(key => ({
+    key, scope: "platform-billing-api", count: 1, expiresAt: new Date(Date.now() + 300_000),
+  })) });
+  const cappedPrincipal = await api("principal-cardinality-refused", "/api/health/database-principal", { authenticated: true });
+  check("principal-active-cardinality-enforced", cappedPrincipal.status === 429
+    && await controlDatabase.rateLimitBucket.count({ where: { key: adminBucketKey } }) === 0);
+  await controlDatabase.rateLimitBucket.deleteMany({ where: { key: { in: cardinalityKeys }, scope: "platform-billing-api" } });
+  check("principal-foreign-expired-bucket-preserved", JSON.stringify(await controlDatabase.rateLimitBucket.findUnique({ where: { key: canaryKey } })) === JSON.stringify(canary));
+  await controlDatabase.rateLimitBucket.delete({ where: { key: canaryKey } });
   await controlDatabase.authSession.update({ where: { id: owned.adminAuthSessionId }, data: { revokedAt: new Date() } });
   const revokedPrincipal = await api("revoked-admin-principal-refused", "/api/health/database-principal", { authenticated: true });
   check("revoked-admin-cannot-read-runtime-principal", revokedPrincipal.status === 401
@@ -760,6 +788,10 @@ try {
   if (controlDatabase && phases.fixture) {
     try {
       lastStep = "owned-fixture-cleanup";
+      if (ownedRateLimitKeys.length) {
+        await controlDatabase.rateLimitBucket.deleteMany({ where: { key: { in: ownedRateLimitKeys } } });
+        assert.equal(await controlDatabase.rateLimitBucket.count({ where: { key: { in: ownedRateLimitKeys } } }), 0);
+      }
       await controlDatabase.resilienceFeatureFlagOverride.deleteMany({ where: { id: owned.circuitOverrideId } });
       check("owned-circuit-override-removed", await controlDatabase.resilienceFeatureFlagOverride.count({
         where: { id: owned.circuitOverrideId },

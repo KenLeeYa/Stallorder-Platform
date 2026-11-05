@@ -19,6 +19,8 @@ export const REQUIRED_STEPS = Object.freeze([
 export const REQUIRED_CHECKS = Object.freeze([
   'hosted-owned-runner', 'exact-product-commit', 'restricted-app-role', 'helper-acl',
   'anonymous-cannot-read-runtime-principal', 'actual-next-http-runtime-principal',
+  'principal-new-bucket-counted', 'principal-180-budget-enforced', 'principal-expired-own-bucket-reset',
+  'principal-active-cardinality-enforced', 'principal-foreign-expired-bucket-preserved',
   'revoked-admin-cannot-read-runtime-principal', 'staff-cannot-read-runtime-principal',
   'sse-own-order-mutation-correlated', 'staff-sees-waiting-delivery', 'confirmed-order-persisted',
   'edge-confirm-menu-open', 'edge-order-staff-confirmation', 'edge-line-link-status-without-external-message',
