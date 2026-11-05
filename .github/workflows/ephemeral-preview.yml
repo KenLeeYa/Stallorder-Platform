@@ -391,7 +391,7 @@ jobs:
         id: vercel-preview
         if: steps.vercel-auth.outputs.enabled == 'true'
         env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TOKEN: ${{ env.DELIVERY_PREVIEW_VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
           LINE_PREVIEW_CHANNEL_ID: ${{ vars.LINE_PREVIEW_CHANNEL_ID }}

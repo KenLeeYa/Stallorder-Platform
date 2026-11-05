@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {appendFileSync, readFileSync} from 'node:fs';
 import {request} from 'node:https';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -12,7 +12,9 @@ const PROJECT = 'prj_uoG4FNJIgnF1LdKRiXnfRaieXnUP';
 export async function verifyPreviewVercelAccess({team, project, token, deadlineAt=Date.now()+20000}, transport=request) {
   try {
     assert.equal(team,TEAM); assert.equal(project,PROJECT);
-    assert.ok(typeof token==='string' && token.length>=20 && token.length<=4096 && /^[\x21-\x7e]+$/.test(token));
+    assert.ok(typeof token==='string' && token.length<=4096);
+    token=token.trim(); // Clipboard boundary whitespace is not part of the opaque credential.
+    assert.ok(token.length>=20 && /^[\x21-\x7e]+$/.test(token));
   } catch {throw new Error('PREVIEW_VERCEL_INPUT');}
   async function read(apiPath) {
     const remaining=Math.min(20000,deadlineAt-Date.now());
@@ -65,8 +67,16 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
     verifyPreviewInvocation({repository:process.env.GITHUB_REPOSITORY,actor:process.env.GITHUB_ACTOR,
       event:process.env.GITHUB_EVENT_NAME,ref:process.env.GITHUB_REF,headRepo:e.pull_request?.head?.repo?.full_name,
       headBranch:e.pull_request?.head?.ref,baseBranch:e.pull_request?.base?.ref,number:e.pull_request?.number});
-    console.log(JSON.stringify(await verifyPreviewVercelAccess({team:process.env.VERCEL_ORG_ID,
-      project:process.env.VERCEL_PROJECT_ID,token:process.env.VERCEL_TOKEN})));
+    const token=process.env.VERCEL_TOKEN;
+    assert.ok(typeof process.env.GITHUB_ENV==='string' && process.env.GITHUB_ENV.length>0);
+    const verified=await verifyPreviewVercelAccess({team:process.env.VERCEL_ORG_ID,
+      project:process.env.VERCEL_PROJECT_ID,token});
+    // Keep the verified credential in GitHub's masked, job-local channel only.
+    // Never use an output or artifact; the deployment step consumes these same bytes.
+    const approvedToken=token.trim();
+    console.log('::add-mask::'+approvedToken.replaceAll('%','%25'));
+    appendFileSync(process.env.GITHUB_ENV,'DELIVERY_PREVIEW_VERCEL_TOKEN='+approvedToken+'\n');
+    console.log(JSON.stringify(verified));
   }catch(error){
     const code=/^PREVIEW_VERCEL_[A-Z0-9_]+$/.test(error?.message??'')?error.message:'PREVIEW_VERCEL_CONTEXT';
     console.error(code+': Preview credential or target could not be verified; no automatic retry.');

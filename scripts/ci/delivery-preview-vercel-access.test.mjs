@@ -38,7 +38,7 @@ test('uses the supplied Preview token for two fixed read-only calls and emits no
 for(const [name,change] of [
   ['wrong team',x=>x.team='team_other'],['wrong project',x=>x.project='prj_other'],
   ['missing token',x=>delete x.token],['empty token',x=>x.token=''],
-  ['header injection',x=>x.token=token+'\r\nX-Test:private'],['whitespace',x=>x.token=token+' '],
+  ['header injection',x=>x.token=token+'\r\nX-Test:private'],['embedded whitespace',x=>x.token=token.slice(0,10)+' '+token.slice(10)],
   ['expired deadline',x=>x.deadlineAt=Date.now()-1],
 ]) test('rejects '+name+' before any network call',async()=>{
   const x=fixture(),t=fake();change(x);
@@ -79,4 +79,42 @@ test('absolute deadline stops a continuously active response',async()=>{
   try {await assert.rejects(verifyPreviewVercelAccess({...fixture(),deadlineAt:Date.now()+40},t.request),/PREVIEW_VERCEL_DEADLINE/);}
   finally{clearInterval(interval);}
   assert.equal(t.calls[0].req.destroyed,true);
+});
+
+test('normalizes clipboard edge whitespace without exposing or changing the opaque credential',async()=>{
+ const t=fake();const out=await verifyPreviewVercelAccess({...fixture(),token:' \r\n'+token+'\n\t '},t.request);
+ assert.equal(out.readAccessVerified,true);for(const call of t.calls)assert.equal(call.options.headers.Authorization,'Bearer '+token);
+});
+
+for(const [status,credential] of [[200,token],[401,token],[200,token+'%0A%0D%25']]) test('CLI verified credential handoff '+status+(credential===token?'':' with escaped command payload'),async()=>{
+ const fs=await import('node:fs');const path=await import('node:path');const url=await import('node:url');
+ const {spawnSync}=await import('node:child_process');
+ const root=path.dirname(url.fileURLToPath(import.meta.url));
+ const dir=fs.mkdtempSync(path.join(root,'.preview-access-test-'));
+ try {
+  const eventFile=path.join(dir,'event.json'),envFile=path.join(dir,'job-env');
+  fs.writeFileSync(eventFile,JSON.stringify({pull_request:{number:389,head:{repo:{full_name:'KenLeeYa/Stallorder-Platform'},ref:'codex/conversion-source-checks-20261023'},base:{ref:'staging'}}}));
+  const preload=path.join(dir,'transport.mjs');
+  fs.writeFileSync(preload,[
+   "import https from 'node:https';import {syncBuiltinESMExports} from 'node:module';import {EventEmitter} from 'node:events';",
+   "https.request=(options,callback)=>{const req=new EventEmitter();req.destroy=()=>{};req.end=()=>queueMicrotask(()=>{const res=new EventEmitter();res.destroy=()=>{};res.complete=true;res.headers={};res.statusCode="+status+";callback(res);res.emit('data',Buffer.from(JSON.stringify(options.path.startsWith('/v2/')?"+JSON.stringify(teamReply())+":"+JSON.stringify(projectReply())+")));res.emit('end');});return req;};syncBuiltinESMExports();",
+  ].join('\n'));
+  const run=spawnSync(process.execPath,['--import',url.pathToFileURL(preload).href,url.fileURLToPath(new URL('./delivery-preview-vercel-access.mjs',import.meta.url))],{
+   encoding:'utf8',timeout:10000,env:{...process.env,GITHUB_ACTIONS:'true',GITHUB_REPOSITORY:'KenLeeYa/Stallorder-Platform',GITHUB_EVENT_NAME:'pull_request',GITHUB_EVENT_PATH:eventFile,GITHUB_ENV:envFile,PREVIEW_RESOURCE_KEY:'pr-389',VERCEL_ORG_ID:team,VERCEL_PROJECT_ID:project,VERCEL_TOKEN:' \r\n'+credential+'\n\t '},
+  });
+  assert.equal(run.status,status===200?0:1,run.stderr);
+  if(status===200){
+   assert.equal(fs.readFileSync(envFile,'utf8'),'DELIVERY_PREVIEW_VERCEL_TOKEN='+credential+'\n');
+   const lines=run.stdout.trim().split('\n');assert.equal(lines[0],'::add-mask::'+credential.replaceAll('%','%25'));
+   assert.equal(lines.length,2);assert.equal(JSON.parse(lines[1]).readAccessVerified,true);
+   assert.equal(JSON.parse(lines[1]).deploymentPermissionProven,false);
+  }else{
+   assert.equal(fs.existsSync(envFile),false);assert.equal(run.stdout,'');
+   assert.match(run.stderr,/PREVIEW_VERCEL_HTTP_401/);assert.ok(!run.stderr.includes(credential));
+  }
+ }finally{
+  assert.equal(path.dirname(path.resolve(dir)),path.resolve(root));
+  assert.ok(path.basename(dir).startsWith('.preview-access-test-'));
+  fs.rmSync(dir,{recursive:true});
+ }
 });

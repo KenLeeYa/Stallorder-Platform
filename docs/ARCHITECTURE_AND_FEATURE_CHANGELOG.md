@@ -1,5 +1,10 @@
 ## 2026-11-05 — Proposed: native password executor qualification
 
+## 2026-11-05: Clipboard credential boundary correction
+
+Run41971413154 stopped at PREVIEW_VERCEL_INPUT before any network request or provider write. The corrected input adapter removes clipboard boundary whitespace only; embedded whitespace/control characters and wrong targets still fail. A reproducing regression first failed, then30/30 tests and lint passed. This does not retry an authorization denial: the earlier new-token attempt never contacted Vercel. Provider access still requires real successful GETs; deployment/acceptance gates are unchanged.
+
+
 ## 2026-11-05: Preview credential preflight and reviewed Edge recovery controls
 
 Status: Proposed protected installation; product b9a98a0b remains unchanged. Replace the late optional token-presence check with mandatory fixed-team/project GET verification using the same Preview token, before any provider write. Preserve environment approval, writer queue, exact product readback and all acceptance gates. Install reviewed inert Edge recovery controls and their required pure suites. Local414/414 control cases and independent26/26 permission review pass; actual provider access/recovery/release remain unproven. No timestamp extension or secret-value collection. See [source and acceptance boundaries](DELIVERY_PREVIEW_ACCESS_REVIEW.md).
@@ -233,3 +238,5 @@ Every entry must identify the affected user roles, routes/services/data/environm
 ## Maintenance rule
 
 Do not rewrite an old row to make a later rollout look complete. Append a new row when status changes, include the exact commit/tree and protected evidence, and mark the prior row superseded only when the new decision is accepted.
+
+The successful preflight masks the canonical credential and passes it only through GitHub GITHUB_ENV to the deployment step. Both GETs and every subsequent Vercel CLI call consume the same bytes; no output/artifact contains the credential. Failed preflight emits no handoff.
