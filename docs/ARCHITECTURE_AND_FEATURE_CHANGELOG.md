@@ -1,5 +1,10 @@
 # StallOrder Architecture and Feature Change Ledger
 
+## 2026-11-05: Fresh exact delivery qualification and recovery evidence
+
+The six-hour delivery qualification evidence expired while the owner repaired Preview authorization. Keep the frozen b9a98a0b product unchanged and obtain new real native-CI/security/recovery results on the existing public standard runner. Explicitly stop repeated attempts at each workflow job, matching the admission contract's existing attempt1-only rule. Original evidence timestamps/failures remain intact; no freshness extension or Production release is granted.
+
+
 <!-- LOCAL328_START -->
 ## 2026-10-18 LOCAL328 — Implemented: branch-scoped native PostgreSQL executor
 

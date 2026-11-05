@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   rehearse:
-    if: github.event.repository.private == false && github.event.repository.fork == false && github.event.forced == false && github.event.deleted == false
+    if: github.event.repository.private == false && github.event.repository.fork == false && github.event.forced == false && github.event.deleted == false && github.run_attempt == 1
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
