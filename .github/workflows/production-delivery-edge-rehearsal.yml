@@ -1,0 +1,390 @@
+# Candidate only. Do not install or dispatch until staged interruption recovery,
+# independent workflow-ID pin and source review are complete.
+name: Paired five-Edge replay and recovery acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      capture_run_id:
+        type: string
+        required: true
+      capture_job_id:
+        type: string
+        required: true
+      preview_run_id:
+        type: string
+        required: true
+      preview_deployment_id:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: stallorder-preview-pr389-writer
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    if: github.repository == 'KenLeeYa/Stallorder-Platform' && github.ref == 'refs/heads/main' && github.actor == github.repository_owner && github.triggering_actor == github.repository_owner && github.event.repository.private == false && github.event.repository.fork == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    environment: Preview
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: control
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require current protected control and identical verified staging tree
+        working-directory: control
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain)"
+          git fetch --no-tags origin main staging
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA"
+          test "$(git rev-parse 'origin/main^{tree}')" = "$(git rev-parse 'origin/staging^{tree}')"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb
+        with:
+          version: 2.109.1
+      - name: Verify fixed phase and failure admission controls
+        working-directory: control
+        run: node --test scripts/ci/delivery-edge-entry-stages.test.mjs scripts/ci/delivery-edge-rehearsal-entry.test.mjs scripts/ci/delivery-edge-intent.test.mjs scripts/ci/delivery-edge-usage-evidence.test.mjs scripts/ci/delivery-edge-usage.test.mjs scripts/ci/delivery-edge-rate-expiry.test.mjs scripts/ci/delivery-edge-usage-references.test.mjs scripts/ci/delivery-edge-phase.test.mjs scripts/ci/delivery-edge-paired-load.test.mjs scripts/ci/delivery-edge-first-run.test.mjs scripts/ci/delivery-edge-interruption-journal.test.mjs
+      - name: Reconstruct the exact product without executing it
+        run: node control/scripts/ci/delivery-candidate.mjs materialize
+      - name: Install exact product dependencies
+        working-directory: product
+        run: npm ci
+      - name: Generate exact product Prisma client
+        working-directory: product
+        run: npx --no-install prisma generate
+      - name: Capture encrypted isolated Edge preimages before any write
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          EDGE_REHEARSAL_PHASE: snapshot
+          EDGE_CAPTURE_RUN_ID: ${{ inputs.capture_run_id }}
+          EDGE_CAPTURE_JOB_ID: ${{ inputs.capture_job_id }}
+          EDGE_PREVIEW_RUN_ID: ${{ inputs.preview_run_id }}
+          EDGE_PREVIEW_DEPLOYMENT_ID: ${{ inputs.preview_deployment_id }}
+        run: node control/scripts/ci/delivery-edge-rehearsal-entry.mjs
+
+  replay-intent:
+    needs: snapshot
+    if: github.repository == 'KenLeeYa/Stallorder-Platform' && github.ref == 'refs/heads/main' && github.actor == github.repository_owner && github.triggering_actor == github.repository_owner && github.event.repository.private == false && github.event.repository.fork == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    environment: Preview
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: control
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require current protected control and identical verified staging tree
+        working-directory: control
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain)"
+          git fetch --no-tags origin main staging
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA"
+          test "$(git rev-parse 'origin/main^{tree}')" = "$(git rev-parse 'origin/staging^{tree}')"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb
+        with:
+          version: 2.109.1
+      - name: Verify fixed phase and failure admission controls
+        working-directory: control
+        run: node --test scripts/ci/delivery-edge-entry-stages.test.mjs scripts/ci/delivery-edge-rehearsal-entry.test.mjs scripts/ci/delivery-edge-intent.test.mjs scripts/ci/delivery-edge-usage-evidence.test.mjs scripts/ci/delivery-edge-usage.test.mjs scripts/ci/delivery-edge-rate-expiry.test.mjs scripts/ci/delivery-edge-usage-references.test.mjs scripts/ci/delivery-edge-phase.test.mjs scripts/ci/delivery-edge-paired-load.test.mjs scripts/ci/delivery-edge-first-run.test.mjs scripts/ci/delivery-edge-interruption-journal.test.mjs
+      - name: Persist immutable paired Edge mutation intent
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          EDGE_REHEARSAL_PHASE: replay-intent
+          EDGE_CAPTURE_RUN_ID: ${{ inputs.capture_run_id }}
+          EDGE_CAPTURE_JOB_ID: ${{ inputs.capture_job_id }}
+          EDGE_PREVIEW_RUN_ID: ${{ inputs.preview_run_id }}
+          EDGE_PREVIEW_DEPLOYMENT_ID: ${{ inputs.preview_deployment_id }}
+        run: node control/scripts/ci/delivery-edge-rehearsal-entry.mjs
+
+  replay:
+    needs: replay-intent
+    if: github.repository == 'KenLeeYa/Stallorder-Platform' && github.ref == 'refs/heads/main' && github.actor == github.repository_owner && github.triggering_actor == github.repository_owner && github.event.repository.private == false && github.event.repository.fork == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    environment: Preview
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: control
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require current protected control and identical verified staging tree
+        working-directory: control
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain)"
+          git fetch --no-tags origin main staging
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA"
+          test "$(git rev-parse 'origin/main^{tree}')" = "$(git rev-parse 'origin/staging^{tree}')"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb
+        with:
+          version: 2.109.1
+      - name: Verify fixed phase and failure admission controls
+        working-directory: control
+        run: node --test scripts/ci/delivery-edge-entry-stages.test.mjs scripts/ci/delivery-edge-rehearsal-entry.test.mjs scripts/ci/delivery-edge-intent.test.mjs scripts/ci/delivery-edge-usage-evidence.test.mjs scripts/ci/delivery-edge-usage.test.mjs scripts/ci/delivery-edge-rate-expiry.test.mjs scripts/ci/delivery-edge-usage-references.test.mjs scripts/ci/delivery-edge-phase.test.mjs scripts/ci/delivery-edge-paired-load.test.mjs scripts/ci/delivery-edge-first-run.test.mjs scripts/ci/delivery-edge-interruption-journal.test.mjs
+      - name: Apply exact paired Edge phase once and verify each postimage
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          EDGE_REHEARSAL_PHASE: replay
+          EDGE_CAPTURE_RUN_ID: ${{ inputs.capture_run_id }}
+          EDGE_CAPTURE_JOB_ID: ${{ inputs.capture_job_id }}
+          EDGE_PREVIEW_RUN_ID: ${{ inputs.preview_run_id }}
+          EDGE_PREVIEW_DEPLOYMENT_ID: ${{ inputs.preview_deployment_id }}
+        run: node control/scripts/ci/delivery-edge-rehearsal-entry.mjs
+
+  usage-archive:
+    needs: replay
+    if: github.repository == 'KenLeeYa/Stallorder-Platform' && github.ref == 'refs/heads/main' && github.actor == github.repository_owner && github.triggering_actor == github.repository_owner && github.event.repository.private == false && github.event.repository.fork == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: Preview
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: control
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require current protected control and identical verified staging tree
+        working-directory: control
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain)"
+          git fetch --no-tags origin main staging
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA"
+          test "$(git rev-parse 'origin/main^{tree}')" = "$(git rev-parse 'origin/staging^{tree}')"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb
+        with:
+          version: 2.109.1
+      - name: Verify fixed phase and failure admission controls
+        working-directory: control
+        run: node --test scripts/ci/delivery-edge-entry-stages.test.mjs scripts/ci/delivery-edge-rehearsal-entry.test.mjs scripts/ci/delivery-edge-intent.test.mjs scripts/ci/delivery-edge-usage-evidence.test.mjs scripts/ci/delivery-edge-usage.test.mjs scripts/ci/delivery-edge-rate-expiry.test.mjs scripts/ci/delivery-edge-usage-references.test.mjs scripts/ci/delivery-edge-phase.test.mjs scripts/ci/delivery-edge-paired-load.test.mjs scripts/ci/delivery-edge-first-run.test.mjs scripts/ci/delivery-edge-interruption-journal.test.mjs
+      - name: Reconstruct the exact product without executing it
+        run: node control/scripts/ci/delivery-candidate.mjs materialize
+      - name: Install exact product dependencies
+        working-directory: product
+        run: npm ci
+      - name: Generate exact product Prisma client
+        working-directory: product
+        run: npx --no-install prisma generate
+      - name: Run five real Edge calls and verify owned cleanup
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          EDGE_REHEARSAL_PHASE: usage-archive
+          EDGE_CAPTURE_RUN_ID: ${{ inputs.capture_run_id }}
+          EDGE_CAPTURE_JOB_ID: ${{ inputs.capture_job_id }}
+          EDGE_PREVIEW_RUN_ID: ${{ inputs.preview_run_id }}
+          EDGE_PREVIEW_DEPLOYMENT_ID: ${{ inputs.preview_deployment_id }}
+        run: node control/scripts/ci/delivery-edge-rehearsal-entry.mjs
+
+  restore-intent:
+    needs: usage-archive
+    if: github.repository == 'KenLeeYa/Stallorder-Platform' && github.ref == 'refs/heads/main' && github.actor == github.repository_owner && github.triggering_actor == github.repository_owner && github.event.repository.private == false && github.event.repository.fork == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    environment: Preview
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: control
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require current protected control and identical verified staging tree
+        working-directory: control
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain)"
+          git fetch --no-tags origin main staging
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA"
+          test "$(git rev-parse 'origin/main^{tree}')" = "$(git rev-parse 'origin/staging^{tree}')"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb
+        with:
+          version: 2.109.1
+      - name: Verify fixed phase and failure admission controls
+        working-directory: control
+        run: node --test scripts/ci/delivery-edge-entry-stages.test.mjs scripts/ci/delivery-edge-rehearsal-entry.test.mjs scripts/ci/delivery-edge-intent.test.mjs scripts/ci/delivery-edge-usage-evidence.test.mjs scripts/ci/delivery-edge-usage.test.mjs scripts/ci/delivery-edge-rate-expiry.test.mjs scripts/ci/delivery-edge-usage-references.test.mjs scripts/ci/delivery-edge-phase.test.mjs scripts/ci/delivery-edge-paired-load.test.mjs scripts/ci/delivery-edge-first-run.test.mjs scripts/ci/delivery-edge-interruption-journal.test.mjs
+      - name: Persist immutable paired Edge mutation intent
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          EDGE_REHEARSAL_PHASE: restore-intent
+          EDGE_CAPTURE_RUN_ID: ${{ inputs.capture_run_id }}
+          EDGE_CAPTURE_JOB_ID: ${{ inputs.capture_job_id }}
+          EDGE_PREVIEW_RUN_ID: ${{ inputs.preview_run_id }}
+          EDGE_PREVIEW_DEPLOYMENT_ID: ${{ inputs.preview_deployment_id }}
+        run: node control/scripts/ci/delivery-edge-rehearsal-entry.mjs
+
+  restore:
+    needs: restore-intent
+    if: github.repository == 'KenLeeYa/Stallorder-Platform' && github.ref == 'refs/heads/main' && github.actor == github.repository_owner && github.triggering_actor == github.repository_owner && github.event.repository.private == false && github.event.repository.fork == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    environment: Preview
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: control
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require current protected control and identical verified staging tree
+        working-directory: control
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain)"
+          git fetch --no-tags origin main staging
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA"
+          test "$(git rev-parse 'origin/main^{tree}')" = "$(git rev-parse 'origin/staging^{tree}')"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb
+        with:
+          version: 2.109.1
+      - name: Verify fixed phase and failure admission controls
+        working-directory: control
+        run: node --test scripts/ci/delivery-edge-entry-stages.test.mjs scripts/ci/delivery-edge-rehearsal-entry.test.mjs scripts/ci/delivery-edge-intent.test.mjs scripts/ci/delivery-edge-usage-evidence.test.mjs scripts/ci/delivery-edge-usage.test.mjs scripts/ci/delivery-edge-rate-expiry.test.mjs scripts/ci/delivery-edge-usage-references.test.mjs scripts/ci/delivery-edge-phase.test.mjs scripts/ci/delivery-edge-paired-load.test.mjs scripts/ci/delivery-edge-first-run.test.mjs scripts/ci/delivery-edge-interruption-journal.test.mjs
+      - name: Apply exact paired Edge phase once and verify each postimage
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          EDGE_REHEARSAL_PHASE: restore
+          EDGE_CAPTURE_RUN_ID: ${{ inputs.capture_run_id }}
+          EDGE_CAPTURE_JOB_ID: ${{ inputs.capture_job_id }}
+          EDGE_PREVIEW_RUN_ID: ${{ inputs.preview_run_id }}
+          EDGE_PREVIEW_DEPLOYMENT_ID: ${{ inputs.preview_deployment_id }}
+        run: node control/scripts/ci/delivery-edge-rehearsal-entry.mjs
+
+  usage-candidate:
+    needs: restore
+    if: github.repository == 'KenLeeYa/Stallorder-Platform' && github.ref == 'refs/heads/main' && github.actor == github.repository_owner && github.triggering_actor == github.repository_owner && github.event.repository.private == false && github.event.repository.fork == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: Preview
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: control
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require current protected control and identical verified staging tree
+        working-directory: control
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain)"
+          git fetch --no-tags origin main staging
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA"
+          test "$(git rev-parse 'origin/main^{tree}')" = "$(git rev-parse 'origin/staging^{tree}')"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb
+        with:
+          version: 2.109.1
+      - name: Verify fixed phase and failure admission controls
+        working-directory: control
+        run: node --test scripts/ci/delivery-edge-entry-stages.test.mjs scripts/ci/delivery-edge-rehearsal-entry.test.mjs scripts/ci/delivery-edge-intent.test.mjs scripts/ci/delivery-edge-usage-evidence.test.mjs scripts/ci/delivery-edge-usage.test.mjs scripts/ci/delivery-edge-rate-expiry.test.mjs scripts/ci/delivery-edge-usage-references.test.mjs scripts/ci/delivery-edge-phase.test.mjs scripts/ci/delivery-edge-paired-load.test.mjs scripts/ci/delivery-edge-first-run.test.mjs scripts/ci/delivery-edge-interruption-journal.test.mjs
+      - name: Reconstruct the exact product without executing it
+        run: node control/scripts/ci/delivery-candidate.mjs materialize
+      - name: Install exact product dependencies
+        working-directory: product
+        run: npm ci
+      - name: Generate exact product Prisma client
+        working-directory: product
+        run: npx --no-install prisma generate
+      - name: Run five real Edge calls and verify owned cleanup
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          EDGE_REHEARSAL_PHASE: usage-candidate
+          EDGE_CAPTURE_RUN_ID: ${{ inputs.capture_run_id }}
+          EDGE_CAPTURE_JOB_ID: ${{ inputs.capture_job_id }}
+          EDGE_PREVIEW_RUN_ID: ${{ inputs.preview_run_id }}
+          EDGE_PREVIEW_DEPLOYMENT_ID: ${{ inputs.preview_deployment_id }}
+        run: node control/scripts/ci/delivery-edge-rehearsal-entry.mjs
+
+  verify:
+    needs: usage-candidate
+    if: github.repository == 'KenLeeYa/Stallorder-Platform' && github.ref == 'refs/heads/main' && github.actor == github.repository_owner && github.triggering_actor == github.repository_owner && github.event.repository.private == false && github.event.repository.fork == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    environment: Preview
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: control
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require current protected control and identical verified staging tree
+        working-directory: control
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain)"
+          git fetch --no-tags origin main staging
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA"
+          test "$(git rev-parse 'origin/main^{tree}')" = "$(git rev-parse 'origin/staging^{tree}')"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb
+        with:
+          version: 2.109.1
+      - name: Verify fixed phase and failure admission controls
+        working-directory: control
+        run: node --test scripts/ci/delivery-edge-entry-stages.test.mjs scripts/ci/delivery-edge-rehearsal-entry.test.mjs scripts/ci/delivery-edge-intent.test.mjs scripts/ci/delivery-edge-usage-evidence.test.mjs scripts/ci/delivery-edge-usage.test.mjs scripts/ci/delivery-edge-rate-expiry.test.mjs scripts/ci/delivery-edge-usage-references.test.mjs scripts/ci/delivery-edge-phase.test.mjs scripts/ci/delivery-edge-paired-load.test.mjs scripts/ci/delivery-edge-first-run.test.mjs scripts/ci/delivery-edge-interruption-journal.test.mjs
+      - name: Verify restored bytes and authenticated usage receipts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          EDGE_REHEARSAL_PHASE: verify
+          EDGE_CAPTURE_RUN_ID: ${{ inputs.capture_run_id }}
+          EDGE_CAPTURE_JOB_ID: ${{ inputs.capture_job_id }}
+          EDGE_PREVIEW_RUN_ID: ${{ inputs.preview_run_id }}
+          EDGE_PREVIEW_DEPLOYMENT_ID: ${{ inputs.preview_deployment_id }}
+        run: node control/scripts/ci/delivery-edge-rehearsal-entry.mjs
