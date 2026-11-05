@@ -1,3 +1,9 @@
+## 2026-11-05 — Atomic Preview principal cleanup
+
+- Exact product remains `0d2b27144fcf589bb887e669c09e82158e3de7a2`. Control54e full CI and source security passed; its hosted principal checks completed before default Prisma cleanup failed with P2028. The failure remains recorded.
+- Replace cleanup round trips with one source-bound SQL statement in the same Serializable transaction and unchanged default timeout. Retain ownership, exact session hash, all inbound-reference refusal, foreign-bucket preservation and final zero-residue guards. No role or acceptance assertion is relaxed.
+- Validation: 42 focused tests and lint pass; independent source review found no blocking defect. Seven real isolated PostgreSQL SQL cases passed with rolled-back fixtures; post-readback is zero. This does not substitute for the pending real Prisma transport and hosted Preview acceptance.
+- Reconciled run41995267475 owned four-row residue using exact preimages at09:15Z, followed by independent zero readback. No Production release or merchant delivery reopening.
 
 ## 2026-11-05 — Preview principal failure and cleanup diagnostics (Candidate)
 

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import { assertIsolatedStorageQa } from "./qa-primary-only-storage";
+import { buildPreviewPrincipalCleanupSql } from "./qa-preview-principal-cleanup";
 
 type ProbeStage = "preflight" | "version" | "anonymous-denial" | "foreign-before" | "fixture-create"
   | "principal-response" | "remove-admin" | "non-admin-denial" | "revoke-session" | "revoked-denial"
@@ -133,21 +134,7 @@ export async function verifyPreviewDatabasePrincipal(db: PrismaClient, input: In
   } finally {
     stage = "cleanup";
     await db.$transaction(async tx => {
-      const owned = await tx.profile.findUnique({ where: { id: profileId }, select: { email: true, authUserId: true } });
-      if (owned) {
-        assert.ok(owned.email === email && owned.authUserId === null, "PREVIEW_PRINCIPAL_CLEANUP_OWNERSHIP");
-        await tx.auditLog.deleteMany({ where: { actorProfileId: profileId, action: "AUTHORIZATION_DENIED", entityType: "PLATFORM_BILLING" } });
-        await tx.rateLimitBucket.deleteMany({ where: { key: bucketKey, scope: "platform-billing-api" } });
-        await tx.authSession.deleteMany({ where: { id: sessionId, profileId, tokenHash } });
-        // Check before profile deletion: SET NULL / CASCADE must not conceal leftovers.
-        assert.equal(await tx.auditLog.count({ where: { actorProfileId: profileId } }), 0, "PREVIEW_PRINCIPAL_CLEANUP_INCOMPLETE");
-        assert.equal(await tx.authSession.count({ where: { profileId } }), 0, "PREVIEW_PRINCIPAL_CLEANUP_INCOMPLETE");
-        await tx.profile.delete({ where: { id: profileId } });
-      }
-      assert.equal(await tx.profile.count({ where: { id: profileId } }), 0, "PREVIEW_PRINCIPAL_CLEANUP_INCOMPLETE");
-      assert.equal(await tx.authSession.count({ where: { id: sessionId } }), 0, "PREVIEW_PRINCIPAL_CLEANUP_INCOMPLETE");
-      assert.equal(await tx.rateLimitBucket.count({ where: { key: bucketKey } }), 0, "PREVIEW_PRINCIPAL_CLEANUP_INCOMPLETE");
-      assert.equal(await tx.auditLog.count({ where: { actorProfileId: profileId } }), 0, "PREVIEW_PRINCIPAL_CLEANUP_INCOMPLETE");
+      await tx.$executeRawUnsafe(buildPreviewPrincipalCleanupSql({ profileId, sessionId, tokenHash }));
     }, { isolationLevel: "Serializable" });
     stage = "foreign-after";
     assert.equal(await foreignBuckets(), foreignBefore, "PREVIEW_PRINCIPAL_FOREIGN_BUCKET_CHANGED");

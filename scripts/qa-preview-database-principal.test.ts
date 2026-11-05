@@ -87,7 +87,14 @@ function fixture(fault?: "before-commit" | "after-commit" | "principal" | "extra
     authSession: {update:vi.fn(async () => {revoked=true;}),deleteMany:vi.fn(async () => {session=false;}),count:vi.fn(async()=>Number(session)+Number(extraSession))},
     rateLimitBucket: {deleteMany:vi.fn(async () => {bucket=false;}),count:vi.fn(async()=>bucket?1:0)},
     auditLog: {deleteMany:vi.fn(async () => {audit=false;}),count:vi.fn(async()=>Number(audit)+Number(extraAudit))},
-    $transaction: async (fn:(tx:unknown)=>Promise<void>) => fn(db),
+    $executeRawUnsafe: vi.fn(async () => {
+      // This fixture models the all-or-nothing SQL outcome; SQL itself also
+      // requires actual PostgreSQL acceptance before release.
+      if(extraAudit || extraSession) throw Error("PREVIEW_PRINCIPAL_CLEANUP_INCOMPLETE");
+      profile=null; session=false; bucket=false; audit=false;
+      return 0;
+    }),
+    $transaction: vi.fn(async (fn:(tx:unknown)=>Promise<void>) => fn(db)),
   };
   const fetchImpl=vi.fn<typeof fetch>(async (url, init) => {
     calls.push(String(url));
@@ -109,6 +116,14 @@ describe("owned isolated principal probe lifecycle", () => {
     expect(receipt).toMatchObject({anonymousDenied:true,nonAdminDenied:true,revokedSessionDenied:true,ownedProbeCleanupVerified:true,foreignRateBucketsPreserved:true,productionRuntimeVerified:false});
     expect(f.empty()).toBe(true);expect(f.fetchImpl).toHaveBeenCalledTimes(5);
     expect(JSON.stringify(receipt)).not.toContain("synthetic-test-only");
+  });
+  it("uses one server statement within the existing Serializable transaction without extending its timeout",async()=>{
+    enable();const f=fixture();
+    await verifyPreviewDatabasePrincipal(f.db,input,f.fetchImpl);
+    expect(f.db.$executeRawUnsafe).toHaveBeenCalledTimes(1);
+    expect(f.db.$transaction).toHaveBeenCalledWith(expect.any(Function),{isolationLevel:"Serializable"});
+    expect(f.db.profile.findUnique).not.toHaveBeenCalled();
+    expect(f.db.profile.delete).not.toHaveBeenCalled();
   });
   it.each(["before-commit","after-commit","principal"] as const)("reconciles owned fixture after %s failure",async fault=>{
     enable();const f=fixture(fault);
