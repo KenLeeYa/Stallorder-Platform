@@ -4,7 +4,7 @@ import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 const project='prj_uoG4FNJIgnF1LdKRiXnfRaieXnUP';
 const team='team_MMfsiG94K9Zy3e6w7Ccc9xY4';
-const commit='b9a98a0bff0490c04b2295e4bcfb2b7781774c91';
+const commit='b043052d564f102945aef72bb866a08d831e335f';
 export function previewPublicOrigins(value){
  if(value===undefined)return 'http://127.0.0.1:3000';
  assert.ok(typeof value==='string'&&!/[\x00-\x1f\x7f]/.test(value),'PREVIEW_ORIGIN_INVALID');

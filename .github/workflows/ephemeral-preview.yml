@@ -33,7 +33,7 @@ jobs:
       PREVIEW_BRANCH_NAME: pr-389-oauth-delivery
       PREVIEW_RESOURCE_KEY: pr-389
       PREVIEW_GIT_BRANCH: codex/conversion-source-checks-20261023
-      DELIVERY_PRODUCT_COMMIT: b9a98a0bff0490c04b2295e4bcfb2b7781774c91
+      DELIVERY_PRODUCT_COMMIT: b043052d564f102945aef72bb866a08d831e335f
       NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
       ALLOW_DEMO_SEED: "false"
     steps:

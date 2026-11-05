@@ -240,3 +240,7 @@ Every entry must identify the affected user roles, routes/services/data/environm
 Do not rewrite an old row to make a later rollout look complete. Append a new row when status changes, include the exact commit/tree and protected evidence, and mark the prior row superseded only when the new decision is accepted.
 
 The successful preflight masks the canonical credential and passes it only through GitHub GITHUB_ENV to the deployment step. Both GETs and every subsequent Vercel CLI call consume the same bytes; no output/artifact contains the credential. Failed preflight emits no handoff.
+
+## 2026-11-05 Exact Preview origin successor
+
+The frozen delivery product is b043052d564f102945aef72bb866a08d831e335f (tree bab38fe323aa9888737f1476c955a23eff1e57f9), 45 paths over Production4e95. Six source/test paths bind Preview proxy and tracking validation to canonical provider VERCEL_URL while preserving Production env semantics and strict Edge allowlisting. Paired deployment41972431491 demonstrated repaired Vercel credentials but exposed the previous loopback Origin403; its failed result is retained. Fresh full native qualification/security and paired acceptance are required for this new product. Local31/31 product tests and independent review pass; no Production release, merchant reopening or fee change.
