@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {EDGE_SLUGS} from './delivery-edge-recovery.mjs';
-import {rehearseIsolatedEdgeRecovery} from './delivery-edge-rehearsal.mjs';
+import {rehearseIsolatedEdgeRecovery,inspectInterruptedPairedRecovery} from './delivery-edge-rehearsal.mjs';
+import {createUsageFixture} from './delivery-edge-usage-fixture.mjs';
 function record(slug, label, index) {
   const bytes = Buffer.from('EZBRsynthetic-' + label + '-' + slug), sha256 = createHash('sha256').update(bytes).digest('hex');
   return {slug, wireBase64: bytes.toString('base64'), wireSha256: sha256, metadata: {
@@ -28,8 +29,9 @@ function fixture() {
   const verifyUsage = async () => {
     calls.push({usage: true});
     for (const r of archive.functions) assert.equal(state.get(r.slug).wireSha256, r.wireSha256);
+    return true;
   };
-  return {archive, read, apply, verifyUsage, original, state, calls};
+  return {archive, preimages: [...structuredClone(original).values()], read, apply, verifyUsage, original, state, calls};
 }
 function restored(x, except) {
   for (const [slug, before] of x.original) if (slug !== except) {
@@ -37,6 +39,47 @@ function restored(x, except) {
     assert.deepEqual({...actual.metadata, version: before.metadata.version}, before.metadata);
   }
 }
+function interruptedFixture() {
+  const x=fixture();
+  x.snapshot={schema:'stallorder-paired-edge-preimage/v2',project:'teunnvfakbfzmodajqjz',
+    controlCommit:'a'.repeat(40),runId:'123',runAttempt:1,archiveSha256:'b'.repeat(64),
+    startedAt:'2026-11-05T07:00:00.000Z',finishedAt:'2026-11-05T07:00:01.000Z',
+    functions:x.preimages,replayTargets:x.archive.functions.map(r=>({slug:r.slug,wireSha256:r.wireSha256,
+      entrypoint_path:r.metadata.entrypoint_path,import_map_path:r.metadata.import_map_path,import_map:r.metadata.import_map??null})),
+    usageFixtures:[createUsageFixture('123'),createUsageFixture('123')],releaseAuthorized:false};
+  return x;
+}
+test('interruption inspection only identifies exact replay postimages and never writes',async()=>{
+  const x=interruptedFixture();for(const record of x.archive.functions)await x.apply({project:'teunnvfakbfzmodajqjz',record});
+  x.calls.length=0;
+  const result=await inspectInterruptedPairedRecovery(x);
+  assert.equal(result.recoveryOnly,true);assert.equal(result.releaseAuthorized,false);
+  assert.equal(result.productQualified,false);assert.equal(result.candidates.length,5);
+  assert.equal(result.cleanupVerified,false);
+  assert.equal(x.calls.filter(c=>c.apply).length,0);assert.equal(x.calls.some(c=>c.usage),false);
+  for(const record of x.preimages)await x.apply({project:'teunnvfakbfzmodajqjz',record});
+  x.calls.length=0;const after=await inspectInterruptedPairedRecovery(x);
+  assert.equal(after.restored.length,5);assert.equal(after.candidates.length,0);
+  assert.equal(after.cleanupVerified,false);assert.equal(x.calls.filter(c=>c.apply).length,0);
+});
+test('an incomplete journal cannot prove an unchanged function was never attempted',async()=>{
+  const x=interruptedFixture();for(const record of x.archive.functions.slice(1))await x.apply({project:'teunnvfakbfzmodajqjz',record});
+  x.calls.length=0;const out=await inspectInterruptedPairedRecovery(x);
+  assert.equal(out.unresolved.length,1);assert.equal(out.candidates.length,4);
+  assert.equal(out.cleanupVerified,false);assert.equal(x.calls.filter(c=>c.apply).length,0);
+});
+test('interruption inspection leaves unknown same-content versions and configuration unresolved',async()=>{
+  for(const change of [r=>{r.metadata.version=99;},r=>{r.metadata.unknown_config={foreign:true};}]) {
+    const x=interruptedFixture();for(const record of x.archive.functions)await x.apply({project:'teunnvfakbfzmodajqjz',record});
+    const slug=EDGE_SLUGS[2];change(x.state.get(slug));const foreign=structuredClone(x.state.get(slug));x.calls.length=0;
+    const out=await inspectInterruptedPairedRecovery(x);assert.equal(out.unresolved.length,1);
+    assert.deepEqual(x.state.get(slug),foreign);assert.equal(x.calls.filter(c=>c.apply).length,0);
+  }
+});
+test('interruption inspection rejects an unbound or incomplete backup before reads',async()=>{
+  const x=interruptedFixture();delete x.snapshot.usageFixtures;
+  await assert.rejects(()=>inspectInterruptedPairedRecovery(x));assert.equal(x.calls.length,0);
+});
 test('captures all five before writing, verifies real usage, then restores exact owned bytes in reverse', async () => {
   const x = fixture(), out = await rehearseIsolatedEdgeRecovery(x);
   assert.deepEqual(x.calls.slice(0, 5), EDGE_SLUGS.map(read => ({read})));
@@ -56,6 +99,17 @@ test('restores all owned changes after affected-flow failure', async () => {
   const x = fixture();
   await assert.rejects(rehearseIsolatedEdgeRecovery({...x, verifyUsage: async () => {throw new Error('private fixture');}}), e => e.message === 'EDGE_REHEARSAL_FAILED' && e.receipt.cleanupVerified && !JSON.stringify(e).includes('private fixture'));
   restored(x);
+});
+test('rejects a false usage verdict and restores all attempted functions', async () => {
+  const x = fixture();
+  await assert.rejects(rehearseIsolatedEdgeRecovery({...x, verifyUsage: async () => false}),
+    e => e.message === 'EDGE_REHEARSAL_FAILED' && e.receipt.cleanupVerified && !e.receipt.usageVerified);
+  restored(x);
+});
+test('refuses changed durable preimages before the first mutation', async () => {
+  const x = fixture(); x.preimages.at(-1).metadata.version--;
+  await assert.rejects(rehearseIsolatedEdgeRecovery(x), e => e.message === 'EDGE_REHEARSAL_FAILED');
+  assert.equal(x.calls.filter(call => call.apply).length, 0); restored(x);
 });
 test('retains foreign changed state and reports incomplete cleanup while restoring other owned functions', async () => {
   const x = fixture(), slug = EDGE_SLUGS[1], foreign = record(slug, 'foreign', 1);
@@ -91,6 +145,13 @@ test('does not overwrite an ambiguous failure with more than one version transit
   }}), e => e.message === 'EDGE_REHEARSAL_CLEANUP_REQUIRED');
   assert.equal(x.calls.filter(c => c.apply).length, 1);
 });
+test('an unsettled PATCH still at its preimage is unresolved, never proven clean by waiting or readback',async()=>{
+  const x=fixture();let attempted=0;
+  await assert.rejects(rehearseIsolatedEdgeRecovery({...x,apply:async()=>{
+    attempted++;throw Error('timeout before provider settlement');
+  }}),error=>error.message==='EDGE_REHEARSAL_CLEANUP_REQUIRED'&&!error.receipt.cleanupVerified);
+  assert.equal(attempted,1);restored(x);
+});
 for (const [name, change] of [
   ['foreign archive project', x => x.archive.project = 'foreign'],
   ['wrong schema', x => x.archive.schema = 'other'],
@@ -98,6 +159,8 @@ for (const [name, change] of [
   ['duplicate function', x => x.archive.functions[1] = x.archive.functions[0]],
   ['unbound archive bytes', x => x.archive.functions[0].wireBase64 = Buffer.from('changed').toString('base64')],
   ['missing usage verifier', x => x.verifyUsage = null],
+  ['missing durable preimages', x => x.preimages = undefined],
+  ['duplicate durable preimage', x => x.preimages[1] = x.preimages[0]],
 ]) test('rejects invalid source before network: ' + name, async () => {
   const x = fixture(); change(x); await assert.rejects(rehearseIsolatedEdgeRecovery(x), /EDGE_REHEARSAL_FAILED/);
   assert.equal(x.calls.length, 0);
