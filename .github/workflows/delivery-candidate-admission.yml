@@ -9,8 +9,8 @@ on:
       - scripts/ci/delivery-admission.test.mjs
       - scripts/ci/delivery-qualification.mjs
       - scripts/ci/delivery-qualification.test.mjs
-      - scripts/ci/delivery-qualification-run17-source.json
-      - scripts/ci/delivery-reviewed-run17-scan.json
+      - scripts/ci/delivery-qualification-run18-source.json
+      - scripts/ci/delivery-reviewed-run18-scan.json
 
 permissions:
   contents: read
@@ -40,6 +40,6 @@ jobs:
       - name: Authenticate full verification and reviewed source-security evidence
         env:
           GH_TOKEN: ${{ github.token }}
-          DELIVERY_QUALIFICATION_CONTRACT_SHA256: 2556f2cf9d780088b454da0aaa55056cd68d5a3bc2b33949e08afb2bd133aa84
-          DELIVERY_SECURITY_REVIEW_SHA256: 5996e1c6aa0f87e016d4a0b4990aaf85c28b487b53a2294f3652e1e04e67f15a
+          DELIVERY_QUALIFICATION_CONTRACT_SHA256: 3936489e3c41d52a2acfff30d488bbd4c7a50aab1313731c248d1c5cf0e0f1ce
+          DELIVERY_SECURITY_REVIEW_SHA256: 79153a0a96b4f5eda41678658916c4531acee88e11d34609ae3c0cbfdcfb0420
         run: node control/scripts/ci/delivery-admission.mjs

@@ -124,3 +124,7 @@ Every entry must identify the affected user roles, routes/services/data/environm
 ## Maintenance rule
 
 Do not rewrite an old row to make a later rollout look complete. Append a new row when status changes, include the exact commit/tree and protected evidence, and mark the prior row superseded only when the new decision is accepted.
+
+## 2026-11-05 Run18 exact delivery admission
+
+Bind fresh immutable Run18 verification and the complete independently reviewed SARIF. The original security result remains failure with 14 bounded false positives; the reviewed admission checks every result, extraction, immutable workflow/product and final provider state. Six-hour freshness remains measured from run creation. Production executor privileges, paired Edge recovery and live release qualification remain separate and releaseAuthorized remains false. Product 0d2b27144fcf589bb887e669c09e82158e3de7a2 is unchanged.
