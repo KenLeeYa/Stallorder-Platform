@@ -51,7 +51,7 @@ export function verifyPreviewInvocation(v) {
  } else {
   assert.equal(v.event,'pull_request'); assert.equal(v.headRepo,v.repository);
   assert.ok(Number.isSafeInteger(v.number)&&v.number>0);
-  assert.ok((v.number===389 && v.headBranch===PREVIEW_BINDING.gitBranch && v.baseBranch==='staging')
+  assert.ok((v.number===390 && v.headBranch===PREVIEW_BINDING.gitBranch && v.baseBranch==='staging')
    || (v.headBranch==='staging' && v.baseBranch==='main'),'unapproved installation source');
  }
  return {resourceKey:'pr-389',projectRef:PREVIEW_BINDING.project};

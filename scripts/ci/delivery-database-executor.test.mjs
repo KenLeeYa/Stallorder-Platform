@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { collectExecutor, verifyExecutorSnapshot } from './delivery-database-executor.mjs';
+import { collectExecutor, verifyExecutorSnapshot, executorFailureCode } from './delivery-database-executor.mjs';
 
 const plan = JSON.parse(readFileSync(new URL('./delivery-executor-contract.json', import.meta.url)));
 const now = Date.parse('2026-11-04T20:00:00.000Z');
@@ -79,4 +79,23 @@ test('database-password mode rejects JIT options and mismatched executor authent
  const changed=structuredClone(plan);changed.database.executor.authentication='jit';
  assert.throws(()=>collectExecutor({connection,endpoint,plan:changed,invoke}),/AUTHENTICATION/);
  assert.equal(calls,0);
+});
+
+test('native failures expose only fixed diagnostic categories, never psql stderr or credentials',()=>{
+ const endpoint={projectId:plan.database.projectId,hostname:'aws-fixture.pooler.supabase.com',port:'5432',username:'postgres.'+plan.database.projectId,database:'postgres'};
+ const connection='postgresql://'+endpoint.username+':synthetic-secret@'+endpoint.hostname+':5432/postgres?sslmode=require&connect_timeout=10';
+ for(const [stderr,code] of [
+  ['FATAL: password authentication failed for user postgres synthetic-secret','DELIVERY_EXECUTOR_AUTH_REJECTED'],
+  ['connection to server failed: Connection timed out synthetic-secret','DELIVERY_EXECUTOR_CONNECTION_FAILED'],
+  ['ERROR: permission denied for schema app_private synthetic-secret','DELIVERY_EXECUTOR_PERMISSION_REJECTED'],
+  ['unexpected synthetic-secret','DELIVERY_EXECUTOR_QUERY_FAILED'],
+ ]) {
+  let failure;try{collectExecutor({connection,endpoint,plan,invoke:()=>{throw Object.assign(new Error(connection),{stderr:Buffer.from(stderr)});}});}catch(error){failure=error;}
+  assert.equal(executorFailureCode(failure),code);assert.ok(!String(failure).includes('synthetic-secret'));assert.equal(failure.cause,undefined);
+ }
+ for(const [output,code] of [['synthetic-secret','DELIVERY_EXECUTOR_OUTPUT_INVALID'],[JSON.stringify({...snapshot(),superuser:true,observedAt:new Date().toISOString()}),'DELIVERY_EXECUTOR_SNAPSHOT_REJECTED']]) {
+  let failure;try{collectExecutor({connection,endpoint,plan,invoke:()=>output});}catch(error){failure=error;}
+  assert.equal(executorFailureCode(failure),code);
+ }
+ assert.equal(executorFailureCode(new Error('DELIVERY_EXECUTOR_AUTH_REJECTED synthetic-secret')),null);
 });
