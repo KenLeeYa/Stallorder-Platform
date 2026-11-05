@@ -14,8 +14,8 @@ const bundle = () => ({
   commit: readFileSync(new URL('commit.txt', dir)),
 });
 
-test('accept the frozen 45-path product, independent of control commit', () => {
-  assert.equal(validateSourceBundle(bundle()).tree, 'bab38fe323aa9888737f1476c955a23eff1e57f9');
+test('accept the frozen 46-path product, independent of control commit', () => {
+  assert.equal(validateSourceBundle(bundle()).tree, '403431450581d02a465e1719ece41f581d58b123');
 });
 test('reject altered patch bytes before Git or dependency execution', () => {
   const value = bundle(); value.patch = Buffer.concat([value.patch, Buffer.from('\n')]);

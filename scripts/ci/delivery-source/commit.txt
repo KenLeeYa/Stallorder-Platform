@@ -1,8 +1,8 @@
-tree bab38fe323aa9888737f1476c955a23eff1e57f9
+tree 403431450581d02a465e1719ece41f581d58b123
 parent 4e95d2ea5d53ae78c5af9c3db044481237674c44
-author KenLeeYa <ada76145@gmail.com> 1793858030 +0800
-committer KenLeeYa <ada76145@gmail.com> 1793858030 +0800
+author KenLeeYa <ada76145@gmail.com> 1793860700 +0800
+committer KenLeeYa <ada76145@gmail.com> 1793860700 +0800
 
-fix(delivery): bind isolated Preview function requests to deployment origin
+fix: retain canonical tracking checks in isolated native Preview
 
-Includes the reviewed delivery-hours and expired-history candidate plus necessary security updates. Production behavior preserved; exact successor requires fresh qualification.
+Require explicit local-only origin opt-in with all runtime endpoints on loopback; hosted Preview still requires canonical provider identity.
