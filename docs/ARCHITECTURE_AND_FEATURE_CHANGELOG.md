@@ -1,3 +1,11 @@
+## 2026-11-05 — Qualification lifetime diagnostics and fresh exact-product validation
+
+The original six-hour qualification lifetime starts at the native run creation, not job completion or a later metadata observation. Retain that exact fail-closed boundary and report `DELIVERY_QUALIFICATION_EXPIRED` with the original `createdAt`/`expiresAt` in successful receipts. The native exact-product workflow now runs the related regression before materializing the unchanged product `0d2b27144fcf589bb887e669c09e82158e3de7a2`. Every existing build, DB, browser, source-security and owned-cleanup gate remains required.
+
+Run17 was created 2026-11-05T07:13:46Z and expired at 13:13:46Z. The production DB secret metadata confirms the owner update at 13:49:26Z; capture42039693096 stopped at the expired qualification gate before any DB connection, so the new password is untested. A fresh native push/attempt1 execution and its complete source scan/review must be authenticated and installed before another protected capture. No expiry extension, Production product mutation, delivery reopening or new fee was authorized by these diagnostics.
+
+Local tests first reproduced four missing-diagnostic failures, then 88/88 qualification/admission/expiry tests passed. Independent review and hosted results are recorded separately; `releaseAuthorized=false`.
+
 ## 2026-11-05 — Exact product Run17 authenticated admission (Candidate)
 
 Bind product0d2b27144fcf589bb887e669c09e82158e3de7a2 / tree e3c02e6b0ecf37526a77ff9c6eb4eb2111411ef0 to native run41985742680, verify127109297704 and security127109297191. All118 dedicated checks and the full native verify job passed. Complete immutable SARIF has14 independently reviewed false positives and0unresolved; raw security failure remains preserved. Authenticated source/job/log and final metadata readback are required; no stale Run13 evidence is substituted.

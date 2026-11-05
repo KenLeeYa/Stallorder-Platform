@@ -58,6 +58,35 @@ test('qualifies exact successful verify evidence while retaining raw scan failur
   assert.equal(r.verificationPassed, true); assert.equal(r.releaseAuthorized, false);
   assert.equal(r.productionRuntimeVerified, false); assert.equal(r.sourceRunConclusion, 'failure');
 });
+test('reports the original run creation and six-hour expiry without re-dating evidence', () => {
+  const f = fixture();
+  const r = verifyDeliveryQualification({ ...f.input, log: f.encode() });
+  assert.equal(r.createdAt, f.input.run.created_at);
+  assert.equal(r.expiresAt, '2026-11-05T01:40:00.000Z');
+  assert.equal(r.completedAt, f.input.job.completed_at);
+  assert.equal(r.releaseAuthorized, false);
+});
+test('accepts the original six-hour boundary and rejects one millisecond after it', () => {
+  const f = fixture();
+  f.input.now = Date.parse(f.input.run.created_at) + 6 * 3600_000;
+  assert.equal(verifyDeliveryQualification({ ...f.input, log: f.encode() }).verificationPassed, true);
+  f.input.now += 1;
+  assert.throws(() => verifyDeliveryQualification({ ...f.input, log: f.encode() }),
+    { code: 'DELIVERY_QUALIFICATION_EXPIRED' });
+});
+test('a recent job completion cannot renew an old run creation time', () => {
+  const f = fixture();
+  f.input.run.created_at = '2026-11-04T13:00:00Z';
+  assert.throws(() => verifyDeliveryQualification({ ...f.input, log: f.encode() }),
+    { code: 'DELIVERY_QUALIFICATION_EXPIRED' });
+});
+test('fresh metadata observation cannot renew the same expired execution', () => {
+  const f = fixture();
+  f.input.now = Date.parse(f.input.run.created_at) + 6 * 3600_000;
+  verifyDeliveryQualification({ ...f.input, log: f.encode() });
+  assert.throws(() => verifyDeliveryQualification({ ...f.input, log: f.encode(), now: f.input.now + 1 }),
+    { code: 'DELIVERY_QUALIFICATION_EXPIRED' });
+});
 for (const [name, mutate] of [
   ['wrong source', f => { f.input.run.head_sha = 'f'.repeat(40); }],
   ['private repository', f => { f.input.run.repository.private = true; }],

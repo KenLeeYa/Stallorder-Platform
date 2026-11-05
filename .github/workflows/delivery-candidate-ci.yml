@@ -14,6 +14,8 @@ on:
       - scripts/ci/delivery-edge-readiness.test.mjs
       - scripts/ci/delivery-expiry-evidence.mjs
       - scripts/ci/delivery-expiry-evidence.test.mjs
+      - scripts/ci/delivery-qualification.mjs
+      - scripts/ci/delivery-qualification.test.mjs
       - scripts/ci/delivery-security-native.test.mjs
       - scripts/ci/delivery-security-capture.mjs
       - scripts/ci/delivery-security-capture.test.mjs
@@ -57,6 +59,7 @@ jobs:
           node --test scripts/ci/delivery-candidate.test.mjs
           node --test scripts/ci/delivery-edge-readiness.test.mjs
           node --test scripts/ci/delivery-expiry-evidence.test.mjs
+          node --test scripts/ci/delivery-qualification.test.mjs
           node scripts/ci/delivery-candidate.mjs materialize
       - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb
         with:
