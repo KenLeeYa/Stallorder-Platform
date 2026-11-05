@@ -1,0 +1,58 @@
+{
+  "schema": "stallorder-delivery-executor-contract/v1",
+  "productCommit": "0d2b27144fcf589bb887e669c09e82158e3de7a2",
+  "productTree": "e3c02e6b0ecf37526a77ff9c6eb4eb2111411ef0",
+  "database": {
+    "projectId": "eyuctbnlvnbnivwasvqr",
+    "migration": {
+      "version": "20261029090000",
+      "sha256": "adf00cba767ae8aac8f057a8003e40e67be04558d09bc0f0ca8774648db88bb2"
+    },
+    "functions": [
+      {
+        "signature": "app_private.issue_order_session_with_schedule_targeted(text,text,text,text,text,text,text,text)",
+        "definitionSha256": "f58e2713a8c02df28ed4d7e31e5c0bd91f4fd07ce5a54c6aca0c4ecdeef5591e",
+        "owner": "postgres",
+        "acl": [
+          "postgres=X/postgres"
+        ]
+      },
+      {
+        "signature": "create_public_order_legacy(uuid,text,text,text,text,text,text,uuid,text,text,text,jsonb,text,text,text)",
+        "definitionSha256": "129efcf4061f1b7787bce04b1917d02fd4f39ccafcc7a5a621690c7bea0654a2",
+        "owner": "postgres",
+        "acl": [
+          "postgres=X/postgres",
+          "service_role=X/postgres"
+        ]
+      },
+      {
+        "signature": "issue_order_session_with_schedule(text,text,text,text,text,text,text,text)",
+        "definitionSha256": "31a8930e32d52d6868752b2f705783fe19d5ebf78e80b1728c7446894abe76dc",
+        "owner": "postgres",
+        "acl": [
+          "postgres=X/postgres",
+          "service_role=X/postgres"
+        ]
+      },
+      {
+        "signature": "public_order_preflight(text,text,text,text,text,text,text,text,text,uuid,text,timestamp with time zone,uuid,jsonb,boolean,text)",
+        "definitionSha256": "eb5db772f8eb25618a32fef9daa96990457adbe01eafbe88d8ca8f56cc2d06fa",
+        "owner": "postgres",
+        "acl": [
+          "postgres=X/postgres",
+          "service_role=X/postgres"
+        ]
+      }
+    ],
+    "helperSignature": "public.delivery_ordering_unavailable_code(uuid,timestamptz)",
+    "executor": {
+      "name": "postgres",
+      "superuser": false,
+      "bypassRls": true,
+      "authentication": "database-password"
+    },
+    "nextPrincipal": "postgres",
+    "serverVersionNum": 170006
+  }
+}

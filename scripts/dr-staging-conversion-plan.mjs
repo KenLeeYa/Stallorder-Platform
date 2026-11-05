@@ -45,7 +45,8 @@ export function requireConversionInvocation() {
 
 export async function verifyConversionSourceChecks() {
   const main = conversionRequired("GITHUB_SHA");
-  const staging = execFileSync("git", ["rev-parse", "origin/staging"], { encoding: "utf8" }).trim();
+  const staging = execFileSync("git", ["rev-parse", "origin/staging"], { encoding: "utf8",
+    env: Object.fromEntries(Object.entries(process.env).filter(([key]) => ["PATH", "SYSTEMROOT"].includes(key.toUpperCase()))) }).trim();
   return verifySourceCheckShas(main, staging);
 }
 

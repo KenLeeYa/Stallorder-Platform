@@ -42,6 +42,7 @@ jobs:
     timeout-minutes: 25
     environment: production
     env:
+      APP_BASE_URL: ${{ vars.APP_BASE_URL }}
       VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
     steps:
@@ -109,6 +110,14 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: node scripts/retire-primary-dr-runtime.mjs plan
 
+      - name: Capture qualified exact application recovery Plan
+        if: ${{ !inputs.retire_dr_runtime }}
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: node scripts/production-application-recovery-plan.mjs plan
+
       - name: Create immutable Production application Plan receipt
         env:
           PRODUCTION_APPROVAL_OPERATION: production-application
@@ -123,6 +132,7 @@ jobs:
           path: |
             artifacts/production-application-approval.json
             artifacts/primary-dr-runtime-plan.json
+            artifacts/production-application-recovery-plan.json
           if-no-files-found: error
           retention-days: 1
 
@@ -201,6 +211,10 @@ jobs:
         if: inputs.retire_dr_runtime
         run: node scripts/retire-primary-dr-runtime.mjs parameters
 
+      - name: Bind normal Apply to its exact recovery snapshot
+        if: ${{ !inputs.retire_dr_runtime }}
+        run: node scripts/production-application-recovery-plan.mjs parameters
+
       - name: Verify application approval is bound to the immutable Plan
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -215,6 +229,14 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: node scripts/retire-primary-dr-runtime.mjs verify
+
+      - name: Reverify normal Primary recovery before any provider write
+        if: ${{ !inputs.retire_dr_runtime }}
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: node scripts/production-application-recovery-plan.mjs verify
 
       - name: Validate protected Production application configuration
         env:
@@ -302,6 +324,8 @@ jobs:
 
       - name: Promote approved application deployment and smoke Production
         env:
+          RETIRE_DR_RUNTIME: ${{ inputs.retire_dr_runtime }}
+          GITHUB_TOKEN: ${{ github.token }}
           PRODUCTION_BASE_URL: ${{ vars.APP_BASE_URL }}
           PRODUCTION_TEST_QR_REQUIRED: "true"
           PRODUCTION_TEST_QR_URL: ${{ secrets.PRODUCTION_TEST_QR_URL }}
@@ -309,26 +333,67 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          promoted=false
-          rollback_on_error() {
-            if [ "$promoted" = "true" ]; then
-              echo "::warning::Production smoke failed; rolling back the Vercel alias."
-              if [ -n "${RETIREMENT_RECOVERY_DEPLOYMENT:-}" ]; then
-                vercel rollback "$RETIREMENT_RECOVERY_DEPLOYMENT" --yes --token "$VERCEL_TOKEN"
-              else
-                vercel rollback --yes --token "$VERCEL_TOKEN"
+          if [ "$RETIRE_DR_RUNTIME" = "true" ]; then
+            test -n "${RETIREMENT_RECOVERY_DEPLOYMENT:-}"
+            promoted=false
+            rollback_on_error() {
+              if [ "$promoted" = "true" ]; then
+                echo "::warning::Production smoke failed; rolling back the Vercel alias."
+                if [ -n "${RETIREMENT_RECOVERY_DEPLOYMENT:-}" ]; then
+                  vercel rollback "$RETIREMENT_RECOVERY_DEPLOYMENT" --yes --token "$VERCEL_TOKEN"
+                fi
               fi
+            }
+            trap rollback_on_error ERR
+            vercel promote "$APPROVED_PRODUCTION_DEPLOYMENT" --yes --token "$VERCEL_TOKEN"
+            promoted=true
+            npm run production:smoke
+            trap - ERR
+            exit 0
+          fi
+          node scripts/production-application-recovery-plan.mjs verify
+          node scripts/production-application-target.mjs candidate artifacts/application-candidate.json artifacts/production-application-baseline.json
+          promote_rc=0
+          vercel promote "$APPROVED_PRODUCTION_DEPLOYMENT" --yes --token "$VERCEL_TOKEN" || promote_rc=$?
+          # A timeout/CLI failure is unknown until this exact provider job is terminal.
+          # Alias matches and elapsed time never authorize a second write.
+          node scripts/production-application-target.mjs settled artifacts/application-promotion-settled.json artifacts/application-candidate.json
+          result=$promote_rc
+          if [ "$result" = 0 ]; then
+            node scripts/production-application-target.mjs promoted artifacts/application-promoted.json artifacts/production-application-baseline.json || result=$?
+          fi
+          if [ "$result" = 0 ]; then npm run production:smoke || result=$?; fi
+          if [ "$result" != 0 ]; then
+            node scripts/production-application-recovery-plan.mjs verify-recovery
+            if node scripts/production-application-target.mjs unchanged artifacts/application-unchanged.json artifacts/production-application-baseline.json; then
+              npm run production:smoke
+              exit "$result"
             fi
-          }
-          trap rollback_on_error ERR
-          vercel promote "$APPROVED_PRODUCTION_DEPLOYMENT" --yes --token "$VERCEL_TOKEN"
-          promoted=true
-          npm run production:smoke
-          trap - ERR
+            node scripts/production-application-target.mjs recoverable artifacts/application-recovery-admission.json artifacts/production-application-baseline.json artifacts/application-promotion-settled.json
+            # Exactly one explicit recovery attempt. Failure/timeout stops without retry.
+            recovery_rc=0
+            vercel promote "$RELEASE_ROLLBACK_DEPLOYMENT" --yes --token "$VERCEL_TOKEN" || recovery_rc=$?
+            # Read-only reconciliation even after a nonzero CLI result; never retry the write.
+            node scripts/production-application-target.mjs recovered artifacts/application-recovered.json artifacts/production-application-baseline.json artifacts/application-promotion-settled.json
+            npm run production:smoke
+            if [ "$recovery_rc" != 0 ]; then exit "$recovery_rc"; fi
+            exit "$result"
+          fi
 
       - name: Retire only planned Production DR bindings after live smoke
         if: inputs.retire_dr_runtime
         run: node scripts/retire-primary-dr-runtime.mjs retire
+
+      - name: Preserve exact application target and recovery receipts
+        if: ${{ always() && !inputs.retire_dr_runtime }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: application-target-readback-${{ github.run_id }}
+          path: |
+            artifacts/production-application-baseline.json
+            artifacts/application-*.json
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Create immutable successful application release evidence
         env:

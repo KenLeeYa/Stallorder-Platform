@@ -3,9 +3,10 @@ import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { assertIsolatedStorageQa } from "./qa-primary-only-storage";
+import { previewPublicOrigins } from "./ci/delivery-preview-deployment.mjs";
 
 type Input = Parameters<typeof assertIsolatedStorageQa>[0] & {
-  token: string; abuseSecret: string; tokenSecret: string;
+  token: string; abuseSecret: string; tokenSecret: string; publicOrigin?: string;
 };
 
 export async function configurePreviewOrderRuntime(input: Input, fetchImpl: typeof fetch = fetch) {
@@ -15,7 +16,7 @@ export async function configurePreviewOrderRuntime(input: Input, fetchImpl: type
   const values = {
     ABUSE_HASH_SECRET: input.abuseSecret, TOKEN_DERIVATION_SECRET: input.tokenSecret,
     TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA", APP_ENV: "test",
-    TURNSTILE_ALLOW_TEST_KEYS: "true", PUBLIC_APP_ORIGINS: "http://127.0.0.1:3000",
+    TURNSTILE_ALLOW_TEST_KEYS: "true", PUBLIC_APP_ORIGINS: previewPublicOrigins(input.publicOrigin),
     TRUSTED_CLIENT_IP_HEADER: "cf-connecting-ip",
   };
   const url = `https://api.supabase.com/v1/projects/${input.ref}/secrets`;
@@ -46,6 +47,7 @@ if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.m
       parentRef: required("SUPABASE_PARENT_PROJECT_REF"), supabaseUrl: required("NEXT_PUBLIC_SUPABASE_URL"),
       databaseUrl: required("DATABASE_URL"), token: required("SUPABASE_ACCESS_TOKEN"),
       abuseSecret: required("ABUSE_HASH_SECRET"), tokenSecret: required("TOKEN_DERIVATION_SECRET"),
+      publicOrigin: process.env.PREVIEW_ORDER_BASE_URL,
     });
     console.log("PASS: independent Preview order secrets provisioned and digest-verified.");
   })().catch(() => {

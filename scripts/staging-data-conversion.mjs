@@ -52,7 +52,7 @@ function cli(args, { database = false } = {}) {
   const result = spawnSync("supabase", args, { encoding: "utf8", timeout: 600_000,
     maxBuffer: 8 * 1024 * 1024, env: database ? scopedDatabaseEnvironment(process.env) : process.env });
   // Never emit captured SQL, connection strings, values or provider error bodies.
-  assert.equal(result.status, 0, "STAGING_SUPABASE_COMMAND_FAILED");
+  if (result.error || result.status !== 0) throw new Error("STAGING_SUPABASE_COMMAND_FAILED");
   return `${result.stdout}${result.stderr}`;
 }
 

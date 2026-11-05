@@ -66,3 +66,26 @@ describe("isolated Preview public-order runtime", () => {
       .toContain("scripts/qa-preview-public-order.ts");
   });
 });
+
+it("provisions the exact hosted origin while preserving paired secrets", async () => {
+  const publicOrigin = "https://stallorder-platform-test123-ada76145-8663s-projects.vercel.app";
+  let values: Array<{ name: string; value: string }> = [];
+  const provider = vi.fn(async (_url: string | URL | Request, options?: RequestInit) => {
+    if (options?.method === "POST") {
+      values = JSON.parse(String(options.body));
+      return Response.json({});
+    }
+    return Response.json(values.map(({ name, value }) => ({
+      name, value: createHash("sha256").update(value).digest("hex"),
+    })));
+  });
+  await configurePreviewOrderRuntime({ ...input, publicOrigin }, provider);
+  expect(provider).toHaveBeenCalledTimes(2);
+  expect(values.find(value => value.name === "PUBLIC_APP_ORIGINS")?.value).toBe(publicOrigin);
+  expect(values.find(value => value.name === "TOKEN_DERIVATION_SECRET")?.value).toBe(input.tokenSecret);
+});
+it("rejects a Production origin before any provider request", async () => {
+  const provider = vi.fn();
+  await expect(configurePreviewOrderRuntime({ ...input, publicOrigin: "https://app.qidaigo.com" }, provider)).rejects.toThrow();
+  expect(provider).not.toHaveBeenCalled();
+});

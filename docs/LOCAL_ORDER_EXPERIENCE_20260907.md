@@ -53,3 +53,20 @@ npx playwright test e2e/local-order-experience.spec.ts e2e/qr-edit-local-flow.sp
 - Vitest：餐具字串往返／長度、特殊營業時間／時區跨日、公開公告店家範圍／未知店家／錯誤遮蔽、服務不可用、音效重複判斷、非中文呈現。
 
 測試僅建立與清除自己的本機訂單、商品、QR，並恢復暫時調整的營業時間。硬體音效／列印輸出不在本機 Chromium 通過的證明範圍內。本文件與本機通過不代表正式部署完成。
+
+## 2026-10-25 店休撤回測試的最小修補
+
+PR389 / `40bfe42d` 的 CI `40196069455` 因撤回店休後公告未在 10 秒內消失而失敗；內建 retry 通過仍由 fail-on-flaky 正確擋下。本輪僅授權既有 owned worktree 診斷、最小修補及本機驗證，未發布。
+
+原始案例在新的隔離本機 Supabase／Next production build 重跑五次（retries 0），得到 4 PASS、1 FAIL，重現相同斷言。失敗 trace 顯示舊快照被放行後，下一個 closure GET 未取得 response；另五次原測試的 protocol 診斷皆通過，其中四次仍觀察到 `Fetch.disable` 與下一個 request/pause 重疊。這支持測試的一次性攔截器生命週期競態，但原 CI 沒有 trace，因此不宣稱已證明其內部唯一根因。
+
+最小候選僅改 `e2e/local-order-experience.spec.ts` 的 response barrier：以布林旗標只延遲第一份真實舊快照，後續請求 `route.continue()`，讓攔截器持續到測試 context 結束。不製造空回應、不加 sleep、不延長 timeout、不增加 retry、不放寬 flaky gate，也不修改產品刷新佇列。
+
+- 修補後壓測先有 5 PASS，第六次碰到既有下單 fixture 的 429，剩餘 4 次未執行；不得記成 10 PASS。沒有清除 rate-limit counter 或停用 guard。
+- 反向驗證暫時移除產品 `refreshPending`：修補後的原案例仍在同一 10 秒斷言 FAIL（expected 0 / actual 1），證明仍能抓到漏刷新。產品檔立即還原，SHA-256 `19e0163a134e6a68db6a2ed3e9c184f8abf80963c91707ec1622c519971d01fc`，`src` diff 為空。
+- 重建還原後的 production build 101 頁通過；原檔兩項完整 E2E 均 PASS（retries 0）：Staff 新單音效回歸，以及店休四寬度／焦點／保留訂單／撤回公告。最終 trace 可見舊回應 200、closure 1，隨後真實 API 200、closure 0。
+- 相關七檔 51 單元測試、TypeScript、scoped lint、diff check、production guardrails（2368 檔／146 migrations）通過。獨立審查零未處理問題；完整遠端 CI、普通 Chrome、Staging／Production 驗收未執行。
+
+專用 lab `dr-staging-closure-20261025` 的 146 migrations 只用於新的合成 DB。Edge 原始 node_modules 掛載遇 bare-import boot error，改用同一隔離 lab 的 `/workspace` 掛載後才啟動；瀏覽器額外測試 IP header 仍使 Edge CORS 被擋，頁面使用真實 API/DB fallback。因此這不是 Edge 瀏覽器成功證據。Service Worker 在這份自動化案例內依原設定 blocked，也不是普通 Chrome/SW 驗收。
+
+測試後獨立讀回本次 QR／商品／店休／feature override／訂單五類 fixture 全為 0。七個 lab 容器均已停止，容器、images、DB／Edge volumes 保留；專用 CLI 與 app/mock process 已結束。既有 LINE `127.0.0.1:56863` 保持運作，未停止 Docker Engine。詳細收據與 trace 在 ignored `artifacts/dr-staging-closure-fix-20261025/verification.md`。本機通過不解除原 CI STOP；secret、發布與受保護驗證仍待明確後續指示。

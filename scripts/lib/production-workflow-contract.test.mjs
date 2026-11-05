@@ -12,6 +12,7 @@ const drOperatorEntryScript = read("scripts/manage-dr-operator-entry.mjs");
 const drOperatorEntryLib = read("scripts/lib/dr-operator-entry.mjs");
 const drVercel = JSON.parse(read("vercel.dr.json"));
 const ephemeralPreview = read(".github/workflows/ephemeral-preview.yml");
+const previewBinding = read("scripts/ci/delivery-preview-binding.mjs");
 const statusPage = read(".github/workflows/status-page-deploy.yml");
 const drSmoke = read("scripts/run-dr-readonly-smoke.mjs");
 const drInitialization = read("scripts/initialize-production-dr.mjs");
@@ -608,16 +609,17 @@ describe("Production workflow approval contract", () => {
     expect(vercel.git.deploymentEnabled).toEqual({ main: false });
   });
 
-  it("waits for the hosted branch action and stable database before Preview migrations", () => {
+  it("requires the exact existing isolated branch and stable database before Preview migrations", () => {
     expect(ephemeralPreview).toContain("timeout-minutes: 50");
-    expect(ephemeralPreview).toContain("preview_project_status");
-    expect(ephemeralPreview).toContain("ACTIVE_HEALTHY|MIGRATIONS_FAILED");
-    expect(ephemeralPreview).toContain(
-      '[ "$preview_project_status" = "ACTIVE_HEALTHY" ]',
-    );
+    expect(previewBinding).toContain("preview_project_status:'ACTIVE_HEALTHY'");
+    expect(previewBinding).toContain("is_default:false,persistent:false,with_data:false");
+    expect(previewBinding).toContain("['ACTIVE_HEALTHY','MIGRATIONS_FAILED']");
+    expect(ephemeralPreview).not.toContain("supabase branches create");
+    expect(ephemeralPreview).toContain("group: stallorder-preview-pr389-writer");
+    expect(ephemeralPreview).toContain("cancel-in-progress: false");
 
     const branchCreation = ephemeralPreview.indexOf(
-      "name: Create or reuse data-less Preview Branch",
+      "name: Verify the one existing data-less Preview Branch",
     );
     const branchConfiguration = ephemeralPreview.indexOf(
       "name: Load and mask Preview Branch configuration",
@@ -636,9 +638,11 @@ describe("Production workflow approval contract", () => {
 
     expect(branchCreation).toBeGreaterThan(-1);
     expect(branchCreation).toBeLessThan(branchConfiguration);
-    expect(branchCreationStep).toContain("--region ap-southeast-1");
-    expect(branchCreationStep).toContain("--size nano");
-    expect(branchCreationStep).toContain("for attempt in $(seq 1 60); do");
+    expect(branchCreationStep).toContain("supabase branches list");
+    expect(branchCreationStep).toContain("node scripts/ci/delivery-preview-binding.mjs branches");
+    expect(ephemeralPreview.slice(branchConfiguration, stability)).toContain(
+      "node scripts/ci/delivery-preview-binding.mjs config",
+    );
     expect(stability).toBeGreaterThan(-1);
     expect(stability).toBeLessThan(migrations);
     expect(stabilityStep).toContain("for attempt in $(seq 1 60); do");
@@ -709,15 +713,16 @@ describe("Production workflow approval contract", () => {
     );
 
     expect(ephemeralPreview).toContain(
-      "PREVIEW_GIT_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}",
+      "PREVIEW_GIT_BRANCH: codex/conversion-source-checks-20261023",
     );
-    expect(deployPreview).toContain(
-      'git switch -C "$PREVIEW_GIT_BRANCH" "$preview_head"',
-    );
+    expect(deployPreview).toContain('git branch --show-current');
+    expect(deployPreview).toContain('node ../control/scripts/ci/delivery-preview-source.mjs product');
+    expect(deployPreview).toContain('node ../control/scripts/ci/delivery-preview-deployment.mjs');
+    expect(deployPreview).toContain('--meta "githubCommitSha=$DELIVERY_PRODUCT_COMMIT"');
     expect(deployPreview).toContain(
       "Vercel did not attach the matching Preview to the requested Git branch.",
     );
-    expect(deployPreview).toContain('--meta "githubDeployment=1"');
+    expect(deployPreview).not.toContain('--meta "githubDeployment=1"');
     expect(deployPreview).toContain(
       '--meta "githubCommitRef=$PREVIEW_GIT_BRANCH"',
     );
@@ -759,23 +764,21 @@ describe("Production workflow approval contract", () => {
     expect(fixture).toContain("'OAUTH_IDENTITY_FOUNDATION_ENABLED', 'OAUTH_LINE_ENABLED'");
   });
 
-  it("deletes every metadata-matched Preview URL and verifies cleanup", () => {
-    const cleanupStart = ephemeralPreview.indexOf(
-      "name: Remove closed Pull Request Vercel Previews",
-    );
-    const cleanupEnd = ephemeralPreview.indexOf(
-      "name: Remove closed Pull Request Preview Branch",
-    );
-    const cleanup = ephemeralPreview.slice(cleanupStart, cleanupEnd);
-
+  it("retains borrowed paired resources while preserving owned fixture cleanup", () => {
+    const retain = workflowJob(ephemeralPreview, "retain-delivery-preview");
+    expect(retain).toContain("github.event.action == 'closed'");
+    expect(retain).toContain("no creation or resource deletion is authorized");
+    expect(retain).not.toContain("secrets.");
+    expect(ephemeralPreview).not.toContain("supabase branches delete");
+    expect(ephemeralPreview).not.toMatch(/vercel[^\n]* remove /u);
+    const cleanupStart = ephemeralPreview.indexOf("      - name: Clean reusable Preview-only fixture state");
+    const cleanupEnd = ephemeralPreview.indexOf("      - name:", cleanupStart + 1);
     expect(cleanupStart).toBeGreaterThan(-1);
     expect(cleanupEnd).toBeGreaterThan(cleanupStart);
-    expect(cleanup).toContain(".deployments[]?.url // empty");
-    expect(cleanup).toContain('vercel@58.3.0 remove "$deployment_url"');
-    expect(cleanup.match(/\.deployments \| type/gu)).toHaveLength(2);
-    expect(cleanup).toContain(".deployments | length == 0");
-    expect(cleanup).toContain("verifying final state");
-    expect(cleanup).toContain("--limit 100");
+    const cleanup = ephemeralPreview.slice(cleanupStart, cleanupEnd);
+    expect(cleanup).toContain("if: always() && env.EPHEMERAL_DATABASE_URL != ''");
+    expect(cleanup).toContain('--db-url "$EPHEMERAL_DATABASE_URL"');
+    expect(cleanup).toContain("--file supabase/fixtures/delivery_mock_preview_cleanup.sql");
     expect(cleanup).not.toContain("|| true");
   });
 

@@ -147,7 +147,7 @@ export default async function PublicStorefrontPage({ params, searchParams }: Pag
         searchParams={query}
         locale={displayLocale}
       />
-      {view === "menu" && menu ? <PublicMenuView menu={menu} locale={displayLocale} /> : null}
+      {view === "menu" && menu ? <PublicMenuView identifier={resolution.canonicalIdentifier} menu={menu} locale={displayLocale} /> : null}
       {view === "pickup" && pickupMenu && pickupQrToken ? (
         <QrOrderFlow
           qrToken={pickupQrToken}

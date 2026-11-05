@@ -103,6 +103,28 @@ describe("synthetic Staging provider isolation", () => {
       PRIMARY_SUPABASE_SECRET_KEY: "private", DR_DIRECT_URL: "private", SUPABASE_ACCESS_TOKEN: "private" }))
       .toEqual({ PATH: "tools", PGSSLMODE: "require" });
   });
+  it.each([
+    ["nonzero exit", { status: 1 }],
+    ["missing executable", { status: null, error: { code: "ENOENT" } }],
+    ["timeout", { status: null, error: { code: "ETIMEDOUT" } }],
+    ["signal termination", { status: null, signal: "SIGTERM" }],
+    ["spawn error despite zero status", { status: 0, error: { code: "EIO" } }],
+  ])("preserves an exact sanitized failure code for %s before any seed or follow-up command", async (_name, failure) => {
+    vi.stubEnv("DR_DIRECT_URL", "postgresql://postgres.daeqwtpaxcebmtwxqdkj@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require");
+    const network = vi.fn(() => { throw new Error("unexpected follow-up request"); });
+    vi.stubGlobal("fetch", network);
+    vi.mocked(spawnSync).mockReturnValue({
+      stdout: "Resetting remote database; fixture-password",
+      stderr: "postgresql://private.invalid/secret; SQL: private statement",
+      ...failure,
+    });
+
+    // Apply accepts only an exact STAGING_* message. A substring assertion misses
+    // Node AssertionError's appended actual/expected values and the lost code.
+    await expect(resetAndSeedStaging()).rejects.toMatchObject({ message: "STAGING_SUPABASE_COMMAND_FAILED" });
+    expect(spawnSync).toHaveBeenCalledTimes(1);
+    expect(network).not.toHaveBeenCalled();
+  });
   it("runs every hosted SQL test in bounded batches without extending command deadlines", async () => {
     vi.stubEnv("DR_DIRECT_URL", "postgresql://postgres.daeqwtpaxcebmtwxqdkj@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require");
     vi.stubEnv("SUPABASE_ACCESS_TOKEN", "unit-test-only");
