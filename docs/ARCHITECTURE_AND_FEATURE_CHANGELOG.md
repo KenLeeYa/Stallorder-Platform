@@ -1,3 +1,7 @@
+## 2026-11-05 — PR390 exact installation admission
+
+PR389 and promotion PR387 have merged. Transfer only the fixed installation PR number from389 to390 for the same owner repository, existing codex/conversion-source-checks-20261023 branch and staging target. Retain the exact existing pr-389-oauth-delivery resource, all project/parent/region/config checks, source guards and shared writer queue. Old PR389 and arbitrary other PR numbers are rejected. The reproducing two cases failed before the one-literal change;58 binding tests and lint now pass. Fresh hosted qualification is required. No new resource, product release, protection change or merchant reopening.
+
 ## 2026-11-05 — Protected Primary executor diagnostics
 
 The first protected capture on main3259 (run42020275493/job127220999098) failed during the read-only database-password probe with a generic error; encrypted Edge capture was skipped. No Production mutation or merchant reopening occurred. Add fixed failing-stage and native-error categories without printing connection strings, credentials, arbitrary stderr, exception messages or causes. Preserve all exact target, source, function/ACL, role, time and read-only requirements. 52 focused regression cases and lint passed; remote cause is not yet established. Product0d2 remains unchanged. New protected installation and actual capture remain required.
