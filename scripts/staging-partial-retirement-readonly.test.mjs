@@ -24,6 +24,12 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
 describe("protected diagnostic entry", () => {
+  it("rejects unknown evidence modes before any network without historical fallback", async () => {
+    for (const mode of ["auto", "", "consumed-plan-history-v2", "../plan"]) {
+      expect(await runProtectedPartialReadOnly({ mode })).toMatchObject({ status: "failed", phase: "mode" });
+    }
+    expect(fetch).not.toHaveBeenCalled();
+  });
   function observations() {
     const before = {
       sources: { diagnosticOnly: true, planQualified: false, sourceSha: sha, stagingSha: "b".repeat(40), tree: "c".repeat(40),
@@ -164,7 +170,11 @@ describe("protected diagnostic entry", () => {
 
   it("has a manual protected main-only workflow with no production write capabilities or private uploads", () => {
     const workflow = yaml.load(readFileSync(new URL("../.github/workflows/dr-staging-partial-proof.yml", import.meta.url), "utf8"));
-    expect(workflow.on).toEqual({ workflow_dispatch: null });
+    expect(workflow.on.workflow_dispatch.inputs.evidence_mode).toEqual({
+      description: "Explicit evidence transport; never renews the consumed Plan",
+      type: "choice", required: true, default: "current-artifact",
+      options: ["current-artifact", "consumed-plan-history-v1"],
+    });
     expect(workflow.permissions).toEqual({ contents: "read", actions: "read" });
     expect(workflow.concurrency).toEqual({ group: "production-dr-operations", "cancel-in-progress": false });
     const job = workflow.jobs["readonly-proof"];
@@ -176,6 +186,10 @@ describe("protected diagnostic entry", () => {
       .toHaveLength(1);
     const proof = job.steps.find(s => s.run === "node scripts/staging-partial-retirement-readonly.mjs");
     expect(proof.env.DR_BACKUP_ENCRYPTION_KEY).toBe("${{ secrets.DR_BACKUP_ENCRYPTION_KEY }}");
+    expect(proof.env.PARTIAL_PROOF_EVIDENCE_MODE).toBe("${{ inputs.evidence_mode }}");
+    expect(proof.env.DR_STAGING_CONSUMED_PLAN_39944190461_ZIP_BASE64).toBe("${{ inputs.evidence_mode == 'consumed-plan-history-v1' && secrets.DR_STAGING_CONSUMED_PLAN_39944190461_ZIP_BASE64 || '' }}");
+    expect(job.steps.find(s => s.name === "Validate diagnostic entry and reader contracts").run)
+      .toContain("scripts/staging-plan-history.test.mjs");
     expect(JSON.stringify(job)).not.toMatch(/DB_PASSWORD|continue-on-error|download-artifact|supabase db reset|convert-dr-to-staging|production-dr-apply/);
     expect(job.steps.find(s => s.name === "Stop exact isolated copy").if).toBe("always()");
     const create = job.steps.find(s => s.name === "Create fresh isolated copy").run;

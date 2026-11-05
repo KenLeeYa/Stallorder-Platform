@@ -1,7 +1,7 @@
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { expect, test, type Page, type Response } from "@playwright/test";
+import { expect, test, type Page, type Request, type Response } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { derivePublicOrderTokens } from "../supabase/functions/_shared/crypto";
 import {
@@ -34,6 +34,63 @@ let originalSettings: {
 const temporarilyDisabledPrinterIds: string[] = [];
 const createdOrderIds: string[] = [];
 const createdClosureIds: string[] = [];
+
+async function readOrderSessionIdentity(request: Request, closureExpected = false) {
+  try {
+    const input: unknown = request.postDataJSON();
+    const response = await request.response();
+    if (!response || !input || typeof input !== "object") throw new Error();
+    const payload: unknown = await response.json();
+    if (!payload || typeof payload !== "object") throw new Error();
+    const { sessionRequestId, includeMenu } = input as Record<string, unknown>;
+    const { orderSessionToken, expiresAt } = payload as Record<string, unknown>;
+    if (typeof sessionRequestId !== "string" || !sessionRequestId.trim()
+      || typeof includeMenu !== "boolean") throw new Error();
+    const requestIdHash = createHash("sha256").update(sessionRequestId).digest("hex");
+    if (response.status() === 409 && (payload as Record<string, unknown>).code === "STALL_SPECIAL_CLOSURE") {
+      // This exact preflight denial occurs before session issuance. Only permit
+      // it for a request observed while this case is creating/holding a closure.
+      if (!closureExpected || includeMenu
+        || Object.hasOwn(payload, "orderSessionToken") || Object.hasOwn(payload, "expiresAt")) throw new Error();
+      return { status: 409, requestIdHash, includeMenu, closureDenied: true as const };
+    }
+    if (typeof orderSessionToken !== "string" || !orderSessionToken.trim()
+      || typeof expiresAt !== "string" || !Number.isFinite(Date.parse(expiresAt))) throw new Error();
+    return {
+      status: response.status(),
+      requestIdHash,
+      tokenHash: createHash("sha256").update(orderSessionToken).digest("hex"),
+      expiresAt,
+      includeMenu,
+      closureDenied: false as const,
+    };
+  } catch {
+    // Never expose a session token or raw request/response body in failure logs.
+    throw new Error("Unable to verify order session identity from a completed request.");
+  }
+}
+
+async function expectPreservedOrderSession(
+  requests: Array<{ request: Request; closureExpected: boolean }>,
+  initial: Awaited<ReturnType<typeof readOrderSessionIdentity>>,
+) {
+  if (initial.closureDenied) throw new Error("The initial order session must be created.");
+  const identities = await Promise.all(requests.map(observed => (
+    readOrderSessionIdentity(observed.request, observed.closureExpected)
+  )));
+  expect(identities.filter(identity => identity.status === 201)).toHaveLength(1);
+  for (const [index, identity] of identities.entries()) {
+    expect(identity.requestIdHash).toBe(initial.requestIdHash);
+    if (identity.closureDenied) {
+      expect(index).toBeGreaterThan(0);
+      continue;
+    }
+    expect(identity.status).toBe(index === 0 ? 201 : 200);
+    if (index > 0) expect(identity.includeMenu).toBe(false);
+    expect(identity.tokenHash).toBe(initial.tokenHash);
+    expect(identity.expiresAt).toBe(initial.expiresAt);
+  }
+}
 
 async function acknowledgeSettingsFeedback(page: Page, message: string) {
   const dialog = page.getByRole("dialog", { name: "操作已完成", exact: true });
@@ -809,120 +866,148 @@ test.describe("單店員 KDS／列印分流與公休公告", () => {
     }
   });
 
-  test("單日公休同步顯示於公開 Menu 與 QR，且顧客無法下單", async ({
+  test("已開啟的 Menu 與 QR 同步新增、更新及撤回公休且不重新導覽", async ({
     browser,
   }, testInfo) => {
     test.setTimeout(180_000);
     const today = taipeiDate();
     const closureTitle = `${runMarker} 今日公休`;
+    const updatedTitle = `${closureTitle} 更新`;
     const closureMessage = "設備保養，明日恢復營業。";
+    const originalBusinessHours = await prisma.stallBusinessHour.findMany({
+      where: { organizationId, stallId },
+      orderBy: { dayOfWeek: "asc" },
+      select: { id: true, opensAt: true, closesAt: true, lastOrderAt: true, isClosed: true },
+    });
+    expect(originalBusinessHours).toHaveLength(7);
     const ownerContext = await browser.newContext({
       locale: "zh-TW",
       timezoneId: "Asia/Taipei",
     });
+    const customerContext = await browser.newContext({
+      locale: "zh-TW",
+      timezoneId: "Asia/Taipei",
+      viewport: { width: 390, height: 844 },
+    });
     try {
+      // Keep this closure-refresh case independent of the seeded 17:00-23:00
+      // schedule. Restore the exact captured hours even if browser QA fails.
+      const openedHours = await prisma.stallBusinessHour.updateMany({
+        where: { organizationId, stallId, id: { in: originalBusinessHours.map((hour) => hour.id) } },
+        data: { opensAt: "00:00", closesAt: "00:00", lastOrderAt: null, isClosed: false },
+      });
+      expect(openedHours.count).toBe(7);
       const ownerPage = await ownerContext.newPage();
       await login(ownerPage, "owner@stallorder.test", /\/merchant\/dashboard/);
-      await ownerPage.goto(
-        `/merchant/stalls/${stallId}/settings/special-hours`,
-      );
-      await ownerPage
-        .getByRole("button", { name: "新增特殊營業日", exact: true })
-        .click();
-      const closureEditor = ownerPage.getByRole("dialog", {
-        name: "特殊營業時間／店休",
-      });
-      await closureEditor.getByLabel("開始日期").fill(today);
-      await closureEditor.getByLabel("結束日期").fill(today);
-      await closureEditor
-        .getByRole("button", { name: /^關閉 僅限所選日期/u })
-        .click();
-      await closureEditor.getByLabel("公告標題").fill(closureTitle);
-      await closureEditor.getByLabel("補充說明（選填）").fill(closureMessage);
+      await ownerPage.goto(`/merchant/stalls/${stallId}/settings/special-hours`);
+      const menuPage = await customerContext.newPage();
+      const qrPage = await customerContext.newPage();
+      let closureExpected = false;
+      const sessionRequests: Array<{ request: Request; closureExpected: boolean }> = [];
+      const trackSessionRequest = (request: Request) => {
+        if (request.method() === "POST" && new URL(request.url()).pathname.endsWith("/create-order-session")) sessionRequests.push({ request, closureExpected });
+      };
+      qrPage.on("request", trackSessionRequest);
+      // Both customer documents must predate every merchant mutation below.
+      await menuPage.goto("/store/aming-01?view=menu");
+      await qrPage.goto(`/q/${qrToken}`);
+      const publicBanner = menuPage.getByTestId("public-menu-special-closure");
+      const qrMain = qrPage.locator("main:visible").last();
+      const qrBanner = qrMain.getByTestId("qr-special-closure");
+      const qrProduct = qrMain.getByRole("article").filter({ hasText: product.name });
+      const selection = qrProductSelectionControl(qrProduct, product.name);
+      await expect(publicBanner).toHaveCount(0);
+      await expect(qrBanner).toHaveCount(0);
+      await expect(selection).toBeEnabled();
+      await expect.poll(() => sessionRequests.length).toBe(1);
+      const initialSessionIdentity = await readOrderSessionIdentity(sessionRequests[0].request);
+      expect(initialSessionIdentity.status).toBe(201);
+      const menuDocument = await menuPage.evaluate(() => performance.timeOrigin);
+      const qrDocument = await qrPage.evaluate(() => performance.timeOrigin);
+
+      await ownerPage.getByRole("button", { name: "新增特殊營業日", exact: true }).click();
+      const editor = ownerPage.getByRole("dialog", { name: "特殊營業時間／店休" });
+      await editor.getByLabel("開始日期").fill(today);
+      await editor.getByLabel("結束日期").fill(today);
+      await editor.getByRole("button", { name: /^關閉 僅限所選日期/u }).click();
+      await editor.getByLabel("公告標題").fill(closureTitle);
+      await editor.getByLabel("補充說明（選填）").fill(closureMessage);
       const createResponsePromise = waitForClosureCommand(ownerPage, "CREATE");
-      await closureEditor
-        .getByRole("button", { name: "儲存", exact: true })
-        .click();
+      closureExpected = true;
+      await editor.getByRole("button", { name: "儲存", exact: true }).click();
       const createResponse = await createResponsePromise;
       expect(createResponse.status()).toBe(200);
-      const createPayload = (await createResponse.json()) as {
-        closures: Array<{ id: string; title: string }>;
-      };
-      const closureId = createPayload.closures.find(
-        (closure) => closure.title === closureTitle,
-      )?.id;
+      const createPayload = await createResponse.json() as { closures: Array<{ id: string; title: string }> };
+      const closureId = createPayload.closures.find(closure => closure.title === closureTitle)?.id;
       expect(closureId).toEqual(expect.any(String));
       createdClosureIds.push(closureId!);
-      await expect(
-        ownerPage.getByRole("article").filter({ hasText: closureTitle }),
-      ).toBeVisible();
       await acknowledgeSettingsFeedback(ownerPage, "特殊營業日已新增。");
 
-      const customerContext = await browser.newContext({
-        locale: "zh-TW",
-        timezoneId: "Asia/Taipei",
-        viewport: { width: 390, height: 844 },
-      });
-      try {
-        const customerPage = await customerContext.newPage();
-        await customerPage.goto("/store/aming-01?view=menu");
-        const publicBanner = customerPage.getByTestId(
-          "public-menu-special-closure",
-        );
-        await expect(publicBanner).toContainText(closureTitle);
-        await expect(publicBanner).toContainText(closureMessage);
-        await expect(customerPage.getByRole("main")).toContainText(
-          product.name,
-        );
+      await menuPage.bringToFront();
+      await expect(publicBanner).toContainText(closureTitle, { timeout: 45_000 });
+      await expect(publicBanner).toContainText(closureMessage);
+      await expect(menuPage.getByRole("main")).toContainText(product.name);
+      await qrPage.bringToFront();
+      await expect(qrBanner).toContainText(closureTitle, { timeout: 45_000 });
+      await expect(qrBanner).toContainText(closureMessage);
+      await expect(selection).toBeDisabled();
+      await expect(qrMain.getByTestId("qr-mobile-cart-summary")).toHaveCount(0);
 
-        await customerPage.goto(`/q/${qrToken}`);
-        const qrMain = customerPage.locator("main:visible").last();
-        const qrBanner = qrMain.getByTestId("qr-special-closure");
-        await expect(qrBanner).toContainText(closureTitle);
-        await expect(qrBanner).toContainText(closureMessage);
-        const qrProduct = qrMain
-          .getByRole("article")
-          .filter({ hasText: product.name });
-        await expect(
-          qrProductSelectionControl(qrProduct, product.name),
-        ).toBeDisabled();
-        await expect(qrMain.getByTestId("qr-mobile-cart-summary")).toHaveCount(
-          0,
-        );
-        await expect(customerPage.locator("[data-nextjs-dialog]")).toHaveCount(
-          0,
-        );
-        await customerPage.screenshot({
-          path: testInfo.outputPath("qr-special-closure-mobile.png"),
-          fullPage: true,
-        });
-      } finally {
-        await customerContext.close();
-      }
+      await ownerPage.getByRole("article").filter({ hasText: closureTitle }).getByRole("button").click();
+      await editor.getByLabel("公告標題").fill(updatedTitle);
+      const updateResponsePromise = waitForClosureCommand(ownerPage, "UPDATE");
+      await editor.getByRole("button", { name: "儲存變更", exact: true }).click();
+      expect((await updateResponsePromise).status()).toBe(200);
+      const savedDialog = ownerPage.getByRole("dialog", { name: "操作已完成", exact: true });
+      await savedDialog.getByRole("button", { name: "我知道了", exact: true }).click();
+      await menuPage.bringToFront();
+      await expect(publicBanner).toContainText(updatedTitle, { timeout: 45_000 });
+      await qrPage.bringToFront();
+      await expect(qrBanner).toContainText(updatedTitle, { timeout: 45_000 });
+      await expect(selection).toBeDisabled();
+      await expect(qrPage.locator("[data-nextjs-dialog]")).toHaveCount(0);
+      await qrPage.screenshot({ path: testInfo.outputPath("qr-special-closure-mobile.png"), fullPage: true });
 
-      const closureArticle = ownerPage
-        .getByRole("article")
-        .filter({ hasText: closureTitle });
-      await closureArticle.getByRole("button").click();
-      const editEditor = ownerPage.getByRole("dialog", {
-        name: "特殊營業時間／店休",
-      });
-      await editEditor
-        .getByRole("button", { name: "刪除此設定", exact: true })
-        .click();
-      const deleteDialog = ownerPage.getByRole("dialog", {
-        name: "確定刪除這筆特殊營業日設定？",
-      });
+      const article = ownerPage.getByRole("article").filter({ hasText: updatedTitle });
+      await article.getByRole("button").click();
+      await editor.getByRole("button", { name: "刪除此設定", exact: true }).click();
+      const deleteDialog = ownerPage.getByRole("dialog", { name: "確定刪除這筆特殊營業日設定？" });
       const deleteResponsePromise = waitForClosureCommand(ownerPage, "DELETE");
-      await deleteDialog
-        .getByRole("button", { name: "確認刪除", exact: true })
-        .click();
+      await deleteDialog.getByRole("button", { name: "確認刪除", exact: true }).click();
       expect((await deleteResponsePromise).status()).toBe(200);
-      await expect(closureArticle).toHaveCount(0);
+      closureExpected = false;
+      await expect(article).toHaveCount(0);
       await acknowledgeSettingsFeedback(ownerPage, "特殊營業日已刪除。");
       createdClosureIds.splice(createdClosureIds.indexOf(closureId!), 1);
+      await menuPage.bringToFront();
+      await expect(publicBanner).toHaveCount(0, { timeout: 45_000 });
+      await expect(menuPage.getByRole("dialog").filter({ hasText: updatedTitle })).toHaveCount(0);
+      await qrPage.bringToFront();
+      await expect(qrBanner).toHaveCount(0, { timeout: 45_000 });
+      await expect(qrPage.getByRole("dialog").filter({ hasText: updatedTitle })).toHaveCount(0);
+      await expect(selection).toBeEnabled();
+      expect(await menuPage.evaluate(() => performance.timeOrigin)).toBe(menuDocument);
+      expect(await qrPage.evaluate(() => performance.timeOrigin)).toBe(qrDocument);
+      // Capacity refresh reuses this endpoint every 60 seconds. It must retain
+      // the original session identity and expiry, never create another session.
+      qrPage.off("request", trackSessionRequest);
+      await expectPreservedOrderSession(sessionRequests, initialSessionIdentity);
     } finally {
-      await ownerContext.close();
+      try {
+        await prisma.$transaction(originalBusinessHours.map((hour) => (
+          prisma.stallBusinessHour.update({
+            where: { id: hour.id },
+            data: {
+              opensAt: hour.opensAt,
+              closesAt: hour.closesAt,
+              lastOrderAt: hour.lastOrderAt,
+              isClosed: hour.isClosed,
+            },
+          })
+        )));
+      } finally {
+        await Promise.all([customerContext.close(), ownerContext.close()]);
+      }
     }
   });
 });

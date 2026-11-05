@@ -1,0 +1,8 @@
+tree e3c02e6b0ecf37526a77ff9c6eb4eb2111411ef0
+parent 4e95d2ea5d53ae78c5af9c3db044481237674c44
+author KenLeeYa <ada76145@gmail.com> 1793862053 +0800
+committer KenLeeYa <ada76145@gmail.com> 1793862053 +0800
+
+fix: isolate database principal rate limit cleanup
+
+Retain authentication, request budgets and cardinality; preserve other identities expired buckets.

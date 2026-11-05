@@ -3,7 +3,6 @@ import { isDeepStrictEqual } from "node:util";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { mkdir, writeFile } from "node:fs/promises";
-import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { conversionRequired } from "./dr-staging-conversion-plan.mjs";
 import { compareOriginalPartialProofData } from "./staging-partial-retirement-backup.mjs";
@@ -11,80 +10,35 @@ import { readCurrentPartialSources } from "./staging-partial-retirement-sources.
 import { readCurrentPartialEntry } from "./staging-partial-retirement-entry.mjs";
 import { readCurrentPartialIsolation } from "./staging-partial-retirement-isolation.mjs";
 import { readCurrentPartialSecurity } from "./staging-partial-retirement-security.mjs";
+import { readPartialProofArchive as archive, assertPartialProofInvocation as invocation } from "./staging-partial-retirement-transport.mjs";
+import { readProtectedPlanHistoryInputs } from "./staging-plan-history.mjs";
 
-const repository = "KenLeeYa/Stallorder-Platform";
-const workflow = ".github/workflows/dr-staging-partial-proof.yml";
 const denied = { diagnosticOnly: true, planQualified: false, remainingDataProven: false, remainingSchemaProven: false };
 function requireProof(condition) { if (!condition) throw new Error("STAGING_PARTIAL_READONLY_FAILED"); }
 
-async function github(path) {
-  const response = await fetch(`https://api.github.com/repos/${repository}${path}`, { method: "GET", redirect: "error",
-    headers: { authorization: `Bearer ${conversionRequired("GITHUB_TOKEN")}`, accept: "application/vnd.github+json" },
-    signal: AbortSignal.timeout(60_000) });
-  requireProof(response.status === 200);
-  const bytes = await boundedBytes(response, 2 * 1024 * 1024);
-  return JSON.parse(bytes.toString("utf8"));
-}
+// Preserve the existing transport API without a history/consumer import cycle.
+export { readPartialProofGithub, readPartialProofArchive, assertPartialProofInvocation } from "./staging-partial-retirement-transport.mjs";
 
-async function boundedBytes(response, limit) {
-  requireProof(response.body);
-  const parts = []; let length = 0;
-  for await (const chunk of response.body) {
-    length += chunk.length; requireProof(length <= limit); parts.push(Buffer.from(chunk));
-  }
-  return Buffer.concat(parts);
-}
-
-async function archive(runId, artifactId, size, digest) {
-  const run = await github(`/actions/runs/${runId}`);
-  const artifact = await github(`/actions/artifacts/${artifactId}`);
-  let response = await fetch(`https://api.github.com/repos/${repository}/actions/artifacts/${artifactId}/zip`, {
-    method: "GET", redirect: "manual", headers: { authorization: `Bearer ${conversionRequired("GITHUB_TOKEN")}` },
-    signal: AbortSignal.timeout(60_000) });
-  if (response.status === 302) {
-    const url = new URL(response.headers.get("location"));
-    requireProof(url.protocol === "https:" && !url.username && !url.password && !url.port && !url.hash
-      && (url.hostname.endsWith(".blob.core.windows.net") || url.hostname.endsWith(".actions.githubusercontent.com")));
-    // The signed archive URL is private. Never forward the GitHub token, allow
-    // another redirect, log this URL, or trust its bytes without pinned hashes.
-    response = await fetch(url.href, { method: "GET", redirect: "error", signal: AbortSignal.timeout(60_000) });
-  }
-  requireProof(response.status === 200);
-  const zip = await boundedBytes(response, size); requireProof(zip.length === size);
-  requireProof(createHash("sha256").update(zip).digest("hex") === digest);
-  return { run, artifact, zip };
-}
-
-async function invocation() {
-  const env = process.env;
-  requireProof(env.GITHUB_ACTIONS === "true" && env.GITHUB_REPOSITORY === repository
-    && env.GITHUB_ACTOR === "KenLeeYa" && env.GITHUB_TRIGGERING_ACTOR === "KenLeeYa"
-    && env.GITHUB_REF === "refs/heads/main" && env.GITHUB_REF_PROTECTED === "true"
-    && /^[a-f0-9]{40}$/.test(env.GITHUB_SHA ?? "") && env.GITHUB_WORKFLOW_SHA === env.GITHUB_SHA
-    && env.GITHUB_WORKFLOW_REF === `${repository}/${workflow}@refs/heads/main`
-    && env.GITHUB_EVENT_NAME === "workflow_dispatch" && env.GITHUB_RUN_ATTEMPT === "1"
-    && /^[1-9][0-9]{0,14}$/.test(env.GITHUB_RUN_ID ?? "")
-    && env.GITHUB_JOB === "readonly-proof" && env.RUNNER_OS === "Linux");
-  const run = await github(`/actions/runs/${env.GITHUB_RUN_ID}`);
-  requireProof(run?.id === Number(env.GITHUB_RUN_ID) && run.run_attempt === 1 && run.head_sha === env.GITHUB_SHA
-    && run.head_branch === "main" && run.path === workflow && run.event === "workflow_dispatch"
-    && run.status === "in_progress" && run.conclusion === null && run.actor?.login === "KenLeeYa"
-    && run.triggering_actor?.login === "KenLeeYa" && run.repository?.full_name === repository
-    && run.repository.owner?.login === "KenLeeYa" && run.head_repository?.full_name === repository);
-}
-
-export async function runProtectedPartialReadOnly() {
-  let phase = "invocation";
+export async function runProtectedPartialReadOnly(options = { mode: "current-artifact" }) {
+  let phase = "mode";
   try {
+    requireProof(options && Object.keys(options).length === 1
+      && ["current-artifact", "consumed-plan-history-v1"].includes(options.mode));
+    phase = "invocation";
     await invocation();
     phase = "archives";
-    const backup = await archive(39647447270, 12368487539, 9441387, "fbab2a1c9b481c60ad4e8d67442c1842055ec72ba0f12d09c18f34ee324f5cd9");
-    const apply = await archive(39944614570, 12497707244, 20984, "6e453c336b9437d2e74bb9e14cc2c38029ebf2364617eb8dbacc3406c367e304");
-    const plan = await archive(39944190461, 12497002610, 2508, "252c10206aff140cf3d27cb0d1a4139929d7efc5c87f44b4230ffdc7341977e7");
-    const retirement = { applyRun: apply.run, applyArtifact: apply.artifact, applyZip: apply.zip,
-      planRun: plan.run, planArtifact: plan.artifact, planZip: plan.zip, fileCount: 42,
-      backup: { runId: "39647447270", commit: "291c3c56f1dc6ed743f9c7fe67a117f2dac554ff",
-        artifactId: 12368487539, artifactDigest: "sha256:fbab2a1c9b481c60ad4e8d67442c1842055ec72ba0f12d09c18f34ee324f5cd9" } };
+    let backup, retirement, history;
+    if (options.mode === "consumed-plan-history-v1") {
+      ({ backup, retirement, summary: history } = await readProtectedPlanHistoryInputs(options));
+    } else {
+      backup = await archive(39647447270, 12368487539, 9441387, "fbab2a1c9b481c60ad4e8d67442c1842055ec72ba0f12d09c18f34ee324f5cd9");
+      const apply = await archive(39944614570, 12497707244, 20984, "6e453c336b9437d2e74bb9e14cc2c38029ebf2364617eb8dbacc3406c367e304");
+      const plan = await archive(39944190461, 12497002610, 2508, "252c10206aff140cf3d27cb0d1a4139929d7efc5c87f44b4230ffdc7341977e7");
+      retirement = { applyRun: apply.run, applyArtifact: apply.artifact, applyZip: apply.zip,
+        planRun: plan.run, planArtifact: plan.artifact, planZip: plan.zip, fileCount: 42,
+        backup: { runId: "39647447270", commit: "291c3c56f1dc6ed743f9c7fe67a117f2dac554ff",
+          artifactId: 12368487539, artifactDigest: "sha256:fbab2a1c9b481c60ad4e8d67442c1842055ec72ba0f12d09c18f34ee324f5cd9" } };
+    }
     phase = "current-safety";
     requireProof(execFileSync("git", ["diff", "--exit-code", "291c3c56f1dc6ed743f9c7fe67a117f2dac554ff", "HEAD", "--",
       "supabase/migrations", "supabase/seed.sql", "scripts/rehearse-dr-staging-reset.mjs", "scripts/lib/dr-reset-preparation.mjs"],
@@ -104,8 +58,18 @@ export async function runProtectedPartialReadOnly() {
     const afterIsolation = await readCurrentPartialIsolation();
     const afterSecurity = await readCurrentPartialSecurity();
     await invocation();
-    return summarizePartialReadOnlyObservations({ sources, entry, isolation, security },
+    const receipt = summarizePartialReadOnlyObservations({ sources, entry, isolation, security },
       { sources: afterSources, entry: afterEntry, isolation: afterIsolation, security: afterSecurity }, compared);
+    // Enumerate historical fields too: never spread the private adapter bundle
+    // or its backupDecrypted=false historical-only observation into full proof.
+    if (history) {
+      requireProof(history.historicalProvenanceValidated === true && history.originalPlanConsumed === true
+        && history.originalApprovalExpired === true && history.applyAuthorized === false);
+      return { ...receipt, evidenceMode: options.mode, historicalProvenanceValidated: true,
+        originalPlanConsumed: true, originalApprovalExpired: true, originalArtifactAvailabilityClaimed: false,
+        applyAuthorized: false, remoteWrites: false };
+    }
+    return receipt;
   } catch {
     return { ...denied, status: "failed", phase, error: "STAGING_PARTIAL_READONLY_FAILED" };
   }
@@ -154,7 +118,7 @@ export function summarizePartialReadOnlyObservations(before, after, compared) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const receipt = await runProtectedPartialReadOnly();
+  const receipt = await runProtectedPartialReadOnly({ mode: process.env.PARTIAL_PROOF_EVIDENCE_MODE ?? "current-artifact" });
   // Only this allowlisted result is persisted. Never write private provider data,
   // decrypted rows, dump bytes, catalog bodies or the raw caught exception.
   await mkdir("artifacts/partial-proof-public", { recursive: true });
