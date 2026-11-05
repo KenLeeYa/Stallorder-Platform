@@ -64,8 +64,14 @@ export function verifyDeliveryQualification({ contract, run, job, workflowBytes,
   assert.equal(job.status, 'completed'); assert.equal(job.conclusion, 'success');
   assert.deepEqual(job.labels, ['ubuntu-24.04']); assert.match(job.runner_name, /^GitHub Actions \d+$/);
   const created = instant(run.created_at), started = instant(job.started_at), completed = instant(job.completed_at);
-  assert.ok(Number.isFinite(now) && created <= started && started <= completed && completed <= now
-    && now - created <= 6 * 3600_000, 'qualification execution time invalid');
+  assert.ok(Number.isFinite(now) && created <= started && started <= completed && completed <= now,
+    'qualification execution time invalid');
+  const expiresAt = created + 6 * 3600_000;
+  if (now > expiresAt) {
+    const error = new Error('qualification expired from original run creation time');
+    error.code = 'DELIVERY_QUALIFICATION_EXPIRED';
+    throw error;
+  }
   assert.ok(Array.isArray(job.steps) && new Set(job.steps.map(s => s.name)).size === job.steps.length);
   let prior = 0;
   for (const name of REQUIRED_STEPS) {
@@ -178,7 +184,8 @@ export function verifyDeliveryQualification({ contract, run, job, workflowBytes,
   assert.equal(summary.syntheticOnly, true); assert.equal(summary.releaseQualified, false);
   return { verificationPassed: true, releaseAuthorized: false, productCommit: contract.productCommit,
     productTree: contract.productTree, controlCommit: contract.controlCommit, runId: run.id, jobId: job.id,
-    runAttempt: run.run_attempt, completedAt: job.completed_at, sourceRunConclusion: run.conclusion,
+    runAttempt: run.run_attempt, createdAt: run.created_at, expiresAt: new Date(expiresAt).toISOString(),
+    completedAt: job.completed_at, sourceRunConclusion: run.conclusion,
     logSha256: hash(log), checkCount: checks.length, nextPrincipal: principal,
     productionRuntimeVerified: false, productionSchedulerVerified: false, notificationDeliveryVerified: false };
 }

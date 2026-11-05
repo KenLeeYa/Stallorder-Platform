@@ -65,10 +65,10 @@ export function validateAdmissionContext(env) {
 }
 function main() {
   validateAdmissionContext(process.env);
-  const contractBytes = readFileSync(new URL('./delivery-qualification-run17-source.json', import.meta.url));
+  const contractBytes = readFileSync(new URL('./delivery-qualification-run18-source.json', import.meta.url));
   assert.equal(hash(contractBytes), process.env.DELIVERY_QUALIFICATION_CONTRACT_SHA256);
   const contract = JSON.parse(contractBytes);
-  const reviewBytes = readFileSync(new URL('./delivery-reviewed-run17-scan.json', import.meta.url));
+  const reviewBytes = readFileSync(new URL('./delivery-reviewed-run18-scan.json', import.meta.url));
   assert.equal(hash(reviewBytes), process.env.DELIVERY_SECURITY_REVIEW_SHA256);
   const review = JSON.parse(reviewBytes);
   assert.equal(contract.runId, review.source.runId); assert.equal(contract.controlCommit, review.source.controlCommit);
