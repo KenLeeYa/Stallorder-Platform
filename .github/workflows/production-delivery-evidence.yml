@@ -38,7 +38,7 @@ jobs:
           node-version: 24
       - name: Verify bounded evidence and encrypted recovery controls
         working-directory: control
-        run: node --test scripts/ci/delivery-admission.test.mjs scripts/ci/delivery-qualification.test.mjs scripts/ci/delivery-security-adjudication.test.mjs scripts/ci/delivery-security-capture.test.mjs scripts/ci/delivery-expiry-evidence.test.mjs scripts/ci/delivery-edge-recovery.test.mjs scripts/ci/delivery-edge-recovery.capture.test.mjs scripts/ci/delivery-database-executor.test.mjs scripts/ci/delivery-database-executor.capture.test.mjs
+        run: node --test scripts/ci/delivery-admission.test.mjs scripts/ci/delivery-qualification.test.mjs scripts/ci/delivery-security-adjudication.test.mjs scripts/ci/delivery-security-capture.test.mjs scripts/ci/delivery-expiry-evidence.test.mjs scripts/ci/delivery-edge-recovery.test.mjs scripts/ci/delivery-edge-recovery.capture.test.mjs scripts/ci/delivery-database-executor.test.mjs scripts/ci/delivery-database-executor.capture.test.mjs scripts/ci/delivery-edge-capture-admission.test.mjs scripts/ci/delivery-edge-capture-load.test.mjs scripts/ci/delivery-edge-restore.test.mjs scripts/ci/delivery-edge-rehearsal.test.mjs scripts/ci/delivery-isolated-edge-read.test.mjs scripts/ci/delivery-preview-vercel-access.test.mjs
       - name: Reconstruct the exact product without executing it
         run: node control/scripts/ci/delivery-candidate.mjs materialize
       - name: Authenticate exact functional and complete reviewed security evidence
