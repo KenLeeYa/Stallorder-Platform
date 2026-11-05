@@ -40,8 +40,8 @@ for(const [name,mutate] of [
  ['fragment',c=>c.POSTGRES_URL+='#extra'],
  ['missing public key',c=>delete c.SUPABASE_ANON_KEY],
 ])test('rejects configuration '+name,()=>{const c=config();mutate(c);assert.throws(()=>verifyPreviewConfiguration(c));});
-const invocation=()=>({repository:'KenLeeYa/Stallorder-Platform',actor:'KenLeeYa',event:'pull_request',ref:'refs/pull/392/merge',headRepo:'KenLeeYa/Stallorder-Platform',headBranch:PREVIEW_BINDING.gitBranch,baseBranch:'staging',number:392});
-test('permits exact installation PR392 and staging-to-main promotion on the same existing resource',()=>{
+const invocation=()=>({repository:'KenLeeYa/Stallorder-Platform',actor:'KenLeeYa',event:'pull_request',ref:'refs/pull/394/merge',headRepo:'KenLeeYa/Stallorder-Platform',headBranch:PREVIEW_BINDING.gitBranch,baseBranch:'staging',number:394});
+test('permits exact installation PR394 and staging-to-main promotion on the same existing resource',()=>{
  assert.equal(verifyPreviewInvocation(invocation()).resourceKey,'pr-389');
  assert.equal(verifyPreviewInvocation({...invocation(),number:400,headBranch:'staging',baseBranch:'main'}).resourceKey,'pr-389');
  assert.equal(verifyPreviewInvocation({...invocation(),event:'workflow_dispatch',ref:'refs/heads/main'}).resourceKey,'pr-389');
