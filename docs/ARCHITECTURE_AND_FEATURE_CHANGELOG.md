@@ -1,3 +1,15 @@
+## 2026-11-05 — PR390 synthetic credential handoff alignment
+
+Control CI 42022142261 reproduced three synthetic CLI failures because its fixture still used completed PR389. Only the fixture event number changes to the separately reviewed PR390. Root reproduced all three failures before the correction; combined access/binding tests passed 88/88 afterward. Actual invocation/target/token guards and the shared pr-389 resource remain unchanged. Hosted full CI and Preview must pass again; no release authorization or merchant reopening.
+
+## 2026-11-05 — PR390 exact installation admission
+
+PR389 and promotion PR387 have merged. Transfer only the fixed installation PR number from389 to390 for the same owner repository, existing codex/conversion-source-checks-20261023 branch and staging target. Retain the exact existing pr-389-oauth-delivery resource, all project/parent/region/config checks, source guards and shared writer queue. Old PR389 and arbitrary other PR numbers are rejected. The reproducing two cases failed before the one-literal change;58 binding tests and lint now pass. Fresh hosted qualification is required. No new resource, product release, protection change or merchant reopening.
+
+## 2026-11-05 — Protected Primary executor diagnostics
+
+The first protected capture on main3259 (run42020275493/job127220999098) failed during the read-only database-password probe with a generic error; encrypted Edge capture was skipped. No Production mutation or merchant reopening occurred. Add fixed failing-stage and native-error categories without printing connection strings, credentials, arbitrary stderr, exception messages or causes. Preserve all exact target, source, function/ACL, role, time and read-only requirements. 52 focused regression cases and lint passed; remote cause is not yet established. Product0d2 remains unchanged. New protected installation and actual capture remain required.
+
 ## 2026-11-05 — Exact Run17 protected read-only evidence capture
 
 - PR389 control `7d43d1eac4143c08fe4aadff7cd1f5eed58d228c` passed full CI, source-security, required Vercel and isolated Preview. Hosted actual database principal, QR/session, responsive checkout, tracker and owned cleanup passed; skipped read-only smoke checks remain skipped. The product stays `0d2b27144fcf589bb887e669c09e82158e3de7a2`, tree `e3c02e6b0ecf37526a77ff9c6eb4eb2111411ef0`, 50 paths.

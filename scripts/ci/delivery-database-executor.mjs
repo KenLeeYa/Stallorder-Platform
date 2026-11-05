@@ -3,6 +3,23 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
+class ExecutorError extends Error {}
+export function executorFailureCode(error) {
+  return error instanceof ExecutorError ? error.message : null;
+}
+function nativeFailure(error) {
+  // stderr can contain connection details. Match only fixed categories and
+  // discard the original bytes, message, stack and cause from public output.
+  const stderr=Buffer.isBuffer(error?.stderr)?error.stderr.toString('utf8'):error?.stderr;
+  if(typeof stderr==='string'&&Buffer.byteLength(stderr)<=128*1024) {
+    if(/password authentication failed/i.test(stderr))return 'DELIVERY_EXECUTOR_AUTH_REJECTED';
+    if(/permission denied/i.test(stderr))return 'DELIVERY_EXECUTOR_PERMISSION_REJECTED';
+    if(/unsupported startup parameter/i.test(stderr))return 'DELIVERY_EXECUTOR_STARTUP_REJECTED';
+    if(/connection timed out|connection refused|could not translate host name|network is unreachable/i.test(stderr))return 'DELIVERY_EXECUTOR_CONNECTION_FAILED';
+  }
+  return 'DELIVERY_EXECUTOR_QUERY_FAILED';
+}
+
 // Database-password collector for the reviewed native migration path. The
 // protected caller must bind Apply to this same endpoint and authentication.
 export function verifyExecutorSnapshot(value, plan, interval, now = Date.now()) {
@@ -65,11 +82,14 @@ export function collectExecutor({ connection, endpoint, plan, invoke = execFileS
       '--tuples-only', '--no-align', '--file', fileURLToPath(new URL('./delivery-database-executor.sql', import.meta.url))],
     { env, encoding: 'utf8', timeout: 25000, maxBuffer: 128 * 1024, windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'] });
-  } catch { throw new Error('DELIVERY_EXECUTOR_QUERY_FAILED'); }
+  } catch(error) { throw new ExecutorError(nativeFailure(error)); }
   const finishedAt = new Date().toISOString();
   let value;
-  try { value = JSON.parse(text); } catch { throw new Error('DELIVERY_EXECUTOR_OUTPUT_INVALID'); }
-  return { ...verifyExecutorSnapshot(value, plan, { startedAt, finishedAt }),
+  try { value = JSON.parse(text); } catch { throw new ExecutorError('DELIVERY_EXECUTOR_OUTPUT_INVALID'); }
+  let verified;
+  try { verified=verifyExecutorSnapshot(value,plan,{startedAt,finishedAt}); }
+  catch { throw new ExecutorError('DELIVERY_EXECUTOR_SNAPSHOT_REJECTED'); }
+  return { ...verified,
     authentication: 'database-password', requestStartedAt: startedAt, requestFinishedAt: finishedAt,
     endpoint: { projectId: endpoint.projectId, hostname: endpoint.hostname, port: endpoint.port,
       username: endpoint.username, database: endpoint.database }, raw: value, requiresAuthenticatedRun: true };
