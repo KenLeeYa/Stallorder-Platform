@@ -1,5 +1,11 @@
 # Exact delivery-hours candidate qualification
 
+## Current b043 product: Preview origin correction (2026-11-05)
+
+Product `b043052d564f102945aef72bb866a08d831e335f`, tree `bab38fe323aa9888737f1476c955a23eff1e57f9`, contains 45 paths over the unchanged Production base. Six reviewed helper/proxy/tracking source and test files correct Preview requests that previously sent the loopback app origin to an Edge deployment allowing the actual Vercel origin. Preview now requires a canonical provider VERCEL_URL; missing/invalid values fail before fetch. Production precedence and Next build-time public-env substitution remain unchanged. All 31 local regressions and independent source review pass. This product requires fresh native CI, complete security scan/review and paired Preview acceptance; prior b9 results cannot qualify it. No CORS allowlist, release protection or Production setting is relaxed.
+
+The following sections retain historical evidence and are superseded only as to the current product identity.
+
 ## Current product and pending acceptance (2026-11-04 20:31 UTC)
 
 Product `b9a98a0bff0490c04b2295e4bcfb2b7781774c91`, tree `feaf67bea32aa15ba0e67374b8aa4ff4307dc208`, contains 39 paths over Production `4e95d2ea5d53ae78c5af9c3db044481237674c44`. Its only difference from 79f5 is the positive delivery E2E fixture: explicitly open all seven days in the owned synthetic database and restore the original settings and hours in a finally transaction. No application, migration or Edge source changed in this successor. The exact new product still requires fresh full CI and security evidence.

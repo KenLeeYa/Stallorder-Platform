@@ -1194,6 +1194,80 @@ index 0000000000000000000000000000000000000000..afcd453d54bc63f1991f044a14ea9d16
 +      { status: 503, headers: healthResponseHeaders });
 +  }
 +}
+diff --git a/src/app/api/public-order/[functionName]/route.test.ts b/src/app/api/public-order/[functionName]/route.test.ts
+index 7d51746b4c8d5f564b07aa010764ab5cecaedae8..7cdd2e18eeda16686a576662e48d22c245dc74c6 100644
+--- a/src/app/api/public-order/[functionName]/route.test.ts
++++ b/src/app/api/public-order/[functionName]/route.test.ts
+@@ -54,4 +54,31 @@ describe("POST /api/public-order/:functionName", () => {
+     expect(response.headers.get("x-upstream-request-id"))
+       .toBe("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
+   });
++
++  it("uses the provider Preview origin instead of stale configuration or request Host", async () => {
++    vi.stubEnv("VERCEL_ENV", "preview");
++    vi.stubEnv("VERCEL_URL", "stallorder-platform-review-ada76145-8663s-projects.vercel.app");
++    vi.stubEnv("NEXT_PUBLIC_APP_URL", "http://127.0.0.1:3000");
++    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ orderSessionToken: "stos_result" }, { status: 201 }));
++    vi.stubGlobal("fetch", fetchImpl);
++    const route = await import("./route");
++    await route.POST(new NextRequest("https://untrusted.example/api/public-order/create-order-session", {
++      method: "POST", body: "{}", headers: { "content-type": "application/json", host: "untrusted.example" },
++    }), { params: Promise.resolve({ functionName: "create-order-session" }) });
++    expect(new Headers(fetchImpl.mock.calls[0][1]?.headers).get("origin"))
++      .toBe("https://stallorder-platform-review-ada76145-8663s-projects.vercel.app");
++  });
++
++  it("rejects missing Preview provider identity before an upstream request", async () => {
++    vi.stubEnv("VERCEL_ENV", "preview");
++    vi.stubEnv("VERCEL_URL", "");
++    const fetchImpl = vi.fn<typeof fetch>();
++    vi.stubGlobal("fetch", fetchImpl);
++    const route = await import("./route");
++    await expect(route.POST(new NextRequest("https://untrusted.example/api/public-order/create-order-session", {
++      method: "POST", body: "{}",
++    }), { params: Promise.resolve({ functionName: "create-order-session" }) }))
++      .rejects.toThrow("PUBLIC_ORDER_PREVIEW_ORIGIN_INVALID");
++    expect(fetchImpl).not.toHaveBeenCalled();
++  });
+ });
+diff --git a/src/app/api/public-order/[functionName]/route.ts b/src/app/api/public-order/[functionName]/route.ts
+index fd99660d507e9135832b90433e779723035ab905..e6da7c5f5d995b9cda133c213a939fb6be394d64 100644
+--- a/src/app/api/public-order/[functionName]/route.ts
++++ b/src/app/api/public-order/[functionName]/route.ts
+@@ -5,6 +5,7 @@ import {
+   trustedPublicOrderClientIp,
+ } from "@/lib/public-order-proxy-headers";
+ import { createRequestId } from "@/lib/security";
++import { publicOrderFunctionOrigin } from "@/lib/public-order-function-origin";
+ import {
+   BoundedTextReadError,
+   readBoundedText,
+@@ -34,16 +35,6 @@ function publicFunctionsBaseUrl() {
+   ).replace(/\/$/, "");
+ }
+ 
+-function publicFunctionOrigin() {
+-  const configured = process.env.PUBLIC_ORDER_FUNCTION_ORIGIN || process.env.NEXT_PUBLIC_APP_URL;
+-  if (!configured) return "https://app.qidaigo.com";
+-  try {
+-    return new URL(configured).origin;
+-  } catch {
+-    throw new Error("PUBLIC_ORDER_FUNCTION_ORIGIN or NEXT_PUBLIC_APP_URL must be a valid URL.");
+-  }
+-}
+-
+ function publicFunctionGatewayHeaders() {
+   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+   if (!publishableKey) {
+@@ -106,7 +97,7 @@ export async function POST(
+       "x-stallorder-protocol-version":
+         request.headers.get("x-stallorder-protocol-version") ?? "1",
+       [PUBLIC_ORDER_OPERATION_ID_HEADER]: operationId,
+-      origin: publicFunctionOrigin(),
++      origin: publicOrderFunctionOrigin(),
+       ...publicFunctionGatewayHeaders(),
+       ...publicOrderUpstreamIpHeaders(clientIp),
+     },
 diff --git a/src/app/api/stalls/[stallSlug]/completed-orders/route.test.ts b/src/app/api/stalls/[stallSlug]/completed-orders/route.test.ts
 index 68a11ad91210fa0ec81d0313c762c281572f3fb8..3f12c97753dc54b6b4d8762613ef8e8da2b8d10b 100644
 --- a/src/app/api/stalls/[stallSlug]/completed-orders/route.test.ts
@@ -2395,6 +2469,151 @@ index 180d8382985d89673af52df3680a408d54376a49..535b659aaf5accd35f7ae7203f1581e2
  async function getTakeoutPreorderSlots(stallId: string) {
    const rows = await prisma.$queryRaw<Array<{ slots: unknown }>>`
      select public.get_takeout_preorder_slots(${stallId}::uuid, now()) as slots
+diff --git a/src/lib/public-order-function-origin.test.ts b/src/lib/public-order-function-origin.test.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..0f681122b3f5062f98330851dd3e08b78dc9f29e
+--- /dev/null
++++ b/src/lib/public-order-function-origin.test.ts
+@@ -0,0 +1,32 @@
++import { describe, expect, it } from "vitest";
++import { publicOrderFunctionOrigin } from "./public-order-function-origin";
++
++const hostname = "stallorder-platform-review-ada76145-8663s-projects.vercel.app";
++describe("public order function Origin", () => {
++  it("binds Preview to the provider deployment despite stale explicit or build configuration", () => {
++    expect(publicOrderFunctionOrigin({ VERCEL_ENV: "preview", VERCEL_URL: hostname,
++      PUBLIC_ORDER_FUNCTION_ORIGIN: "https://app.qidaigo.com", NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3000",
++    })).toBe(`https://${hostname}`);
++  });
++
++  it.each([undefined, "", "app.qidaigo.com", "attacker.example", "https://" + hostname,
++    "user@" + hostname, hostname + ":443", hostname + "/", hostname + "?x=1", hostname + "#x",
++    hostname + "\n", " " + hostname, hostname + " ", hostname + "\u0000", hostname.toUpperCase(),
++    hostname + ".evil.example", "x." + hostname, "-bad.vercel.app", "bad-.vercel.app",
++    "a".repeat(64) + ".vercel.app",
++  ])("rejects noncanonical Preview identity %j without fallback", (value) => {
++    expect(() => publicOrderFunctionOrigin({ VERCEL_ENV: "preview", VERCEL_URL: value,
++      PUBLIC_ORDER_FUNCTION_ORIGIN: "https://app.qidaigo.com", NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3000",
++    })).toThrow("PUBLIC_ORDER_PREVIEW_ORIGIN_INVALID");
++  });
++
++  it("preserves Production precedence and local configuration", () => {
++    expect(publicOrderFunctionOrigin({ VERCEL_ENV: "production", VERCEL_URL: hostname,
++      PUBLIC_ORDER_FUNCTION_ORIGIN: "https://app.qidaigo.com/path", NEXT_PUBLIC_APP_URL: "https://unused.example",
++    })).toBe("https://app.qidaigo.com");
++    expect(publicOrderFunctionOrigin({ NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3000/path" }))
++      .toBe("http://127.0.0.1:3000");
++    expect(publicOrderFunctionOrigin({})).toBe("https://app.qidaigo.com");
++    expect(() => publicOrderFunctionOrigin({ PUBLIC_ORDER_FUNCTION_ORIGIN: "invalid" })).toThrow();
++  });
++});
+diff --git a/src/lib/public-order-function-origin.ts b/src/lib/public-order-function-origin.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..997b4bd1e1bd4f15bdf4fdb26fa9c8a6d2ab2a05
+--- /dev/null
++++ b/src/lib/public-order-function-origin.ts
+@@ -0,0 +1,31 @@
++type PublicOrderOriginEnvironment = {
++  VERCEL_ENV?: string;
++  VERCEL_URL?: string;
++  PUBLIC_ORDER_FUNCTION_ORIGIN?: string;
++  NEXT_PUBLIC_APP_URL?: string;
++};
++
++export function publicOrderFunctionOrigin(environment: PublicOrderOriginEnvironment = {
++  VERCEL_ENV: process.env.VERCEL_ENV,
++  VERCEL_URL: process.env.VERCEL_URL,
++  PUBLIC_ORDER_FUNCTION_ORIGIN: process.env.PUBLIC_ORDER_FUNCTION_ORIGIN,
++  NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
++}) {
++  if (environment.VERCEL_ENV === "preview") {
++    // Vercel supplies this deployment identity. Never derive it from request
++    // Host or fall back to an unrelated Production/local origin in Preview.
++    const hostname = environment.VERCEL_URL;
++    if (!hostname || !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.vercel\.app$/.test(hostname)) {
++      throw new Error("PUBLIC_ORDER_PREVIEW_ORIGIN_INVALID");
++    }
++    return `https://${hostname}`;
++  }
++
++  const configured = environment.PUBLIC_ORDER_FUNCTION_ORIGIN || environment.NEXT_PUBLIC_APP_URL;
++  if (!configured) return "https://app.qidaigo.com";
++  try {
++    return new URL(configured).origin;
++  } catch {
++    throw new Error("PUBLIC_ORDER_FUNCTION_ORIGIN or NEXT_PUBLIC_APP_URL must be a valid URL.");
++  }
++}
+diff --git a/src/server/public-order/canonical-tracking-validator.test.ts b/src/server/public-order/canonical-tracking-validator.test.ts
+index fa01135e789172992ac0427c0fb7285e45099345..648139a03ab26a7dc22b095aea9c5e41e9963dfa 100644
+--- a/src/server/public-order/canonical-tracking-validator.test.ts
++++ b/src/server/public-order/canonical-tracking-validator.test.ts
+@@ -60,4 +60,31 @@ describe("canonical public-order device validation", () => {
+       fetchImpl: vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status })),
+     })).resolves.toEqual({ outcome });
+   });
++
++  it("uses the same provider Preview origin for canonical tracking", async () => {
++    vi.stubEnv("VERCEL_ENV", "preview");
++    vi.stubEnv("VERCEL_URL", "stallorder-platform-review-ada76145-8663s-projects.vercel.app");
++    vi.stubEnv("PUBLIC_ORDER_FUNCTION_ORIGIN", "https://app.qidaigo.com");
++    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "public-test-key");
++    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ order: { orderNo: "A001" } }));
++    const { validateTrackedPublicOrderAtCanonicalEdge } = await import("./canonical-tracking-validator");
++    await expect(validateTrackedPublicOrderAtCanonicalEdge({ trackingToken: "tracking-token",
++      deviceId: "device-id", clientIp: "203.0.113.8", operationId: "operation-id", fetchImpl,
++    })).resolves.toEqual({ outcome: "AUTHORIZED" });
++    expect(new Headers(fetchImpl.mock.calls[0][1]?.headers).get("origin"))
++      .toBe("https://stallorder-platform-review-ada76145-8663s-projects.vercel.app");
++  });
++
++  it("fails closed on invalid Preview identity without using a Production fallback", async () => {
++    vi.stubEnv("VERCEL_ENV", "preview");
++    vi.stubEnv("VERCEL_URL", "attacker.example");
++    vi.stubEnv("PUBLIC_ORDER_FUNCTION_ORIGIN", "https://app.qidaigo.com");
++    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "public-test-key");
++    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ order: {} }));
++    const { validateTrackedPublicOrderAtCanonicalEdge } = await import("./canonical-tracking-validator");
++    await expect(validateTrackedPublicOrderAtCanonicalEdge({ trackingToken: "tracking-token",
++      deviceId: "device-id", clientIp: "203.0.113.8", operationId: "operation-id", fetchImpl,
++    })).resolves.toEqual({ outcome: "UNAVAILABLE" });
++    expect(fetchImpl).not.toHaveBeenCalled();
++  });
+ });
+diff --git a/src/server/public-order/canonical-tracking-validator.ts b/src/server/public-order/canonical-tracking-validator.ts
+index 7c2701678048b8b4e2f391c31e2f34e6ed857c54..dffb78dbb99afa8bc52ec9cb303b183619eb44d0 100644
+--- a/src/server/public-order/canonical-tracking-validator.ts
++++ b/src/server/public-order/canonical-tracking-validator.ts
+@@ -2,6 +2,7 @@ import "server-only";
+ 
+ import { publicOrderUpstreamIpHeaders } from "@/lib/public-order-proxy-headers";
+ import { PUBLIC_ORDER_OPERATION_ID_HEADER } from "@/lib/public-order-operation-id";
++import { publicOrderFunctionOrigin } from "@/lib/public-order-function-origin";
+ 
+ const PUBLIC_ORDER_PROTOCOL_VERSION = "1";
+ const CANONICAL_VALIDATION_TIMEOUT_MS = 4_000;
+@@ -19,12 +20,6 @@ function functionsBaseUrl() {
+   ).trim().replace(/\/$/, "");
+ }
+ 
+-function functionOrigin() {
+-  const configured = process.env.PUBLIC_ORDER_FUNCTION_ORIGIN || process.env.NEXT_PUBLIC_APP_URL;
+-  if (!configured) return "https://app.qidaigo.com";
+-  return new URL(configured).origin;
+-}
+-
+ function gatewayHeaders() {
+   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim();
+   if (!publishableKey) throw new Error("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY_MISSING");
+@@ -49,7 +44,7 @@ export async function validateTrackedPublicOrderAtCanonicalEdge(input: {
+         "content-type": "application/json",
+         "x-stallorder-protocol-version": PUBLIC_ORDER_PROTOCOL_VERSION,
+         [PUBLIC_ORDER_OPERATION_ID_HEADER]: input.operationId,
+-        origin: functionOrigin(),
++        origin: publicOrderFunctionOrigin(),
+         ...gatewayHeaders(),
+         ...publicOrderUpstreamIpHeaders(input.clientIp),
+       },
 diff --git a/src/test/stateful-hook-runtime.ts b/src/test/stateful-hook-runtime.ts
 new file mode 100644
 index 0000000000000000000000000000000000000000..055f683f411606980c01840d50427bf990e69281
