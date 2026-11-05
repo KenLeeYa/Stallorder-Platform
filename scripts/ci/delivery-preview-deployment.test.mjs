@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {verifyPreviewDeployment,previewPublicOrigins} from './delivery-preview-deployment.mjs';
-const binding={project:'prj_uoG4FNJIgnF1LdKRiXnfRaieXnUP',team:'team_MMfsiG94K9Zy3e6w7Ccc9xY4',runId:'12345',commit:'b043052d564f102945aef72bb866a08d831e335f',id:'dpl_test',url:'https://stallorder-platform-test123-ada76145-8663s-projects.vercel.app'};
+const binding={project:'prj_uoG4FNJIgnF1LdKRiXnfRaieXnUP',team:'team_MMfsiG94K9Zy3e6w7Ccc9xY4',runId:'12345',commit:'0d2b27144fcf589bb887e669c09e82158e3de7a2',id:'dpl_test',url:'https://stallorder-platform-test123-ada76145-8663s-projects.vercel.app'};
 const deployment=()=>({id:binding.id,url:new URL(binding.url).host,projectId:binding.project,teamId:binding.team,target:null,readyState:'READY',meta:{githubCommitSha:binding.commit,githubCommitRef:'codex/conversion-source-checks-20261023',stallorderPreviewRun:binding.runId,stallorderPreviewResource:'pr-389'}});
 test('binds the exact product to one provider-readback Preview origin',()=>{assert.equal(verifyPreviewDeployment(binding,deployment()),binding.url);});
 for(const [name,mutate] of [

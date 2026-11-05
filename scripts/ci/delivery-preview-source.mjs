@@ -22,8 +22,8 @@ export async function verifySharedSources(readControl, readProduct) {
   return { paths, sourceVerified: true, releaseAuthorized: false };
 }
 export function verifyProductState(state) {
-  assert.ok(state.head === 'b043052d564f102945aef72bb866a08d831e335f'
-    && state.tree === 'bab38fe323aa9888737f1476c955a23eff1e57f9'
+  assert.ok(state.head === '0d2b27144fcf589bb887e669c09e82158e3de7a2'
+    && state.tree === 'e3c02e6b0ecf37526a77ff9c6eb4eb2111411ef0'
     && state.status === '', 'DELIVERY_PRODUCT_SOURCE_MISMATCH');
   return { ...state, sourceVerified: true, releaseAuthorized: false };
 }

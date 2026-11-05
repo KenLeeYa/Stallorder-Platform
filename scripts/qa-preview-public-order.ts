@@ -6,6 +6,8 @@ import { pathToFileURL } from "node:url";
 import { PrismaClient } from "@prisma/client";
 import { chromium, expect } from "@playwright/test";
 import { assertIsolatedStorageQa } from "./qa-primary-only-storage";
+import { preparePreviewFixture, restorePreviewFixture, type PreviewFixtureState } from "./qa-preview-fixture-state";
+import { verifyPreviewDatabasePrincipal } from "./qa-preview-database-principal";
 
 const ORGANIZATION = "11111111-1111-4111-8111-111111111111";
 const STALL = "22222222-2222-4222-8222-222222222222";
@@ -40,13 +42,18 @@ async function main() {
   const prisma = new PrismaClient();
   const browser = await chromium.launch();
   let orderId = "";
+  let fixtureState: PreviewFixtureState | undefined;
   try {
+    phase = "actual-next-database-principal";
+    const principal = await verifyPreviewDatabasePrincipal(prisma, { origin: base.origin, headers,
+      sourceSha, ref, parentRef: required("SUPABASE_PARENT_PROJECT_REF"),
+      supabaseUrl: required("NEXT_PUBLIC_SUPABASE_URL"), databaseUrl: required("DATABASE_URL") });
+    await mkdir("artifacts", { recursive: true });
+    await writeFile("artifacts/preview-database-principal.json", JSON.stringify(principal, null, 2));
+    console.log("PASS: actual hosted Next DB principal, anonymous/non-admin/revoked denial and owned probe cleanup.");
     phase = "synthetic-fixture";
     // These are the reviewed synthetic fixtures, never a parent or the retired DR.
-    assert.equal(await prisma.stallBusinessHour.count({ where: { organizationId: ORGANIZATION, stallId: STALL } }), 7);
-    await prisma.stallBusinessHour.updateMany({ where: { organizationId: ORGANIZATION, stallId: STALL },
-      data: { opensAt: "00:00", closesAt: "00:00", lastOrderAt: null, isClosed: false } });
-    await prisma.printer.updateMany({ where: { organizationId: ORGANIZATION }, data: { isEnabled: false } });
+    fixtureState = await preparePreviewFixture(prisma, prepared => { fixtureState = prepared; });
     const context = await browser.newContext({ locale: "zh-TW", timezoneId: "Asia/Taipei", serviceWorkers: "block" });
     await context.route(`${base.origin}/**`, (route) => route.continue({ headers: { ...route.request().headers(), ...headers } }));
     const page = await context.newPage();
@@ -98,7 +105,18 @@ async function main() {
   } finally {
     try {
       if (orderId) await prisma.order.deleteMany({ where: { id: orderId, organizationId: ORGANIZATION, stallId: STALL, isTest: true } });
-    } finally { await browser.close(); await prisma.$disconnect(); }
+    } finally {
+      try {
+        await browser.close();
+      } finally {
+        try {
+          if (fixtureState) {
+            await restorePreviewFixture(prisma, fixtureState);
+            console.log("PASS: borrowed hours and printer fixture restored with exact readback.");
+          }
+        } finally { await prisma.$disconnect(); }
+      }
+    }
   }
 }
 

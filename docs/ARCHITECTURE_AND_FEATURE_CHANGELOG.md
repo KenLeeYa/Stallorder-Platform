@@ -1,3 +1,9 @@
+## 2026-11-05 — Exact delivery successor and hosted principal isolation
+
+Product `0d2b27144fcf589bb887e669c09e82158e3de7a2` / tree `e3c02e6b0ecf37526a77ff9c6eb4eb2111411ef0` is frozen over unchanged Production4e95. Diagnostic rate limiting retains180/5min and active cardinality while preserving other identities expired buckets. Real paired Preview probes the deployed Next SQL role, anonymous/nonadmin/revoked access denials, source revision, foreign bucket digest and exact synthetic session/audit/profile cleanup. Reusable hours/printer fixtures receive conflict-safe byte-precise restoration.
+
+Prior b043 Preview41977723506 and control889 fullCI41977723521 passed; those runs do not qualify this successor. Fresh product/native/control/security/Preview and protected executor/recovery/PlanApply/live checks remain required. No Production product update, merchant reopening, new project or billing change. Root preserves local dirty work and existing shared services.
+
 ## 2026-11-05 — Proposed: native password executor qualification
 
 ## 2026-11-05: Clipboard credential boundary correction

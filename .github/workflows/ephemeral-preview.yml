@@ -33,7 +33,7 @@ jobs:
       PREVIEW_BRANCH_NAME: pr-389-oauth-delivery
       PREVIEW_RESOURCE_KEY: pr-389
       PREVIEW_GIT_BRANCH: codex/conversion-source-checks-20261023
-      DELIVERY_PRODUCT_COMMIT: b043052d564f102945aef72bb866a08d831e335f
+      DELIVERY_PRODUCT_COMMIT: 0d2b27144fcf589bb887e669c09e82158e3de7a2
       NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
       ALLOW_DEMO_SEED: "false"
     steps:
@@ -641,7 +641,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: preview-public-order-${{ github.run_id }}
-          path: product/artifacts/preview-public-order*
+          path: |
+            product/artifacts/preview-public-order*
+            product/artifacts/preview-database-principal.json
           if-no-files-found: warn
           retention-days: 14
 

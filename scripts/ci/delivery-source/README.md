@@ -1,3 +1,15 @@
+## 2026-11-05 principal diagnostics isolation successor
+
+Exact product `0d2b27144fcf589bb887e669c09e82158e3de7a2`, tree `e3c02e6b0ecf37526a77ff9c6eb4eb2111411ef0`, 50 paths over unchanged Production. Six files differ from 36046: the diagnostic route fixes cleanup to the current identity, propagated through existing authorization without reducing the 180/5-minute budget or active cardinality limit. Expired foreign buckets remain unchanged. New native actual SQL/HTTP regression must prove creation, 180-budget denial, own expiry reset, 10,000 active cardinality denial and foreign-canary preservation. The paired Preview probe also compares all foreign bucket bytes and checks audit/session leftovers before profile deletion.
+
+Local regression and independent review are preparation only. Prior run16 scan review applies only to 36046. This successor needs fresh CI/security/Preview/recovery; releaseAuthorized=false.
+
+## 2026-11-05 isolated native Preview origin successor
+
+Exact product `36046cca7b8ec1be7156bc0eada03dd196cc191c`, tree `403431450581d02a465e1719ece41f581d58b123`, 46 paths over Production `4e95d2ea5d53ae78c5af9c3db044481237674c44`. Four paths differ from `b043052d564f102945aef72bb866a08d831e335f`: explicit local origin opt-in, its negative regressions, canonical wrong-device regression, and native Playwright wiring. Cloud Preview still requires canonical provider identity. Local opt-in requires no Vercel deployment marker and loopback application, database, and actual Edge endpoint; no protection or assertions are disabled.
+
+Prior b043 hosted Preview passed (41977723506) and control CI passed (41977723521), but native qualification 41977561797 failed customer lifecycle wrong-device 404/503. The run15 admission candidate must not be installed. This successor requires fresh exact-product CI/security; historical green controls do not qualify it. Local 54 tests/lint passed; no Production release or merchant reopening.
+
 # Exact delivery-hours candidate qualification
 
 ## Current b043 product: Preview origin correction (2026-11-05)

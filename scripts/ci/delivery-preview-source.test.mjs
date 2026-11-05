@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SHARED_SOURCES, verifySharedSources, verifyProductState } from './delivery-preview-source.mjs';
-const state = { head: 'b043052d564f102945aef72bb866a08d831e335f',
-  tree: 'bab38fe323aa9888737f1476c955a23eff1e57f9', status: '' };
+const state = { head: '0d2b27144fcf589bb887e669c09e82158e3de7a2',
+  tree: 'e3c02e6b0ecf37526a77ff9c6eb4eb2111411ef0', status: '' };
 test('binds actual shared fixture and storage dependency bytes', async () => {
   const receipt = await verifySharedSources(async p => Buffer.from(p), async p => Buffer.from(p));
   assert.equal(receipt.paths.length, SHARED_SOURCES.length);

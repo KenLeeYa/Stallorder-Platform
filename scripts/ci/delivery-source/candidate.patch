@@ -679,6 +679,19 @@ index 9c3d89be85a6313c90a7f87d96591851523b09bf..466a154c601759207a7f2de1141b9ccc
      "vite": "8.2.4"
    }
  }
+diff --git a/playwright.config.ts b/playwright.config.ts
+index 7080ae1aed64de37cf0574fa01ed16a52f052718..291c87286bcb260ef20c52b505d703cd1460ba91 100644
+--- a/playwright.config.ts
++++ b/playwright.config.ts
+@@ -101,7 +101,7 @@ export default defineConfig({
+       timeout: 30_000,
+     },
+     {
+-      command: `cross-env APP_BASE_URL=${appUrl} NEXT_PUBLIC_APP_URL=${appUrl} PUBLIC_ORDER_FUNCTION_ORIGIN=${appUrl} NEXT_PUBLIC_SUPABASE_URL=${oauthMockUrl} NEXT_PUBLIC_SUPABASE_REALTIME_URL=${localPrimarySupabaseUrl} PRIMARY_SUPABASE_URL=${localPrimarySupabaseUrl} NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA NEXT_PUBLIC_ENABLE_PWA_IN_DEVELOPMENT=true LOCAL_QA_DISABLE_LOGIN_RATE_LIMIT=true CRON_SECRET=e2e-cron-secret OFFLINE_PERMIT_SIGNING_SECRET=e2e-only-offline-permit-signing-key-20260809 REPORT_DELIVERY_MODE=simulate PAYMENT_PROVIDER_MODE=mock VERCEL_ENV=preview VERCEL_GIT_COMMIT_REF=staging STAGING_PLATFORM_ADMIN_BOOTSTRAP_EMAILS=platform.admin.e2e@stallorder.test ${appServerCommand}`,
++      command: `cross-env APP_BASE_URL=${appUrl} NEXT_PUBLIC_APP_URL=${appUrl} PUBLIC_ORDER_FUNCTION_ORIGIN=${appUrl} LOCAL_QA_PUBLIC_ORDER_ORIGIN_ENABLED=true NEXT_PUBLIC_SUPABASE_URL=${oauthMockUrl} NEXT_PUBLIC_SUPABASE_REALTIME_URL=${localPrimarySupabaseUrl} PRIMARY_SUPABASE_URL=${localPrimarySupabaseUrl} NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA NEXT_PUBLIC_ENABLE_PWA_IN_DEVELOPMENT=true LOCAL_QA_DISABLE_LOGIN_RATE_LIMIT=true CRON_SECRET=e2e-cron-secret OFFLINE_PERMIT_SIGNING_SECRET=e2e-only-offline-permit-signing-key-20260809 REPORT_DELIVERY_MODE=simulate PAYMENT_PROVIDER_MODE=mock VERCEL_ENV=preview VERCEL_GIT_COMMIT_REF=staging STAGING_PLATFORM_ADMIN_BOOTSTRAP_EMAILS=platform.admin.e2e@stallorder.test ${appServerCommand}`,
+       url: `${appUrl}/api/connectivity`,
+       reuseExistingServer: false,
+       timeout: 120_000,
 diff --git a/public/sw.js b/public/sw.js
 index 6fd2006f78e62cdf23c342ac4b0ea91d614ff287..2067e57f08c229d69f5b6326b3672fbfe6569fd1 100644
 --- a/public/sw.js
@@ -1052,10 +1065,10 @@ index e4a338e91453f2e9b4605250ff722eacf141d0ab..f5ba2b2e1bf76272af5be1b7731ece82
      assert("HSTS enabled", Boolean(mainResponse.headers.get("strict-transport-security")), mainResponse.headers.get("strict-transport-security") ?? "missing");
 diff --git a/src/app/api/health/database-principal/route.test.ts b/src/app/api/health/database-principal/route.test.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..8b89cae6f366d6bf1266d03a7dec6a1b61ad40ca
+index 0000000000000000000000000000000000000000..7711f4b443ba7065671680a3c440820551ee2d32
 --- /dev/null
 +++ b/src/app/api/health/database-principal/route.test.ts
-@@ -0,0 +1,81 @@
+@@ -0,0 +1,89 @@
 +import { beforeEach, describe, expect, it, vi } from "vitest";
 +
 +const mocks = vi.hoisted(() => ({ authorize: vi.fn(), query: vi.fn(), log: vi.fn() }));
@@ -1099,6 +1112,14 @@ index 0000000000000000000000000000000000000000..8b89cae6f366d6bf1266d03a7dec6a1b
 +    expect(mocks.query.mock.calls[0]).toHaveLength(1);
 +  });
 +
++  it("limits diagnostic cleanup to its identity regardless of HTTP options", async () => {
++    const { GET } = await import("./route");
++    const request = new Request("https://app.example/api/health/database-principal?rateLimitCleanup=all-expired",
++      { headers: { "x-rate-limit-cleanup": "all-expired" } });
++    await GET(request);
++    expect(mocks.authorize).toHaveBeenCalledWith(request, { rateLimitCleanup: "current-key" });
++  });
++
 +  it("reports missing migration helper without assuming execution permission", async () => {
 +    mocks.query.mockResolvedValue([{ currentUser: "postgres", sessionUser: "postgres", database: "postgres",
 +      superuser: false, bypassRls: true, helperExists: false, helperExecute: null,
@@ -1139,10 +1160,10 @@ index 0000000000000000000000000000000000000000..8b89cae6f366d6bf1266d03a7dec6a1b
 +});
 diff --git a/src/app/api/health/database-principal/route.ts b/src/app/api/health/database-principal/route.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..afcd453d54bc63f1991f044a14ea9d1647d9c475
+index 0000000000000000000000000000000000000000..0da2576bf6224d498fb20f601289f9d9116558d1
 --- /dev/null
 +++ b/src/app/api/health/database-principal/route.ts
-@@ -0,0 +1,51 @@
+@@ -0,0 +1,52 @@
 +import { NextResponse } from "next/server";
 +import { logEvent } from "@/lib/audit";
 +import { prisma } from "@/lib/prisma";
@@ -1162,7 +1183,8 @@ index 0000000000000000000000000000000000000000..afcd453d54bc63f1991f044a14ea9d16
 +};
 +
 +export async function GET(request: Request) {
-+  const authorization = await authorizeHealthApiRequest(request);
++  // Diagnostics retain the normal request budget without collecting other identities' expired buckets.
++  const authorization = await authorizeHealthApiRequest(request, { rateLimitCleanup: "current-key" });
 +  if (!authorization.ok) return authorization.response;
 +  try {
 +    const rows = await prisma.$queryRaw<Principal[]>`
@@ -2221,6 +2243,30 @@ index 6047321f73df30c1f02d55c9626b08e3d5946adb..2df21aa6821d0cd817cef4e208ec91d0
    it("ignores invalid payloads and external notification targets", async () => {
      const w = worker();
      await w.push({ ...w.payload, url: "//evil.example/staff/qa" });
+diff --git a/src/lib/authorization.ts b/src/lib/authorization.ts
+index bc65fc44f8f7122eaea7e7438f91f99d07637cde..892191a6743d3e60909315c3c943dcc1d7f2ca31 100644
+--- a/src/lib/authorization.ts
++++ b/src/lib/authorization.ts
+@@ -203,7 +203,10 @@ export async function requirePlatformAdminPage(returnPath = "/admin/billing") {
+   return principal;
+ }
+ 
+-export async function authorizePlatformAdminApiRequest(request: Request) {
++export async function authorizePlatformAdminApiRequest(
++  request: Request,
++  options: { rateLimitCleanup?: "current-key" } = {},
++) {
+   const requestId = createRequestId();
+   const principal = await getRequestPrincipal(request);
+   if (!principal) {
+@@ -220,6 +223,7 @@ export async function authorizePlatformAdminApiRequest(request: Request) {
+     identifier: principal.user.id,
+     limit: 180,
+     windowMs: 5 * 60_000,
++    cleanup: options.rateLimitCleanup,
+   });
+   if (!apiLimit.allowed) {
+     return {
 diff --git a/src/lib/delivery-order-i18n.test.ts b/src/lib/delivery-order-i18n.test.ts
 new file mode 100644
 index 0000000000000000000000000000000000000000..f6fac942026670217d1e7380d16e56f9a21e020a
@@ -2471,15 +2517,56 @@ index 180d8382985d89673af52df3680a408d54376a49..535b659aaf5accd35f7ae7203f1581e2
      select public.get_takeout_preorder_slots(${stallId}::uuid, now()) as slots
 diff --git a/src/lib/public-order-function-origin.test.ts b/src/lib/public-order-function-origin.test.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..0f681122b3f5062f98330851dd3e08b78dc9f29e
+index 0000000000000000000000000000000000000000..4ae62562f03adcc2f69fd297baedb851d7d6f2f7
 --- /dev/null
 +++ b/src/lib/public-order-function-origin.test.ts
-@@ -0,0 +1,32 @@
+@@ -0,0 +1,73 @@
 +import { describe, expect, it } from "vitest";
 +import { publicOrderFunctionOrigin } from "./public-order-function-origin";
 +
 +const hostname = "stallorder-platform-review-ada76145-8663s-projects.vercel.app";
++const isolated = {
++  VERCEL_ENV: "preview",
++  LOCAL_QA_PUBLIC_ORDER_ORIGIN_ENABLED: "true",
++  PUBLIC_ORDER_FUNCTION_ORIGIN: "http://localhost:3001",
++  NEXT_PUBLIC_APP_URL: "http://localhost:3001",
++  DATABASE_URL: "postgresql://postgres:synthetic@127.0.0.1:54322/postgres?schema=public",
++  NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL: "http://127.0.0.1:54321/functions/v1",
++};
 +describe("public order function Origin", () => {
++  it("allows explicitly isolated native Preview while retaining real provider and Production identity", () => {
++    expect(publicOrderFunctionOrigin(isolated)).toBe("http://localhost:3001");
++    expect(publicOrderFunctionOrigin({ ...isolated, VERCEL: "1", VERCEL_URL: hostname }))
++      .toBe(`https://${hostname}`);
++    expect(publicOrderFunctionOrigin({ ...isolated, VERCEL_ENV: "production",
++      PUBLIC_ORDER_FUNCTION_ORIGIN: "https://app.qidaigo.com" })).toBe("https://app.qidaigo.com");
++  });
++
++  it.each([
++    { LOCAL_QA_PUBLIC_ORDER_ORIGIN_ENABLED: undefined },
++    { LOCAL_QA_PUBLIC_ORDER_ORIGIN_ENABLED: "false" },
++    { VERCEL: "1" }, { VERCEL: "unexpected" }, { VERCEL_URL: "invalid" },
++    { PUBLIC_ORDER_FUNCTION_ORIGIN: "https://app.qidaigo.com" },
++    { PUBLIC_ORDER_FUNCTION_ORIGIN: "http://localhost:3001/path" },
++    { PUBLIC_ORDER_FUNCTION_ORIGIN: "http://name@localhost:3001" },
++    { NEXT_PUBLIC_APP_URL: "https://app.qidaigo.com" },
++    { NEXT_PUBLIC_APP_URL: "http://localhost:3002" },
++    { NEXT_PUBLIC_APP_URL: "http://localhost:3001?override=1" },
++    { DATABASE_URL: undefined },
++    { DATABASE_URL: "postgresql://postgres:synthetic@db.example/postgres" },
++    { DATABASE_URL: "http://127.0.0.1:54322/postgres" },
++    { DATABASE_URL: "postgresql://postgres:synthetic@127.0.0.1/postgres?host=db.example" },
++    { DATABASE_URL: "postgresql://postgres:synthetic@127.0.0.1/postgres?hostaddr=192.0.2.1" },
++    { NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL: undefined },
++    { NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL: "https://project.supabase.co/functions/v1" },
++    { NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL: "http://127.0.0.1:54321/elsewhere" },
++    { SUPABASE_FUNCTIONS_URL: "https://project.supabase.co/functions/v1" },
++    { SUPABASE_FUNCTIONS_URL: "invalid" },
++  ])("never uses the local opt-in with missing isolation or provider identity: %j", (override) => {
++    expect(() => publicOrderFunctionOrigin({ ...isolated, ...override }))
++      .toThrow("PUBLIC_ORDER_PREVIEW_ORIGIN_INVALID");
++  });
++
 +  it("binds Preview to the provider deployment despite stale explicit or build configuration", () => {
 +    expect(publicOrderFunctionOrigin({ VERCEL_ENV: "preview", VERCEL_URL: hostname,
 +      PUBLIC_ORDER_FUNCTION_ORIGIN: "https://app.qidaigo.com", NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3000",
@@ -2509,24 +2596,61 @@ index 0000000000000000000000000000000000000000..0f681122b3f5062f98330851dd3e08b7
 +});
 diff --git a/src/lib/public-order-function-origin.ts b/src/lib/public-order-function-origin.ts
 new file mode 100644
-index 0000000000000000000000000000000000000000..997b4bd1e1bd4f15bdf4fdb26fa9c8a6d2ab2a05
+index 0000000000000000000000000000000000000000..670d237a63e08b1de81043e03962a4ab504fbd7e
 --- /dev/null
 +++ b/src/lib/public-order-function-origin.ts
-@@ -0,0 +1,31 @@
+@@ -0,0 +1,68 @@
 +type PublicOrderOriginEnvironment = {
++  VERCEL?: string;
 +  VERCEL_ENV?: string;
 +  VERCEL_URL?: string;
++  LOCAL_QA_PUBLIC_ORDER_ORIGIN_ENABLED?: string;
++  DATABASE_URL?: string;
++  SUPABASE_FUNCTIONS_URL?: string;
++  NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL?: string;
 +  PUBLIC_ORDER_FUNCTION_ORIGIN?: string;
 +  NEXT_PUBLIC_APP_URL?: string;
 +};
 +
++function isolatedLocalOrigin(environment: PublicOrderOriginEnvironment) {
++  if (environment.LOCAL_QA_PUBLIC_ORDER_ORIGIN_ENABLED !== "true"
++    || environment.VERCEL || environment.VERCEL_URL) return null;
++  try {
++    const origin = new URL(environment.PUBLIC_ORDER_FUNCTION_ORIGIN ?? "");
++    const app = new URL(environment.NEXT_PUBLIC_APP_URL ?? "");
++    const database = new URL(environment.DATABASE_URL ?? "");
++    const functions = new URL(environment.SUPABASE_FUNCTIONS_URL
++      || environment.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL || "");
++    if (![origin, app, database, functions].every(url =>
++      ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname))
++      || ![origin, app, functions].every(url => url.protocol === "http:"
++        && !url.username && !url.password && !url.search && !url.hash)
++      || !["postgres:", "postgresql:"].includes(database.protocol)
++      || database.hash || [...database.searchParams.keys()].some(key => key !== "schema")
++      || origin.origin !== app.origin
++      || origin.pathname !== "/" || app.pathname !== "/"
++      || !["/functions/v1", "/functions/v1/"].includes(functions.pathname)) return null;
++    return origin.origin;
++  } catch {
++    return null;
++  }
++}
++
 +export function publicOrderFunctionOrigin(environment: PublicOrderOriginEnvironment = {
++  VERCEL: process.env.VERCEL,
 +  VERCEL_ENV: process.env.VERCEL_ENV,
 +  VERCEL_URL: process.env.VERCEL_URL,
++  LOCAL_QA_PUBLIC_ORDER_ORIGIN_ENABLED: process.env.LOCAL_QA_PUBLIC_ORDER_ORIGIN_ENABLED,
++  DATABASE_URL: process.env.DATABASE_URL,
++  SUPABASE_FUNCTIONS_URL: process.env.SUPABASE_FUNCTIONS_URL,
++  NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL: process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL,
 +  PUBLIC_ORDER_FUNCTION_ORIGIN: process.env.PUBLIC_ORDER_FUNCTION_ORIGIN,
 +  NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
 +}) {
 +  if (environment.VERCEL_ENV === "preview") {
++    // Native E2E retains Preview auth/payment policies, but never a hosted target.
++    const localOrigin = isolatedLocalOrigin(environment);
++    if (localOrigin) return localOrigin;
 +    // Vercel supplies this deployment identity. Never derive it from request
 +    // Host or fall back to an unrelated Production/local origin in Preview.
 +    const hostname = environment.VERCEL_URL;
@@ -2544,11 +2668,86 @@ index 0000000000000000000000000000000000000000..997b4bd1e1bd4f15bdf4fdb26fa9c8a6
 +    throw new Error("PUBLIC_ORDER_FUNCTION_ORIGIN or NEXT_PUBLIC_APP_URL must be a valid URL.");
 +  }
 +}
+diff --git a/src/lib/rate-limit.test.ts b/src/lib/rate-limit.test.ts
+index 049ba499d44047cb677d46282e65d76fe4e257b6..25aceedc48083d6188a971882ba17bd3844d62e2 100644
+--- a/src/lib/rate-limit.test.ts
++++ b/src/lib/rate-limit.test.ts
+@@ -68,6 +68,22 @@ describe("public rate limiting", () => {
+     });
+   });
+ 
++  it.each([undefined, "current-key"] as const)("keeps admission and limits while selecting cleanup %s", async cleanup => {
++    const { checkRateLimit } = await import("./rate-limit");
++    const options = { scope: "platform-billing-api", identifier: "owned-profile", limit: 180,
++      windowMs: 300_000, cleanup };
++    mocks.queryRaw.mockResolvedValueOnce([{ count: 181, expiresAt: new Date(Date.now() + 300_000) }]);
++    await expect(checkRateLimit(options)).resolves.toMatchObject({ allowed: false, remaining: 0 });
++    const call = mocks.queryRaw.mock.calls[0];
++    const sql = (call[0] as TemplateStringsArray).join(" ? ");
++    expect(sql.replace(/\s+/g, " ")).toContain("where ? and expires_at <=");
++    expect(call[2]).toBe(cleanup !== "current-key");
++    expect(sql).toContain("on conflict (key) do update");
++    expect(sql).toContain("bucket_count <");
++    mocks.queryRaw.mockResolvedValueOnce([]);
++    await expect(checkRateLimit(options)).resolves.toMatchObject({ allowed: false, remaining: 0 });
++  });
++
+   it("acquires a concurrency lease atomically and releases it once", async () => {
+     const expiresAt = new Date(Date.now() + 60_000);
+     mocks.queryRaw.mockResolvedValueOnce([{ count: 1, expiresAt, acquired: true }]);
+diff --git a/src/lib/rate-limit.ts b/src/lib/rate-limit.ts
+index 68716ead07d740a0c9d7208833ff3f51f0206de1..3711175c992417d579a590cdd1a7ea8f7410f374 100644
+--- a/src/lib/rate-limit.ts
++++ b/src/lib/rate-limit.ts
+@@ -16,7 +16,7 @@ type PublicRateLimitOptions = {
+   windowMs: number;
+ };
+ 
+-export async function checkRateLimit(options: RateLimitOptions) {
++export async function checkRateLimit(options: RateLimitOptions & { cleanup?: "current-key" }) {
+   const key = createHash("sha256").update(`${options.scope}:${options.identifier}`).digest("hex");
+   const now = new Date();
+   const expiresAt = new Date(now.getTime() + options.windowMs);
+@@ -28,7 +28,7 @@ export async function checkRateLimit(options: RateLimitOptions) {
+     ), expired as (
+       select key
+       from public.rate_limit_buckets
+-      where expires_at <= ${now}
++      where ${options.cleanup !== "current-key"} and expires_at <= ${now}
+       order by expires_at asc
+       limit 100
+     ), cleanup as (
 diff --git a/src/server/public-order/canonical-tracking-validator.test.ts b/src/server/public-order/canonical-tracking-validator.test.ts
-index fa01135e789172992ac0427c0fb7285e45099345..648139a03ab26a7dc22b095aea9c5e41e9963dfa 100644
+index fa01135e789172992ac0427c0fb7285e45099345..cfb36f011342c790f26e6c894490eb3e1df9d9c9 100644
 --- a/src/server/public-order/canonical-tracking-validator.test.ts
 +++ b/src/server/public-order/canonical-tracking-validator.test.ts
-@@ -60,4 +60,31 @@ describe("canonical public-order device validation", () => {
+@@ -7,6 +7,25 @@ describe("canonical public-order device validation", () => {
+     vi.unstubAllEnvs();
+   });
+ 
++  it("returns canonical not-found for a wrong device in the explicitly isolated local Preview harness", async () => {
++    vi.stubEnv("VERCEL_ENV", "preview");
++    vi.stubEnv("VERCEL", "");
++    vi.stubEnv("VERCEL_URL", "");
++    vi.stubEnv("LOCAL_QA_PUBLIC_ORDER_ORIGIN_ENABLED", "true");
++    vi.stubEnv("PUBLIC_ORDER_FUNCTION_ORIGIN", "http://localhost:3001");
++    vi.stubEnv("NEXT_PUBLIC_APP_URL", "http://localhost:3001");
++    vi.stubEnv("DATABASE_URL", "postgresql://postgres:synthetic@127.0.0.1:54322/postgres");
++    vi.stubEnv("SUPABASE_FUNCTIONS_URL", "http://127.0.0.1:54321/functions/v1");
++    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "public-test-key");
++    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 404 }));
++    const { validateTrackedPublicOrderAtCanonicalEdge } = await import("./canonical-tracking-validator");
++    await expect(validateTrackedPublicOrderAtCanonicalEdge({ trackingToken: "tracking-token",
++      deviceId: "wrong-device", clientIp: "203.0.113.8", operationId: "operation-id", fetchImpl,
++    })).resolves.toEqual({ outcome: "NOT_FOUND" });
++    expect(fetchImpl).toHaveBeenCalledWith("http://127.0.0.1:54321/functions/v1/get-public-order",
++      expect.objectContaining({ headers: expect.objectContaining({ origin: "http://localhost:3001" }) }));
++  });
++
+   it("authorizes recovery only when the canonical Edge response contains an order", async () => {
+     vi.stubEnv("NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL", "https://project.supabase.co/functions/v1/");
+     vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "public-test-key");
+@@ -60,4 +79,31 @@ describe("canonical public-order device validation", () => {
        fetchImpl: vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status })),
      })).resolves.toEqual({ outcome });
    });
@@ -2614,6 +2813,26 @@ index 7c2701678048b8b4e2f391c31e2f34e6ed857c54..dffb78dbb99afa8bc52ec9cb303b1836
          ...gatewayHeaders(),
          ...publicOrderUpstreamIpHeaders(input.clientIp),
        },
+diff --git a/src/server/resilience/health-authorization.ts b/src/server/resilience/health-authorization.ts
+index 1855533ccd7131dbcaa3898510a7053b3b02ff05..b510fb96578db6d79919decd38d8714008a0adc8 100644
+--- a/src/server/resilience/health-authorization.ts
++++ b/src/server/resilience/health-authorization.ts
+@@ -8,8 +8,13 @@ export const healthResponseHeaders = {
+   vary: "Accept, Cookie",
+ };
+ 
+-export async function authorizeHealthApiRequest(request: Request) {
+-  const result = await authorizePlatformAdminApiRequest(request);
++export async function authorizeHealthApiRequest(
++  request: Request,
++  options?: { rateLimitCleanup?: "current-key" },
++) {
++  const result = options
++    ? await authorizePlatformAdminApiRequest(request, options)
++    : await authorizePlatformAdminApiRequest(request);
+   if (!result.ok) {
+     for (const [name, value] of Object.entries(healthResponseHeaders)) {
+       result.response.headers.set(name, value);
 diff --git a/src/test/stateful-hook-runtime.ts b/src/test/stateful-hook-runtime.ts
 new file mode 100644
 index 0000000000000000000000000000000000000000..055f683f411606980c01840d50427bf990e69281
