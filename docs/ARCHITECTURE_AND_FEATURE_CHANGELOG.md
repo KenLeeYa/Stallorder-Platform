@@ -357,3 +357,7 @@ The next existing-branch installation candidate is pinned to PR404, pending prov
 ## 2026-11-14: Proposed PR406 protected ancestry synchronization
 
 PR404 installation passed CI/security/hosted Preview and merged into staging. Promotion PR405 requires the current main ancestor; the provider rejected direct staging update under its PR-only rules. Preserve those rules and add main/staging ancestry through the existing conversion branch, with identical content before the exact installation binding advances404 to406. Add rejection of completed PR404 and synchronize both invocation fixtures. The Primary password, GitHub secret, Vercel Production environment and live App remain unchanged. See docs/qa/primary-credential-rotation-20261114.md.
+
+## 2026-11-14: Managed temporary-role cleanup before credential issuance
+
+Pre-execution review found that Supabase-managed CLI roles cannot be removed by the existing postgres SQL DROP ROLE path. No credential was issued. Replace it with one fixed Preview management deletion, allowed only after an initially empty inventory and a fresh inventory containing exactly the returned role. Any scope mismatch or cleanup request failure prevents success, even after an empty readback. The single-writer requirement includes callers outside GitHub; the provider batch endpoint has no per-role CAS. Preserve all Primary prohibitions and the original rotation/application gates. Advance the protected installation binding to PR407 and reject completed PR406. See docs/qa/primary-credential-rotation-20261114.md.

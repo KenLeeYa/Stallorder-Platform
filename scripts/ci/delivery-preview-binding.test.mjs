@@ -40,8 +40,8 @@ for(const [name,mutate] of [
  ['fragment',c=>c.POSTGRES_URL+='#extra'],
  ['missing public key',c=>delete c.SUPABASE_ANON_KEY],
 ])test('rejects configuration '+name,()=>{const c=config();mutate(c);assert.throws(()=>verifyPreviewConfiguration(c));});
-const invocation=()=>({repository:'KenLeeYa/Stallorder-Platform',actor:'KenLeeYa',event:'pull_request',ref:'refs/pull/406/merge',headRepo:'KenLeeYa/Stallorder-Platform',headBranch:PREVIEW_BINDING.gitBranch,baseBranch:'staging',number:406});
-test('permits exact installation PR406 and staging-to-main promotion on the same existing resource',()=>{
+const invocation=()=>({repository:'KenLeeYa/Stallorder-Platform',actor:'KenLeeYa',event:'pull_request',ref:'refs/pull/407/merge',headRepo:'KenLeeYa/Stallorder-Platform',headBranch:PREVIEW_BINDING.gitBranch,baseBranch:'staging',number:407});
+test('permits exact installation PR407 and staging-to-main promotion on the same existing resource',()=>{
  assert.equal(verifyPreviewInvocation(invocation()).resourceKey,'pr-389');
  assert.equal(verifyPreviewInvocation({...invocation(),number:400,headBranch:'staging',baseBranch:'main'}).resourceKey,'pr-389');
  assert.equal(verifyPreviewInvocation({...invocation(),event:'workflow_dispatch',ref:'refs/heads/main'}).resourceKey,'pr-389');
@@ -55,6 +55,7 @@ for(const [name,change] of [
  ['previous installation PR401',v=>v.number=401],
  ['previous installation PR402',v=>v.number=402],
  ['previous installation PR404',v=>v.number=404],
+ ['previous installation PR406',v=>v.number=406],
  ['another PR number',v=>v.number+=1],['foreign branch',v=>v.headBranch='feature'],
  ['fork',v=>v.headRepo='other/Stallorder-Platform'],['wrong target',v=>v.baseBranch='main'],
  ['nonowner manual',v=>{v.event='workflow_dispatch';v.ref='refs/heads/main';v.actor='other';}],
