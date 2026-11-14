@@ -458,6 +458,7 @@ jobs:
               --build-env "BACKEND_ACTIVE_TARGET=$BACKEND_ACTIVE_TARGET" \
               --build-env "AUTH_PROJECT_CODE=$AUTH_PROJECT_CODE" \
               --build-env "PRODUCTION_ENVIRONMENT_APPROVED=false" \
+              --build-env "CATALOG_TRANSLATION_ENABLED=false" \
               --env "DATABASE_URL=$DATABASE_URL" \
               --env "DIRECT_URL=$DIRECT_URL" \
               --env "NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL" \
@@ -484,6 +485,7 @@ jobs:
               --env "AUTH_PROJECT_CODE=$AUTH_PROJECT_CODE" \
               --env "PRODUCTION_ENVIRONMENT_APPROVED=false" \
               --env "REPORT_DELIVERY_MODE=simulate" \
+              --env "CATALOG_TRANSLATION_ENABLED=false" \
               "${line_env_args[@]}"
           )"
           deployment_id="$(jq -r '.deployment.id // .id // empty' <<<"$deployment")"
@@ -530,8 +532,7 @@ jobs:
           for name in \
             AI_TRANSLATION_PROVIDER \
             AZURE_TRANSLATOR_KEY \
-            AZURE_TRANSLATOR_REGION \
-            CATALOG_TRANSLATION_ENABLED
+            AZURE_TRANSLATOR_REGION
           do
             runtime_configured=false
             build_configured=false
@@ -551,11 +552,12 @@ jobs:
               echo "translation_enabled=false" >> "$GITHUB_OUTPUT"
               echo "::notice::Catalog translation smoke skipped because this branch has no Azure Preview configuration."
               ;;
-            4)
-              echo "translation_enabled=true" >> "$GITHUB_OUTPUT"
+            3)
+              echo "translation_enabled=false" >> "$GITHUB_OUTPUT"
+              echo "::notice::Inherited Azure configuration is present; this delivery-only, no-additional-spend validation does not call the optional translation provider."
               ;;
             *)
-              echo "::error::Matching Preview has incomplete catalog translation configuration ($configured_translation_envs/4)."
+              echo "::error::Matching Preview has incomplete catalog translation configuration ($configured_translation_envs/3)."
               exit 1
               ;;
           esac
@@ -636,16 +638,21 @@ jobs:
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: node ../control/node_modules/tsx/dist/cli.mjs ../control/scripts/qa-preview-public-order.ts
 
-      - name: Preserve public-order browser QA evidence
+      - name: Preserve public-order browser QA summaries in the run log
         if: always() && steps.vercel-auth.outputs.enabled == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: preview-public-order-${{ github.run_id }}
-          path: |
-            product/artifacts/preview-public-order*
-            product/artifacts/preview-database-principal.json
-          if-no-files-found: warn
-          retention-days: 14
+        working-directory: product
+        run: |
+          node --input-type=module <<'NODE'
+          import {existsSync,readFileSync} from 'node:fs';
+          import {createHash} from 'node:crypto';
+          for(const path of ['artifacts/preview-public-order.json','artifacts/preview-database-principal.json']) {
+            if(!existsSync(path))continue;
+            const bytes=readFileSync(path);
+            if(bytes.length>2*1024*1024)throw new Error('PREVIEW_QA_REPORT_TOO_LARGE');
+            console.log(JSON.stringify({event:'preview-owned-browser-report',path,
+              sha256:createHash('sha256').update(bytes).digest('hex'),report:JSON.parse(bytes)}));
+          }
+          NODE
 
       - name: Clean reusable Preview-only fixture state
         if: always() && env.EPHEMERAL_DATABASE_URL != ''
