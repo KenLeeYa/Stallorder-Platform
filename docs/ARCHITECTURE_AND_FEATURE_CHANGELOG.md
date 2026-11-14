@@ -146,3 +146,8 @@ Run19 verifies frozen product0d2b27144fcf589bb887e669c09e82158e3de7a2, including
 ### 2026-11-14 — Complete native database preimage candidate
 
 Add a single readonly catalog statement and strict, redacted pure validator for full definitions/OIDs/ACL/config and146 complete migration rows, bound to the frozen product and existing executor contract. New23 tests and existing29 native tests pass; independent source review completed. The owned loopback rehearsal will verify actual SQL and reject the applied147 state. Remote authenticated collection, encryption and combined release remain unfinished; no Production capture or release is claimed.
+
+
+## 2026-11-14 — Owned native encrypted preimage rehearsal
+
+Add authenticated AES-GCM/HKDF encrypted chunk roundtrip of the complete owned native PostgreSQL state and re-verify definitions, ACLs and146 migration records after decryption. Keep the synthetic-loopback boundary, explicit false release authority, before/after-COMMIT recovery cases and owned cleanup. No Production or provider credential is used. Local66 tests pass; hosted encrypted-roundtrip proof is pending.
