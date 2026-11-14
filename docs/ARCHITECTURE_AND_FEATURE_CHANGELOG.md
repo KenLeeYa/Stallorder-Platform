@@ -326,3 +326,15 @@ Add a bounded one-shot read-only collector, AES-GCM/HKDF encrypted run-log archi
 Pin the actual native-preimage installation PR401 on the existing conversion branch; reject superseded PR399 and preserve staging-to-main promotion and the fixed PR389 paired resource. Update both invocation and credential-handoff fixtures together. The unrelated-number negative now increments its fixture number to avoid colliding with a future real PR. Full control regression: 1,036 passed.
 
 Hosted PR401 CI exposed a production-readiness false positive on the new synthetic connection fixture. Label its fake password explicitly as a placeholder, matching the established executor fixture; preserve the production credential scanner unchanged. The original failure is retained. The complete readiness scan and 28 native preimage/transport tests pass after the fixture correction.
+
+
+## 2026-11-14: Native postimage source and terminal Edge admission
+
+Added the exact public source template from owned PostgreSQL run 43558854329 and a read-only terminal consumer for the completed eight-job paired Edge rehearsal. The template retains no original history, OIDs or credentials; the consumer authenticates original source, operation/usage/cleanup evidence and final readback without granting Production authority. See `docs/qa/delivery-combined-preparation-20261114.md` for evidence and remaining Primary authentication, old-App compatibility and combined release gaps.
+
+
+## 2026-11-14: Bounded Primary authentication diagnosis
+
+After owner confirmation of the raw Primary DB password and matching Supavisor rejection logs, added an owner/main-only read-only diagnostic to distinguish direct network/authentication results from one independent transaction-pooler result. It uses the existing production environment/writer lock, fixed SQL/targets and redacted statuses; no reset, JIT access, retries, provider writes or release authority. See `docs/qa/delivery-auth-diagnostic-20261114.md`.
+
+The actual follow-up installation is PR402. Its Preview admission is pinned to that exact PR and rejects the merged PR401; the fixed PR389 resource and protected staging-to-main route remain unchanged. Final local control tests pass 1,116/1,116 with no skips.
