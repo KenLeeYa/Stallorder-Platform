@@ -21,6 +21,24 @@ const fixed={VERCEL_GIT_COMMIT_SHA:OLD_APP_SOURCE.commit,NEXT_PUBLIC_SUPABASE_UR
  TRUSTED_CLIENT_IP_HEADER:'x-real-ip',OAUTH_MOCK_GOOGLE_SUBJECT:'preview-google-subject',OAUTH_MOCK_LINE_SUBJECT:'preview-line-subject',OAUTH_MOCK_APPLE_SUBJECT:'preview-apple-subject'};
 export const OLD_APP_ENV_NAMES=Object.freeze(['DATABASE_URL','DIRECT_URL','NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',...Object.keys(fixed),...secrets]);
 
+export function oldAppVercelToken(raw){
+ try{assert.ok(typeof raw==='string'&&raw.length<=4096);const token=raw.trim();
+  assert.ok(token.length>=20&&/^[\x21-\x7e]+$/.test(token));return token;
+ }catch{throw new Error('OLD_APP_VERCEL_TOKEN_REJECTED');}
+}
+export function oldAppMaskValues(config,token){
+ try{const values=['DATABASE_URL','DIRECT_URL','NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',...secrets].map(name=>config[name]);
+  for(const value of values)assert.ok(typeof value==='string'&&value.length>=16&&value.length<=8192&&!/[\x00-\x1f\x7f]/.test(value));
+  return [...new Set([...values,oldAppVercelToken(token)])];
+ }catch{throw new Error('OLD_APP_SECRET_MASKS_REJECTED');}
+}
+export function oldAppDeploymentEnvironment(env){
+ try{const token=oldAppVercelToken(env.DELIVERY_OLD_APP_VERCEL_TOKEN);assert.equal(token,env.DELIVERY_OLD_APP_VERCEL_TOKEN);
+  const child={};for(const name of ['PATH','HOME','TMPDIR','RUNNER_TEMP','CI','DO_NOT_TRACK','VERCEL_ORG_ID','VERCEL_PROJECT_ID',...OLD_APP_ENV_NAMES])if(env[name])child[name]=env[name];
+  return {...child,VERCEL_TOKEN:token};
+ }catch{throw new Error('OLD_APP_TOKEN_HANDOFF_REJECTED');}
+}
+
 export function oldAppFixtureIdentity(raw,phase){
  try{
   assert.ok(['baseline','cutover','recovery','restore'].includes(phase));assert.ok(typeof raw==='string'&&Buffer.byteLength(raw)<=2048);
@@ -86,7 +104,7 @@ export function oldAppBuildArguments(env){
   const runtime=new URL(env.DATABASE_URL),direct=new URL(env.DIRECT_URL);
   assert.equal(runtime.port,'6543');assert.equal(runtime.searchParams.get('pgbouncer'),'true');assert.equal(direct.port,'5432');
   assert.equal(runtime.hostname,direct.hostname);assert.equal(runtime.username,direct.username);assert.equal(runtime.password,direct.password);
-  const args=['--yes','vercel@58.3.0','deploy','.','--yes','--target','preview','--skip-domain','--json','--project',project];
+  const args=['--yes','vercel@58.3.0','deploy','.','--yes','--target','preview','--json','--project',project];
   for(const [key,value] of Object.entries({githubCommitSha:OLD_APP_SOURCE.commit,githubCommitRef:'main',stallorderCompatibilityPurpose:'delivery-old-app',
    stallorderCompatibilityRun:env.GITHUB_RUN_ID,stallorderCompatibilityControl:env.GITHUB_SHA,stallorderCompatibilityPhase:env.REHEARSAL_PHASE,stallorderOldAppTree:OLD_APP_SOURCE.tree,
    stallorderOldAppLock:OLD_APP_SOURCE.lockfileSha256,stallorderCompatibilityDatabase:PREVIEW_BINDING.project}))args.push('--meta',key+'='+value);
@@ -104,52 +122,96 @@ function sourceState(oldApp){
   packageSha256:hash('package.json'),lockfileSha256:hash('package-lock.json')});
 }
 
-async function deploymentReceipt(binding,token,phase){
- assert.match(binding.deploymentId??'',/^dpl_[A-Za-z0-9]+$/);assert.ok(token&&token.length>=20&&!/\s/.test(token));
- const response=await fetch(`https://api.vercel.com/v13/deployments/${binding.deploymentId}?teamId=${team}`,{headers:{Authorization:'Bearer '+token},redirect:'error',signal:AbortSignal.timeout(20000)});
+async function oldAppProviderRead(path,token,fetchImpl){
+ const response=await fetchImpl('https://api.vercel.com'+path,{method:'GET',headers:{Authorization:'Bearer '+oldAppVercelToken(token)},redirect:'error',signal:AbortSignal.timeout(20000)});
  assert.equal(response.status,200);const chunks=[];let size=0;for await(const chunk of response.body){size+=chunk.length;assert.ok(size<=2*1024*1024);chunks.push(Buffer.from(chunk));}
- return oldAppRehearsalDeployment(binding,JSON.parse(Buffer.concat(chunks).toString('utf8')),phase);
+ return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+}
+export async function oldAppDeploymentReceipt(binding,token,phase,fetchImpl=fetch){
+ try{
+ assert.match(binding.deploymentId??'',/^dpl_[A-Za-z0-9]+$/);
+ return oldAppRehearsalDeployment(binding,await oldAppProviderRead(`/v13/deployments/${binding.deploymentId}?teamId=${team}`,token,fetchImpl),phase);
+ }catch{throw new Error('OLD_APP_PROVIDER_READBACK_FAILED');}
+}
+
+// Normal Preview deployment can create Preview aliases. The CLI's --skip-domain
+// is Production-only; it cannot be used to protect this rehearsal. Instead bind
+// all existing Production routes, and reject any branch-bound project domain.
+export async function verifyOldAppProductionRouting(token,fetchImpl=fetch){
+ try{
+  const deploymentId='dpl_4v5acoGZU8tkbTAnb6uEwuN5AjJQ';
+  const aliases=['app.qidaigo.com','stallorder-platform-ada76145-8663s-projects.vercel.app','stallorder-platform.vercel.app'];
+  const domains=await oldAppProviderRead(`/v9/projects/${project}/domains?limit=100&teamId=${team}`,token,fetchImpl);
+  assert.equal(domains.pagination?.next,null);assert.equal(domains.pagination.count,2);
+  assert.deepEqual(domains.domains.map(d=>d.name).sort(),['app.qidaigo.com','stallorder-platform.vercel.app']);
+  for(const d of domains.domains){assert.equal(d.projectId,project);assert.equal(d.gitBranch,null);assert.equal(d.customEnvironmentId,null);assert.equal(d.redirect,null);assert.equal(d.verified,true);}
+  const inventory=await oldAppProviderRead(`/v2/deployments/${deploymentId}/aliases?teamId=${team}`,token,fetchImpl);
+  assert.deepEqual(inventory.aliases.map(a=>a.alias).sort(),aliases);
+  assert.ok(inventory.pagination?.next==null);
+  for(const alias of aliases){
+   const actual=await oldAppProviderRead(`/v4/aliases/${alias}?teamId=${team}`,token,fetchImpl);
+   assert.equal(actual.alias,alias);assert.equal(actual.projectId,project);assert.equal(actual.deploymentId,deploymentId);
+   assert.equal(actual.deployment?.id,deploymentId);assert.equal(actual.redirect,null);
+  }
+  return {project,team,deploymentId,aliases,productionRoutingVerified:true};
+ }catch{throw new Error('OLD_APP_PRODUCTION_ROUTING_REJECTED');}
+}
+export async function withOldAppProductionRouting(token,work,{fetchImpl=fetch,report=()=>{}}={}){
+ const verify=async position=>report({event:'old-app-production-routing',position,...await verifyOldAppProductionRouting(token,fetchImpl)});
+ await verify('before');
+ try{return await work();}finally{await verify('after');}
 }
 
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
+ let stage='CONTEXT';
  try{
   const env=process.env,root=resolve(dirname(fileURLToPath(import.meta.url)),'../..'),oldApp=resolve(root,'../old-app');
-  assert.equal(process.argv.length,3);verifyOldAppBuildContext(env);sourceState(oldApp);
+  assert.equal(process.argv.length,3);verifyOldAppBuildContext(env);stage='SOURCE';sourceState(oldApp);
   if(process.argv[2]==='source')console.log(JSON.stringify({event:'old-app-source',...OLD_APP_SOURCE,sourceVerified:true,releaseAuthorized:false}));
   else if(process.argv[2]==='configure'){
+   stage='PREVIEW';
    verifyExistingPreview({parent:PREVIEW_BINDING.parent,branches:await credentialRequest('GET',`/v1/projects/${PREVIEW_BINDING.parent}/branches`,undefined,env.SUPABASE_ACCESS_TOKEN)});
    const branch=await credentialRequest('GET',`/v1/branches/${PREVIEW_BINDING.branchId}`,undefined,env.SUPABASE_ACCESS_TOKEN);
    assert.equal(branch.ref,PREVIEW_BINDING.project);assert.equal(branch.status,'ACTIVE_HEALTHY');
-   await verifyPreviewVercelAccess({team:env.VERCEL_ORG_ID,project:env.VERCEL_PROJECT_ID,token:env.VERCEL_TOKEN});
+   const token=oldAppVercelToken(env.VERCEL_TOKEN);console.log('::add-mask::'+token.replaceAll('%','%25'));
+   await verifyPreviewVercelAccess({team:env.VERCEL_ORG_ID,project:env.VERCEL_PROJECT_ID,token});
+   stage='CONFIGURATION';
    const raw=execFileSync('supabase',['branches','get',PREVIEW_BINDING.name,'--project-ref',PREVIEW_BINDING.parent,'--output','json','--log-level','error'],
     {encoding:'utf8',timeout:30000,maxBuffer:131072,stdio:['ignore','pipe','pipe']});
    const config=oldAppConfiguration(JSON.parse(raw),env.SUPABASE_DB_PASSWORD,env.OLD_APP_PREVIEW_SEED);
-   oldAppBuildArguments({...env,...config});coldAuthentication(config);
+   oldAppBuildArguments({...env,...config});
+   for(const value of oldAppMaskValues(config,token))console.log('::add-mask::'+value.replaceAll('%','%25'));
+   stage='AUTHENTICATION';coldAuthentication(config);stage='EXPORT';
    for(const [name,value] of Object.entries(config)){
-    console.log('::add-mask::'+value.replaceAll('%','%25'));
     appendFileSync(env.GITHUB_ENV,`${name}=${value}\n`);
    }
+   appendFileSync(env.GITHUB_ENV,`DELIVERY_OLD_APP_VERCEL_TOKEN=${token}\n`);
    console.log(JSON.stringify({event:'old-app-preview-configured',project:PREVIEW_BINDING.project,coldAuthenticationPorts:[5432,6543],role:'postgres',applicationSecretsStable:true}));
   }
   else if(process.argv[2]==='restore'){
+   stage='RESTORE';
    assert.equal(env.REHEARSAL_PHASE,'restore');oldAppBuildArguments(env);
    const binding={controlCommit:env.GITHUB_SHA,runId:env.RESTORE_RUN_ID,deploymentId:env.RESTORE_DEPLOYMENT_ID,url:env.RESTORE_URL};
-   const receipt=await deploymentReceipt(binding,env.VERCEL_TOKEN,'baseline');
+   const receipt=await oldAppDeploymentReceipt(binding,oldAppDeploymentEnvironment(env).VERCEL_TOKEN,'baseline');
    appendFileSync(env.GITHUB_OUTPUT,`deployment_id=${binding.deploymentId}\nurl=${receipt.url}\n`);
    console.log(JSON.stringify({event:'old-app-baseline-restored',...receipt,newColdAppStartVerified:false}));
   }else{
+   stage='DEPLOY_CONFIGURATION';
    assert.ok(['baseline','cutover','recovery'].includes(env.REHEARSAL_PHASE));
-   assert.equal(process.argv[2],'deploy');const args=oldAppBuildArguments(env);assert.ok(env.VERCEL_TOKEN&&env.VERCEL_TOKEN.length>=20&&!/\s/.test(env.VERCEL_TOKEN));
+   assert.equal(process.argv[2],'deploy');const args=oldAppBuildArguments(env),childEnv=oldAppDeploymentEnvironment(env);
    mkdirSync(resolve(oldApp,'.vercel'),{recursive:true});writeFileSync(resolve(oldApp,'.vercel/project.json'),JSON.stringify({orgId:team,projectId:project}),{flag:'wx'});
-   await new Promise((ok,fail)=>process.stdout.write(JSON.stringify({event:'old-app-deploy-intent',controlCommit:env.GITHUB_SHA,runId:env.GITHUB_RUN_ID,
-    appCommit:OLD_APP_SOURCE.commit,project,team,database:PREVIEW_BINDING.project,target:'preview'})+'\n',e=>e?fail(e):ok()));
-   const childEnv={};for(const name of ['PATH','HOME','TMPDIR','RUNNER_TEMP','CI','DO_NOT_TRACK','VERCEL_TOKEN','VERCEL_ORG_ID','VERCEL_PROJECT_ID',...OLD_APP_ENV_NAMES])if(env[name])childEnv[name]=env[name];
-   const raw=execFileSync('npx',args,{cwd:oldApp,env:childEnv,encoding:'utf8',timeout:600000,maxBuffer:2*1024*1024,stdio:['ignore','pipe','pipe']});
-   const result=JSON.parse(raw),d=result.deployment??result;assert.match(d.id??'',/^dpl_[A-Za-z0-9]+$/);
-   const binding={controlCommit:env.GITHUB_SHA,runId:env.GITHUB_RUN_ID,deploymentId:d.id,url:d.url?.startsWith('https://')?d.url:'https://'+d.url};
-   const receipt=await deploymentReceipt(binding,env.VERCEL_TOKEN,env.REHEARSAL_PHASE);
+   stage='PRODUCTION_ROUTING';
+   const {binding,receipt}=await withOldAppProductionRouting(childEnv.VERCEL_TOKEN,async()=>{
+    stage='DEPLOY_REQUEST';
+    await new Promise((ok,fail)=>process.stdout.write(JSON.stringify({event:'old-app-deploy-intent',controlCommit:env.GITHUB_SHA,runId:env.GITHUB_RUN_ID,
+     appCommit:OLD_APP_SOURCE.commit,project,team,database:PREVIEW_BINDING.project,target:'preview'})+'\n',e=>e?fail(e):ok()));
+    const raw=execFileSync('npx',args,{cwd:oldApp,env:childEnv,encoding:'utf8',timeout:600000,maxBuffer:2*1024*1024,stdio:['ignore','pipe','pipe']});
+    stage='DEPLOY_READBACK';const result=JSON.parse(raw),d=result.deployment??result;assert.match(d.id??'',/^dpl_[A-Za-z0-9]+$/);
+    const binding={controlCommit:env.GITHUB_SHA,runId:env.GITHUB_RUN_ID,deploymentId:d.id,url:d.url?.startsWith('https://')?d.url:'https://'+d.url};
+    return {binding,receipt:await oldAppDeploymentReceipt(binding,childEnv.VERCEL_TOKEN,env.REHEARSAL_PHASE)};
+   },{report:value=>console.log(JSON.stringify(value))});
    sourceState(oldApp);appendFileSync(env.GITHUB_OUTPUT,`deployment_id=${binding.deploymentId}\nurl=${binding.url}\n`);
    console.log(JSON.stringify({event:'old-app-preview-built',...receipt}));
   }
- }catch{console.error('OLD_APP_PREVIEW_BUILD_FAILED');process.exitCode=1;}
+ }catch(error){console.error('OLD_APP_PREVIEW_BUILD_FAILED_'+(error?.message==='OLD_APP_PRODUCTION_ROUTING_REJECTED'?'PRODUCTION_ROUTING':stage));process.exitCode=1;}
 }
