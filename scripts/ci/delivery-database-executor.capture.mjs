@@ -34,7 +34,7 @@ export function validatePrimaryEndpoint(project,poolers){
  for(const [key,value]of u.searchParams){assert.equal(key,'sslmode');assert.ok(['require','verify-full'].includes(value));assert.equal(u.searchParams.getAll(key).length,1);}
  return {projectId:PRIMARY,hostname:u.hostname,port:'5432',username:'postgres.'+PRIMARY,database:'postgres'};
 }
-async function managementGet(path,token,fetchImpl){
+export async function managementGet(path,token,fetchImpl){
  assert.ok(['/v1/projects/'+PRIMARY,'/v1/projects/'+PRIMARY+'/config/database/pooler'].includes(path));
  try{
   const response=await fetchImpl('https://api.supabase.com'+path,{method:'GET',redirect:'error',headers:{Authorization:'Bearer '+token,Accept:'application/json'},signal:AbortSignal.timeout(15000)});
