@@ -133,3 +133,8 @@ Bind fresh immutable Run18 verification and the complete independently reviewed 
 ## 2026-11-14 - Proposed native delivery migration transaction
 
 Added a pinned-source, one-transaction Apply builder beside the existing native recovery builder. Full function/ACL/principal/history CAS and postimage checks fail closed; the hosted synthetic rehearsal now covers stale input, wrong output, interruption, successful apply and duplicate refusal. The product is unchanged. Local 22 tests pass; hosted evidence is pending. This is not a protected Production executor or release. See [scope and remaining gates](qa/delivery-native-apply-20261114.md).
+
+
+## 2026-11-14 - Native rehearsal passed; connection-loss extension proposed
+
+Run43546722437/job132299666033 passed actual PostgreSQL17.6 Apply, refusals, transactional recovery, order preservation and owned cleanup. Independent source review found0 Critical/Important; the original SELECT1/0 case is SQL-error rollback, not disconnection proof. Added fail-closed outcome classification and owned loopback session termination before and after COMMIT; every observed state forbids automatic retry. Local29 tests and lint passed; actual new hosted proof remains pending. Protected caller must authenticate complete snapshots and establish original-writer quiescence, not infer it from a baseline read. No Primary/Edge/App release. See qa/delivery-native-apply-20261114.md.

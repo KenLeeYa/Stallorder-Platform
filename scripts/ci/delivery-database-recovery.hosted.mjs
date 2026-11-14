@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { cpSync, existsSync, readFileSync, readdirSync, unlinkSync, copyFileSync } from 'node:fs';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync, spawn } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SNAPSHOT_SQL, recoverySql, validateSnapshots, applySql } from './delivery-database-recovery.mjs';
+import { SNAPSHOT_SQL, recoverySql, validateSnapshots, applySql, classifyApplyOutcome } from './delivery-database-recovery.mjs';
 
 const control = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const product = resolve(control, '../product'), recovery = resolve(control, '../recovery');
@@ -43,6 +43,39 @@ if(process.argv[2]==='prepare') {
     return r.stdout.trim();
   }
   const snapshot=()=>JSON.parse(sql(SNAPSHOT_SQL+';'));
+  async function disconnectApply(input,phase) {
+    assert.match(process.env.GITHUB_RUN_ID??'',/^[1-9][0-9]*$/);
+    assert.ok(['before-commit','after-commit'].includes(phase));
+    const appName=`delivery-native-${process.env.GITHUB_RUN_ID}-${phase}`;
+    const pause='SELECT pg_sleep(30);\n';
+    const interrupted=input.replace(/COMMIT;\n$/,phase==='before-commit'?pause+'COMMIT;\n':'COMMIT;\n'+pause);
+    const child=spawn('psql',['-X','-q','-A','-t','-v','ON_ERROR_STOP=1','-v','VERBOSITY=sqlstate'],
+      {cwd:recovery,env:{...env,PGAPPNAME:appName},stdio:['pipe','ignore','ignore']});
+    let exited=false,writeFailed=false;
+    const exit=new Promise(resolveExit=>{
+      child.once('error',()=>{exited=true;resolveExit({spawnError:true});});
+      child.once('exit',(code,signal)=>{exited=true;resolveExit({code,signal});});
+    });
+    child.stdin.once('error',()=>{writeFailed=true;if(!exited)child.kill('SIGKILL');});
+    const deadline=setTimeout(()=>child.kill('SIGKILL'),20000);
+    try {
+      child.stdin.end(interrupted);
+      const filter=`application_name='${appName}' AND usename=current_user AND datname=current_database() AND wait_event='PgSleep'`;
+      let waiting=false;
+      for(let attempt=0;attempt<20&&!exited;attempt++) {
+        if(sql(`SELECT count(*) FROM pg_stat_activity WHERE ${filter};`)==='1'){waiting=true;break;}
+        await new Promise(resolveWait=>setTimeout(resolveWait,250));
+      }
+      assert.equal(waiting,true,'owned native transaction did not reach exact pause');
+      assert.equal(sql(`SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE ${filter};`),'t');
+      const result=await exit;
+      assert.ok(!result.spawnError&&!writeFailed&&Number.isInteger(result.code)&&result.code!==0&&!result.signal,
+        'native connection loss was not observed');
+    } finally {
+      clearTimeout(deadline);
+      if(!exited){child.kill('SIGKILL');await exit;}
+    }
+  }
   const oidShape=JSON.parse(sql("SELECT jsonb_build_object('native',to_jsonb('pg_catalog.pg_proc'::regclass::oid),'numeric',to_jsonb(('pg_catalog.pg_proc'::regclass::oid)::bigint));"));
   assert.equal(typeof oidShape.numeric,'number'); assert.ok(Number.isSafeInteger(oidShape.numeric));
   emit('native-oid-json-shape',{nativeType:typeof oidShape.native,numericType:typeof oidShape.numeric});
@@ -68,6 +101,15 @@ if(process.argv[2]==='prepare') {
   let after=apply();
   const qualifiedAfter=structuredClone(after);
   sql(recoverySql(before,after)); assert.deepEqual(snapshot(),before);
+  const disconnectSql=applySql(before,after,migrationBytes);
+  await disconnectApply(disconnectSql,'before-commit');
+  assert.deepEqual(classifyApplyOutcome(before,after,snapshot()),{state:'not-applied',retryAllowed:false});
+  emit('native-disconnect-before-commit',{state:'not-applied',retryAllowed:false,baselineRestored:true});
+  await disconnectApply(disconnectSql,'after-commit');
+  const committed=snapshot();
+  assert.deepEqual(classifyApplyOutcome(before,after,committed),{state:'applied',retryAllowed:false});
+  emit('native-disconnect-after-commit',{state:'applied',retryAllowed:false,migrationCount:147});
+  sql(recoverySql(before,committed)); assert.deepEqual(snapshot(),before);
   const staleBefore=structuredClone(before), staleAfter=structuredClone(after);
   staleBefore.migrations[0].name='synthetic-stale-preimage';
   staleAfter.migrations[0].name=staleBefore.migrations[0].name;
@@ -82,7 +124,7 @@ if(process.argv[2]==='prepare') {
   const nativeSql=applySql(before,after,migrationBytes);
   sql(nativeSql.replace(/COMMIT;\n$/,'SELECT 1/0;\nCOMMIT;\n'),'22012');
   assert.deepEqual(snapshot(),before);
-  emit('native-apply-interruption-rolled-back',{migrations:146,helperAbsent:true});
+  emit('native-apply-sql-error-rolled-back',{migrations:146,helperAbsent:true});
   sql(nativeSql); after=snapshot(); validateSnapshots(before,after);
   const normalized=structuredClone(after);
   normalized.functions[4].oid=qualifiedAfter.functions[4].oid;

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 
 export const RECOVERY_SIGNATURES = [
   'app_private.issue_order_session_with_schedule_targeted(text,text,text,text,text,text,text,text)',
@@ -132,4 +133,18 @@ END;
 $delivery_apply$;
 COMMIT;
 `;
+}
+
+// The protected caller must obtain current through a new authenticated native
+// read. No outcome grants permission to retry a possibly committed operation.
+export function classifyApplyOutcome(before, after, current) {
+  validateSnapshots(before,after);
+  if(isDeepStrictEqual(current,before))return {state:'not-applied',retryAllowed:false};
+  const helperOid=current?.functions?.[4]?.oid;
+  if(Number.isSafeInteger(helperOid)&&helperOid>0) {
+    const expected=structuredClone(after);
+    expected.functions[4].oid=helperOid;
+    if(isDeepStrictEqual(current,expected))return {state:'applied',retryAllowed:false};
+  }
+  return {state:'unknown',retryAllowed:false};
 }

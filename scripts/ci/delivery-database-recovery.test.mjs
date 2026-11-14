@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { RECOVERY_SIGNATURES, recoverySql, validateSnapshots, applySql } from './delivery-database-recovery.mjs';
+import { RECOVERY_SIGNATURES, recoverySql, validateSnapshots, applySql, classifyApplyOutcome } from './delivery-database-recovery.mjs';
 
 function snapshots() {
   const functions = RECOVERY_SIGNATURES.map((signature, i) => ({ signature, oid: i === 4 ? null : 100 + i,
@@ -29,6 +29,23 @@ test('native apply binds full baseline and expected postimage in one transaction
   assert.ok(sql.indexOf('DELIVERY_APPLY_POSTIMAGE_MISMATCH') > sql.indexOf(migration));
   assert.match(sql,/LOCK TABLE supabase_migrations.schema_migrations IN EXCLUSIVE MODE/);
   assert.doesNotMatch(sql,/CASCADE|TRUNCATE|DELETE FROM public\./);
+});
+test('unknown-outcome settlement classifies complete state without allowing retries',()=>{
+  const {before,after}=snapshots();
+  assert.deepEqual(classifyApplyOutcome(before,after,before),{state:'not-applied',retryAllowed:false});
+  const current=structuredClone(after);current.functions[4].oid=987;
+  assert.deepEqual(classifyApplyOutcome(before,after,current),{state:'applied',retryAllowed:false});
+});
+for(const [name,change] of [
+  ['missing state',()=>null],
+  ['mixed history',a=>{a.migrations.pop();return a;}],
+  ['function drift',a=>{a.functions[0].definition+=' changed';return a;}],
+  ['changed original OID',a=>{a.functions[0].oid++;return a;}],
+  ['missing helper OID',a=>{a.functions[4].oid=null;return a;}],
+  ['changed privileges',a=>{a.functions[4].acl.push('anon=X/postgres');return a;}],
+]) test('settlement leaves '+name+' unknown',()=>{
+  const {before,after}=snapshots();
+  assert.deepEqual(classifyApplyOutcome(before,after,change(structuredClone(after))),{state:'unknown',retryAllowed:false});
 });
 for (const [name,change] of [
   ['unreviewed SQL', (_b,_a,m)=>m+'\nSELECT 1;'],
