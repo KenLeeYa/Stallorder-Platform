@@ -314,3 +314,7 @@ Actual hosted admission43550093585 passed on5bef38e1 with exact-source reconstru
 PR399 was created for the existing conversion branch targeting staging. Pin that actual installation PR and reject superseded PR397; existing fixed resource identity and staging-to-main promotion remain unchanged. Regression first rejected399/accepted397, then passed the corrected admission. This binding grants neither schema qualification nor Production release authority.
 
 Complete CI surfaced a remaining synthetic Preview credential-handoff event pinned to397. Update only that fixture to399; all965 control tests now pass with source identity checks unchanged. Cancel obsolete owned Preview execution through its normal cleanup before validating the corrected head.
+
+### 2026-11-14 — Bound delivery Preview to no additional provider spend
+
+Inherited global Azure Preview configuration would activate an optional translation-provider smoke unrelated to delivery. Disable that optional call under the owner's no-additional-cost instruction, preserving actual affected-flow checks and target guards. Replace14-day artifact storage with bounded fixed-path QA JSON summaries/hashes in the existing run log; screenshots remain ephemeral. The new paired Preview deployment sets the translation feature flag false at build and runtime. No credential, global/project variable, Production runtime, provider billing setting, resource identity or required delivery acceptance is changed. Existing31 workflow-contract tests and YAML parsing pass; actual corrected-head Preview remains required.
