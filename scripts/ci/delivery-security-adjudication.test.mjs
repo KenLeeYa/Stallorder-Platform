@@ -64,6 +64,25 @@ test('qualifies only the complete reviewed scan, retaining raw failure and no re
   assert.deepEqual(verifyReviewedEvidence(fixture()), { rawFindings: 1, reviewedFalsePositives: 1,
     unresolved: 0, sourceRunId: 41, sourceJobId: 126, sourceScanConclusion: 'failure', releaseAuthorized: false });
 });
+function actionExtractionFixture(includeExtracted=true) {
+  const input=fixture(), sarif=JSON.parse(input.rawSarif), scan=sarif.runs[0];
+  const location={physicalLocation:{artifactLocation:{uri:'.github/workflows/ci.yml',index:1,uriBaseId:'%SRCROOT%'}}};
+  scan.artifacts.push({location:location.physicalLocation.artifactLocation});
+  scan.tool.driver.notifications.push({id:'cli/expected-extracted-files/actions'});
+  const records=scan.invocations[0].toolExecutionNotifications;
+  records.push({level:'none',descriptor:{id:'cli/expected-extracted-files/actions',index:1},locations:[location]});
+  if(includeExtracted) records.push({level:'none',descriptor:{id:'js/diagnostics/successfully-extracted-files',
+    index:0,toolComponent:{index:0}},locations:[location]});
+  input.rawSarif=Buffer.from(JSON.stringify(sarif));
+  rewriteReview(input,r=>{r.source.sarifSha256=hash(input.rawSarif);r.source.sarifBytes=input.rawSarif.length;});
+  return input;
+}
+test('requires native Actions extraction coverage alongside JavaScript and TypeScript',()=>{
+  assert.equal(verifyReviewedEvidence(actionExtractionFixture()).unresolved,0);
+});
+test('does not discard an expected workflow missing from actual extraction',()=>{
+  assert.throws(()=>verifyReviewedEvidence(actionExtractionFixture(false)),/expected source file was not extracted/);
+});
 test('rejects changes anywhere in raw SARIF, not only projected result fields', () => {
   for (const mutate of [
     s => { s.runs[0].results[0].relatedLocations[0].physicalLocation.region.startLine++; },

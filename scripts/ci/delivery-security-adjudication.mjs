@@ -92,7 +92,8 @@ export function verifyReviewedEvidence({ rawSarif, reviewBytes, expectedReviewSh
     queries: [{ type: 'builtinSuite', uses: 'security-extended' }] });
   assert.ok(Array.isArray(scan.artifacts) && Array.isArray(scan.results));
   const expectedFiles = new Set(), extractedFiles = new Set();
-  const expectedIds = new Set(['cli/expected-extracted-files/typescript', 'cli/expected-extracted-files/javascript']);
+  const expectedIds = new Set(['cli/expected-extracted-files/typescript', 'cli/expected-extracted-files/javascript',
+    'cli/expected-extracted-files/actions']);
   const allowedNotifications = new Set([...expectedIds, 'js/diagnostics/successfully-extracted-files',
     'codeql-action/toolcache-bundle-cleanup', 'codeql-action/overlay-disabled']);
   assert.ok(Array.isArray(scan.invocations) && scan.invocations.length > 0);
