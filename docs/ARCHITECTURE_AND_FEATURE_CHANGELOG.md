@@ -1,3 +1,9 @@
+## 2026-11-14 — Exact old-App Preview credential rehearsal controls
+
+The owner accepts rehearsal-first short maintenance for Primary credential rotation. Add a protected owner/main-only workflow that builds the immutable current Production source into the existing isolated Preview, verifies the synchronized GitHub database password through both native pooler endpoints, and performs actual merchant/staff login and QR checkout. Pin both public and server-side upstream configuration; keep application secrets stable across credential phases. The restore path must identify the original baseline deployment, not another successful phase.
+
+Owned fixture identities and beforeimage digests must come from a durable local coordinator. Browser or database writes with unknown outcomes prevent automatic cleanup. Atomic cleanup preserves foreign references and shared counters/rate effects. Three actual Preview SQL transaction tests passed and rolled back, including rejection of an unexpected print-job reference. Local tests and source controls are preparation evidence only; coordinator orchestration, hosted rehearsal, maintenance scheduling and Production release remain pending. PR408 admission is confined to the existing installation branch and resource. No new infrastructure or billing setting is introduced.
+
 ## 2026-11-05 — PR390 synthetic credential handoff alignment
 
 Control CI 42022142261 reproduced three synthetic CLI failures because its fixture still used completed PR389. Only the fixture event number changes to the separately reviewed PR390. Root reproduced all three failures before the correction; combined access/binding tests passed 88/88 afterward. Actual invocation/target/token guards and the shared pr-389 resource remain unchanged. Hosted full CI and Preview must pass again; no release authorization or merchant reopening.
