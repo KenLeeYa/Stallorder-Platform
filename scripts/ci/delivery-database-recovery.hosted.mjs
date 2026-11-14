@@ -4,7 +4,11 @@ import { cpSync, existsSync, readFileSync, readdirSync, unlinkSync, copyFileSync
 import { execFileSync, spawnSync, spawn } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 import { SNAPSHOT_SQL, recoverySql, validateSnapshots, applySql, classifyApplyOutcome } from './delivery-database-recovery.mjs';
+import { NATIVE_PREIMAGE_SQL, verifyNativePreimage } from './delivery-database-preimage.mjs';
+import {sealNativePreimage,formatNativePreimageCapture,readNativePreimageEvents} from './delivery-database-preimage.archive.mjs';
+import {encodeNativePostimageTemplate,materializeNativePostimage} from './delivery-database-postimage.mjs';
 
 const control = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const product = resolve(control, '../product'), recovery = resolve(control, '../recovery');
@@ -88,6 +92,36 @@ if(process.argv[2]==='prepare') {
     'eb5db772f8eb25618a32fef9daa96990457adbe01eafbe88d8ca8f56cc2d06fa',
   ];
   assert.deepEqual(before.functions.slice(0,4).map(f=>hash(f.definition)),expectedDefinitions);
+  const executorContractBytes=readFileSync(resolve(control,'scripts/ci/delivery-executor-contract.json'));
+  assert.equal(hash(executorContractBytes),'5ef779af53151cabad80a83903fa0b600df45cc13b9444487f53a2eac9bb6142');
+  const executorPlan=JSON.parse(executorContractBytes);
+  const fullPreimage=()=>{
+    const startedAt=new Date().toISOString();
+    const value=JSON.parse(sql('BEGIN READ ONLY;\n'+NATIVE_PREIMAGE_SQL+'ROLLBACK;'));
+    const finishedAt=new Date().toISOString();
+    return {...verifyNativePreimage({value,plan:executorPlan,versions:versionFiles.slice(0,146).map(n=>n.slice(0,14)),
+      interval:{startedAt,finishedAt},now:Date.now()}),raw:value};
+  };
+  const completeBefore=fullPreimage();assert.ok(isDeepStrictEqual(completeBefore.snapshot,before),'native preimage does not match baseline');
+  emit('native-full-preimage-verified',{preimageSha256:completeBefore.preimageSha256,
+    sqlSha256:hash(NATIVE_PREIMAGE_SQL),functionDefinitions:4,migrationRecords:146,readOnly:true,releaseAuthorized:false});
+  // This owned loopback state exercises archival transport only. Its synthetic
+  // token/endpoint are not Primary authentication or a protected capture receipt.
+  const syntheticArchive={schema:'stallorder-delivery-native-preimage-archive/v1',projectId:executorPlan.database.projectId,
+    controlCommit:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID,runAttempt:1,
+    productCommit:manifest.commit,productTree:manifest.tree,requestStartedAt:completeBefore.requestStartedAt,
+    finishedAt:new Date().toISOString(),endpoint:{projectId:executorPlan.database.projectId,
+      hostname:'aws-0-ap-northeast-1.pooler.supabase.com',port:'5432',username:'postgres.'+executorPlan.database.projectId,database:'postgres'},
+    sourceDigests:{'scripts/ci/delivery-database-preimage.mjs':hash(readFileSync(resolve(control,'scripts/ci/delivery-database-preimage.mjs')))},
+    raw:completeBefore.raw,preimageSha256:completeBefore.preimageSha256,
+    interval:{startedAt:completeBefore.requestStartedAt,finishedAt:completeBefore.requestFinishedAt},releaseAuthorized:false};
+  const syntheticToken='sbp_'+'a'.repeat(40);
+  const encryptedEvents=formatNativePreimageCapture(sealNativePreimage(syntheticArchive,syntheticToken),syntheticArchive);
+  const reopened=readNativePreimageEvents(encryptedEvents,syntheticToken);
+  const reverified=verifyNativePreimage({value:reopened.raw,plan:executorPlan,versions:versionFiles.slice(0,146).map(n=>n.slice(0,14)),interval:reopened.interval,now:Date.now()});
+  assert.ok(isDeepStrictEqual(reopened,syntheticArchive)&&isDeepStrictEqual(reverified.snapshot,before),'owned native archive roundtrip differs');
+  emit('native-full-preimage-encryption-verified',{archiveSha256:encryptedEvents[0].sha256,
+    chunks:encryptedEvents[0].chunks,migrationRecords:146,functionDefinitions:4,protectedCaptureVerified:false,releaseAuthorized:false});
   const migrationBytes=readFileSync(resolve(product,'supabase/migrations',migration),'utf8');
   sql('BEGIN;\n'+migrationBytes+'\nSELECT 1/0;\nCOMMIT;','22012');
   assert.deepEqual(snapshot(),before);
@@ -100,6 +134,18 @@ if(process.argv[2]==='prepare') {
   }
   let after=apply();
   const qualifiedAfter=structuredClone(after);
+  const postimageSource=encodeNativePostimageTemplate({before,after,migration:migrationBytes});
+  const rebuiltPostimage=materializeNativePostimage({before,bytes:postimageSource.bytes,sha256:postimageSource.sha256});
+  rebuiltPostimage.snapshot.functions[4].oid=after.functions[4].oid;
+  assert.ok(isDeepStrictEqual(rebuiltPostimage.snapshot,after),'qualified postimage source differs from native migration result');
+  // Only definitions/new history derived from the public frozen source are
+  // exported. No baseline history, customer data, real OIDs or credentials.
+  const encodedSource=postimageSource.bytes.toString('base64'),sourceChunks=Math.ceil(encodedSource.length/10000);
+  emit('native-postimage-source',{productCommit:manifest.commit,productTree:manifest.tree,
+    sha256:postimageSource.sha256,bytes:postimageSource.bytes.length,chunks:sourceChunks,sourceOnly:true,releaseAuthorized:false});
+  for(let index=0;index<sourceChunks;index++)emit('native-postimage-source-chunk',{
+    sha256:postimageSource.sha256,index,data:encodedSource.slice(index*10000,(index+1)*10000)});
+  emit('native-postimage-source-complete',{sha256:postimageSource.sha256,chunks:sourceChunks,sourceOnly:true,releaseAuthorized:false});
   sql(recoverySql(before,after)); assert.deepEqual(snapshot(),before);
   const disconnectSql=applySql(before,after,migrationBytes);
   await disconnectApply(disconnectSql,'before-commit');
@@ -126,6 +172,8 @@ if(process.argv[2]==='prepare') {
   assert.deepEqual(snapshot(),before);
   emit('native-apply-sql-error-rolled-back',{migrations:146,helperAbsent:true});
   sql(nativeSql); after=snapshot(); validateSnapshots(before,after);
+  assert.throws(fullPreimage,{message:'DELIVERY_NATIVE_PREIMAGE_REJECTED'});
+  emit('native-full-preimage-rejects-applied-state',{migrationCount:147,releaseAuthorized:false});
   const normalized=structuredClone(after);
   normalized.functions[4].oid=qualifiedAfter.functions[4].oid;
   assert.deepEqual(normalized,qualifiedAfter);
