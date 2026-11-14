@@ -44,8 +44,8 @@ jobs:
       - name: Authenticate exact functional and complete reviewed security evidence
         env:
           GH_TOKEN: ${{ github.token }}
-          DELIVERY_QUALIFICATION_CONTRACT_SHA256: 3936489e3c41d52a2acfff30d488bbd4c7a50aab1313731c248d1c5cf0e0f1ce
-          DELIVERY_SECURITY_REVIEW_SHA256: 79153a0a96b4f5eda41678658916c4531acee88e11d34609ae3c0cbfdcfb0420
+          DELIVERY_QUALIFICATION_CONTRACT_SHA256: 12b044bd5d9a86c9c397df6207ba634348bc11676f27146b28411471a5d875ed
+          DELIVERY_SECURITY_REVIEW_SHA256: b3f7330d9e96a328669d3a30895fa9709abbb090ed37a688c15d7bd41559247b
         run: node control/scripts/ci/delivery-admission.mjs
       - name: Record the native PostgreSQL client used for the executor probe
         run: psql --version

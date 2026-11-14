@@ -1,0 +1,272 @@
+{
+  "schemaVersion": 2,
+  "scope": "complete-immutable-scan",
+  "releaseAuthorized": false,
+  "product": {
+    "commit": "0d2b27144fcf589bb887e669c09e82158e3de7a2",
+    "tree": "e3c02e6b0ecf37526a77ff9c6eb4eb2111411ef0"
+  },
+  "independentReviewer": "/root/delivery_source_security_review",
+  "independentReviewReceiptSha256": "0c872efd88ba5458de59d3d00d7437fbb959da21365dbd322d4b9e0754cdad2b",
+  "source": {
+    "repository": "KenLeeYa/Stallorder-Platform",
+    "repositoryId": 1298874780,
+    "workflowId": 407163998,
+    "controlCommit": "7786e8368a8a81b36fee925e8ae1b561b8d15f01",
+    "runId": 43546722491,
+    "runAttempt": 1,
+    "jobId": 132299666695,
+    "workflowPath": ".github/workflows/delivery-candidate-ci.yml",
+    "workflowSha256": "4aca04afb47c1b1e1fb7c15222c44847114347f5e6be7f5a66cded5384561827",
+    "sarifBytes": 1997096,
+    "sarifSha256": "c39203fb89e9392bfb7414b50576b2b06b9f20fbb783584b16f9ccc5dc406272",
+    "rawLogBytes": 1136833,
+    "rawLogSha256": "a072277b80cd53679002efceca39ba512a3971bd4bf6ffd9adc0d4154563eb47"
+  },
+  "findings": [
+    {
+      "ordinal": 1,
+      "ruleId": "js/clear-text-logging",
+      "resultSha256": "c7388c263f680e80d94baa6d03db4272a24b0f8cfc1c46e207d19881d378c663",
+      "disposition": "false-positive",
+      "rationale": "Both recorded flows carry Supabase service credentials into the GitHub Actions add-mask command before GITHUB_ENV is appended. The three immutable workflow callers execute this script directly, without tee or stdout artifact capture. The remaining status message contains variable names only. This sink is the runner masking protocol, not application logging of credential contents.",
+      "conditions": "Valid only for these direct Actions invocations and the normal runner command processor. Local execution with a spoofed GITHUB_ENV, raw stdout collectors, command disabling or untrusted multiline provider key formats requires separate review.",
+      "sourceLinks": [
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/export-dr-runtime-environment.mjs#L22",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/export-dr-runtime-environment.mjs#L72",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/.github/workflows/production-dr-operations.yml#L1572",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/.github/workflows/production-dr-operations.yml#L2079",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/.github/workflows/production-dr-operator-entry.yml#L258"
+      ]
+    },
+    {
+      "ordinal": 2,
+      "ruleId": "js/incomplete-url-substring-sanitization",
+      "resultSha256": "745ae8322c41ee68738fed40caf139a8c0124e234c1d30b6b208bd560d443e5d",
+      "disposition": "false-positive",
+      "rationale": "The sources receiver is an array of CSP source tokens. Array.includes compares the complete Cloudflare source token, not a substring of an unparsed URL. First-directive precedence, script/frame fallbacks, multiple-policy intersection and conservative none rejection are retained. An attacker hostname merely containing the allowlisted text cannot satisfy this check.",
+      "conditions": "Only this exact CSP token predicate is covered. Deployed policy completeness, browser behavior and arbitrary URL validation elsewhere are not certified.",
+      "sourceLinks": [
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/lib/production-smoke-csp.mjs#L16"
+      ]
+    },
+    {
+      "ordinal": 3,
+      "ruleId": "js/insufficient-password-hash",
+      "resultSha256": "c90bfb5626638614a04d1cd5ca7a43bf693e6f5d9c02d18af2433d07c89c35fe",
+      "disposition": "false-positive",
+      "rationale": "The api_key source is a machine-issued service-role bearer credential. SHA-256 makes an authorization fingerprint for a short-lived recovery handler, not a human password record. The handler also checks a random 32-byte nonce, exact project URL, POST method and maximum 300-second lifetime, then encrypts only two named secrets for an approved RSA-4096 recipient.",
+      "conditions": "Retain approval, correct project/recipient, nonce entropy, lifetime and owned-function cleanup/readback. This does not authorize recovery or permit SHA-256 for human password storage.",
+      "sourceLinks": [
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/recover-public-order-runtime-secrets.mjs#L10",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/recover-public-order-runtime-secrets.mjs#L63",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/lib/public-order-secret-recovery.mjs#L9",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/recover-public-order-runtime-secrets.mjs#L19",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/recover-public-order-runtime-secrets.mjs#L57"
+      ]
+    },
+    {
+      "ordinal": 4,
+      "ruleId": "js/insufficient-password-hash",
+      "resultSha256": "220569d41b2e185a299b278d61274612b2c58b408979d9dfb3c02c548a460bf8",
+      "disposition": "false-positive",
+      "rationale": "All four recorded paths derive a rate-limit scope from the exact GOOGLE, LINE, APPLE or MICROSOFT enum. SHA-256 combines scope and source/user identifier into a bucket key; it does not create a password verifier. The three OAuth callers retain distinct budgets, parameterized SQL and the existing 10000-bucket admission bound.",
+      "conditions": "Covers bucket derivation and frozen callers only. The current-key cleanup option changes cleanup breadth, not password handling; authorization, expiry/count checks and caller budgets remain required.",
+      "sourceLinks": [
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/lib/rate-limit.ts#L20",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/app/api/auth/%5Bprovider%5D/start/route.ts#L20",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/app/api/auth/%5Bprovider%5D/callback/route.ts#L92",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/app/api/auth/identities/%5Bprovider%5D/route.ts#L39",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/server/auth/oauth/types.ts#L43",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/server/auth/oauth/types.ts#L41",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/lib/rate-limit.ts#L19",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/lib/rate-limit.ts#L70"
+      ]
+    },
+    {
+      "ordinal": 5,
+      "ruleId": "js/insufficient-password-hash",
+      "resultSha256": "f8b8b1f5dc016272c49db5bd4ca49cd933f2a72a11d913df91ab60da10e14635",
+      "disposition": "false-positive",
+      "rationale": "All ten distinct related sources and four flows lead to AES-256-GCM key derivation from the server-side OAUTH_STATE_SECRET, or explicit mock fixtures. Transaction creation and claim encrypt random nonce/verifier state; mock production guards and provider availability checks remain present. No user password storage or password-validation path reaches this hash.",
+      "conditions": "Actual secret value and entropy were not inspected. A minimum length of 32 characters does not prove randomness; this password-storage false positive does not certify key provisioning, rotation or deployment configuration.",
+      "sourceLinks": [
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/server/auth/oauth/crypto.ts#L14",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/app/api/auth/%5Bprovider%5D/callback/route.ts#L160",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/app/api/auth/mock/authorize/route.ts#L52",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/server/auth/oauth/crypto.ts#L20",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/server/auth/oauth/mock-adapter.test.ts#L32",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/server/auth/oauth/mock-adapter.test.ts#L64",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/server/auth/oauth/mock-adapter.test.ts#L81",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/server/auth/oauth/provider-registry.ts#L31",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/server/auth/oauth/provider-registry.ts#L72",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/server/auth/oauth/transaction-service.ts#L35",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/server/auth/oauth/transaction-service.ts#L150",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/server/auth/oauth/crypto.ts#L12",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/server/auth/oauth/transaction-service.ts#L25",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/server/auth/oauth/transaction-service.ts#L147",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/server/auth/oauth/mock-adapter.ts#L36",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/server/auth/oauth/provider-registry.ts#L23"
+      ]
+    },
+    {
+      "ordinal": 6,
+      "ruleId": "js/insufficient-password-hash",
+      "resultSha256": "8b231c04997bad37c7b88f0eafe4277c87c512c983b30e72508078701ab06c4d",
+      "disposition": "false-positive",
+      "rationale": "The callback receives codeVerifier after the transaction provider, lifecycle, expiry and authenticated encrypted state are checked. Production creation uses randomBytes(64). SHA-256 computes the PKCE S256 challenge, which the mock adapter compares along with nonce, expiry and redirect URI. This is protocol challenge derivation, not password storage.",
+      "conditions": "Retain the cryptographic verifier generator and complete transaction/PKCE checks. Constant verifiers appear only in synthetic tests and are not evidence of production entropy.",
+      "sourceLinks": [
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/server/auth/oauth/crypto.ts#L34",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/app/api/auth/%5Bprovider%5D/callback/route.ts#L146",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/server/auth/oauth/crypto.ts#L25",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/server/auth/oauth/transaction-service.ts#L25",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/server/auth/oauth/transaction-service.ts#L84",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/server/auth/oauth/mock-adapter.ts#L65"
+      ]
+    },
+    {
+      "ordinal": 7,
+      "ruleId": "js/xss-through-dom",
+      "resultSha256": "7ff181f5f6ea89810da15fa6d16d7f3b9b6b6368bb41ab8f7200e9fa60a26651",
+      "disposition": "false-positive",
+      "rationale": "The select value becomes a query parameter in a Next Link href beginning with the fixed path /merchant/localization/preview. React renders an attribute, not HTML markup; the value cannot replace its scheme or origin. The new-window link also uses noopener noreferrer. The reported dataflow is not a DOM text-to-HTML interpretation.",
+      "conditions": "Only this fixed-relative Link expression is covered. Downstream query authorization and arbitrary parameter encoding elsewhere are not certified; changing the sink or making the URL replaceable needs review.",
+      "sourceLinks": [
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/components/localization-dashboard.tsx#L101",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/components/localization-dashboard.tsx#L99",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/components/localization-dashboard.tsx#L42"
+      ]
+    },
+    {
+      "ordinal": 8,
+      "ruleId": "js/xss-through-dom",
+      "resultSha256": "fdd4b10af6b461c010c862450ebb866666feff0f834f93a59f6722bda56419d3",
+      "disposition": "false-positive",
+      "rationale": "The selected File becomes a browser-generated URL.createObjectURL value used in a native img src for cropping. The effect revokes the blob URL on cleanup. No iframe, object, document navigation, innerHTML or SVG-markup insertion occurs on this recorded path, so file contents are not reinterpreted as executable HTML.",
+      "conditions": "Only the local img preview lifecycle is covered. The accept attribute is not treated as server validation; upload/storage policy, MIME validation and other image-URL paths are outside this finding.",
+      "sourceLinks": [
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/components/shared-catalog-manager.tsx#L1685",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/components/shared-catalog-manager.tsx#L1255",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/components/shared-catalog-manager.tsx#L1332",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/src/components/shared-catalog-manager.tsx#L1624"
+      ]
+    },
+    {
+      "ordinal": 9,
+      "ruleId": "js/file-system-race",
+      "resultSha256": "2c151bb2261b7b74efbbe0c9ec92f347899ab8f499f06fb2feadbf49c8f700f2",
+      "disposition": "false-positive",
+      "rationale": "After lstat, Linux open uses O_NOFOLLOW and O_NONBLOCK. The opened descriptor is checked for regular-file type, device/inode identity and size, then read with a 65537-byte cap; size/mtime/ctime drift is rejected before JSON parsing. This fresh source-bound Linux job passed symlink, same-inode-target symlink swap, FIFO, FIFO-swap, short-read and size-boundary checks. The combined native/capture suite passed 12/12 with zero skips.",
+      "conditions": "This is a scoped native Linux descriptor boundary, not proof against privileged same-inode writers or all timestamp semantics. The same-size mutation test forces an observable mtime change. Approval content/provenance validation remains required; Windows fallback behavior was not executed.",
+      "sourceLinks": [
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/lib/production-json-file.mjs#L10",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/lib/production-json-file.mjs#L8",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/lib/production-json-file.mjs#L6",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/production-approval.mjs#L58",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/production-approval.mjs#L114"
+      ]
+    },
+    {
+      "ordinal": 10,
+      "ruleId": "js/file-access-to-http",
+      "resultSha256": "7dc2697ae4f67f206384115b345679fd7dcbe1c23cd07b025498c5884628df3a",
+      "disposition": "false-positive",
+      "rationale": "Both Plan flows reach a credentialed DR probe only after equality with a freshly rebuilt current-state Plan digest. Before obtaining the credential, deployment validation checks HTTPS, no credentials/port, vercel.app hostname, actual project/name/target/READY state and exact URL, with Primary/DR project isolation. The probe uses redirect: manual and requires status 200.",
+      "conditions": "Covers these Plan/probe callers and provider identity checks only. A self-computed digest is not authorization; this does not authorize DR operation, credential access, publication or approval bypass.",
+      "sourceLinks": [
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/manage-dr-operator-entry.mjs#L133",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/manage-dr-operator-entry.mjs#L85",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/manage-dr-operator-entry.mjs#L53",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/manage-dr-operator-entry.mjs#L121",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/manage-dr-operator-entry.mjs#L797",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/lib/dr-operator-entry.mjs#L167",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/lib/dr-operator-update.mjs#L50"
+      ]
+    },
+    {
+      "ordinal": 11,
+      "ruleId": "js/file-access-to-http",
+      "resultSha256": "b14eaa425cb21555e652f5249f8a616a4f832adae120e6c562a12a9c73622dba",
+      "disposition": "false-positive",
+      "rationale": "The four flows use reviewed Plan metadata for Cloudflare policy read/write, Vercel domain configuration and legacy DNS retirement. Fixed Vercel/Cloudflare management origins are used after current-state digest comparison, and the Vercel hostname is encoded. This is intended management metadata, not arbitrary secret-file contents sent to an attacker endpoint. Recovery checks Primary state and concurrent changes.",
+      "conditions": "providerRequest retains default fetch redirect behavior; no redirect:error guarantee is claimed. The decision assumes trusted provider origins and reviewed state comparison, and does not approve arbitrary Plans, compromised providers or remote mutations.",
+      "sourceLinks": [
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/manage-dr-operator-entry.mjs#L1422",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/manage-dr-operator-entry.mjs#L85",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/manage-dr-operator-entry.mjs#L53",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/manage-dr-operator-entry.mjs#L143",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/manage-dr-operator-entry.mjs#L1016",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/manage-dr-operator-entry.mjs#L1057",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/manage-dr-operator-entry.mjs#L1397",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/lib/dr-operator-update.mjs#L60"
+      ]
+    },
+    {
+      "ordinal": 12,
+      "ruleId": "js/file-access-to-http",
+      "resultSha256": "abd0c0521652d02ba8deb6332fd0942e801d48fce50f56f51ffc4f9d67e87058",
+      "disposition": "false-positive",
+      "rationale": "The snapshot contributes only a planned Vercel binding ID. Before each deletion, assertPromotedState compares expected bindings with fresh readState, whose selection enforces an exact five-key allowlist, restricted IDs, Production-only scope and no branch binding. Project/team/API origin are fixed and redirects are rejected. This is a validated management operation, not arbitrary file exfiltration.",
+      "conditions": "Retain snapshot/source identity, promoted deployment and baseline checks, exact names/IDs and per-delete readback. The reviewer performed no deletion and grants no release authority.",
+      "sourceLinks": [
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/retire-primary-dr-runtime.mjs#L156",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/retire-primary-dr-runtime.mjs#L66",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/retire-primary-dr-runtime.mjs#L25",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/retire-primary-dr-runtime.mjs#L48",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/retire-primary-dr-runtime.mjs#L88",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/retire-primary-dr-runtime.mjs#L105",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/retire-primary-dr-runtime.mjs#L154"
+      ]
+    },
+    {
+      "ordinal": 13,
+      "ruleId": "js/http-to-file-access",
+      "resultSha256": "ee29e5f01f5c48c60997982340d42c926599e4acb77d1de3774d362a7e1f03bb",
+      "disposition": "false-positive",
+      "rationale": "Both HTTP flows affect serialized JSON contents at the fixed artifacts/public-order-secret-envelope.json path, not a filename or executable source. Project/recovery/schema fields are checked; the owned random function is deleted and absence read back before writing. Decryption authenticates GCM AAD bound to project/recovery ID and checks exact secret names and canonical digests.",
+      "conditions": "Only the fixed encrypted-envelope path and recovery/decrypt callers are covered. This does not authorize recovery, attest recipient custody or make arbitrary remote data trusted merely by writing it to disk.",
+      "sourceLinks": [
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/recover-public-order-runtime-secrets.mjs#L93",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/recover-public-order-runtime-secrets.mjs#L79",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/recover-public-order-runtime-secrets.mjs#L34",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/recover-public-order-runtime-secrets.mjs#L57",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/recover-public-order-runtime-secrets.mjs#L85",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/lib/public-order-secret-recovery.mjs#L25"
+      ]
+    },
+    {
+      "ordinal": 14,
+      "ruleId": "js/http-to-file-access",
+      "resultSha256": "331aa3cc2db2148b774d40f749eae76a9a8999fcf9608dff21c645c1b858b1c2",
+      "disposition": "false-positive",
+      "rationale": "All eight distinct related sources and four flows were examined: Primary connectivity, Cloudflare probe, Supabase auth/storage health, unauthenticated protection, direct TLS probe, Cloudflare access listing and providerRequest. Statuses, validated results or controlled errors become JSON evidence. The workflow fixes DR_OPERATOR_EVIDENCE_PATH to an artifact JSON path; no network response chooses the filename or executes as code.",
+      "conditions": "Covers the fixed workflow path and JSON evidence use only. Arbitrary locally configured output paths, hostile local filesystem writers and future execution of evidence contents are excluded. Generic provider redirects and remote-service integrity are not certified.",
+      "sourceLinks": [
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/manage-dr-operator-entry.mjs#L1465",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/manage-dr-operator-entry.mjs#L311",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/manage-dr-operator-entry.mjs#L833",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/manage-dr-operator-entry.mjs#L900",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/manage-dr-operator-entry.mjs#L911",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/manage-dr-operator-entry.mjs#L980",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/manage-dr-operator-entry.mjs#L1035",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/manage-dr-operator-entry.mjs#L1335",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/manage-dr-operator-entry.mjs#L1422",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/manage-dr-operator-entry.mjs#L441",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/manage-dr-operator-entry.mjs#L477",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/scripts/manage-dr-operator-entry.mjs#L1461",
+        "https://github.com/KenLeeYa/Stallorder-Platform/blob/0d2b27144fcf589bb887e669c09e82158e3de7a2/.github/workflows/production-dr-operator-entry.yml#L271"
+      ]
+    }
+  ],
+  "limitations": [
+    "Fresh review of this exact run/job/SARIF/source only. Historical run18 was consulted only for output schema; no old dispositions, hashes or runtime evidence were accepted as current proof.",
+    "The raw security job remains failure with 14 findings. These files are neither suppressions nor accepted-risk waivers, cryptographic signatures, protected installation approvals, deployments or release authorizations.",
+    "Full admission requires completed authoritative run/job readback, the original six-hour freshness rule and every other qualification/release gate. The observed parent-run status was in_progress. No timestamp was extended.",
+    "No actual credentials or OAuth secret values were accessed. Entropy/provisioning, live provider state, authenticated browser flows, deployment targets, recovery and Production behavior are not certified.",
+    "No fresh AOCI attestation was available. Parent reported no applicable cognition tool and no .aoci/.codegraph in the clean checkouts; the old graph lacked relevant coverage. Exact Git source was used without new indexes or a commercial-license assumption.",
+    "Native Linux approval-reader tests support the recorded boundaries, not arbitrary privileged same-inode writers, all filesystem timestamp semantics or Windows flag fallback.",
+    "Generic providerRequest retains default redirects. The DR credentialed probe uses manual redirects and retirement uses redirect:error; these behaviors are not conflated.",
+    "This reviewer changed no application checkout, Git ref, provider, browser, service, memory or release state. Only the two requested JSON review artifacts were written."
+  ]
+}
