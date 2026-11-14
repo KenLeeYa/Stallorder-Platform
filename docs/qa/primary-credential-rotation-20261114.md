@@ -1,6 +1,17 @@
 # Primary credential rotation preparation
 
-Status: Proposed; no Primary password, GitHub credential, Vercel environment or Production deployment has been changed.
+Status: Isolated local capability probe completed; service-continuity qualification remains blocked. No Primary password, GitHub credential, Vercel environment or Production deployment has been changed.
+
+## Current observations at 2026-11-14 12:00 UTC
+
+- The owner confirmed both merchant and staff workspaces work before rotation. Public version readback remains `4e95d2ea5d53ae78c5af9c3db044481237674c44`; public login-page responses supplement, and do not replace, that user-observed baseline.
+- The child project lookup returning404 was an endpoint mismatch, not proof of insufficient token access. The fixed branch endpoint returns the bound Preview configuration. The read-only role inventory API returns201. Both transport assumptions were corrected with regression tests; the hosted invocation restrictions are unchanged.
+- One independently reviewed Windows-local Prisma6.19.3 probe ran at11:52:41.515–11:52:45.758UTC. The issued role was `cli_login_postgres`, with an actual300-second TTL, `current_user=session_user=cli_login_postgres` and `bypass_rls=false`. One managed cleanup and empty-inventory readback passed. The password was not retained. This is local native evidence, not a hosted qualification or App compatibility result. Review SHA256: `3a63ad9d0d2f617a84125b5c9073500f7198b9251c055a220d2641be39515cf6`;55 focused boundary tests passed.
+- Primary's default branch endpoint returns metadata without a password. Primary JIT is already enabled, but one read-only native attempt with the existing platform token was rejected. Supavisor logs at11:58:38–39UTC report `JIT unauthorized for user "postgres": unauthorized_or_forbidden`. No mapping or permission was changed, and the attempt was not repeated. Do not execute `export-dr-database-urls.mjs` as a read-only diagnostic: it can enable JIT and update role mappings.
+- A dedicated runtime role is documented by Supabase, but it is not yet compatible with this App. The old `stall_business_date` and `effective_stall_product_price` functions inspect the effective role or private access helpers. Existing `service_role` passes the named-role check but lacks `supabase_migrations` schema/table read access in both Primary and Preview. Do not infer full App compatibility from table grants, inherited membership, or successful connection alone; do not broaden existing service-role permissions to hide this gap.
+- PR407 is merged into staging; PR405 at `dc80c11d1bc6cab1e1ca0dae4f84e47cffa328bd` passed CI and Preview. Promotion remains on hold while the subsequent branch/query corrections and viable rotation path are resolved. No further hosted build is needed solely to repeat the measured temporary-role result.
+
+The remaining decision concerns continuity, not permission to reset: a durable, application-compatible overlap must be qualified under the owner's existing no-interruption constraint. A maintenance-window alternative would change that constraint and must be agreed before execution. Neither alternative grants release authority without isolated recovery acceptance and live affected-flow verification.
 
 The owner explicitly authorized a coordinated Primary password reset and GitHub/Vercel synchronization, followed by the original delivery release after acceptance, without additional fees. The two stored passwords failed their separate bounded native diagnostics. The current credential is unknown, so rolling back to the existing deployment after resetting that password would not by itself restore database access.
 

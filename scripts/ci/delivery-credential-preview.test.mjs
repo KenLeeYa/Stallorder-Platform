@@ -14,7 +14,7 @@ function fixture(){
   if(path.endsWith('/branches'))return [{id:'e232885a-7d2e-4254-91f9-3a1edf9625e2',name:'pr-389-oauth-delivery',project_ref:project,
    parent_project_ref:parent,git_branch:'codex/conversion-source-checks-20261023',is_default:false,persistent:false,with_data:false,
    preview_project_status:'ACTIVE_HEALTHY',status:'MIGRATIONS_FAILED'}];
-  if(path===`/v1/projects/${project}`)return {id:project,status:'ACTIVE_HEALTHY',region:'ap-southeast-1',database:{host:`db.${project}.supabase.co`}};
+  if(path==='/v1/branches/e232885a-7d2e-4254-91f9-3a1edf9625e2')return {ref:project,status:'ACTIVE_HEALTHY',db_host:`db.${project}.supabase.co`,db_port:5432,db_user:'postgres',postgres_engine:'17'};
   if(path.endsWith('/pooler'))return [{database_type:'PRIMARY',connection_string:`postgresql://postgres.${project}:synthetic-placeholder@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres`}];
   if(method==='POST'&&path.endsWith('/cli/login-role')){issued=true;return {role,password,ttl_seconds:3600};}
   if(method==='DELETE'&&path.endsWith('/cli/login-role')){issued=false;return {message:'ok'};}
@@ -118,4 +118,25 @@ test('native client uses only a fixed readonly statement and raw password enviro
 test('HTTP adapter rejects Primary writes before fetch',async()=>{
  let calls=0;await assert.rejects(()=>credentialRequest('POST',`/v1/projects/${parent}/database/password`,{},'synthetic',()=>{calls++;}));
  assert.equal(calls,0);
+});
+
+test('HTTP adapter requires the observed inventory query HTTP 201 response',async()=>{
+ const path=`/v1/projects/${project}/database/query`;
+ const body={query:"SELECT rolname FROM pg_roles WHERE rolname LIKE 'cli_login_%' ORDER BY rolname;"};
+ assert.deepEqual(await credentialRequest('POST',path,body,'synthetic',async()=>new Response('[]',{status:201})),[]);
+ await assert.rejects(()=>credentialRequest('POST',path,body,'synthetic',async()=>new Response('[]',{status:200})));
+});
+
+test('branch metadata uses the fixed branch endpoint instead of project lookup',async()=>{
+ let calls=0;
+ const branch='/v1/branches/e232885a-7d2e-4254-91f9-3a1edf9625e2';
+ const fetchImpl=async(url,opts)=>{calls++;assert.equal(url,'https://api.supabase.com'+branch);assert.equal(opts.method,'GET');return new Response('{}',{status:200});};
+ assert.deepEqual(await credentialRequest('GET',branch,undefined,'synthetic',fetchImpl),{});
+ await assert.rejects(()=>credentialRequest('GET',`/v1/projects/${project}`,undefined,'synthetic',fetchImpl));
+ assert.equal(calls,1);
+});
+
+for(const [key,value] of [['ref',parent],['status','COMING_UP'],['db_host',`db.${parent}.supabase.co`],['db_port',6543],['db_user','foreign'],['postgres_engine','16']])test('reject branch metadata '+key+' before issuance',async()=>{
+ const f=fixture(),request=f.request;f.request=async(m,p,b)=>{const r=await request(m,p,b);return p.startsWith('/v1/branches/')?{...r,[key]:value}:r;};
+ const out=await runCredentialPreview({env:context(),...f});assert.equal(out.reason,'BINDING');assert.ok(!f.calls.some(c=>c.path.endsWith('/cli/login-role')));
 });
