@@ -8,7 +8,6 @@ const project=PREVIEW_BINDING.project,parent=PREVIEW_BINDING.parent;
 const prefix='/v1/projects/'+project;
 const inventory="SELECT rolname FROM pg_roles WHERE rolname LIKE 'cli_login_%' ORDER BY rolname;";
 const validRole=value=>typeof value==='string'&&/^cli_login_[a-z0-9_]{1,45}$/.test(value);
-const drop=role=>{assert.ok(validRole(role));return `DROP ROLE "${role}";`;};
 const sql="BEGIN READ ONLY; SET LOCAL statement_timeout='5s'; SET LOCAL lock_timeout='1s'; "+
  "SELECT json_build_object('currentUser',current_user,'sessionUser',session_user,'database',current_database(),"+
  "'readOnly',current_setting('transaction_read_only'),'bypassRls',(SELECT rolbypassrls FROM pg_roles WHERE rolname=current_user)); ROLLBACK;";
@@ -17,9 +16,10 @@ export async function credentialRequest(method,path,body,token,fetchImpl=fetch){
  try{
   const get=method==='GET'&&body===undefined&&[prefix,prefix+'/config/database/pooler',`/v1/projects/${parent}/branches`].includes(path);
   const issue=method==='POST'&&path===prefix+'/cli/login-role'&&JSON.stringify(body)==='{"read_only":false}';
+  const cleanup=method==='DELETE'&&path===prefix+'/cli/login-role'&&body===undefined;
   const query=method==='POST'&&path===prefix+'/database/query'&&body&&Object.keys(body).length===1&&
-   (body.query===inventory||/^DROP ROLE "cli_login_[a-z0-9_]{1,45}";$/.test(body.query));
-  assert.ok(get||issue||query);
+   body.query===inventory;
+  assert.ok(get||issue||cleanup||query);
   const response=await fetchImpl('https://api.supabase.com'+path,{method,redirect:'error',
    headers:{Authorization:'Bearer '+token,Accept:'application/json',...(body?{'Content-Type':'application/json'}:{})},
    ...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(20000)});
@@ -67,7 +67,7 @@ export async function runCredentialPreview({env,request,probe=probeCredential,re
   stage='INVENTORY';assert.deepEqual(await request('POST',prefix+'/database/query',{query:inventory}),[]);
   await record({event:'credential-preview-intent',project,controlCommit:env.GITHUB_SHA,runId:env.GITHUB_RUN_ID,startedAt});
   stage='ISSUE';issued=true;const secret=await request('POST',prefix+'/cli/login-role',{read_only:false});
-  // A returned, strictly named role can be cleaned even if the rest is invalid.
+  // A returned, strictly named role can qualify for cleanup even if the rest is invalid.
   if(validRole(secret?.role))role=secret.role;
   stage='CREDENTIAL';assert.ok(role);assert.deepEqual(Object.keys(secret).sort(),['password','role','ttl_seconds']);
   assert.ok(Number.isSafeInteger(secret.ttl_seconds)&&secret.ttl_seconds>0);ttlSeconds=secret.ttl_seconds;
@@ -77,13 +77,18 @@ export async function runCredentialPreview({env,request,probe=probeCredential,re
  }catch{reason=stage;}
  finally{
   if(role){
-   try{await request('POST',prefix+'/database/query',{query:drop(role)});}catch{cleanupRequestFailed=true;}
+   try{
+    // The managed endpoint deletes all CLI roles. This fixed isolated project
+    // requires one writer and exactly the role returned by this run before use.
+    assert.deepEqual(await request('POST',prefix+'/database/query',{query:inventory}),[{rolname:role}]);
+    assert.deepEqual(await request('DELETE',prefix+'/cli/login-role'),{message:'ok'});
+   }catch{cleanupRequestFailed=true;}
    try{assert.deepEqual(await request('POST',prefix+'/database/query',{query:inventory}),[]);cleanupVerified=true;}catch{cleanupVerified=false;}
   }
  }
  return {event:'credential-preview-result',schema:'stallorder-credential-preview/v1',project,
   controlCommit:env.GITHUB_SHA,runId:env.GITHUB_RUN_ID,startedAt,finishedAt:clock(),
-  status:!reason&&cleanupVerified?'passed':'failed',...(reason?{reason}:{}),role,ttlSeconds,native,
+  status:!reason&&cleanupVerified&&!cleanupRequestFailed?'passed':'failed',...(reason?{reason}:{}),role,ttlSeconds,native,
   cleanupVerified,cleanupRequestFailed,unresolvedIssuance:issued&&!role,primaryChanged:false,
   rotationQualified:false,releaseAuthorized:false};
 }
