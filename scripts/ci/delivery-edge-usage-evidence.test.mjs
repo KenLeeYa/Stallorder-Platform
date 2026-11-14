@@ -85,8 +85,13 @@ for(const cleanupFails of [false,true])test('actual timeout producer retains mis
  const db={$transaction:async()=>{transactions++;if(cleanupFails&&transactions===2)throw Error('synthetic cleanup error');
   return {before:{organizations:1},after:{organizations:0}};},
   $queryRawUnsafe:async()=>[{observed:'2026-11-05T12:00:00.000Z',buckets:[]}]};
+ const sha='d758658c2c7e4a9ad77ff3d861b4a4a56727577e89c2430bce6729e341f60e33';
+ const archive={schema:'stallorder-delivery-edge-recovery/v1',project:'eyuctbnlvnbnivwasvqr',
+  functions:[{slug:'create-order-session',wireSha256:sha,metadata:{id:'e3e9df34-8377-4905-a627-840e5be407f1',
+   slug:'create-order-session',version:35,sha256:sha}}]};
  let error;try{await verifyIsolatedEdgeUsage({db,origin:'https://stallorder-platform-test123-ada76145-8663s-projects.vercel.app',
-  anonKey:'synthetic-not-a-credential',runId:'123',owned,request:async()=>{throw Error('synthetic private timeout');}});}catch(e){error=e;}
+   anonKey:'synthetic-not-a-credential',runId:'123',owned,phase:'usage-archive',archive,
+   request:async()=>{throw Error('synthetic private timeout');}});}catch(e){error=e;}
  assert.ok(error?.receipt);const input={phase:'usage-archive',snapshot:{runId:'123',project:error.receipt.project,
   controlCommit:'a'.repeat(40),runAttempt:1,usageFixtures:[owned,createUsageFixture('123')]},snapshotSha256:'b'.repeat(64),receipt:error.receipt};
  const events=formatIncompleteUsageEvidence(input);

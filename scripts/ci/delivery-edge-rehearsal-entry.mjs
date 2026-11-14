@@ -15,7 +15,7 @@ import {buildPairedIntent, loadPairedIntent, loadPairedPhaseCompletion, loadPair
 import {readIsolatedEdgeRecord} from './delivery-isolated-edge-read.mjs';
 import {restoreIsolatedEdgeBinary} from './delivery-edge-restore.mjs';
 import {executeDurableEdgePhase, inspectInterruptedPairedRecovery} from './delivery-edge-rehearsal.mjs';
-import {verifyIsolatedEdgeUsage} from './delivery-edge-usage.mjs';
+import {verifyIsolatedEdgeUsage,verifyUsageArchiveContract} from './delivery-edge-usage.mjs';
 import {formatPairedUsageEvidence, formatIncompleteUsageEvidence} from './delivery-edge-usage-evidence.mjs';
 import {createUsageFixture} from './delivery-edge-usage-fixture.mjs';
 import {PREVIEW_BINDING, verifyExistingPreview, verifyPreviewConfiguration} from './delivery-preview-binding.mjs';
@@ -239,6 +239,7 @@ async function main() {
   const currentRun = json(`actions/runs/${context.runId}`);
   assert.equal(currentRun.workflow_id, expectedWorkflowId);
   const admitted = await primaryCapture(context, token);
+  verifyUsageArchiveContract(admitted.archive);
   assertBranch();
   const read = args => readIsolatedEdgeRecord({...args, token});
   const prepareUsage = () => preparePairedUsage({loadOrigin:previewOrigin,
@@ -287,7 +288,8 @@ async function main() {
       loadIntent: phase => loadPairedIntent({...common, phase, sourceDigests}),
       loadPhase: phase => loadPairedPhaseCompletion({...common, phase, sourceDigests}),
       loadUsage: phase => loadPairedUsageCompletion({...common, phase, sourceDigests: usageDigests}),
-      usage: owned => verifyIsolatedEdgeUsage({db, origin, anonKey: config.SUPABASE_ANON_KEY, runId: context.runId, owned})});
+      usage: owned => verifyIsolatedEdgeUsage({db, origin, anonKey: config.SUPABASE_ANON_KEY, runId: context.runId,
+        owned,phase,archive:admitted.archive})});
     assertBranch();
   } catch (error) {
     if (error.receipt) console.log(JSON.stringify({event: 'paired-edge-rehearsal-incomplete', ...error.receipt}));
