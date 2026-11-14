@@ -151,3 +151,8 @@ Add a single readonly catalog statement and strict, redacted pure validator for 
 ## 2026-11-14 — Owned native encrypted preimage rehearsal
 
 Add authenticated AES-GCM/HKDF encrypted chunk roundtrip of the complete owned native PostgreSQL state and re-verify definitions, ACLs and146 migration records after decryption. Keep the synthetic-loopback boundary, explicit false release authority, before/after-COMMIT recovery cases and owned cleanup. No Production or provider credential is used. Local66 tests pass; hosted encrypted-roundtrip proof is pending.
+
+
+## 2026-11-14 — Qualify the native postimage source template
+
+Export the public frozen migration's five function definitions and migration147 record from the owned PostgreSQL rehearsal. Materialize the expected state using the authenticated target's existing OIDs and complete original history, with exact template/product/migration/column guards. Local 82 qualification tests pass; actual hosted qualification and protected Apply integration remain pending. No provider credentials, new paid resource or Production write are introduced.

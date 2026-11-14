@@ -8,6 +8,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { SNAPSHOT_SQL, recoverySql, validateSnapshots, applySql, classifyApplyOutcome } from './delivery-database-recovery.mjs';
 import { NATIVE_PREIMAGE_SQL, verifyNativePreimage } from './delivery-database-preimage.mjs';
 import {sealNativePreimage,formatNativePreimageCapture,readNativePreimageEvents} from './delivery-database-preimage.archive.mjs';
+import {encodeNativePostimageTemplate,materializeNativePostimage} from './delivery-database-postimage.mjs';
 
 const control = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const product = resolve(control, '../product'), recovery = resolve(control, '../recovery');
@@ -133,6 +134,18 @@ if(process.argv[2]==='prepare') {
   }
   let after=apply();
   const qualifiedAfter=structuredClone(after);
+  const postimageSource=encodeNativePostimageTemplate({before,after,migration:migrationBytes});
+  const rebuiltPostimage=materializeNativePostimage({before,bytes:postimageSource.bytes,sha256:postimageSource.sha256});
+  rebuiltPostimage.snapshot.functions[4].oid=after.functions[4].oid;
+  assert.ok(isDeepStrictEqual(rebuiltPostimage.snapshot,after),'qualified postimage source differs from native migration result');
+  // Only definitions/new history derived from the public frozen source are
+  // exported. No baseline history, customer data, real OIDs or credentials.
+  const encodedSource=postimageSource.bytes.toString('base64'),sourceChunks=Math.ceil(encodedSource.length/10000);
+  emit('native-postimage-source',{productCommit:manifest.commit,productTree:manifest.tree,
+    sha256:postimageSource.sha256,bytes:postimageSource.bytes.length,chunks:sourceChunks,sourceOnly:true,releaseAuthorized:false});
+  for(let index=0;index<sourceChunks;index++)emit('native-postimage-source-chunk',{
+    sha256:postimageSource.sha256,index,data:encodedSource.slice(index*10000,(index+1)*10000)});
+  emit('native-postimage-source-complete',{sha256:postimageSource.sha256,chunks:sourceChunks,sourceOnly:true,releaseAuthorized:false});
   sql(recoverySql(before,after)); assert.deepEqual(snapshot(),before);
   const disconnectSql=applySql(before,after,migrationBytes);
   await disconnectApply(disconnectSql,'before-commit');

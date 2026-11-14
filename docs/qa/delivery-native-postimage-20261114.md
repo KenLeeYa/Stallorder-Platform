@@ -1,0 +1,7 @@
+# Qualified native postimage source
+
+The owned frozen-product rehearsal exports only the five post-migration definitions/ACL/configuration and the new migration147 record. The canonical template excludes original OIDs, the 146-row baseline, customer data and credentials. Its source digest must be pinned by a separately reviewed protected caller after authenticated successful hosted qualification; passing a local template never grants Apply authority.
+
+The materializer preserves the actual authenticated native principal, all 146 complete original history rows and the four existing function OIDs. It rejects source digest/product/migration/schema/ACL/column drift. Only the new helper OID is a placeholder, normalized by the existing transactional Apply verifier; actual post-read state is required for recovery.
+
+Sixteen new source-template cases and 29 existing native recovery cases pass; the qualification checkout's combined preimage/archive/recovery/template suite passes 82 cases. Independent source review found no blocker and verified negative SHA/column mutations. The hosted follow-up will compare materialized state with the actual native migration result before exporting bounded source-only chunks, then retain all existing disconnect/rollback/recovery and owned cleanup cases. Actual hosted template capture, protected consumer integration and Production Apply remain pending. This uses the existing public standard runner and loopback database without secrets, provider calls or artifact uploads.
