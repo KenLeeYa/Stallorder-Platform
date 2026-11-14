@@ -1,0 +1,12 @@
+{
+  "schema": "stallorder-paired-edge-recovery-installation/v1",
+  "repository": "KenLeeYa/Stallorder-Platform",
+  "repositoryId": 1298874780,
+  "workflow": ".github/workflows/production-delivery-edge-restore.yml",
+  "workflowId": 408525853,
+  "originalWorkflowId": 408525851,
+  "isolatedProject": "teunnvfakbfzmodajqjz",
+  "firstRunNumber": 1,
+  "maxRunAttempt": 1,
+  "writerConcurrency": "stallorder-preview-pr389-writer"
+}
