@@ -4,7 +4,9 @@ import { cpSync, existsSync, readFileSync, readdirSync, unlinkSync, copyFileSync
 import { execFileSync, spawnSync, spawn } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 import { SNAPSHOT_SQL, recoverySql, validateSnapshots, applySql, classifyApplyOutcome } from './delivery-database-recovery.mjs';
+import { NATIVE_PREIMAGE_SQL, verifyNativePreimage } from './delivery-database-preimage.mjs';
 
 const control = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const product = resolve(control, '../product'), recovery = resolve(control, '../recovery');
@@ -88,6 +90,19 @@ if(process.argv[2]==='prepare') {
     'eb5db772f8eb25618a32fef9daa96990457adbe01eafbe88d8ca8f56cc2d06fa',
   ];
   assert.deepEqual(before.functions.slice(0,4).map(f=>hash(f.definition)),expectedDefinitions);
+  const executorContractBytes=readFileSync(resolve(control,'scripts/ci/delivery-executor-contract.json'));
+  assert.equal(hash(executorContractBytes),'5ef779af53151cabad80a83903fa0b600df45cc13b9444487f53a2eac9bb6142');
+  const executorPlan=JSON.parse(executorContractBytes);
+  const fullPreimage=()=>{
+    const startedAt=new Date().toISOString();
+    const value=JSON.parse(sql('BEGIN READ ONLY;\n'+NATIVE_PREIMAGE_SQL+'ROLLBACK;'));
+    const finishedAt=new Date().toISOString();
+    return verifyNativePreimage({value,plan:executorPlan,versions:versionFiles.slice(0,146).map(n=>n.slice(0,14)),
+      interval:{startedAt,finishedAt},now:Date.now()});
+  };
+  const completeBefore=fullPreimage();assert.ok(isDeepStrictEqual(completeBefore.snapshot,before),'native preimage does not match baseline');
+  emit('native-full-preimage-verified',{preimageSha256:completeBefore.preimageSha256,
+    sqlSha256:hash(NATIVE_PREIMAGE_SQL),functionDefinitions:4,migrationRecords:146,readOnly:true,releaseAuthorized:false});
   const migrationBytes=readFileSync(resolve(product,'supabase/migrations',migration),'utf8');
   sql('BEGIN;\n'+migrationBytes+'\nSELECT 1/0;\nCOMMIT;','22012');
   assert.deepEqual(snapshot(),before);
@@ -126,6 +141,8 @@ if(process.argv[2]==='prepare') {
   assert.deepEqual(snapshot(),before);
   emit('native-apply-sql-error-rolled-back',{migrations:146,helperAbsent:true});
   sql(nativeSql); after=snapshot(); validateSnapshots(before,after);
+  assert.throws(fullPreimage,{message:'DELIVERY_NATIVE_PREIMAGE_REJECTED'});
+  emit('native-full-preimage-rejects-applied-state',{migrationCount:147,releaseAuthorized:false});
   const normalized=structuredClone(after);
   normalized.functions[4].oid=qualifiedAfter.functions[4].oid;
   assert.deepEqual(normalized,qualifiedAfter);
