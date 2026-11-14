@@ -1,7 +1,36 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {verifyIsolatedEdgeUsage, reconcileUsageAttempts, verifyUsageOperationalEvents, inventoryUsageFixtures} from './delivery-edge-usage.mjs';
+import {verifyIsolatedEdgeUsage, reconcileUsageAttempts, verifyUsageOperationalEvents, inventoryUsageFixtures,
+ verifyUsageArchiveContract,verifyUsageSessionResult} from './delivery-edge-usage.mjs';
 import {createUsageFixture} from './delivery-edge-usage-fixture.mjs';
+
+const archive=()=>({schema:'stallorder-delivery-edge-recovery/v1',project:'eyuctbnlvnbnivwasvqr',
+ functions:[{slug:'create-order-session',wireSha256:'d758658c2c7e4a9ad77ff3d861b4a4a56727577e89c2430bce6729e341f60e33',
+  metadata:{id:'e3e9df34-8377-4905-a627-840e5be407f1',slug:'create-order-session',version:35,
+   sha256:'d758658c2c7e4a9ad77ff3d861b4a4a56727577e89c2430bce6729e341f60e33'}}]});
+test('reviewed archived session contract omits the new field while candidate requires true',()=>{
+ assert.doesNotThrow(()=>verifyUsageArchiveContract(archive()));
+ assert.doesNotThrow(()=>verifyUsageSessionResult({orderingMode:'DELIVERY'},'usage-archive'));
+ assert.doesNotThrow(()=>verifyUsageSessionResult({orderingMode:'DELIVERY',orderingOpenNow:true},'usage-candidate'));
+ for(const [phase,data] of [['usage-archive',{orderingMode:'DELIVERY',orderingOpenNow:true}],
+  ['usage-archive',{orderingMode:'DELIVERY',orderingOpenNow:false}],['usage-candidate',{orderingMode:'DELIVERY'}],
+  ['usage-candidate',{orderingMode:'DELIVERY',orderingOpenNow:false}],['other',{orderingMode:'DELIVERY'}]])
+  assert.throws(()=>verifyUsageSessionResult(data,phase),{message:'EDGE_USAGE_SESSION_CONTRACT_REJECTED'});
+});
+for(const [name,change] of [['project',a=>a.project='other'],['version',a=>a.functions[0].metadata.version++],
+ ['wire digest',a=>a.functions[0].wireSha256='a'.repeat(64)],['metadata digest',a=>a.functions[0].metadata.sha256='a'.repeat(64)],
+ ['identity',a=>a.functions[0].metadata.id='foreign'],['duplicate',a=>a.functions.push(a.functions[0])]])
+ test('rejects unreviewed archive contract '+name,()=>{
+  const value=archive();change(value);assert.throws(()=>verifyUsageArchiveContract(value),{message:'EDGE_USAGE_ARCHIVE_CONTRACT_REJECTED'});
+ });
+test('unknown archived behavior is rejected before fixture writes or HTTP requests',async()=>{
+ let calls=0;const value=archive();value.functions[0].metadata.version++;
+ await assert.rejects(()=>verifyIsolatedEdgeUsage({db:{$transaction:async()=>{calls++;}},
+  origin:'https://stallorder-platform-test123-ada76145-8663s-projects.vercel.app',
+  anonKey:'synthetic-key-with-no-provider-access',runId:'123',owned:createUsageFixture('123'),
+  phase:'usage-archive',archive:value,request:async()=>{calls++;}}),{message:'EDGE_USAGE_ARCHIVE_CONTRACT_REJECTED'});
+ assert.equal(calls,0);
+});
 
 // Exercise the real request/finally boundary. Database fixture transactions are
 // stubbed here; these tests make no database-cleanup or provider acceptance claim.
@@ -24,7 +53,7 @@ function boundary({postFails=false, clockFails=false, waitFails=false, timeout=f
   const requestId='12345678-1234-4123-8123-123456789012';
   return {cleanups:()=>cleanups, requestId, invoke:()=>verifyIsolatedEdgeUsage({db,
     origin:'https://stallorder-platform-test123-ada76145-8663s-projects.vercel.app',
-    anonKey:'synthetic-key-with-no-provider-access',runId:'123',owned:createUsageFixture('123'),
+    anonKey:'synthetic-key-with-no-provider-access',runId:'123',owned:createUsageFixture('123'),phase:'usage-candidate',archive:archive(),
     request:async()=>{if(timeout)throw Error('private timeout'); return Response.json({error:'limited'},
       {status:429,headers:{'x-request-id':requestId,'cache-control':'no-store'}});},
     wait:async()=>{if(waitFails)throw Error('private wait error');},
@@ -52,7 +81,7 @@ test('no fixture may be generated after the durable snapshot or recovered from a
   for(const owned of [undefined,createUsageFixture('124')])await assert.rejects(()=>verifyIsolatedEdgeUsage({
     db:{$transaction:async()=>{writes++;throw Error('should not be reached');}},
     origin:'https://stallorder-platform-test123-ada76145-8663s-projects.vercel.app',
-    anonKey:'synthetic-key-with-no-provider-access',runId:'123',owned,
+    anonKey:'synthetic-key-with-no-provider-access',runId:'123',owned,phase:'usage-candidate',archive:archive(),
   }));
   assert.equal(writes,0);
 });

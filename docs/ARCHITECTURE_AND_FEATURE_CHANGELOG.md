@@ -1,3 +1,9 @@
+## 2026-11-14 — Exact old-App Preview credential rehearsal controls
+
+The owner accepts rehearsal-first short maintenance for Primary credential rotation. Add a protected owner/main-only workflow that builds the immutable current Production source into the existing isolated Preview, verifies the synchronized GitHub database password through both native pooler endpoints, and performs actual merchant/staff login and QR checkout. Pin both public and server-side upstream configuration; keep application secrets stable across credential phases. The restore path must identify the original baseline deployment, not another successful phase.
+
+Owned fixture identities and beforeimage digests must come from a durable local coordinator. Browser or database writes with unknown outcomes prevent automatic cleanup. Atomic cleanup preserves foreign references and shared counters/rate effects. Three actual Preview SQL transaction tests passed and rolled back, including rejection of an unexpected print-job reference. Local tests and source controls are preparation evidence only; coordinator orchestration, hosted rehearsal, maintenance scheduling and Production release remain pending. PR408 admission is confined to the existing installation branch and resource. No new infrastructure or billing setting is introduced.
+
 ## 2026-11-05 — PR390 synthetic credential handoff alignment
 
 Control CI 42022142261 reproduced three synthetic CLI failures because its fixture still used completed PR389. Only the fixture event number changes to the separately reviewed PR390. Root reproduced all three failures before the correction; combined access/binding tests passed 88/88 afterward. Actual invocation/target/token guards and the shared pr-389 resource remain unchanged. Hosted full CI and Preview must pass again; no release authorization or merchant reopening.
@@ -338,3 +344,26 @@ Added the exact public source template from owned PostgreSQL run 43558854329 and
 After owner confirmation of the raw Primary DB password and matching Supavisor rejection logs, added an owner/main-only read-only diagnostic to distinguish direct network/authentication results from one independent transaction-pooler result. It uses the existing production environment/writer lock, fixed SQL/targets and redacted statuses; no reset, JIT access, retries, provider writes or release authority. See `docs/qa/delivery-auth-diagnostic-20261114.md`.
 
 The actual follow-up installation is PR402. Its Preview admission is pinned to that exact PR and rejects the merged PR401; the fixed PR389 resource and protected staging-to-main route remain unchanged. Final local control tests pass 1,116/1,116 with no skips.
+
+## 2026-11-14: Transaction lease settlement and archived session behavior
+
+Add a transaction-scoped advisory lease around the unchanged native Apply transaction. A verified same-session handshake precedes its sole mutation remainder; after actual client exit, a separate READ COMMITTED READ ONLY transaction waits for that lease before taking a fresh full snapshot. Actual owned PostgreSQL run 43565893480 passed idle-timeout, before/after-COMMIT orphan outcomes, complete baseline restoration and zero-owned-row cleanup. No new backend signals or automatic retries are used. Protected remote execution and Primary qualification remain incomplete. See `docs/qa/delivery-native-settlement-20261114.md`.
+
+Correct paired session acceptance for the independently verified original v35 binary: its response must omit the new orderingOpenNow field, while the frozen candidate must return true. Reject unknown archive identities, versions and digests before isolated mutation; retain all five-call, status, ownership, cleanup and recovery requirements. See `docs/qa/delivery-edge-session-contract-20261114.md`. The first paired rehearsal and actual old-App compatibility remain separate pending gates.
+
+Prepare a separate pure source/deployment-metadata validator for the original 4e95 App, preserving the candidate 0d2 policy. It pins the original tree/package/lockfile and existing Preview project/team/backend, while explicitly retaining false origin, artifact-equivalence, backend-compatibility and release claims. All 24 new cases and independent immutable-source review pass; review receipt SHA256 is `7b6fd4b431841677c32ca8a859a865adb9920dce96fa8cd92f1b2cfb39a70fe9`. No producer workflow, browser harness or compatibility loader is installed by this preparation. The actual protected authentication diagnostic remains rejected as recorded in `docs/qa/delivery-auth-diagnostic-20261114.md`.
+
+
+## 2026-11-14: Proposed coordinated Primary credential rotation
+
+The owner authorized a password reset with GitHub/Vercel synchronization and service continuity. Add an owner/main-only, existing-Preview capability probe for a temporary login role: bind PR389, refuse existing CLI roles, issue once, read actual native session identity, remove only the returned owned role, and verify cleanup. Secrets stay in process memory; no Primary write, privilege grant, password reset or Vercel operation is included. The result never qualifies rotation or release. Sixteen focused tests pass; protected installation, hosted capability checks, overlap application/recovery acceptance and actual rotation remain pending. See `docs/qa/primary-credential-rotation-20261114.md`.
+
+The next existing-branch installation candidate is pinned to PR404, pending provider confirmation when created. The previous PR402 is rejected, both invocation/credential-handoff fixtures are synchronized, and staging-to-main promotion remains unchanged. The focused binding suite passes94 tests after reproducing the two expected pre-change failures.
+
+## 2026-11-14: Proposed PR406 protected ancestry synchronization
+
+PR404 installation passed CI/security/hosted Preview and merged into staging. Promotion PR405 requires the current main ancestor; the provider rejected direct staging update under its PR-only rules. Preserve those rules and add main/staging ancestry through the existing conversion branch, with identical content before the exact installation binding advances404 to406. Add rejection of completed PR404 and synchronize both invocation fixtures. The Primary password, GitHub secret, Vercel Production environment and live App remain unchanged. See docs/qa/primary-credential-rotation-20261114.md.
+
+## 2026-11-14: Managed temporary-role cleanup before credential issuance
+
+Pre-execution review found that Supabase-managed CLI roles cannot be removed by the existing postgres SQL DROP ROLE path. No credential was issued. Replace it with one fixed Preview management deletion, allowed only after an initially empty inventory and a fresh inventory containing exactly the returned role. Any scope mismatch or cleanup request failure prevents success, even after an empty readback. The single-writer requirement includes callers outside GitHub; the provider batch endpoint has no per-role CAS. Preserve all Primary prohibitions and the original rotation/application gates. Advance the protected installation binding to PR407 and reject completed PR406. See docs/qa/primary-credential-rotation-20261114.md.

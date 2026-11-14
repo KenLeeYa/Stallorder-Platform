@@ -17,6 +17,28 @@ const iso = value => new Date(value).toISOString();
 const digest = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const uuid = /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i;
 
+// The authenticated archive loader separately validates every binary byte and
+// provenance. This reviewed v35 binary contains the original 4e95 session
+// contract, which does not emit orderingOpenNow. Unknown versions stay blocked.
+export function verifyUsageArchiveContract(archive) {
+  try {
+    assert.equal(archive.schema,'stallorder-delivery-edge-recovery/v1');
+    assert.equal(archive.project,'eyuctbnlvnbnivwasvqr');
+    const records=archive.functions.filter(f=>f.slug==='create-order-session');assert.equal(records.length,1);
+    const record=records[0],sha='d758658c2c7e4a9ad77ff3d861b4a4a56727577e89c2430bce6729e341f60e33';
+    assert.equal(record.metadata.id,'e3e9df34-8377-4905-a627-840e5be407f1');
+    assert.equal(record.metadata.slug,'create-order-session');assert.equal(record.metadata.version,35);
+    assert.equal(record.metadata.sha256,sha);assert.equal(record.wireSha256,sha);
+  } catch {throw new Error('EDGE_USAGE_ARCHIVE_CONTRACT_REJECTED');}
+}
+export function verifyUsageSessionResult(data,phase) {
+  try {
+    assert.ok(['usage-archive','usage-candidate'].includes(phase));assert.equal(data.orderingMode,'DELIVERY');
+    if(phase==='usage-archive')assert.equal(Object.hasOwn(data,'orderingOpenNow'),false);
+    else assert.equal(data.orderingOpenNow,true);
+  } catch {throw new Error('EDGE_USAGE_SESSION_CONTRACT_REJECTED');}
+}
+
 export function verifyUsageOperationalEvents(events, owned) {
   assert.ok(events.length <= 2 && events.every(event => event.stallId === owned.stallId
     && event.entityType === 'ORDER' && event.entityId === owned.orderId
@@ -202,10 +224,11 @@ async function rateSnapshot(db, ledger) {
 }
 // Called only by the reviewed protected paired-project entry. No CLI, target
 // selection, runtime configuration changes, external messaging or payment calls.
-export async function verifyIsolatedEdgeUsage({db, origin, anonKey, runId, owned, request = fetch, wait = delay}) {
+export async function verifyIsolatedEdgeUsage({db, origin, anonKey, runId, owned, phase, archive, request = fetch, wait = delay}) {
   assert.equal(previewPublicOrigins(origin), origin);
   assert.match(runId ?? '', /^[1-9][0-9]*$/); assert.ok(typeof anonKey === 'string' && anonKey.length > 20);
   validateUsageFixture(owned,runId);
+  assert.ok(['usage-archive','usage-candidate'].includes(phase));verifyUsageArchiveContract(archive);
   owned=structuredClone(owned);
   const ledger = createRatePeriodLedger(), calls = [];
   let failed = false, cleanupReceipt, rateReceipt, outcomeUnknown = false, rateEvidenceComplete = true;
@@ -242,7 +265,7 @@ export async function verifyIsolatedEdgeUsage({db, origin, anonKey, runId, owned
     await prepare(db, owned);
     const issued = await call('create-order-session', {qrToken: owned.qrToken, deviceId: owned.deviceId,
       orderingMode: 'DELIVERY', sessionRequestId: owned.sessionRequestId, includeMenu: true});
-    assert.equal(issued.data.orderingMode, 'DELIVERY'); assert.equal(issued.data.orderingOpenNow, true);
+    verifyUsageSessionResult(issued.data,phase);
     assert.match(issued.data.orderSessionToken ?? '', /^stos_[A-Za-z0-9_-]{43}$/);
     const session=await db.orderSession.findUniqueOrThrow({where:{tokenHash:createHash('sha256')
       .update(issued.data.orderSessionToken).digest('hex')},select:{id:true,organizationId:true,

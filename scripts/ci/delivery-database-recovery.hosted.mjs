@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { cpSync, existsSync, readFileSync, readdirSync, unlinkSync, copyFileSync } from 'node:fs';
 import { execFileSync, spawnSync, spawn } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
@@ -9,6 +9,7 @@ import { SNAPSHOT_SQL, recoverySql, validateSnapshots, applySql, classifyApplyOu
 import { NATIVE_PREIMAGE_SQL, verifyNativePreimage } from './delivery-database-preimage.mjs';
 import {sealNativePreimage,formatNativePreimageCapture,readNativePreimageEvents} from './delivery-database-preimage.archive.mjs';
 import {encodeNativePostimageTemplate,materializeNativePostimage} from './delivery-database-postimage.mjs';
+import {applyLeaseSql,verifyWriterIdentity,writerSettlementSql,verifyWriterSettled} from './delivery-database-settlement.mjs';
 
 const control = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const product = resolve(control, '../product'), recovery = resolve(control, '../recovery');
@@ -78,6 +79,82 @@ if(process.argv[2]==='prepare') {
     } finally {
       clearTimeout(deadline);
       if(!exited){child.kill('SIGKILL');await exit;}
+    }
+  }
+  async function settleOrphanedApply(before,after,migration,phase) {
+    assert.ok(['before-commit','after-commit','idle-before-mutation'].includes(phase));
+    const applicationName='stallorder-delivery-'+randomBytes(16).toString('hex');
+    const leaseKey=((randomBytes(8).readBigUInt64BE()&0x7fffffffffffffffn)||1n).toString();
+    const parts=applyLeaseSql({before,after,migration,applicationName,leaseKey});
+    const pause='SELECT pg_sleep(30);\n';
+    const interrupted=parts.remainder.replace(/COMMIT;\n$/,phase==='before-commit'?pause+'COMMIT;\n':'COMMIT;\n'+pause);
+    // An owned-run event only. A remote executor additionally needs a protected,
+    // durable intent before spawning, authenticated endpoint binding and an
+    // unresolved-sender gate if its parent runner disappears.
+    emit('native-owned-lease-intent',{applicationName,leaseKey,phase,productionExecutorQualified:false});
+    const child=spawn('psql',['-X','-q','-A','-t','-v','ON_ERROR_STOP=1'],
+      {cwd:recovery,env:{...env,PGAPPNAME:applicationName},stdio:['pipe','pipe','ignore']});
+    let exited=false,writeFailed=false,buffer='';
+    const exit=new Promise(resolveExit=>{
+      child.once('exit',(code,signal)=>{exited=true;resolveExit({code,signal});});
+    });
+    const failure=new Promise(resolveFailure=>child.once('error',()=>resolveFailure({spawnError:true})));
+    const firstLine=new Promise((resolveLine,rejectLine)=>{
+      child.stdout.on('data',chunk=>{
+        buffer+=chunk.toString('utf8');
+        if(Buffer.byteLength(buffer)>32768){rejectLine(new Error('owned identity output exceeded bound'));child.kill('SIGKILL');}
+        if(buffer.includes('\n'))resolveLine(buffer.slice(0,buffer.indexOf('\n')));
+      });
+    });
+    child.stdin.once('error',()=>{writeFailed=true;if(!exited)child.kill('SIGKILL');});
+    const deadline=setTimeout(()=>child.kill('SIGKILL'),phase==='idle-before-mutation'?25000:20000);
+    try {
+      child.stdin.write(parts.prelude);
+      const raw=await Promise.race([firstLine,exit.then(()=>{throw new Error('owned writer exited before identity');}),
+        failure.then(()=>{throw new Error('owned writer could not start');})]);
+      const writer=verifyWriterIdentity({value:JSON.parse(raw),applicationName,leaseKey});
+      // A second connection must fail to obtain the same lease while the writer
+      // is idle in its transaction. A timeout is never a not-applied outcome.
+      sql(`BEGIN READ ONLY; SET LOCAL lock_timeout='100ms'; SELECT pg_advisory_xact_lock(${leaseKey}::bigint); ROLLBACK;`,'55P03');
+      if(phase==='idle-before-mutation') {
+        let absent=false;
+        for(let attempt=0;attempt<70&&!exited;attempt++) {
+          if(sql(`SELECT count(*) FROM pg_catalog.pg_stat_activity WHERE pid=${writer.pid} AND application_name='${applicationName}';`)==='0'){absent=true;break;}
+          await new Promise(resolveWait=>setTimeout(resolveWait,250));
+        }
+        assert.equal(absent,true,'native idle transaction timeout did not end its backend');
+        // Noninteractive psql may still be waiting on stdin; a harmless command
+        // observes the closed connection without reconnecting or sending Apply.
+        child.stdin.end('SELECT 1;\n');
+        const result=await exit;
+        assert.ok(Number.isInteger(result.code)&&result.code!==0&&!result.signal);
+        assert.equal(writeFailed,false);
+        const settled=verifyWriterSettled({identity:writer,writerExited:exited,
+          value:JSON.parse(sql(writerSettlementSql({identity:writer,writerExited:exited})))});
+        emit('native-idle-writer-settled',{idleTimeoutEnforced:true,mutationSent:false,retryAllowed:false});
+        return settled.snapshot;
+      }
+      child.stdin.end(interrupted);
+      const filter=`pid=${writer.pid} AND application_name='${applicationName}' AND wait_event='PgSleep'`;
+      let waiting=false;
+      for(let attempt=0;attempt<20&&!exited;attempt++) {
+        if(sql(`SELECT count(*) FROM pg_catalog.pg_stat_activity WHERE ${filter};`)==='1'){waiting=true;break;}
+        await new Promise(resolveWait=>setTimeout(resolveWait,250));
+      }
+      assert.equal(waiting,true,'owned writer did not reach its commit boundary');
+      child.kill('SIGKILL');const result=await exit;
+      assert.equal(result.signal,'SIGKILL');assert.equal(writeFailed,false);
+      assert.equal(sql(`SELECT count(*) FROM pg_catalog.pg_stat_activity WHERE ${filter};`),'1',
+        'test must observe a still-running backend after its client exits');
+      const settled=verifyWriterSettled({identity:writer,writerExited:exited,
+        value:JSON.parse(sql(writerSettlementSql({identity:writer,writerExited:exited})))});
+      assert.equal(settled.writerSettled,true);assert.equal(settled.originVerified,false);
+      emit('native-orphaned-writer-settled',{phase,localProcessExited:true,
+        transactionEnded:true,nativeReadOnly:true,readCommitted:true,leaseContentionRefused:true,
+        backendSignalUsed:false,retryAllowed:false,releaseAuthorized:false});
+      return settled.snapshot;
+    } finally {
+      clearTimeout(deadline);if(child.pid&&!exited){child.kill('SIGKILL');await exit;}
     }
   }
   const oidShape=JSON.parse(sql("SELECT jsonb_build_object('native',to_jsonb('pg_catalog.pg_proc'::regclass::oid),'numeric',to_jsonb(('pg_catalog.pg_proc'::regclass::oid)::bigint));"));
@@ -156,6 +233,14 @@ if(process.argv[2]==='prepare') {
   assert.deepEqual(classifyApplyOutcome(before,after,committed),{state:'applied',retryAllowed:false});
   emit('native-disconnect-after-commit',{state:'applied',retryAllowed:false,migrationCount:147});
   sql(recoverySql(before,committed)); assert.deepEqual(snapshot(),before);
+  const idleState=await settleOrphanedApply(before,after,migrationBytes,'idle-before-mutation');
+  assert.deepEqual(classifyApplyOutcome(before,after,idleState),{state:'not-applied',retryAllowed:false});
+  const abortedState=await settleOrphanedApply(before,after,migrationBytes,'before-commit');
+  assert.deepEqual(classifyApplyOutcome(before,after,abortedState),{state:'not-applied',retryAllowed:false});
+  const settledCommit=await settleOrphanedApply(before,after,migrationBytes,'after-commit');
+  assert.deepEqual(classifyApplyOutcome(before,after,settledCommit),{state:'applied',retryAllowed:false});
+  sql(recoverySql(before,settledCommit));assert.deepEqual(snapshot(),before);
+  emit('native-orphaned-outcomes-verified',{beforeCommit:'not-applied',afterCommit:'applied',baselineRestored:true,retryAllowed:false});
   const staleBefore=structuredClone(before), staleAfter=structuredClone(after);
   staleBefore.migrations[0].name='synthetic-stale-preimage';
   staleAfter.migrations[0].name=staleBefore.migrations[0].name;
