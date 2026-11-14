@@ -73,13 +73,13 @@ test('SQL uses one full-state catalog statement and records actual read-only/ses
 function connection() {
  const endpoint={projectId:'eyuctbnlvnbnivwasvqr',hostname:'aws-0-ap-northeast-1.pooler.supabase.com',
   port:'5432',username:'postgres.eyuctbnlvnbnivwasvqr',database:'postgres'};
- return {endpoint,connection:`postgresql://${endpoint.username}:synthetic-password@${endpoint.hostname}:5432/postgres?sslmode=require&connect_timeout=10`};
+ return {endpoint,connection:`postgresql://${endpoint.username}:synthetic-placeholder-password@${endpoint.hostname}:5432/postgres?sslmode=require&connect_timeout=10`};
 }
 test('native collector uses the bound password endpoint once with fixed readonly SQL and no credential arguments',()=>{
  const f=fixture();let calls=0;
  const out=collectNativePreimage({...connection(),plan:f.plan,versions:f.versions,clock:()=>at,invoke:(binary,args,options)=>{
-  calls++;assert.equal(binary,'psql');assert.ok(!JSON.stringify(args).includes('synthetic-password'));
-  assert.equal(options.env.PGPASSWORD,'synthetic-password');assert.equal(options.env.PGDATABASE,'postgres');
+  calls++;assert.equal(binary,'psql');assert.ok(!JSON.stringify(args).includes('synthetic-placeholder-password'));
+  assert.equal(options.env.PGPASSWORD,'synthetic-placeholder-password');assert.equal(options.env.PGDATABASE,'postgres');
   assert.equal(options.env.PGHOST,connection().endpoint.hostname);assert.equal(options.env.PGSSLMODE,'require');
   assert.match(options.env.PGOPTIONS,/default_transaction_read_only=on/);assert.match(options.env.PGOPTIONS,/statement_timeout=15000/);
   assert.equal(options.input,NATIVE_PREIMAGE_SQL);assert.equal(options.timeout,25000);
@@ -88,7 +88,7 @@ test('native collector uses the bound password endpoint once with fixed readonly
  }});
  assert.equal(calls,1);assert.deepEqual(out.snapshot,f.value.snapshot);assert.equal(out.releaseAuthorized,false);
  assert.deepEqual(out.raw,f.value);
- assert.ok(!JSON.stringify(out).includes('synthetic-password'));
+ assert.ok(!JSON.stringify(out).includes('synthetic-placeholder-password'));
 });
 test('native collector rejects endpoint overrides before opening a connection',()=>{
  const f=fixture();let calls=0;
