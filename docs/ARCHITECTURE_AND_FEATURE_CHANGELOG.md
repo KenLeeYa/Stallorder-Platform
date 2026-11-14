@@ -128,3 +128,8 @@ Do not rewrite an old row to make a later rollout look complete. Append a new ro
 ## 2026-11-05 Run18 exact delivery admission
 
 Bind fresh immutable Run18 verification and the complete independently reviewed SARIF. The original security result remains failure with 14 bounded false positives; the reviewed admission checks every result, extraction, immutable workflow/product and final provider state. Six-hour freshness remains measured from run creation. Production executor privileges, paired Edge recovery and live release qualification remain separate and releaseAuthorized remains false. Product 0d2b27144fcf589bb887e669c09e82158e3de7a2 is unchanged.
+
+
+## 2026-11-14 - Proposed native delivery migration transaction
+
+Added a pinned-source, one-transaction Apply builder beside the existing native recovery builder. Full function/ACL/principal/history CAS and postimage checks fail closed; the hosted synthetic rehearsal now covers stale input, wrong output, interruption, successful apply and duplicate refusal. The product is unchanged. Local 22 tests pass; hosted evidence is pending. This is not a protected Production executor or release. See [scope and remaining gates](qa/delivery-native-apply-20261114.md).

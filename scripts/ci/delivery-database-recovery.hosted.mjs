@@ -4,7 +4,7 @@ import { cpSync, existsSync, readFileSync, readdirSync, unlinkSync, copyFileSync
 import { execFileSync, spawnSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SNAPSHOT_SQL, recoverySql, validateSnapshots } from './delivery-database-recovery.mjs';
+import { SNAPSHOT_SQL, recoverySql, validateSnapshots, applySql } from './delivery-database-recovery.mjs';
 
 const control = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const product = resolve(control, '../product'), recovery = resolve(control, '../recovery');
@@ -65,7 +65,30 @@ if(process.argv[2]==='prepare') {
     assert.equal(r.status,0,'actual Supabase migration up failed');
     const after=snapshot(); validateSnapshots(before,after); return after;
   }
-  const after=apply();
+  let after=apply();
+  const qualifiedAfter=structuredClone(after);
+  sql(recoverySql(before,after)); assert.deepEqual(snapshot(),before);
+  const staleBefore=structuredClone(before), staleAfter=structuredClone(after);
+  staleBefore.migrations[0].name='synthetic-stale-preimage';
+  staleAfter.migrations[0].name=staleBefore.migrations[0].name;
+  sql(applySql(staleBefore,staleAfter,migrationBytes),'P0001');
+  assert.deepEqual(snapshot(),before);
+  emit('native-apply-stale-preimage-denied',{unchanged:true});
+  const wrongAfter=structuredClone(after);
+  wrongAfter.functions[0].definition+='\n-- deliberately wrong expected output';
+  sql(applySql(before,wrongAfter,migrationBytes),'P0001');
+  assert.deepEqual(snapshot(),before);
+  emit('native-apply-postimage-drift-rolled-back',{migrations:146,helperAbsent:true});
+  const nativeSql=applySql(before,after,migrationBytes);
+  sql(nativeSql.replace(/COMMIT;\n$/,'SELECT 1/0;\nCOMMIT;\n'),'22012');
+  assert.deepEqual(snapshot(),before);
+  emit('native-apply-interruption-rolled-back',{migrations:146,helperAbsent:true});
+  sql(nativeSql); after=snapshot(); validateSnapshots(before,after);
+  const normalized=structuredClone(after);
+  normalized.functions[4].oid=qualifiedAfter.functions[4].oid;
+  assert.deepEqual(normalized,qualifiedAfter);
+  sql(nativeSql,'P0001'); assert.deepEqual(snapshot(),after);
+  emit('native-apply-and-repeat-refusal',{migrationCount:147,postgresSession:true,oneTransaction:true});
   const drift=structuredClone(after); drift.migrations[0].name='synthetic-stale-postimage';
   const driftBefore=structuredClone(before); driftBefore.migrations[0].name=drift.migrations[0].name;
   sql(recoverySql(driftBefore,drift),'P0001'); assert.deepEqual(snapshot(),after);

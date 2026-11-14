@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 
 export const RECOVERY_SIGNATURES = [
   'app_private.issue_order_session_with_schedule_targeted(text,text,text,text,text,text,text,text)',
@@ -85,6 +86,50 @@ BEGIN
   IF actual IS DISTINCT FROM expected_before THEN RAISE EXCEPTION 'DELIVERY_RECOVERY_POSTIMAGE_MISMATCH'; END IF;
 END;
 $delivery_recovery$;
+COMMIT;
+`;
+}
+
+// Both snapshots must come from independently authenticated evidence. The new
+// helper's OID is allocated by the target database; every other field is exact.
+// This pure builder has no credentials, connection, retry or release authority.
+export function applySql(before, after, migration) {
+  validateSnapshots(before,after);
+  assert.equal(typeof migration,'string');
+  assert.equal(createHash('sha256').update(migration).digest('hex'),
+    'adf00cba767ae8aac8f057a8003e40e67be04558d09bc0f0ca8774648db88bb2',
+    'DELIVERY_APPLY_MIGRATION_SOURCE');
+  assert.ok(!JSON.stringify([before,after]).includes('$delivery_apply$'),
+    'snapshot contains reserved SQL delimiter');
+  return `BEGIN;
+SET LOCAL standard_conforming_strings = on;
+SET LOCAL lock_timeout = '5s';
+SET LOCAL statement_timeout = '30s';
+SET LOCAL search_path = pg_catalog;
+LOCK TABLE supabase_migrations.schema_migrations IN EXCLUSIVE MODE;
+DO $delivery_apply$
+BEGIN
+  IF (${SNAPSHOT_SQL}) IS DISTINCT FROM ${literal(JSON.stringify(before))}::jsonb THEN
+    RAISE EXCEPTION 'DELIVERY_APPLY_PREIMAGE_DRIFT';
+  END IF;
+END;
+$delivery_apply$;
+${migration}
+INSERT INTO supabase_migrations.schema_migrations
+  SELECT * FROM jsonb_populate_record(NULL::supabase_migrations.schema_migrations,
+    ${literal(JSON.stringify(after.migrations[146]))}::jsonb);
+DO $delivery_apply$
+DECLARE
+  expected_after jsonb := ${literal(JSON.stringify(after))}::jsonb;
+  actual jsonb;
+BEGIN
+  actual := (${SNAPSHOT_SQL});
+  expected_after := jsonb_set(expected_after, '{functions,4,oid}', actual #> '{functions,4,oid}');
+  IF actual IS DISTINCT FROM expected_after THEN
+    RAISE EXCEPTION 'DELIVERY_APPLY_POSTIMAGE_MISMATCH';
+  END IF;
+END;
+$delivery_apply$;
 COMMIT;
 `;
 }

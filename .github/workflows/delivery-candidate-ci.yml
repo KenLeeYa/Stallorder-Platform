@@ -60,6 +60,7 @@ jobs:
           node --test scripts/ci/delivery-edge-readiness.test.mjs
           node --test scripts/ci/delivery-expiry-evidence.test.mjs
           node --test scripts/ci/delivery-qualification.test.mjs
+          node --test scripts/ci/delivery-database-recovery.test.mjs
           node scripts/ci/delivery-candidate.mjs materialize
       - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb
         with:
