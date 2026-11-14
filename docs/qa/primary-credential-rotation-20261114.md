@@ -29,3 +29,11 @@ The result always retains `rotationQualified: false` and `releaseAuthorized: fal
 ## Remaining coordinated rotation
 
 Qualify a supported overlap and the actual application; prepare protected target/credential synchronization and known-outcome recovery; move the application to the verified overlap; reset postgres through its password API; synchronize GitHub and production-scoped Vercel values through secret-safe transport; validate the new native credential and application; move off and retire the overlap only after dependent deployments no longer need it. Unknown outcomes stop subsequent writes and require readback. The original delivery DB/Edge/App release and live ordering acceptance still follow these steps.
+
+## Protected ancestry synchronization
+
+PR404 passed exact-head CI, source security and hosted Preview (run43578799548, including1671 database tests and actual QR/mobile checkout/tracker acceptance) and merged into staging b5d46d8e. Its reviewed tree is e3d1d8b41213053aedf18da4d2829794e4e30636. Promotion PR405 was behind the existing main merge commit. GitHub rejected a direct update-branch request with HTTP422 because staging changes require a pull request and required checks. No protection rule was changed.
+
+The existing conversion branch now contains both main d041ccaa and staging b5d46d8e through normal, content-preserving merges. The next installation is bound to PR406; PR404 is rejected after its completed installation. Only the exact PR number and its fixtures change, with the same isolated resource and promotion scope. After PR406 passes normal checks and merges, PR405 must be revalidated on its new staging head before merging. Primary password rotation and Production release remain pending.
+
+Independent review found no issues in the five-path synchronization change and passed95/95 focused cases; source hashes were unchanged and temporary fixtures were removed. Receipt SHA256:6e4ea6e03d1445f916f377812df48025c620cb0911ce7f13ebb0416b4b594a5f. Production guardrails passed2515 files/146 migrations. Scoped lint passed using the byte-identical existing configuration after correcting local dependency resolution; no package was installed.
