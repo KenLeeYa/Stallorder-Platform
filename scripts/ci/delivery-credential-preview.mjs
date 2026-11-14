@@ -6,6 +6,7 @@ import {PREVIEW_BINDING,verifyExistingPreview} from './delivery-preview-binding.
 
 const project=PREVIEW_BINDING.project,parent=PREVIEW_BINDING.parent;
 const prefix='/v1/projects/'+project;
+const branchPath='/v1/branches/'+PREVIEW_BINDING.branchId;
 const inventory="SELECT rolname FROM pg_roles WHERE rolname LIKE 'cli_login_%' ORDER BY rolname;";
 const validRole=value=>typeof value==='string'&&/^cli_login_[a-z0-9_]{1,45}$/.test(value);
 const sql="BEGIN READ ONLY; SET LOCAL statement_timeout='5s'; SET LOCAL lock_timeout='1s'; "+
@@ -14,7 +15,7 @@ const sql="BEGIN READ ONLY; SET LOCAL statement_timeout='5s'; SET LOCAL lock_tim
 
 export async function credentialRequest(method,path,body,token,fetchImpl=fetch){
  try{
-  const get=method==='GET'&&body===undefined&&[prefix,prefix+'/config/database/pooler',`/v1/projects/${parent}/branches`].includes(path);
+  const get=method==='GET'&&body===undefined&&[branchPath,prefix+'/config/database/pooler',`/v1/projects/${parent}/branches`].includes(path);
   const issue=method==='POST'&&path===prefix+'/cli/login-role'&&JSON.stringify(body)==='{"read_only":false}';
   const cleanup=method==='DELETE'&&path===prefix+'/cli/login-role'&&body===undefined;
   const query=method==='POST'&&path===prefix+'/database/query'&&body&&Object.keys(body).length===1&&
@@ -23,7 +24,7 @@ export async function credentialRequest(method,path,body,token,fetchImpl=fetch){
   const response=await fetchImpl('https://api.supabase.com'+path,{method,redirect:'error',
    headers:{Authorization:'Bearer '+token,Accept:'application/json',...(body?{'Content-Type':'application/json'}:{})},
    ...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(20000)});
-  assert.equal(response.status,issue?201:200);assert.ok(response.body);
+  assert.equal(response.status,issue||query?201:200);assert.ok(response.body);
   const chunks=[];let size=0;for await(const chunk of response.body){size+=chunk.length;assert.ok(size<=131072);chunks.push(Buffer.from(chunk));}
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
  }catch{throw new Error('CREDENTIAL_PROVIDER_REQUEST_FAILED');}
@@ -57,8 +58,9 @@ export async function runCredentialPreview({env,request,probe=probeCredential,re
   invocation(env);stage='BINDING';
   const branches=await request('GET',`/v1/projects/${parent}/branches`);
   verifyExistingPreview({parent,branches});
-  const p=await request('GET',prefix);assert.equal(p.id,project);assert.equal(p.status,'ACTIVE_HEALTHY');
-  assert.equal(p.region,'ap-southeast-1');assert.equal(p.database?.host,'db.'+project+'.supabase.co');
+  const p=await request('GET',branchPath);assert.equal(p.ref,project);assert.equal(p.status,'ACTIVE_HEALTHY');
+  assert.equal(p.db_host,'db.'+project+'.supabase.co');assert.equal(p.db_port,5432);
+  assert.equal(p.db_user,'postgres');assert.equal(p.postgres_engine,'17');
   const poolers=await request('GET',prefix+'/config/database/pooler');assert.ok(Array.isArray(poolers)&&poolers.length<=10);
   const matching=poolers.filter(p=>p.database_type==='PRIMARY');assert.equal(matching.length,1);
   const url=new URL(matching[0].connection_string);assert.ok(['postgres:','postgresql:'].includes(url.protocol));
