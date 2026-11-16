@@ -89,7 +89,6 @@ jobs:
       - name: Build or verify the exact old App Preview
         id: old-app
         env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           RESTORE_DEPLOYMENT_ID: ${{ inputs.baseline_deployment_id }}
           RESTORE_URL: ${{ inputs.baseline_url }}
           RESTORE_RUN_ID: ${{ inputs.baseline_run_id }}
