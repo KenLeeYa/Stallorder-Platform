@@ -17,15 +17,32 @@ describe("security dependency release contract", () => {
   });
 
   it.each([
-    ["next", "16.3.8"],
+    ["next", "16.4.6"],
+    ["eslint-config-next", "16.4.6"],
     ["sharp", "0.35.5"],
     ["brace-expansion", "5.0.12"],
     ["shell-quote", "1.11.0"],
-    ["undici", "7.29.1"],
+    ["undici", "7.30.1"],
+    ["zod", "4.6.6"],
     ["source-map-js", "1.2.2"],
     ["vite", "8.2.4"],
+    ["minimatch", "11.0.1"],
+    ["vitest", "4.1.12"],
+    ["@vitest/mocker", "4.1.12"],
   ])("locks %s to its reviewed security release", (name, version) => {
     expect(lock.packages[`node_modules/${name}`].version).toBe(version);
+  });
+
+  it("uses patched Effect when loading Prisma configuration", () => {
+    const configRequire = createRequire(require.resolve("@prisma/config"));
+    expect(configRequire("effect/package.json").version).toBe("3.22.5");
+    expect(Object.entries(lock.packages).filter(([key]) => key.endsWith("node_modules/effect")).map(([, value]) => value.version)).toEqual(["3.22.5"]);
+  });
+
+  it("uses the reviewed Zod version for the app and Vercel CLI config", () => {
+    const configRequire = createRequire(require.resolve("@vercel/cli-config"));
+    expect(require("zod/package.json").version).toBe("4.6.6");
+    expect(configRequire("zod/package.json").version).toBe("4.6.6");
   });
 
   it("rejects shell comment terminator injection instead of emitting a command", () => {
