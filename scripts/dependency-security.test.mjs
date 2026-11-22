@@ -30,6 +30,12 @@ describe("security dependency release contract", () => {
     expect(lock.packages[`node_modules/${name}`].version).toBe(version);
   });
 
+  it("uses patched Effect when loading Prisma configuration", () => {
+    const configRequire = createRequire(require.resolve("@prisma/config"));
+    expect(configRequire("effect/package.json").version).toBe("3.22.5");
+    expect(Object.entries(lock.packages).filter(([key]) => key.endsWith("node_modules/effect")).map(([, value]) => value.version)).toEqual(["3.22.5"]);
+  });
+
   it("uses the reviewed Zod version for the app and Vercel CLI config", () => {
     const configRequire = createRequire(require.resolve("@vercel/cli-config"));
     expect(require("zod/package.json").version).toBe("4.6.6");

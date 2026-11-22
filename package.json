@@ -111,6 +111,9 @@
     "seed": "tsx prisma/seed.ts"
   },
   "overrides": {
+    "@prisma/config": {
+      "effect": "3.22.5"
+    },
     "@vercel/cli-config": {
       "zod": "$zod"
     },
