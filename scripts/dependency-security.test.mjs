@@ -17,8 +17,8 @@ describe("security dependency release contract", () => {
   });
 
   it.each([
-    ["next", "16.4.2"],
-    ["eslint-config-next", "16.4.2"],
+    ["next", "16.4.6"],
+    ["eslint-config-next", "16.4.6"],
     ["sharp", "0.35.5"],
     ["brace-expansion", "5.0.12"],
     ["shell-quote", "1.11.0"],
