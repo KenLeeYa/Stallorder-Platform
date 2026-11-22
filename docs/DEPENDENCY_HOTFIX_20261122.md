@@ -4,4 +4,8 @@ This candidate starts at Production `4e95d2ea`. It takes the reviewed dependency
 
 A scoped npm override upgrades the Effect dependency of `@prisma/config` from 3.21.0 to 3.22.5 for GHSA-7589-6fvf-x4pw. Prisma CLI, Client, and Config stay at 6.19.3. The lockfile and dependency contract test ensure Prisma resolves the reviewed Effect release.
 
+The 16 remaining npm audit entries came from two development dependency paths. The ESLint and Next ESLint package tree had 14 entries rooted in Minimatch, including the inherited entries for config-array, eslintrc, import, JSX accessibility, React and typescript-eslint. Vitest and its mocker accounted for the remaining two entries.
+
+Upgrade the existing Minimatch override to 11.0.1 and Vitest to 4.1.12, including its version-matched internal packages. Keep the previous ESLint and Next versions and preserve the existing audit threshold. ESLint configuration loading and the full lint run exercise the Minimatch consumers under the repository’s Node.js 24 runtime.
+
 Validate a clean lockfile install, the dependency contract and ordinary CI, then verify the paired isolated Preview and its synthetic critical paths. Production publication is outside this change.

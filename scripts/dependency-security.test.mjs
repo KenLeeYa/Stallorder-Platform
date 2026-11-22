@@ -26,6 +26,9 @@ describe("security dependency release contract", () => {
     ["zod", "4.6.6"],
     ["source-map-js", "1.2.2"],
     ["vite", "8.2.4"],
+    ["minimatch", "11.0.1"],
+    ["vitest", "4.1.12"],
+    ["@vitest/mocker", "4.1.12"],
   ])("locks %s to its reviewed security release", (name, version) => {
     expect(lock.packages[`node_modules/${name}`].version).toBe(version);
   });
