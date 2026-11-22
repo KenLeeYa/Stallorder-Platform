@@ -719,11 +719,9 @@ export function PublicOrderTracker({
         setAmendmentNotice(nextOrder.merchantAmendment);
         void playAlertSound({ preset: "CHIME", volume: 100, repeatCount: 2 });
       }
-      if (
-        nextOrder.fulfillmentType === "TAKEOUT"
-        && nextOrder.orderStatus === "READY"
-        && announcedReadyOrderRef.current !== nextOrder.orderNo
-      ) {
+      if (nextOrder.fulfillmentType !== "TAKEOUT" || nextOrder.orderStatus !== "READY") {
+        setShowPickupReadyDialog(false);
+      } else if (announcedReadyOrderRef.current !== nextOrder.orderNo) {
         announcedReadyOrderRef.current = nextOrder.orderNo;
         setShowPickupReadyDialog(true);
         void playAlertSound({ preset: "URGENT", volume: 100, repeatCount: 3 });
@@ -983,7 +981,7 @@ export function PublicOrderTracker({
           <LineNotificationControls trackingToken={trackingToken} />
         </section>
       ) : null}
-      {showPickupReadyDialog && order?.fulfillmentType === "TAKEOUT" && order.pickupVerificationCode
+      {showPickupReadyDialog && order?.fulfillmentType === "TAKEOUT" && order.orderStatus === "READY" && order.pickupVerificationCode
         ? (
           <div className="fixed inset-0 z-50 grid place-items-center bg-stone-950/65 p-4" role="presentation">
             <section
