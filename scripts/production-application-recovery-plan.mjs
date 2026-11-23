@@ -33,6 +33,30 @@ const SOURCE_SCOPES = ["prisma", "supabase", "src/server/resilience", "src/lib/d
   "src/app/api/merchant/stalls/[stallId]/cover-image/route.ts", "src/app/api/stalls/[stallSlug]/alert-sound/route.ts",
   "next.config.ts", "vercel.json", "src/server/database/read-router.ts", "src/app/auth/callback/route.ts", "src/server/auth/oauth/login-method-availability.ts"];
 
+const CURRENT_PRIMARY = Object.freeze({
+  id: "dpl_3quCAGsiYikcNsMPc7zPGyFc64dz",
+  sha: "b203d3cd6de8a3b4026f815fd297a00bb2204dda",
+  planRun: "45118796489",
+  requestedAt: 1795414085368,
+});
+
+export function assertPlanPrimary(owner, deployment) {
+  const activeId = owner.targets?.production?.id;
+  if (activeId === RECOVERY.id && deployment.id === RECOVERY.id) return;
+  const job = owner.lastAliasRequest;
+  if (activeId !== CURRENT_PRIMARY.id || deployment.id !== activeId
+    || deployment.projectId !== PROJECT || deployment.ownerId !== TEAM
+    || deployment.target !== "production" || deployment.readyState !== "READY"
+    || deployment.source !== "cli" || deployment.meta?.githubCommitSha !== CURRENT_PRIMARY.sha
+    || deployment.meta?.git_commit !== CURRENT_PRIMARY.sha
+    || deployment.meta?.approval_plan_run_id !== CURRENT_PRIMARY.planRun
+    || deployment.meta?.release_mode !== "application_only"
+    || job?.type !== "promote" || job.jobStatus !== "succeeded"
+    || job.toDeploymentId !== activeId || job.requestedAt !== CURRENT_PRIMARY.requestedAt) {
+    fail("RELEASE_PRIMARY_CHANGED");
+  }
+}
+
 export function verifyRecoveryProvenance({ run, bytes }) {
   if (run?.id !== RUN || run.run_attempt !== 1 || run.status !== "completed" || run.conclusion !== "success"
     || run.event !== "workflow_dispatch" || run.head_branch !== "main" || run.head_sha !== RECOVERY.sha
@@ -154,11 +178,12 @@ async function main() {
     const config = await readConfiguration(api);
     const runtime = origin => readApplicationRuntime(origin, env);
     if (!snapshot) {
-      const owner = await api(`/v9/projects/${PROJECT}?teamId=${TEAM}`);
+      const owner = await api(`/v9/projects/${PROJECT}?teamId=${TEAM}&rollbackInfo=true`);
       if (owner.id !== PROJECT || owner.accountId !== TEAM) fail("RELEASE_PROJECT_DRIFT");
       const activeId = owner.targets?.production?.id;
-      if (activeId !== RECOVERY.id) fail("RELEASE_PRIMARY_CHANGED");
+      if (!/^dpl_[A-Za-z0-9]+$/u.test(activeId ?? "")) fail("RELEASE_PRIMARY_CHANGED");
       const deployment = await api(`/v13/deployments/${activeId}?teamId=${TEAM}`);
+      assertPlanPrimary(owner, deployment);
       const live = await runtime(`https://${HOST}`);
       snapshot = { schemaVersion: 1, sourceSha: env.GITHUB_SHA, projectId: PROJECT, teamId: TEAM, hostname: HOST,
         recovery: { ...RECOVERY }, ...config, promotionEpoch: live.availability.promotionEpoch,

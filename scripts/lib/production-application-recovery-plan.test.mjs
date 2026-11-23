@@ -5,7 +5,25 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, copyFileSync, rmSy
 import { spawnSync } from "node:child_process";
 import { resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { RECOVERY, verifyRecoveryProvenance, recoveryPlanParameters, assertRecoveryPlan, configurationDigest, readConfiguration } from "../production-application-recovery-plan.mjs";
+import { RECOVERY, verifyRecoveryProvenance, recoveryPlanParameters, assertRecoveryPlan, assertPlanPrimary, configurationDigest, readConfiguration } from "../production-application-recovery-plan.mjs";
+
+test("requires the exact settled Vercel job for the current Primary deployment", () => {
+  const deployment = {
+    id: "dpl_3quCAGsiYikcNsMPc7zPGyFc64dz", projectId: "prj_uoG4FNJIgnF1LdKRiXnfRaieXnUP",
+    ownerId: "team_MMfsiG94K9Zy3e6w7Ccc9xY4", target: "production", readyState: "READY", source: "cli",
+    meta: { githubCommitSha: "b203d3cd6de8a3b4026f815fd297a00bb2204dda",
+      git_commit: "b203d3cd6de8a3b4026f815fd297a00bb2204dda",
+      approval_plan_run_id: "45118796489", release_mode: "application_only" },
+  };
+  const job = { type: "promote", jobStatus: "succeeded", toDeploymentId: deployment.id, requestedAt: 1795414085368 };
+  const owner = { targets: { production: { id: deployment.id } }, lastAliasRequest: job };
+  assert.doesNotThrow(() => assertPlanPrimary(owner, deployment));
+  for (const bad of [undefined, { ...job, jobStatus: "pending" }, { ...job, requestedAt: job.requestedAt + 1 }]) {
+    assert.throws(() => assertPlanPrimary({ ...owner, lastAliasRequest: bad }, deployment), /RELEASE_PRIMARY_CHANGED/);
+  }
+  assert.throws(() => assertPlanPrimary(owner, { ...deployment, meta: { ...deployment.meta, git_commit: "other" } }),
+    /RELEASE_PRIMARY_CHANGED/);
+});
 
 // Exact public historical artifact bytes, fixture-only; not a substitute for live provenance readback.
 const bytes = Buffer.from(originReceiptBase64, "base64");
