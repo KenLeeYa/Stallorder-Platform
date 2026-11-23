@@ -398,4 +398,4 @@ Pre-execution review found that Supabase-managed CLI roles cannot be removed by 
 ### 2026-11-23 Staff checkout print queue wake-up
 
 - Status: Candidate. A successful online checkout wakes the same-stall WebPRNT agent immediately. Concurrent wake-ups are coalesced; the existing claim and print confirmation still control printing.
-- Verification: Browser bridge regression and focused checks; physical printer timing and rollout are pending.
+- Verification: The Chromium and WebKit regression suite passed all 10 cases. In the local timing check, a synthetic same-stall checkout reached the simulated WebPRNT success callback in 12–86 ms with the change, compared with 1.72–4.78 s on serving source `bdd968cf`. Each version was measured six times at three positions in the polling interval. Every sample claimed and acknowledged one job. Physical paper timing and rollout are pending.
