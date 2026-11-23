@@ -52,7 +52,7 @@ async function main() {
       supabaseUrl: required("NEXT_PUBLIC_SUPABASE_URL"), databaseUrl: required("DATABASE_URL") });
     await mkdir("artifacts", { recursive: true });
     await writeFile("artifacts/preview-database-principal.json", JSON.stringify(principal, null, 2));
-    console.log("PASS: actual hosted Next DB principal, anonymous/non-admin/revoked denial and owned probe cleanup.");
+    console.log("PASS: hosted database authorization, anonymous/non-admin/revoked denials and owned fixture cleanup.");
     phase = "synthetic-fixture";
     // These are the reviewed synthetic fixtures, never a parent or the retired DR.
     fixtureState = await preparePreviewFixture(prisma, prepared => { fixtureState = prepared; });

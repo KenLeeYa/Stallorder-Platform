@@ -1,3 +1,6 @@
+import { mkdtempSync, rmdirSync, unlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "@prisma/client";
 import { assertPreviewDatabasePrincipal, previewPrincipalFailureDetails, readPreviewPrincipalDiagnostic, verifyPreviewDatabasePrincipal } from "./qa-preview-database-principal";
@@ -103,6 +106,7 @@ function fixture(fault?: "before-commit" | "after-commit" | "principal" | "extra
     bucket=true;
     if(profile?.platformRole!=="PLATFORM_ADMIN") {audit=true;return response({error:"denied"},404);}
     if(fault==="principal") return response({error:"unavailable"},503);
+    if(String(url).endsWith("/api/health")) return response({status:"ok",health:"HEALTHY"});
     return response({...principal,observedAt:new Date().toISOString()});
   });
   return {db:db as unknown as PrismaClient,fetchImpl,calls,empty:()=>!profile&&!session&&!bucket&&!audit};
@@ -118,6 +122,33 @@ describe("owned isolated principal probe lifecycle", () => {
   });
   afterEach(()=>vi.unstubAllEnvs());
   const enable=()=>{vi.stubEnv("GITHUB_ACTIONS","true");vi.stubEnv("VERCEL_ENV","preview");vi.stubEnv("GITHUB_REPOSITORY","KenLeeYa/Stallorder-Platform");};
+  it("proves app child authorization using the health route and reports the measured scope", async () => {
+    enable();
+    const child = "c".repeat(20);
+    const directory = mkdtempSync(join(tmpdir(), "stallorder-preview-event-"));
+    const eventPath = join(directory, "event.json");
+    const repo = { full_name: "KenLeeYa/Stallorder-Platform" };
+    writeFileSync(eventPath, JSON.stringify({ pull_request: { number: 413,
+      head: { repo, ref: "codex/dependency-integration-20261123", sha: input.sourceSha },
+      base: { repo, ref: "staging", sha: "04c6c4678767ad23b2f2d4acbed7157b01250e1b" },
+    } }));
+    try {
+      for (const [key, value] of Object.entries({ APP_PREVIEW: "true", APP_PREVIEW_CHILD: child,
+        GITHUB_EVENT_PATH: eventPath, GITHUB_EVENT_NAME: "pull_request", GITHUB_SHA: input.sourceSha,
+        GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "1" })) vi.stubEnv(key, value);
+      const f = fixture();
+      const exact = { ...input, ref: child, supabaseUrl: "https://" + child + ".supabase.co",
+        databaseUrl: input.databaseUrl.replace(input.ref, child) };
+      const receipt = await verifyPreviewDatabasePrincipal(f.db, exact, f.fetchImpl);
+      expect(receipt).toMatchObject({ probePath: "/api/health", authenticatedDatabaseHealth: "HEALTHY",
+        sqlPrincipalMeasured: false, anonymousDenied: true, nonAdminDenied: true, revokedSessionDenied: true });
+      expect(f.calls.filter(url => url.endsWith("/api/health"))).toHaveLength(4);
+      expect(f.empty()).toBe(true);
+    } finally {
+      unlinkSync(eventPath);
+      rmdirSync(directory);
+    }
+  });
   it("exercises actual endpoint authorization and cleans only its generated fixture", async () => {
     enable();const f=fixture();
     const receipt=await verifyPreviewDatabasePrincipal(f.db,input,f.fetchImpl);
