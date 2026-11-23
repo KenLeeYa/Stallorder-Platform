@@ -8,6 +8,7 @@ const repo = "KenLeeYa/Stallorder-Platform";
 const headBranch = "codex/dependency-integration-20261123";
 const repairBranch = "codex/app-release-recovery-20261123";
 const promotionGitBranch = "codex/preview-pr-414-20261123";
+const recoveryPromotionBranch = "codex/pr422-recovery-preview";
 const repairBase = "6c7c0524c4e75b2dc06295e2f90303fee4a629f2";
 const stagingBase = "04c6c4678767ad23b2f2d4acbed7157b01250e1b";
 const mainBase = "bf42bdfb10974d8fe57ef3509d2d3dd4d7cef4fa";
@@ -34,14 +35,19 @@ export function appPreviewEvent(event, env) {
   const batchPromotion = pr.number === 419 && pr.head.ref === "staging"
     && pr.base.ref === "main" && pr.base.sha === "b203d3cd6de8a3b4026f815fd297a00bb2204dda";
   const promotion = pr.number === 414 && pr.head.ref === "staging" && pr.base.ref === "main" && pr.base.sha === mainBase;
-  assert.ok(integration || repair || reportScope || settlement || promotion || batchPromotion, "Unreviewed application Preview source");
+  const recoveryFix = pr.number === 421 && pr.head.ref === "codex/recovery-loader-fix"
+    && pr.base.ref === "staging" && pr.base.sha === "e94890556e37dc0afbaffcacb0a1176ad26213af";
+  const recoveryPromotion = pr.number === 422 && pr.head.ref === "staging"
+    && pr.base.ref === "main" && pr.base.sha === "bdd968cf3fceb6d392e003e32d8f602f633f7541";
+  assert.ok(integration || repair || reportScope || settlement || promotion || batchPromotion || recoveryFix || recoveryPromotion,
+    "Unreviewed application Preview source");
   assert.match(env.GITHUB_RUN_ID, /^[1-9][0-9]*$/);
   assert.match(env.GITHUB_RUN_ATTEMPT, /^[1-9][0-9]*$/);
   return {
     head: pr.head.sha,
     base: pr.base.sha,
     branch: pr.head.ref,
-    gitBranch: batchPromotion ? "codex/pr419-app-batch1-preview" : promotion ? promotionGitBranch : pr.head.ref,
+    gitBranch: recoveryPromotion ? recoveryPromotionBranch : batchPromotion ? "codex/pr419-app-batch1-preview" : promotion ? promotionGitBranch : pr.head.ref,
     resource: "pr-" + pr.number + "-app-" + env.GITHUB_RUN_ID + "-" + env.GITHUB_RUN_ATTEMPT,
   };
 }
@@ -100,7 +106,7 @@ function main(mode, env) {
     assert.equal(git("merge-base", binding.head, "42f1ec92ae31f56883f62c04b9bbf8a74eb9ef6b"),
       "42f1ec92ae31f56883f62c04b9bbf8a74eb9ef6b");
     if (binding.gitBranch !== headBranch) git("merge-base", "--is-ancestor", mainBase, binding.head);
-    if ([promotionGitBranch, "codex/pr419-app-batch1-preview"].includes(binding.gitBranch)) {
+    if ([promotionGitBranch, "codex/pr419-app-batch1-preview", recoveryPromotionBranch].includes(binding.gitBranch)) {
       assert.equal(git("rev-parse", "refs/remotes/origin/" + binding.gitBranch + "^{tree}"),
         git("rev-parse", binding.head + "^{tree}"));
     }
@@ -120,8 +126,16 @@ function main(mode, env) {
       "src/server/resilience/health-authorization.ts", "src/app/api/health/route.ts",
       "scripts/configure-preview-order-runtime.ts", "scripts/configure-preview-order-runtime.test.ts",
     ]);
-    assert.ok(git("diff", "--name-only", binding.base, binding.head).split("\n")
-      .every(name => allowed.has(name)));
+    const recoveryFiles = new Set([
+      "scripts/production-application-target.mjs", "scripts/lib/production-application-target.test.mjs",
+      "scripts/ci/app-preview-binding.mjs", "scripts/ci/app-preview-binding.test.mjs",
+      ".github/workflows/ephemeral-preview.yml", ".github/workflows/production-qr-recheck.yml",
+      "scripts/lib/production-workflow-contract.test.mjs", "docs/PRODUCTION_ROLLBACK.md",
+      "docs/ARCHITECTURE_AND_FEATURE_CHANGELOG.md",
+    ]);
+    const recovery = ["codex/recovery-loader-fix", recoveryPromotionBranch].includes(binding.gitBranch);
+    const paths = recovery ? recoveryFiles : allowed;
+    assert.ok(git("diff", "--name-only", binding.base, binding.head).split("\n").every(name => paths.has(name)));
     console.log(JSON.stringify({ resource: binding.resource, branch: binding.branch, gitBranch: binding.gitBranch }));
   } else if (mode === "branch") {
     const branch = ownedBranch(input(), binding);
