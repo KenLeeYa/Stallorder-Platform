@@ -203,7 +203,10 @@ export async function requirePlatformAdminPage(returnPath = "/admin/billing") {
   return principal;
 }
 
-export async function authorizePlatformAdminApiRequest(request: Request) {
+export async function authorizePlatformAdminApiRequest(
+  request: Request,
+  options: { rateLimitCleanup?: "current-key" } = {},
+) {
   const requestId = createRequestId();
   const principal = await getRequestPrincipal(request);
   if (!principal) {
@@ -220,6 +223,7 @@ export async function authorizePlatformAdminApiRequest(request: Request) {
     identifier: principal.user.id,
     limit: 180,
     windowMs: 5 * 60_000,
+    cleanup: options.rateLimitCleanup,
   });
   if (!apiLimit.allowed) {
     return {

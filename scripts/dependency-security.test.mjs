@@ -19,9 +19,9 @@ describe("security dependency release contract", () => {
   });
 
   it.each([
-    ["next", "16.4.2"],
-    ["eslint-config-next", "16.4.2"],
-    ["@next/eslint-plugin-next", "16.4.2"],
+    ["next", "16.4.6"],
+    ["eslint-config-next", "16.4.6"],
+    ["@next/eslint-plugin-next", "16.4.6"],
     ["sharp", "0.35.5"],
     ["brace-expansion", "5.0.12"],
     ["shell-quote", "1.11.0"],
@@ -29,6 +29,10 @@ describe("security dependency release contract", () => {
     ["zod", "4.6.6"],
     ["source-map-js", "1.2.2"],
     ["vite", "8.2.4"],
+    ["minimatch", "11.0.1"],
+    ["vitest", "4.1.12"],
+    ["@vitest/mocker", "4.1.12"],
+    ["effect", "3.22.5"],
   ])("locks %s to its reviewed security release", (name, version) => {
     expect(lock.packages[`node_modules/${name}`].version).toBe(version);
   });

@@ -28,6 +28,7 @@ jobs:
       run:
         working-directory: control
     env:
+      APP_PREVIEW: ${{ github.event_name == 'pull_request' && (github.event.pull_request.number == 413 || (github.event.pull_request.number == 415 && github.head_ref == 'codex/app-release-recovery-20261123' && github.base_ref == 'staging' && github.event.pull_request.base.sha == '6c7c0524c4e75b2dc06295e2f90303fee4a629f2') || (github.event.pull_request.number == 414 && github.head_ref == 'staging' && github.base_ref == 'main' && github.event.pull_request.base.sha == 'bf42bdfb10974d8fe57ef3509d2d3dd4d7cef4fa')) }}
       DO_NOT_TRACK: "1"
       SUPABASE_PARENT_PROJECT_REF: ${{ vars.SUPABASE_PARENT_PROJECT_REF }}
       PREVIEW_BRANCH_NAME: pr-389-oauth-delivery
@@ -52,9 +53,22 @@ jobs:
         with:
           path: control
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Require approved installation or promotion source
+        if: env.APP_PREVIEW != 'true'
         run: node scripts/ci/delivery-preview-binding.mjs invocation
+
+      - name: Bind application Preview source and run identity
+        if: env.APP_PREVIEW == 'true'
+        run: |
+          set -euo pipefail
+          binding=$(node scripts/ci/app-preview-binding.mjs source)
+          resource=$(jq -er .resource <<<"$binding")
+          branch=$(jq -er .branch <<<"$binding")
+          git_branch=$(jq -er .gitBranch <<<"$binding")
+          printf '%s\n' "PREVIEW_BRANCH_NAME=$resource" "PREVIEW_RESOURCE_KEY=$resource" \
+            "PREVIEW_GIT_BRANCH=$branch" "APP_PREVIEW_GIT_BRANCH=$git_branch" "DELIVERY_PRODUCT_COMMIT=$GITHUB_SHA" >> "$GITHUB_ENV"
 
       - uses: actions/setup-node@v4
         with:
@@ -70,7 +84,21 @@ jobs:
           VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
         run: |
           set -euo pipefail
-          node scripts/ci/delivery-preview-vercel-access.mjs
+          if [ "$APP_PREVIEW" = true ]; then
+            node --input-type=module <<'NODE'
+          import { verifyPreviewVercelAccess } from './scripts/ci/delivery-preview-vercel-access.mjs';
+          import { appendFileSync } from 'node:fs';
+          const env = process.env;
+          try {
+            await verifyPreviewVercelAccess({ team: env.VERCEL_ORG_ID, project: env.VERCEL_PROJECT_ID, token: env.VERCEL_TOKEN });
+            const token = env.VERCEL_TOKEN.trim();
+            console.log('::add-mask::' + token.replaceAll('%', '%25'));
+            appendFileSync(env.GITHUB_ENV, 'DELIVERY_PREVIEW_VERCEL_TOKEN=' + token + '\n');
+          } catch { process.exitCode = 1; }
+          NODE
+          else
+            node scripts/ci/delivery-preview-vercel-access.mjs
+          fi
           echo "enabled=true" >> "$GITHUB_OUTPUT"
 
       - uses: supabase/setup-cli@v1
@@ -129,14 +157,32 @@ jobs:
         run: npm ci
 
       - name: Reconstruct the exact product independently of the control checkout
-        run: node scripts/ci/delivery-candidate.mjs materialize
+        run: |
+          if [ "$APP_PREVIEW" = true ]; then
+            git worktree add --detach ../product "$GITHUB_SHA"
+          else
+            node scripts/ci/delivery-candidate.mjs materialize
+          fi
 
       - name: Install the exact product dependencies
         working-directory: product
         run: npm ci
 
       - name: Bind actual shared fixture and Storage sources before any provider write
+        if: env.APP_PREVIEW != 'true'
         run: node scripts/ci/delivery-preview-source.mjs shared
+
+      - name: Reserve an unused application Preview branch identity
+        id: app-reservation
+        if: env.APP_PREVIEW == 'true'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          branches=$(supabase branches list --project-ref "$SUPABASE_PARENT_PROJECT_REF" --output json --log-level error)
+          existing=$(printf '%s' "$branches" | node scripts/ci/app-preview-binding.mjs branch)
+          test -z "$existing"
+          echo 'owned=true' >> "$GITHUB_OUTPUT"
 
       - name: Verify the one existing data-less Preview Branch
         id: preview
@@ -148,7 +194,20 @@ jobs:
           branches="$(supabase branches list \
             --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
             --output json --log-level error)"
-          branch_ref="$(printf '%s' "$branches" | node scripts/ci/delivery-preview-binding.mjs branches)"
+          if [ "$APP_PREVIEW" = true ]; then
+            supabase branches create "$PREVIEW_BRANCH_NAME" --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
+              --region ap-southeast-1 --size micro --git-branch "$APP_PREVIEW_GIT_BRANCH" --yes --log-level error >/dev/null
+            for attempt in $(seq 1 60); do
+              branches=$(supabase branches list --project-ref "$SUPABASE_PARENT_PROJECT_REF" --output json --log-level error)
+              owned=$(printf '%s' "$branches" | node scripts/ci/app-preview-binding.mjs branch)
+              if [ -n "$owned" ] && jq -e '.ready == true' <<<"$owned" >/dev/null; then break; fi
+              sleep 5
+            done
+            branch_ref=$(jq -er 'select(.ready == true).project' <<<"$owned")
+            echo "APP_PREVIEW_CHILD=$branch_ref" >> "$GITHUB_ENV"
+          else
+            branch_ref="$(printf '%s' "$branches" | node scripts/ci/delivery-preview-binding.mjs branches)"
+          fi
           echo "branch_ref=$branch_ref" >> "$GITHUB_OUTPUT"
 
       - name: Load and mask Preview Branch configuration
@@ -164,7 +223,11 @@ jobs:
               --log-level error
           )"
           # Validate the actual endpoint before any DB, fixture or Edge write.
-          printf '%s' "$config" | node scripts/ci/delivery-preview-binding.mjs config >/dev/null
+          if [ "$APP_PREVIEW" = true ]; then
+            printf '%s' "$config" | node scripts/ci/app-preview-binding.mjs config
+          else
+            printf '%s' "$config" | node scripts/ci/delivery-preview-binding.mjs config >/dev/null
+          fi
           raw_transaction_url="$(jq -r '.POSTGRES_URL' <<<"$config")"
           supabase_url="$(jq -r '.SUPABASE_URL' <<<"$config")"
           anon_key="$(jq -r '.SUPABASE_ANON_KEY' <<<"$config")"
@@ -353,7 +416,12 @@ jobs:
           STORAGE_QA_BRANCH_REF: ${{ steps.preview.outputs.branch_ref }}
         run: |
           set -euo pipefail
-          node ../control/scripts/ci/delivery-preview-source.mjs product
+          if [ "$APP_PREVIEW" = true ]; then
+            test "$(git rev-parse HEAD)" = "$DELIVERY_PRODUCT_COMMIT"
+            git diff --exit-code HEAD
+          else
+            node ../control/scripts/ci/delivery-preview-source.mjs product
+          fi
           node --conditions=react-server --import tsx scripts/qa-primary-only-storage.ts
 
       - name: Typecheck
@@ -368,7 +436,7 @@ jobs:
 
       - name: Resolve optional isolated live LINE Preview
         id: line-preview
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && env.APP_PREVIEW != 'true'
         env:
           LINE_LIVE_PREVIEW_BRANCH: ${{ vars.LINE_LIVE_PREVIEW_BRANCH }}
           LINE_PREVIEW_CHANNEL_ID: ${{ vars.LINE_PREVIEW_CHANNEL_ID }}
@@ -398,7 +466,12 @@ jobs:
           LINE_PREVIEW_CHANNEL_SECRET: ${{ secrets.LINE_PREVIEW_CHANNEL_SECRET }}
         run: |
           set -euo pipefail
-          node ../control/scripts/ci/delivery-preview-source.mjs product
+          if [ "$APP_PREVIEW" = true ]; then
+            test "$(git rev-parse HEAD)" = "$DELIVERY_PRODUCT_COMMIT"
+            git diff --exit-code HEAD
+          else
+            node ../control/scripts/ci/delivery-preview-source.mjs product
+          fi
           mkdir -p .vercel
           jq -n \
             --arg orgId "$VERCEL_ORG_ID" \
@@ -411,6 +484,11 @@ jobs:
             echo "::error::Matching Preview is not attached to the requested Git branch."
             exit 1
           }
+
+          proxy_origin_args=()
+          if [ "$APP_PREVIEW" = true ]; then
+            proxy_origin_args=(--env "PUBLIC_ORDER_FUNCTION_ORIGIN=http://127.0.0.1:3000")
+          fi
 
           line_env_args=()
           if [ "${{ steps.line-preview.outputs.enabled }}" = "true" ]; then
@@ -486,7 +564,7 @@ jobs:
               --env "PRODUCTION_ENVIRONMENT_APPROVED=false" \
               --env "REPORT_DELIVERY_MODE=simulate" \
               --env "CATALOG_TRANSLATION_ENABLED=false" \
-              "${line_env_args[@]}"
+              "${proxy_origin_args[@]}" "${line_env_args[@]}"
           )"
           deployment_id="$(jq -r '.deployment.id // .id // empty' <<<"$deployment")"
           deployment_url="$(jq -r '.deployment.url // .url // empty' <<<"$deployment")"
@@ -501,7 +579,13 @@ jobs:
               --raw \
               --token "$VERCEL_TOKEN"
           )"
-          provider_origin="$(printf '%s' "$deployment_details" | DELIVERY_DEPLOYMENT_ID="$deployment_id" DELIVERY_DEPLOYMENT_URL="$deployment_url" node ../control/scripts/ci/delivery-preview-deployment.mjs)"
+          if [ "$APP_PREVIEW" = true ]; then
+            printf '%s' "$deployment_details" | DELIVERY_DEPLOYMENT_ID="$deployment_id" node ../control/scripts/ci/app-preview-binding.mjs cleanup-deployment >/dev/null
+            echo "owned_deployment_id=$deployment_id" >> "$GITHUB_OUTPUT"
+            provider_origin=$(printf '%s' "$deployment_details" | DELIVERY_DEPLOYMENT_ID="$deployment_id" DELIVERY_DEPLOYMENT_URL="$deployment_url" node ../control/scripts/ci/app-preview-binding.mjs deployment)
+          else
+            provider_origin="$(printf '%s' "$deployment_details" | DELIVERY_DEPLOYMENT_ID="$deployment_id" DELIVERY_DEPLOYMENT_URL="$deployment_url" node ../control/scripts/ci/delivery-preview-deployment.mjs)"
+          fi
           test "$provider_origin" = "$deployment_url"
           actual_git_branch="$(
             jq -r '.meta.githubCommitRef // empty' <<<"$deployment_details"
@@ -673,6 +757,37 @@ jobs:
             --db-url "$EPHEMERAL_DATABASE_URL" \
             --file supabase/fixtures/line_live_preview.sql \
             --log-level error
+
+      - name: Remove only this run's verified application Vercel deployment
+        if: always() && env.APP_PREVIEW == 'true' && steps.vercel-preview.outputs.owned_deployment_id != ''
+        env:
+          VERCEL_TOKEN: ${{ env.DELIVERY_PREVIEW_VERCEL_TOKEN }}
+          DELIVERY_DEPLOYMENT_ID: ${{ steps.vercel-preview.outputs.owned_deployment_id }}
+        run: |
+          set -euo pipefail
+          details=$(npx --yes vercel@58.3.0 api "/v13/deployments/$DELIVERY_DEPLOYMENT_ID" --raw --token "$VERCEL_TOKEN")
+          printf '%s' "$details" | node scripts/ci/app-preview-binding.mjs cleanup-deployment >/dev/null
+          npx --yes vercel@58.3.0 remove "$DELIVERY_DEPLOYMENT_ID" --yes --token "$VERCEL_TOKEN"
+          status=$(curl --silent --show-error --max-time 20 --output /dev/null --write-out "%{http_code}" \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v13/deployments/$DELIVERY_DEPLOYMENT_ID?teamId=team_MMfsiG94K9Zy3e6w7Ccc9xY4")
+          test "$status" = 404
+
+      - name: Remove only this run's dedicated Supabase branch
+        if: always() && env.APP_PREVIEW == 'true' && steps.app-reservation.outputs.owned == 'true'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          branches=$(supabase branches list --project-ref "$SUPABASE_PARENT_PROJECT_REF" --output json --log-level error)
+          owned=$(printf '%s' "$branches" | node scripts/ci/app-preview-binding.mjs branch)
+          if [ -n "$owned" ]; then
+            id=$(jq -er .id <<<"$owned")
+            supabase branches delete "$id" --project-ref "$SUPABASE_PARENT_PROJECT_REF" --yes --log-level error
+            branches=$(supabase branches list --project-ref "$SUPABASE_PARENT_PROJECT_REF" --output json --log-level error)
+            remaining=$(printf '%s' "$branches" | node scripts/ci/app-preview-binding.mjs branch)
+            test -z "$remaining"
+          fi
 
   retain-delivery-preview:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
