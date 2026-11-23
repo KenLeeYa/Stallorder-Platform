@@ -614,7 +614,8 @@ describe("Production workflow approval contract", () => {
     expect(previewBinding).toContain("preview_project_status:'ACTIVE_HEALTHY'");
     expect(previewBinding).toContain("is_default:false,persistent:false,with_data:false");
     expect(previewBinding).toContain("['ACTIVE_HEALTHY','MIGRATIONS_FAILED']");
-    expect(ephemeralPreview).not.toContain("supabase branches create");
+    expect(ephemeralPreview.match(/supabase branches create/g)).toHaveLength(1);
+    expect(ephemeralPreview).toContain("app-preview-binding.mjs source");
     expect(ephemeralPreview).toContain("group: stallorder-preview-pr389-writer");
     expect(ephemeralPreview).toContain("cancel-in-progress: false");
 
@@ -639,6 +640,10 @@ describe("Production workflow approval contract", () => {
     expect(branchCreation).toBeGreaterThan(-1);
     expect(branchCreation).toBeLessThan(branchConfiguration);
     expect(branchCreationStep).toContain("supabase branches list");
+    const isolatedWrite = branchCreationStep.indexOf("supabase branches create");
+    expect(isolatedWrite).toBeGreaterThan(branchCreationStep.indexOf('if [ "$APP_PREVIEW" = true ]'));
+    expect(isolatedWrite).toBeLessThan(branchCreationStep.indexOf("else"));
+    expect(branchCreationStep).not.toContain("--with-data");
     expect(branchCreationStep).toContain("node scripts/ci/delivery-preview-binding.mjs branches");
     expect(ephemeralPreview.slice(branchConfiguration, stability)).toContain(
       "node scripts/ci/delivery-preview-binding.mjs config",
@@ -769,8 +774,16 @@ describe("Production workflow approval contract", () => {
     expect(retain).toContain("github.event.action == 'closed'");
     expect(retain).toContain("no creation or resource deletion is authorized");
     expect(retain).not.toContain("secrets.");
-    expect(ephemeralPreview).not.toContain("supabase branches delete");
-    expect(ephemeralPreview).not.toMatch(/vercel[^\n]* remove /u);
+    const appCleanupStart = ephemeralPreview.indexOf("      - name: Remove only this run's verified application Vercel deployment");
+    expect(appCleanupStart).toBeGreaterThan(0);
+    const borrowed = ephemeralPreview.slice(0, appCleanupStart);
+    expect(borrowed).not.toContain("supabase branches delete");
+    expect(borrowed).not.toMatch(/vercel[^\n]* remove /u);
+    const appCleanup = ephemeralPreview.slice(appCleanupStart);
+    expect(appCleanup.match(/env.APP_PREVIEW == 'true'/g)).toHaveLength(2);
+    expect(appCleanup).toContain("app-preview-binding.mjs cleanup-deployment");
+    expect(appCleanup).toContain("app-preview-binding.mjs branch");
+    expect(appCleanup).toContain("steps.app-reservation.outputs.owned == 'true'");
     const cleanupStart = ephemeralPreview.indexOf("      - name: Clean reusable Preview-only fixture state");
     const cleanupEnd = ephemeralPreview.indexOf("      - name:", cleanupStart + 1);
     expect(cleanupStart).toBeGreaterThan(-1);

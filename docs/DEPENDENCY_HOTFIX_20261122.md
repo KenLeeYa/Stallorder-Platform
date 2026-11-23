@@ -9,3 +9,7 @@ The 16 remaining npm audit entries came from two development dependency paths. T
 Upgrade the existing Minimatch override to 11.0.1 and Vitest to 4.1.12, including its version-matched internal packages. Keep the previous ESLint and Next versions and preserve the existing audit threshold. ESLint configuration loading and the full lint run exercise the Minimatch consumers under the repository’s Node.js 24 runtime.
 
 Validate a clean lockfile install, the dependency contract and ordinary CI, then verify the paired isolated Preview and its synthetic critical paths. Production publication is outside this change.
+
+## Protected integration qualification
+
+For PR #413 and its bounded staging-to-main promotion, validate the checked-out merge tree against the admitted base, exact head tree, and reviewed integration ancestry. Provision a data-less child with a run-specific identity after the Preview environment review. Check the child’s project, parent, Git branch, and connection targets before running any fixture or Edge writes. Match the Vercel project, Preview target, revision and run metadata before hosted smoke. Remove only the paired resources owned by the run and verify cleanup. The existing delivery candidate continues using its reserved branch and frozen product.
