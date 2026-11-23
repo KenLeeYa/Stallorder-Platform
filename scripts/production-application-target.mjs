@@ -53,7 +53,7 @@ export function assertApplicationPrimary(env) {
 }
 
 async function ownerState(api) {
-  const owner = await api(`/v9/projects/${project}?teamId=${team}`);
+  const owner = await api(`/v9/projects/${project}?teamId=${team}&rollbackInfo=true`);
   if (owner?.id !== project || owner.accountId !== team) fail("RELEASE_PROJECT_DRIFT");
   return owner;
 }
