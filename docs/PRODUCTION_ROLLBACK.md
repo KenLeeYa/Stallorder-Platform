@@ -75,3 +75,7 @@ DR 成為 `ACTIVE_WRITER` 後，不得把 Vercel 變數直接切回 Primary，�
 Primary fence。依 [PRODUCTION_FAILBACK_RUNBOOK.md](PRODUCTION_FAILBACK_RUNBOOK.md)
 完成雙端備份、DR-era writes reconciliation、sequence、Auth、Storage 與付款資料
 驗證後，才能短暫凍結 DR 並提升 Primary。
+
+## 2026-11-23 應用程式發布回復證據
+
+應用程式 Plan 使用目前 Primary 的固定 redeploy 部署作為回復候選。透過 GitHub API 驗證原受保護發布執行，並對儲存庫保留的原封存位元組比對 SHA-256。再讀回 Vercel 的部署來源、正式路由設定中繼資料及 Primary 執行狀態。資料庫、Edge 與路由合約仍比較固定來源，僅允許已驗收的健康診斷 rate-limit 清理變更。回復候選或設定發生變動時，驗證須重新建立證據。

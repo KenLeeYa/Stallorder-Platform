@@ -378,3 +378,9 @@ PR404 installation passed CI/security/hosted Preview and merged into staging. Pr
 ## 2026-11-14: Managed temporary-role cleanup before credential issuance
 
 Pre-execution review found that Supabase-managed CLI roles cannot be removed by the existing postgres SQL DROP ROLE path. No credential was issued. Replace it with one fixed Preview management deletion, allowed only after an initially empty inventory and a fresh inventory containing exactly the returned role. Any scope mismatch or cleanup request failure prevents success, even after an empty readback. The single-writer requirement includes callers outside GitHub; the provider batch endpoint has no per-role CAS. Preserve all Primary prohibitions and the original rotation/application gates. Advance the protected installation binding to PR407 and reject completed PR406. See docs/qa/primary-credential-rotation-20261114.md.
+
+### 2026-11-23 受保護應用程式發布準備
+
+- 狀態：候選。同步 main 祖先歷史，並為 #414 提供專用無資料 Supabase Preview Git 綁定。Vercel 仍使用 GitHub 的合併候選驗證。
+- 回復：保留原封存的雜湊驗證，核對現行 Vercel redeploy 來源和正式設定中繼資料。
+- 驗證：修補 PR 與 #414 均須通過受保護 Preview 和清理。正式發布證據以 main 的 Plan 為準。
