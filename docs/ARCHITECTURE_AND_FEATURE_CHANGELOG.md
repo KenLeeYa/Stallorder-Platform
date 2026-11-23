@@ -384,3 +384,8 @@ Pre-execution review found that Supabase-managed CLI roles cannot be removed by 
 - 狀態：候選。同步 main 祖先歷史，並為 #414 提供專用無資料 Supabase Preview Git 綁定。Vercel 仍使用 GitHub 的合併候選驗證。
 - 回復：保留原封存的雜湊驗證，核對現行 Vercel redeploy 來源和正式設定中繼資料。
 - 驗證：修補 PR 與 #414 均須通過受保護 Preview 和清理。正式發布證據以 main 的 Plan 為準。
+
+### 2026-11-23 Staff checkout print queue wake-up
+
+- Status: Candidate. A successful online checkout wakes the same-stall WebPRNT agent immediately. Concurrent wake-ups are coalesced; the existing claim and print confirmation still control printing.
+- Verification: Browser bridge regression and focused checks; physical printer timing and rollout are pending.
