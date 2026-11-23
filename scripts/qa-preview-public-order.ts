@@ -66,7 +66,10 @@ async function main() {
     phase = "qr-session";
     await page.goto(`${base.origin}/q/demo-aming-chicken-table-a1-qr-2026`);
     const sessionResponse = await session;
+    phase = "qr-session-response";
+    console.log("Hosted QR session response status:", sessionResponse.status());
     assertPreviewOrderSession(sessionResponse.status(), await sessionResponse.json());
+    phase = "qr-menu-ready";
     const add = page.getByRole("button", { name: "增加 冬瓜茶", exact: true });
     await expect(add).toBeEnabled();
     await mkdir("artifacts", { recursive: true });

@@ -484,6 +484,11 @@ jobs:
             exit 1
           }
 
+          proxy_origin_args=()
+          if [ "$APP_PREVIEW" = true ]; then
+            proxy_origin_args=(--env "PUBLIC_ORDER_FUNCTION_ORIGIN=http://127.0.0.1:3000")
+          fi
+
           line_env_args=()
           if [ "${{ steps.line-preview.outputs.enabled }}" = "true" ]; then
             line_env_args=(
@@ -558,7 +563,7 @@ jobs:
               --env "PRODUCTION_ENVIRONMENT_APPROVED=false" \
               --env "REPORT_DELIVERY_MODE=simulate" \
               --env "CATALOG_TRANSLATION_ENABLED=false" \
-              "${line_env_args[@]}"
+              "${proxy_origin_args[@]}" "${line_env_args[@]}"
           )"
           deployment_id="$(jq -r '.deployment.id // .id // empty' <<<"$deployment")"
           deployment_url="$(jq -r '.deployment.url // .url // empty' <<<"$deployment")"

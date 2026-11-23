@@ -67,7 +67,7 @@ describe("isolated Preview public-order runtime", () => {
   });
 });
 
-it("provisions the exact hosted origin while preserving paired secrets", async () => {
+it.each([false, true])("provisions the exact hosted origin, application proxy=%s", async (useAppPreviewProxyOrigin) => {
   const publicOrigin = "https://stallorder-platform-test123-ada76145-8663s-projects.vercel.app";
   let values: Array<{ name: string; value: string }> = [];
   const provider = vi.fn(async (_url: string | URL | Request, options?: RequestInit) => {
@@ -79,9 +79,9 @@ it("provisions the exact hosted origin while preserving paired secrets", async (
       name, value: createHash("sha256").update(value).digest("hex"),
     })));
   });
-  await configurePreviewOrderRuntime({ ...input, publicOrigin }, provider);
+  await configurePreviewOrderRuntime({ ...input, publicOrigin, useAppPreviewProxyOrigin }, provider);
   expect(provider).toHaveBeenCalledTimes(2);
-  expect(values.find(value => value.name === "PUBLIC_APP_ORIGINS")?.value).toBe(publicOrigin);
+  expect(values.find(value => value.name === "PUBLIC_APP_ORIGINS")?.value).toBe(useAppPreviewProxyOrigin ? "http://127.0.0.1:3000," + publicOrigin : publicOrigin);
   expect(values.find(value => value.name === "TOKEN_DERIVATION_SECRET")?.value).toBe(input.tokenSecret);
 });
 it("rejects a Production origin before any provider request", async () => {

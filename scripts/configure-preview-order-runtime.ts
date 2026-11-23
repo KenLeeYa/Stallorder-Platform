@@ -6,17 +6,21 @@ import { assertIsolatedStorageQa } from "./qa-primary-only-storage";
 import { previewPublicOrigins } from "./ci/delivery-preview-deployment.mjs";
 
 type Input = Parameters<typeof assertIsolatedStorageQa>[0] & {
-  token: string; abuseSecret: string; tokenSecret: string; publicOrigin?: string;
+  token: string; abuseSecret: string; tokenSecret: string; publicOrigin?: string; useAppPreviewProxyOrigin?: boolean;
 };
 
 export async function configurePreviewOrderRuntime(input: Input, fetchImpl: typeof fetch = fetch) {
   assertIsolatedStorageQa(input);
   assert.ok(input.token && input.abuseSecret.length >= 32 && input.tokenSecret.length >= 32
     && input.abuseSecret !== input.tokenSecret, "PREVIEW_ORDER_SECRETS_INVALID");
+  const hostedOrigin = previewPublicOrigins(input.publicOrigin);
+  const publicOrigins = input.useAppPreviewProxyOrigin && input.publicOrigin
+    ? "http://127.0.0.1:3000," + hostedOrigin
+    : hostedOrigin;
   const values = {
     ABUSE_HASH_SECRET: input.abuseSecret, TOKEN_DERIVATION_SECRET: input.tokenSecret,
     TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA", APP_ENV: "test",
-    TURNSTILE_ALLOW_TEST_KEYS: "true", PUBLIC_APP_ORIGINS: previewPublicOrigins(input.publicOrigin),
+    TURNSTILE_ALLOW_TEST_KEYS: "true", PUBLIC_APP_ORIGINS: publicOrigins,
     TRUSTED_CLIENT_IP_HEADER: "cf-connecting-ip",
   };
   const url = `https://api.supabase.com/v1/projects/${input.ref}/secrets`;
@@ -48,6 +52,8 @@ if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.m
       databaseUrl: required("DATABASE_URL"), token: required("SUPABASE_ACCESS_TOKEN"),
       abuseSecret: required("ABUSE_HASH_SECRET"), tokenSecret: required("TOKEN_DERIVATION_SECRET"),
       publicOrigin: process.env.PREVIEW_ORDER_BASE_URL,
+      useAppPreviewProxyOrigin: process.env.APP_PREVIEW === "true"
+        && required("APP_PREVIEW_CHILD") === required("PREVIEW_ORDER_BRANCH_REF"),
     });
     console.log("PASS: independent Preview order secrets provisioned and digest-verified.");
   })().catch(() => {

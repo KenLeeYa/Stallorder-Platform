@@ -96,6 +96,7 @@ function main(mode, env) {
       "scripts/qa-preview-database-principal.test.ts", "scripts/qa-preview-public-order.ts",
       "src/lib/rate-limit.ts", "src/lib/rate-limit.test.ts", "src/lib/authorization.ts",
       "src/server/resilience/health-authorization.ts", "src/app/api/health/route.ts",
+      "scripts/configure-preview-order-runtime.ts", "scripts/configure-preview-order-runtime.test.ts",
     ]);
     assert.ok(git("diff", "--name-only", binding.base, binding.head).split("\n")
       .every(name => allowed.has(name)));

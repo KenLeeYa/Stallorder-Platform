@@ -17,3 +17,5 @@ For PR #413 and its bounded staging-to-main promotion, validate the checked-out 
 The hosted application check uses the admitted run’s dedicated child and a short-lived synthetic session against the existing protected health endpoint. It verifies deployed revision, authenticated database health, and anonymous, non-admin and revoked-session denials. The SQL principal and ACL probe stays exclusive to the frozen delivery product and its fixed child.
 
 The public health API still enforces the existing platform-admin request budget. Its diagnostic requests leave expiration cleanup for other rate-limit keys to ordinary traffic, so isolated authorization probes can verify that their synthetic fixture does not change other identities’ buckets.
+
+The dedicated application Preview pins the existing server-side public-order proxy to its loopback Origin and registers that origin alongside the deployment host on the same isolated Edge child. Hosted QR checks report the HTTP status without logging order-session bodies.
