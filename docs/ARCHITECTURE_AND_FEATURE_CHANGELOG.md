@@ -389,3 +389,8 @@ Pre-execution review found that Supabase-managed CLI roles cannot be removed by 
 
 - Status: Candidate extracted from PR #366. Report filter submissions retain an explicitly narrower stall scope when the stall selector is hidden.
 - Verification: Component regression covers a restricted selection, all stalls, and the visible multi-stall picker. Protected Preview and release evidence are pending.
+
+### 2026-11-23 Production promotion evidence query
+
+- Status: Candidate. Request Vercel rollback metadata so the settlement guard can read the provider job. The next Plan verifies the exact active deployment and existing recovery candidate.
+- Verification: Provider readback and focused release tests. Protected Preview and next Plan remain pending.

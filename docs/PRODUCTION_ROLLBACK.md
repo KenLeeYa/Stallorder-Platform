@@ -79,3 +79,7 @@ Primary fence。依 [PRODUCTION_FAILBACK_RUNBOOK.md](PRODUCTION_FAILBACK_RUNBOOK
 ## 2026-11-23 應用程式發布回復證據
 
 應用程式 Plan 使用目前 Primary 的固定 redeploy 部署作為回復候選。透過 GitHub API 驗證原受保護發布執行，並對儲存庫保留的原封存位元組比對 SHA-256。再讀回 Vercel 的部署來源、正式路由設定中繼資料及 Primary 執行狀態。資料庫、Edge 與路由合約仍比較固定來源，僅允許已驗收的健康診斷 rate-limit 清理變更。回復候選或設定發生變動時，驗證須重新建立證據。
+
+## 2026-11-23 Production promotion readback
+
+Vercel project reads for promotion, baseline and recovery checks include rollbackInfo=true. The observed successful promotion record for the serving b203d3cd deployment binds the next Plan to the exact deployment, source, prior Plan and promotion timestamp. The qualified 4e95d2ea artifact remains the recovery candidate.

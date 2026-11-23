@@ -471,7 +471,7 @@ it.each(["succeeded", "failed", "missing", "read-error"])("writes a sanitized %s
         || (options.method && options.method !== "GET")) throw new Error("unsafe request");
       if (url === ${JSON.stringify(`https://api.vercel.com/v13/deployments/dpl_candidate?teamId=${team}`)})
         return Response.json(${JSON.stringify(f.candidate)});
-      if (url === ${JSON.stringify(`https://api.vercel.com/v9/projects/${project}?teamId=${team}`)}) {
+      if (url === ${JSON.stringify(`https://api.vercel.com/v9/projects/${project}?teamId=${team}&rollbackInfo=true`)}) {
         if (${JSON.stringify(state)} === "read-error") throw new Error("Bearer fixture-private");
         return Response.json(${JSON.stringify({ ...f.owner, lastAliasRequest: job })});
       }
