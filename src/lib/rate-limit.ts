@@ -16,7 +16,7 @@ type PublicRateLimitOptions = {
   windowMs: number;
 };
 
-export async function checkRateLimit(options: RateLimitOptions) {
+export async function checkRateLimit(options: RateLimitOptions & { cleanup?: "current-key" }) {
   const key = createHash("sha256").update(`${options.scope}:${options.identifier}`).digest("hex");
   const now = new Date();
   const expiresAt = new Date(now.getTime() + options.windowMs);
@@ -28,7 +28,7 @@ export async function checkRateLimit(options: RateLimitOptions) {
     ), expired as (
       select key
       from public.rate_limit_buckets
-      where expires_at <= ${now}
+      where ${options.cleanup !== "current-key"} and expires_at <= ${now}
       order by expires_at asc
       limit 100
     ), cleanup as (
