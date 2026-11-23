@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { appPreviewEvent } from "./ci/app-preview-binding.mjs";
 import type { PrismaClient } from "@prisma/client";
 import { assertIsolatedStorageQa } from "./qa-primary-only-storage";
 import { buildPreviewPrincipalCleanupSql } from "./qa-preview-principal-cleanup";
@@ -65,7 +67,16 @@ export async function verifyPreviewDatabasePrincipal(db: PrismaClient, input: In
   assert.ok(process.env.GITHUB_ACTIONS === "true" && process.env.VERCEL_ENV === "preview"
     && process.env.GITHUB_REPOSITORY === "KenLeeYa/Stallorder-Platform", "PREVIEW_PRINCIPAL_INVOCATION_INVALID");
   assertIsolatedStorageQa(input);
-  assert.equal(input.ref, "teunnvfakbfzmodajqjz", "PREVIEW_PRINCIPAL_TARGET_INVALID");
+  if (process.env.APP_PREVIEW === "true") {
+    const eventFile = process.env.GITHUB_EVENT_PATH;
+    assert.ok(eventFile, "PREVIEW_PRINCIPAL_TARGET_INVALID");
+    appPreviewEvent(JSON.parse(readFileSync(eventFile, "utf8")), process.env);
+    assert.equal(input.ref, process.env.APP_PREVIEW_CHILD, "PREVIEW_PRINCIPAL_TARGET_INVALID");
+    assert.notEqual(input.ref, "teunnvfakbfzmodajqjz", "PREVIEW_PRINCIPAL_TARGET_INVALID");
+    assert.equal(input.sourceSha, process.env.GITHUB_SHA, "PREVIEW_PRINCIPAL_SOURCE_INVALID");
+  } else {
+    assert.equal(input.ref, "teunnvfakbfzmodajqjz", "PREVIEW_PRINCIPAL_TARGET_INVALID");
+  }
   assert.equal(input.parentRef, "eyuctbnlvnbnivwasvqr", "PREVIEW_PRINCIPAL_TARGET_INVALID");
   assert.match(input.origin, /^https:\/\/stallorder-platform-[a-z0-9]+-ada76145-8663s-projects\.vercel\.app$/);
   assert.match(input.sourceSha, /^[a-f0-9]{40}$/);

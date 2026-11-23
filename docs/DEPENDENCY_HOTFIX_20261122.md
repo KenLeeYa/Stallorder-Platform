@@ -13,3 +13,5 @@ Validate a clean lockfile install, the dependency contract and ordinary CI, then
 ## Protected integration qualification
 
 For PR #413 and its bounded staging-to-main promotion, validate the checked-out merge tree against the admitted base, exact head tree, and reviewed integration ancestry. Provision a data-less child with a run-specific identity after the Preview environment review. Check the child’s project, parent, Git branch, and connection targets before running any fixture or Edge writes. Match the Vercel project, Preview target, revision and run metadata before hosted smoke. Remove only the paired resources owned by the run and verify cleanup. The existing delivery candidate continues using its reserved branch and frozen product.
+
+The hosted database-principal check uses the dedicated child recorded by the admitted run. Delivery qualification still uses its fixed child. The check verifies the deployed revision and retains the anonymous, non-admin and revoked-session denials.

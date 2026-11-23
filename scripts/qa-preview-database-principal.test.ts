@@ -108,6 +108,14 @@ function fixture(fault?: "before-commit" | "after-commit" | "principal" | "extra
   return {db:db as unknown as PrismaClient,fetchImpl,calls,empty:()=>!profile&&!session&&!bucket&&!audit};
 }
 describe("owned isolated principal probe lifecycle", () => {
+  it("rejects the app route before any probe if the trusted event is missing", async () => {
+    enable();
+    vi.stubEnv("APP_PREVIEW", "true");
+    vi.stubEnv("GITHUB_EVENT_PATH", undefined);
+    const f = fixture();
+    await expect(verifyPreviewDatabasePrincipal(f.db, input, f.fetchImpl)).rejects.toThrow("PREVIEW_PRINCIPAL_TARGET_INVALID");
+    expect(f.fetchImpl).not.toHaveBeenCalled();
+  });
   afterEach(()=>vi.unstubAllEnvs());
   const enable=()=>{vi.stubEnv("GITHUB_ACTIONS","true");vi.stubEnv("VERCEL_ENV","preview");vi.stubEnv("GITHUB_REPOSITORY","KenLeeYa/Stallorder-Platform");};
   it("exercises actual endpoint authorization and cleans only its generated fixture", async () => {
