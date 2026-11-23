@@ -384,3 +384,8 @@ Pre-execution review found that Supabase-managed CLI roles cannot be removed by 
 - 狀態：候選。同步 main 祖先歷史，並為 #414 提供專用無資料 Supabase Preview Git 綁定。Vercel 仍使用 GitHub 的合併候選驗證。
 - 回復：保留原封存的雜湊驗證，核對現行 Vercel redeploy 來源和正式設定中繼資料。
 - 驗證：修補 PR 與 #414 均須通過受保護 Preview 和清理。正式發布證據以 main 的 Plan 為準。
+
+### 2026-11-23 Report date filters retain the selected stall
+
+- Status: Candidate extracted from PR #366. Report filter submissions retain an explicitly narrower stall scope when the stall selector is hidden.
+- Verification: Component regression covers a restricted selection, all stalls, and the visible multi-stall picker. Protected Preview and release evidence are pending.
