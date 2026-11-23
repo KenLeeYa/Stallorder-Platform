@@ -394,3 +394,7 @@ Pre-execution review found that Supabase-managed CLI roles cannot be removed by 
 
 - Status: Candidate. Request Vercel rollback metadata so the settlement guard can read the provider job. The next Plan verifies the exact active deployment and existing recovery candidate.
 - Verification: Provider readback and focused release tests. Protected Preview and next Plan remain pending.
+
+## 2026-11-23 — Weekly report intake (QIDAIGO-WEEKLY-01)
+
+The weekly report now has a reviewed JSON handoff, read-only GitHub reconciliation, a serialized manual Issue writer and a low-risk Codex queue. Existing CI, Preview and release jobs retain ownership of deployment evidence. See [weekly report operations](WEEKLY_REPORT.md) and the November 23 sample. The intake tests exercise replay, evidence updates, previously closed items, ambiguous ownership and invalid findings. Hosted activation follows installation on the default branch.

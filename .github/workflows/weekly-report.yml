@@ -1,0 +1,62 @@
+name: Weekly report intake
+
+on:
+  workflow_dispatch:
+    inputs:
+      findings:
+        description: Reviewed public findings as a JSON array (see docs/WEEKLY_REPORT.md)
+        type: string
+        required: true
+      mode:
+        description: Preview or publish the Issue changes
+        type: choice
+        options: [plan, apply]
+        default: plan
+
+permissions: {}
+
+concurrency:
+  group: weekly-report-issue-writer
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    if: github.repository == 'KenLeeYa/Stallorder-Platform' && github.actor == github.repository_owner && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+      checks: read
+      statuses: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Reconcile findings
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FINDINGS: ${{ inputs.findings }}
+        run: printf '%s' "$FINDINGS" | node scripts/weekly-report.mjs - plan
+
+  apply:
+    needs: plan
+    if: inputs.mode == 'apply' && github.repository == 'KenLeeYa/Stallorder-Platform' && github.actor == github.repository_owner && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+      checks: read
+      statuses: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Reconcile findings
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FINDINGS: ${{ inputs.findings }}
+        run: printf '%s' "$FINDINGS" | node scripts/weekly-report.mjs - apply
