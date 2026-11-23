@@ -306,7 +306,7 @@ export async function verifyApplicationTarget(expected, baseline, api, promoted 
     aliases, resilienceMode: parameters.resilienceMode, checkedAt: new Date().toISOString(), status: promoted ? "PROMOTION_READBACK_VERIFIED" : "CANDIDATE_READBACK_VERIFIED" };
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+async function runCli() {
   try {
     const mode = process.argv[2];
     const parameters = applicationPlanParameters(process.env);
@@ -348,4 +348,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     console.error(/^RELEASE_[A-Z_]+$/u.test(error.message) ? error.message : "RELEASE_TARGET_FAILED");
     process.exitCode = 1;
   }
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  void runCli();
 }
