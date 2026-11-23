@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   if (request.headers.get("accept")?.includes("text/html")) {
     return new NextResponse(null, { status: 307, headers: { ...healthResponseHeaders, location: "/admin/health" } });
   }
-  const authorization = await authorizeHealthApiRequest(request);
+  const authorization = await authorizeHealthApiRequest(request, { rateLimitCleanup: "current-key" });
   if (!authorization.ok) return authorization.response;
   const requestId = createRequestId();
   const timing = createPerformanceTiming({ route: "/api/health", requestId });

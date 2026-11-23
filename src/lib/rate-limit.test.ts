@@ -33,6 +33,17 @@ describe("public rate limiting", () => {
     expect(sql).toContain("bucket_count <");
   });
 
+  it("can enforce the same request budget without sweeping other keys", async () => {
+    mocks.queryRaw.mockResolvedValueOnce([{ count: 181, expiresAt: new Date(Date.now() + 60_000) }]);
+    const { checkRateLimit } = await import("./rate-limit");
+    await expect(checkRateLimit({ scope: "platform-billing-api", identifier: "health-fixture",
+      limit: 180, windowMs: 300_000, cleanup: "current-key" })).resolves.toMatchObject({ allowed: false, remaining: 0 });
+    const [strings, firstParameter] = mocks.queryRaw.mock.calls[0];
+    expect(firstParameter).toBe("rate-limit-cardinality:platform-billing-api");
+    expect(strings.join("?")).toContain("where ? and expires_at <= ?");
+    expect(mocks.queryRaw.mock.calls[0][2]).toBe(false);
+  });
+
   it("checks the resource budget only after the stable source is accepted", async () => {
     const expiresAt = new Date(Date.now() + 60_000);
     mocks.queryRaw

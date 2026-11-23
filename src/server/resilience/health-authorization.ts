@@ -8,8 +8,13 @@ export const healthResponseHeaders = {
   vary: "Accept, Cookie",
 };
 
-export async function authorizeHealthApiRequest(request: Request) {
-  const result = await authorizePlatformAdminApiRequest(request);
+export async function authorizeHealthApiRequest(
+  request: Request,
+  options?: { rateLimitCleanup?: "current-key" },
+) {
+  const result = options
+    ? await authorizePlatformAdminApiRequest(request, options)
+    : await authorizePlatformAdminApiRequest(request);
   if (!result.ok) {
     for (const [name, value] of Object.entries(healthResponseHeaders)) {
       result.response.headers.set(name, value);

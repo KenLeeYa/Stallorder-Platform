@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { appPreviewEvent } from "./ci/app-preview-binding.mjs";
 import type { PrismaClient } from "@prisma/client";
 import { assertIsolatedStorageQa } from "./qa-primary-only-storage";
 import { buildPreviewPrincipalCleanupSql } from "./qa-preview-principal-cleanup";
@@ -65,10 +67,21 @@ export async function verifyPreviewDatabasePrincipal(db: PrismaClient, input: In
   assert.ok(process.env.GITHUB_ACTIONS === "true" && process.env.VERCEL_ENV === "preview"
     && process.env.GITHUB_REPOSITORY === "KenLeeYa/Stallorder-Platform", "PREVIEW_PRINCIPAL_INVOCATION_INVALID");
   assertIsolatedStorageQa(input);
-  assert.equal(input.ref, "teunnvfakbfzmodajqjz", "PREVIEW_PRINCIPAL_TARGET_INVALID");
+  const applicationPreview = process.env.APP_PREVIEW === "true";
+  if (applicationPreview) {
+    const eventFile = process.env.GITHUB_EVENT_PATH;
+    assert.ok(eventFile, "PREVIEW_PRINCIPAL_TARGET_INVALID");
+    appPreviewEvent(JSON.parse(readFileSync(eventFile, "utf8")), process.env);
+    assert.equal(input.ref, process.env.APP_PREVIEW_CHILD, "PREVIEW_PRINCIPAL_TARGET_INVALID");
+    assert.notEqual(input.ref, "teunnvfakbfzmodajqjz", "PREVIEW_PRINCIPAL_TARGET_INVALID");
+    assert.equal(input.sourceSha, process.env.GITHUB_SHA, "PREVIEW_PRINCIPAL_SOURCE_INVALID");
+  } else {
+    assert.equal(input.ref, "teunnvfakbfzmodajqjz", "PREVIEW_PRINCIPAL_TARGET_INVALID");
+  }
   assert.equal(input.parentRef, "eyuctbnlvnbnivwasvqr", "PREVIEW_PRINCIPAL_TARGET_INVALID");
   assert.match(input.origin, /^https:\/\/stallorder-platform-[a-z0-9]+-ada76145-8663s-projects\.vercel\.app$/);
   assert.match(input.sourceSha, /^[a-f0-9]{40}$/);
+  const probePath = applicationPreview ? "/api/health" : "/api/health/database-principal";
   const request = (route: string, cookie?: string) => fetchImpl(input.origin + route, {
     headers: { ...input.headers, ...(cookie ? { cookie } : {}), "user-agent": "stallorder-preview-principal" },
     cache: "no-store", redirect: "error", signal: AbortSignal.timeout(20_000),
@@ -83,7 +96,7 @@ export async function verifyPreviewDatabasePrincipal(db: PrismaClient, input: In
     assert.ok(!body.currentUser && !body.sessionUser, "PREVIEW_PRINCIPAL_DENIAL_INVALID");
   };
   stage = "anonymous-denial";
-  await assertDenied(await request("/api/health/database-principal"), 401);
+  await assertDenied(await request(probePath), 401);
   const profileId = randomUUID();
   const sessionId = randomUUID();
   const token = randomBytes(32).toString("base64url");
@@ -113,18 +126,27 @@ export async function verifyPreviewDatabasePrincipal(db: PrismaClient, input: In
         profileSessionVersion: 1, expiresAt: new Date(Date.now() + 5 * 60_000) } } } });
     stage = "principal-response";
     const started = Date.now();
-    const response = await request("/api/health/database-principal", cookie);
+    const response = await request(probePath, cookie);
     const finished = Date.now();
-    const principal = await assertPreviewDatabasePrincipal(response, started, finished);
+    let proof;
+    if (applicationPreview) {
+      assert.equal(response.status, 200, "PREVIEW_PRINCIPAL_INVALID");
+      assert.ok(response.headers.get("cache-control")?.includes("no-store"), "PREVIEW_PRINCIPAL_INVALID");
+      const body = await response.json();
+      assert.ok(body?.status === "ok" && ["HEALTHY", "DEGRADED"].includes(body.health), "PREVIEW_PRINCIPAL_INVALID");
+      proof = { authenticatedDatabaseHealth: body.health, sqlPrincipalMeasured: false };
+    } else {
+      proof = { principal: await assertPreviewDatabasePrincipal(response, started, finished) };
+    }
     stage = "remove-admin";
     await db.profile.update({ where: { id: profileId }, data: { platformRole: null } });
     stage = "non-admin-denial";
-    await assertDenied(await request("/api/health/database-principal", cookie), 404);
+    await assertDenied(await request(probePath, cookie), 404);
     stage = "revoke-session";
     await db.authSession.update({ where: { id: sessionId }, data: { revokedAt: new Date() } });
     stage = "revoked-denial";
-    await assertDenied(await request("/api/health/database-principal", cookie), 401);
-    receipt = { sourceSha: input.sourceSha, backend: input.ref, origin: input.origin, principal,
+    await assertDenied(await request(probePath, cookie), 401);
+    receipt = { sourceSha: input.sourceSha, backend: input.ref, origin: input.origin, probePath, ...proof,
       requestStartedAt: new Date(started).toISOString(), requestFinishedAt: new Date(finished).toISOString(),
       anonymousDenied: true, nonAdminDenied: true, revokedSessionDenied: true,
       authentication: "owned-synthetic-session-not-live-provider", productionRuntimeVerified: false };

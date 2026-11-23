@@ -18,31 +18,31 @@ function configCheck(condition,code) { if(!condition) throw new PreviewConfigura
 export function previewBindingFailureCode(error) {
  return error instanceof PreviewConfigurationError ? error.code : 'PREVIEW_BINDING_REJECTED';
 }
-export function verifyPreviewConfiguration(config) {
+export function verifyPreviewConfiguration(config, project = PREVIEW_BINDING.project) {
  configCheck(config && typeof config==='object','PREVIEW_CONFIG_SHAPE');
  for(const field of ['POSTGRES_URL','SUPABASE_URL','SUPABASE_ANON_KEY']) {
   configCheck(typeof config[field]==='string' && config[field].length>0,'PREVIEW_CONFIG_REQUIRED_FIELD');
   configCheck(!/[\x00-\x1f\x7f]/.test(config[field]),'PREVIEW_CONFIG_CONTROL_CHARACTER');
  }
- configCheck(config.SUPABASE_URL==='https://'+PREVIEW_BINDING.project+'.supabase.co','PREVIEW_CONFIG_API_TARGET');
+ configCheck(config.SUPABASE_URL==='https://'+project+'.supabase.co','PREVIEW_CONFIG_API_TARGET');
  let u;try{u=new URL(config.POSTGRES_URL);}catch{throw new PreviewConfigurationError('PREVIEW_CONFIG_URI');}
  // libpq accepts both spellings; every identity and connection restriction below is shared.
  configCheck(['postgresql:','postgres:'].includes(u.protocol),'PREVIEW_CONFIG_PROTOCOL');
  configCheck(u.pathname==='/postgres','PREVIEW_CONFIG_DATABASE');
  configCheck(u.hash==='','PREVIEW_CONFIG_FRAGMENT');
  configCheck(u.password.length>0,'PREVIEW_CONFIG_PASSWORD');
- const direct=u.hostname==='db.'+PREVIEW_BINDING.project+'.supabase.co';
+ const direct=u.hostname==='db.'+project+'.supabase.co';
  // Pin the region requested for this existing branch; the live child config must match.
  configCheck(direct || /^aws-[0-9]+-ap-southeast-1\.pooler\.supabase\.com$/.test(u.hostname),'PREVIEW_CONFIG_REGION_TARGET');
  let username;try{username=decodeURIComponent(u.username);}catch{throw new PreviewConfigurationError('PREVIEW_CONFIG_USERNAME');}
- configCheck(username===(direct?'postgres':'postgres.'+PREVIEW_BINDING.project),'PREVIEW_CONFIG_USERNAME');
+ configCheck(username===(direct?'postgres':'postgres.'+project),'PREVIEW_CONFIG_USERNAME');
  configCheck((direct?['5432']:['5432','6543']).includes(u.port),'PREVIEW_CONFIG_PORT');
  const allowed={sslmode:['require','verify-full'],pgbouncer:['true'],connect_timeout:['10']};
  for(const [key,value] of u.searchParams) {
   configCheck(allowed[key]?.includes(value),'PREVIEW_CONFIG_QUERY_OPTION');
   configCheck(u.searchParams.getAll(key).length===1,'PREVIEW_CONFIG_QUERY_DUPLICATE');
  }
- return {projectRef:PREVIEW_BINDING.project};
+ return {projectRef:project};
 }
 export function verifyPreviewInvocation(v) {
  assert.equal(v.repository,'KenLeeYa/Stallorder-Platform');
