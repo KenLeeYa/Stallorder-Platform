@@ -55,6 +55,21 @@ describe("merchant report behavior contract", () => {
     expect(render(true)).toContain("<fieldset");
   });
 
+  it("preserves a restricted stall selection when the stall picker is hidden", () => {
+    const render = (selectedStallIds: string[], multiStallMode: boolean) => renderToStaticMarkup(
+      <LocaleProvider initialLocale="zh-TW" hasLocaleCookie>
+        <ReportFilters organizationId="organization-1"
+          stalls={[{ id: "stall-1", name: "First" }, { id: "stall-2", name: "Second" }]}
+          selectedStallIds={selectedStallIds} dateFrom="2026-08-30" dateTo="2026-08-30"
+          multiStallMode={multiStallMode} />
+      </LocaleProvider>,
+    );
+    const hiddenStall = /<input(?=[^>]*type="hidden")(?=[^>]*name="stallId")(?=[^>]*value="stall-1")[^>]*>/;
+    expect(render(["stall-1"], false)).toMatch(hiddenStall);
+    expect(render(["stall-1", "stall-2"], false)).not.toMatch(hiddenStall);
+    expect(render(["stall-1"], true)).not.toMatch(hiddenStall);
+  });
+
   it("reuses the stall report day, week, and month query controls for operating profit", () => {
     expect(reportNavigation).toContain('applyPreset(nextPreset: Exclude<DatePreset, "CUSTOM">)');
     expect(reportNavigation).toContain('["TODAY", "YESTERDAY", "WEEK", "MONTH", "CUSTOM"]');
