@@ -31,6 +31,22 @@ describe("dedicated application Preview", () => {
     expect(() => appPreviewEvent(event, { ...env, GITHUB_EVENT_NAME: "workflow_dispatch" })).toThrow();
   });
 
+  it("keeps the promotion source and Supabase Git binding distinct", () => {
+    const promotion = structuredClone(event);
+    Object.assign(promotion.pull_request, { number: 414 });
+    Object.assign(promotion.pull_request.head, { ref: "staging" });
+    Object.assign(promotion.pull_request.base, { ref: "main", sha: "bf42bdfb10974d8fe57ef3509d2d3dd4d7cef4fa" });
+    const expected = appPreviewEvent(promotion, env);
+    expect(expected).toMatchObject({ branch: "staging", gitBranch: "codex/preview-pr-414-20261123", resource: "pr-414-app-123-2" });
+    const repair = structuredClone(promotion);
+    repair.pull_request.number = 415;
+    repair.pull_request.head.ref = "codex/app-release-recovery-20261123";
+    Object.assign(repair.pull_request.base, { ref: "staging", sha: "6c7c0524c4e75b2dc06295e2f90303fee4a629f2" });
+    expect(appPreviewEvent(repair, env)).toMatchObject({ gitBranch: repair.pull_request.head.ref, resource: "pr-415-app-123-2" });
+    promotion.pull_request.number = 416;
+    expect(() => appPreviewEvent(promotion, env)).toThrow();
+  });
+
   it("rejects Primary, borrowed branches, and branches with copied data", () => {
     const branch = {
       name: binding.resource, project_ref: "c".repeat(20),
@@ -40,7 +56,7 @@ describe("dedicated application Preview", () => {
     expect(ownedBranch([branch], binding)).toEqual(branch);
     expect(ownedBranch([{ ...branch, name: "pr-389-oauth-delivery" }], binding)).toBeNull();
     expect(() => ownedBranch([branch, branch], binding)).toThrow();
-    for (const alternative of [{ with_data: true }, { is_default: true }, { persistent: true },
+    for (const alternative of [{ git_branch: "staging" }, { with_data: true }, { is_default: true }, { persistent: true },
       { project_ref: "eyuctbnlvnbnivwasvqr" }, { project_ref: "teunnvfakbfzmodajqjz" }]) {
       expect(() => ownedBranch([{ ...branch, ...alternative }], binding)).toThrow();
     }

@@ -6,6 +6,9 @@ import { previewPublicOrigins } from "./delivery-preview-deployment.mjs";
 
 const repo = "KenLeeYa/Stallorder-Platform";
 const headBranch = "codex/dependency-integration-20261123";
+const repairBranch = "codex/app-release-recovery-20261123";
+const promotionGitBranch = "codex/preview-pr-414-20261123";
+const repairBase = "6c7c0524c4e75b2dc06295e2f90303fee4a629f2";
 const stagingBase = "04c6c4678767ad23b2f2d4acbed7157b01250e1b";
 const mainBase = "bf42bdfb10974d8fe57ef3509d2d3dd4d7cef4fa";
 const project = "prj_uoG4FNJIgnF1LdKRiXnfRaieXnUP";
@@ -22,15 +25,18 @@ export function appPreviewEvent(event, env) {
   assert.ok(sha.test(pr.head.sha) && sha.test(env.GITHUB_SHA));
   const integration = pr.number === 413 && pr.head.ref === headBranch
     && pr.base.ref === "staging" && pr.base.sha === stagingBase;
-  const promotion = pr.head.ref === "staging" && pr.base.ref === "main" && pr.base.sha === mainBase;
-  assert.ok(integration || promotion, "Unreviewed application Preview source");
+  const repair = pr.number === 415 && pr.head.ref === repairBranch
+    && pr.base.ref === "staging" && pr.base.sha === repairBase;
+  const promotion = pr.number === 414 && pr.head.ref === "staging" && pr.base.ref === "main" && pr.base.sha === mainBase;
+  assert.ok(integration || repair || promotion, "Unreviewed application Preview source");
   assert.match(env.GITHUB_RUN_ID, /^[1-9][0-9]*$/);
   assert.match(env.GITHUB_RUN_ATTEMPT, /^[1-9][0-9]*$/);
   return {
     head: pr.head.sha,
     base: pr.base.sha,
     branch: pr.head.ref,
-    resource: "pr-413-app-" + env.GITHUB_RUN_ID + "-" + env.GITHUB_RUN_ATTEMPT,
+    gitBranch: promotion ? promotionGitBranch : pr.head.ref,
+    resource: "pr-" + pr.number + "-app-" + env.GITHUB_RUN_ID + "-" + env.GITHUB_RUN_ATTEMPT,
   };
 }
 
@@ -45,7 +51,7 @@ export function ownedBranch(branches, binding) {
   assert.notEqual(branch.project_ref, PREVIEW_BINDING.parent);
   assert.notEqual(branch.project_ref, PREVIEW_BINDING.project);
   assert.equal(branch.parent_project_ref, PREVIEW_BINDING.parent);
-  assert.equal(branch.git_branch, binding.branch);
+  assert.equal(branch.git_branch, binding.gitBranch);
   assert.equal(branch.is_default, false);
   assert.equal(branch.with_data, false);
   assert.equal(branch.persistent, false);
@@ -87,9 +93,16 @@ function main(mode, env) {
     assert.equal(git("rev-parse", "HEAD^{tree}"), git("rev-parse", binding.head + "^{tree}"));
     assert.equal(git("merge-base", binding.head, "42f1ec92ae31f56883f62c04b9bbf8a74eb9ef6b"),
       "42f1ec92ae31f56883f62c04b9bbf8a74eb9ef6b");
+    if (binding.gitBranch !== headBranch) git("merge-base", "--is-ancestor", mainBase, binding.head);
+    if (binding.gitBranch === promotionGitBranch) {
+      assert.equal(git("rev-parse", "refs/remotes/origin/" + promotionGitBranch + "^{tree}"),
+        git("rev-parse", binding.head + "^{tree}"));
+    }
     const allowed = new Set([
       ".github/workflows/ephemeral-preview.yml", "docs/ARCHITECTURE_AND_FEATURE_CHANGELOG.md",
       "docs/DEPENDENCY_HOTFIX_20261122.md", "package.json", "package-lock.json",
+      "docs/PRODUCTION_ROLLBACK.md", "scripts/production-application-recovery-plan.mjs",
+      "scripts/lib/production-application-recovery-plan.test.mjs", "scripts/lib/production-application-origin-receipt.mjs",
       "scripts/dependency-security.test.mjs", "scripts/ci/app-preview-binding.mjs",
       "scripts/ci/app-preview-binding.test.mjs", "scripts/ci/delivery-preview-binding.mjs",
       "scripts/lib/production-workflow-contract.test.mjs", "scripts/qa-preview-database-principal.ts",
@@ -100,7 +113,7 @@ function main(mode, env) {
     ]);
     assert.ok(git("diff", "--name-only", binding.base, binding.head).split("\n")
       .every(name => allowed.has(name)));
-    console.log(JSON.stringify({ resource: binding.resource, branch: binding.branch }));
+    console.log(JSON.stringify({ resource: binding.resource, branch: binding.branch, gitBranch: binding.gitBranch }));
   } else if (mode === "branch") {
     const branch = ownedBranch(input(), binding);
     if (branch) console.log(JSON.stringify({

@@ -5,19 +5,20 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { captureApplicationBaseline, readApplicationRuntime, assertApplicationPrimary } from "./production-application-target.mjs";
 import { normalizeProtectedSecret } from "./lib/protected-secret.mjs";
+import { originReceiptBase64 } from "./lib/production-application-origin-receipt.mjs";
 
 // This one recovery artifact was qualified by the original successful protected retirement Apply.
 // A different artifact requires source review, not caller-supplied "qualified" metadata.
 export const RECOVERY = Object.freeze({
-  id: "dpl_4v5acoGZU8tkbTAnb6uEwuN5AjJQ", sha: "4e95d2ea5d53ae78c5af9c3db044481237674c44",
-  url: "stallorder-platform-3mmwpt7bl-ada76145-8663s-projects.vercel.app",
+  id: "dpl_B7LAHBYDBE2gtZrmo3upDMFERZ6M", originalId: "dpl_4v5acoGZU8tkbTAnb6uEwuN5AjJQ", sha: "4e95d2ea5d53ae78c5af9c3db044481237674c44",
+  url: "stallorder-platform-lylf0cnjg-ada76145-8663s-projects.vercel.app",
   archiveSha256: "b5733866a393f483a2fc5fea36c78a861d932c87d98320232f33c23674c027b0",
-  createdAt: 1792607340894,
-  envNamesSha256: "143816fb80ca5687ab70eb2919d9487ca8b474806b5c56468be1cdec56494bb2",
+  createdAt: 1794833467254,
+  envNamesSha256: "ea983c4d3073dd239d115acbad52c02cc28105899f97251ca5dc307a4834e536",
 });
 const PROJECT = "prj_uoG4FNJIgnF1LdKRiXnfRaieXnUP", TEAM = "team_MMfsiG94K9Zy3e6w7Ccc9xY4";
 const HOST = "app.qidaigo.com", BACKEND = "eyuctbnlvnbnivwasvqr";
-const RUN = 39652990080, ARTIFACT = 12369384806, REPOSITORY = "KenLeeYa/Stallorder-Platform";
+const RUN = 39652990080, REPOSITORY = "KenLeeYa/Stallorder-Platform";
 const digest = value => createHash("sha256").update(typeof value === "string" || Buffer.isBuffer(value) ? value : JSON.stringify(value)).digest("hex");
 const fail = code => { throw new Error(code); };
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -32,14 +33,11 @@ const SOURCE_SCOPES = ["prisma", "supabase", "src/server/resilience", "src/lib/d
   "src/app/api/merchant/stalls/[stallId]/cover-image/route.ts", "src/app/api/stalls/[stallSlug]/alert-sound/route.ts",
   "next.config.ts", "vercel.json", "src/server/database/read-router.ts", "src/app/auth/callback/route.ts", "src/server/auth/oauth/login-method-availability.ts"];
 
-export function verifyRecoveryProvenance({ run, artifact, bytes }) {
+export function verifyRecoveryProvenance({ run, bytes }) {
   if (run?.id !== RUN || run.run_attempt !== 1 || run.status !== "completed" || run.conclusion !== "success"
     || run.event !== "workflow_dispatch" || run.head_branch !== "main" || run.head_sha !== RECOVERY.sha
     || run.path !== ".github/workflows/production-application-release.yml" || run.actor?.login !== "KenLeeYa"
     || run.triggering_actor?.login !== "KenLeeYa" || run.repository?.full_name !== REPOSITORY
-    || artifact?.id !== ARTIFACT || artifact.name !== `production-application-${RUN}` || artifact.expired !== false
-    || artifact.size_in_bytes !== 1053 || artifact.digest !== `sha256:${RECOVERY.archiveSha256}`
-    || artifact.workflow_run?.id !== RUN || artifact.workflow_run.head_sha !== RECOVERY.sha
     || !Buffer.isBuffer(bytes) || bytes.length !== 1053 || digest(bytes) !== RECOVERY.archiveSha256) fail("RELEASE_RECOVERY_PROVENANCE_INVALID");
   return { ...RECOVERY };
 }
@@ -82,6 +80,9 @@ export async function readConfiguration(api) {
   const environmentSha256 = configurationDigest(environment);
   const deployment = await api(`/v13/deployments/${RECOVERY.id}?teamId=${TEAM}`);
   if (deployment.id !== RECOVERY.id || deployment.projectId !== PROJECT || deployment.url !== RECOVERY.url
+    || deployment.ownerId !== TEAM || deployment.source !== "redeploy" || deployment.meta?.originalDeploymentId !== RECOVERY.originalId
+    || deployment.meta?.approval_plan_run_id !== "39647622492" || deployment.meta?.release_mode !== "application_only"
+    || deployment.meta?.dr_runtime_retired !== "true"
     || deployment.target !== "production" || deployment.readyState !== "READY" || deployment.createdAt !== RECOVERY.createdAt
     || deployment.meta?.githubCommitSha !== RECOVERY.sha || (deployment.meta.git_commit && deployment.meta.git_commit !== RECOVERY.sha)
     || !Array.isArray(deployment.env) || deployment.env.some(key => typeof key !== "string")
@@ -132,35 +133,22 @@ async function main() {
   if (mode !== "parameters") {
     const vercelToken = normalizeProtectedSecret(env.VERCEL_TOKEN, "VERCEL_TOKEN").value;
     if (!env.GITHUB_TOKEN) fail("RELEASE_PROVENANCE_TOKEN_REQUIRED");
-    const read = async (url, token, archive = false) => {
-      let response = await fetch(url, { headers: { Authorization: `Bearer ${token}`, "cache-control": "no-cache", accept: "application/vnd.github+json" },
-        redirect: archive ? "manual" : "error", signal: AbortSignal.timeout(30000) });
-      if (archive && response.status === 302) {
-        const target = new URL(response.headers.get("location") ?? "");
-        if (target.protocol !== "https:" || target.username || target.password || target.port
-          || !target.hostname.endsWith(".blob.core.windows.net")) fail("RELEASE_ARCHIVE_REDIRECT_INVALID");
-        // One signed artifact redirect, without forwarding the GitHub credential.
-        response = await fetch(target, { redirect: "error", signal: AbortSignal.timeout(30000) });
-      }
+    const read = async (url, token) => {
+      const response = await fetch(url, { headers: { Authorization: "Bearer " + token, "cache-control": "no-cache", accept: "application/vnd.github+json" },
+        redirect: "error", signal: AbortSignal.timeout(30000) });
       if (!response.ok) fail("RELEASE_PROVIDER_READ_FAILED");
-      if (!archive) return response.json();
-      const chunks = []; let size = 0;
-      for await (const chunk of response.body) {
-        size += chunk.length;
-        if (size > 1053) fail("RELEASE_RECOVERY_PROVENANCE_INVALID");
-        chunks.push(chunk);
-      }
-      return Buffer.concat(chunks);
+      return response.json();
     };
-    const gh = `https://api.github.com/repos/${REPOSITORY}/actions`;
-    const run = await read(`${gh}/runs/${RUN}`, env.GITHUB_TOKEN);
-    const artifact = await read(`${gh}/artifacts/${ARTIFACT}`, env.GITHUB_TOKEN);
-    const bytes = await read(`${gh}/artifacts/${ARTIFACT}/zip`, env.GITHUB_TOKEN, true);
-    verifyRecoveryProvenance({ run, artifact, bytes });
+    const run = await read("https://api.github.com/repos/" + REPOSITORY + "/actions/runs/" + RUN, env.GITHUB_TOKEN);
+    verifyRecoveryProvenance({ run, bytes: Buffer.from(originReceiptBase64, "base64") });
     // The app-only recovery must have exactly the same database/schema/Edge/resilience contracts.
     try {
-      execFileSync("git", ["diff", "--quiet", RECOVERY.sha, env.GITHUB_SHA, "--", ...SOURCE_SCOPES.map(path => `:(literal)${path}`)], { stdio: "pipe", timeout: 15000,
+      execFileSync("git", ["diff", "--quiet", RECOVERY.sha, env.GITHUB_SHA, "--", ...SOURCE_SCOPES.map(path => `:(literal)${path}`), ":(exclude,literal)src/server/resilience/health-authorization.ts"], { stdio: "pipe", timeout: 15000,
         env: { PATH: env.PATH, ...(env.SystemRoot ? { SystemRoot: env.SystemRoot } : {}) } });
+      // The approved health change only forwards the diagnostic rate-limit cleanup mode.
+      const healthBlob = execFileSync("git", ["rev-parse", env.GITHUB_SHA + ":src/server/resilience/health-authorization.ts"],
+        { encoding: "utf8", timeout: 15000, env: { PATH: env.PATH, ...(env.SystemRoot ? { SystemRoot: env.SystemRoot } : {}) } });
+      if (healthBlob.trim() !== "b510fb96578db6d79919decd38d8714008a0adc8") fail("RELEASE_RECOVERY_SOURCE_INCOMPATIBLE");
     } catch { fail("RELEASE_RECOVERY_SOURCE_INCOMPATIBLE"); }
     const api = p => read(`https://api.vercel.com${p}`, vercelToken);
     const config = await readConfiguration(api);
@@ -169,7 +157,7 @@ async function main() {
       const owner = await api(`/v9/projects/${PROJECT}?teamId=${TEAM}`);
       if (owner.id !== PROJECT || owner.accountId !== TEAM) fail("RELEASE_PROJECT_DRIFT");
       const activeId = owner.targets?.production?.id;
-      if (!/^dpl_[A-Za-z0-9]+$/u.test(activeId ?? "")) fail("RELEASE_PRIMARY_CHANGED");
+      if (activeId !== RECOVERY.id) fail("RELEASE_PRIMARY_CHANGED");
       const deployment = await api(`/v13/deployments/${activeId}?teamId=${TEAM}`);
       const live = await runtime(`https://${HOST}`);
       snapshot = { schemaVersion: 1, sourceSha: env.GITHUB_SHA, projectId: PROJECT, teamId: TEAM, hostname: HOST,

@@ -28,7 +28,7 @@ jobs:
       run:
         working-directory: control
     env:
-      APP_PREVIEW: ${{ github.event_name == 'pull_request' && (github.event.pull_request.number == 413 || (github.head_ref == 'staging' && github.base_ref == 'main' && github.event.pull_request.base.sha == 'bf42bdfb10974d8fe57ef3509d2d3dd4d7cef4fa')) }}
+      APP_PREVIEW: ${{ github.event_name == 'pull_request' && (github.event.pull_request.number == 413 || (github.event.pull_request.number == 415 && github.head_ref == 'codex/app-release-recovery-20261123' && github.base_ref == 'staging' && github.event.pull_request.base.sha == '6c7c0524c4e75b2dc06295e2f90303fee4a629f2') || (github.event.pull_request.number == 414 && github.head_ref == 'staging' && github.base_ref == 'main' && github.event.pull_request.base.sha == 'bf42bdfb10974d8fe57ef3509d2d3dd4d7cef4fa')) }}
       DO_NOT_TRACK: "1"
       SUPABASE_PARENT_PROJECT_REF: ${{ vars.SUPABASE_PARENT_PROJECT_REF }}
       PREVIEW_BRANCH_NAME: pr-389-oauth-delivery
@@ -66,8 +66,9 @@ jobs:
           binding=$(node scripts/ci/app-preview-binding.mjs source)
           resource=$(jq -er .resource <<<"$binding")
           branch=$(jq -er .branch <<<"$binding")
+          git_branch=$(jq -er .gitBranch <<<"$binding")
           printf '%s\n' "PREVIEW_BRANCH_NAME=$resource" "PREVIEW_RESOURCE_KEY=$resource" \
-            "PREVIEW_GIT_BRANCH=$branch" "DELIVERY_PRODUCT_COMMIT=$GITHUB_SHA" >> "$GITHUB_ENV"
+            "PREVIEW_GIT_BRANCH=$branch" "APP_PREVIEW_GIT_BRANCH=$git_branch" "DELIVERY_PRODUCT_COMMIT=$GITHUB_SHA" >> "$GITHUB_ENV"
 
       - uses: actions/setup-node@v4
         with:
@@ -195,7 +196,7 @@ jobs:
             --output json --log-level error)"
           if [ "$APP_PREVIEW" = true ]; then
             supabase branches create "$PREVIEW_BRANCH_NAME" --project-ref "$SUPABASE_PARENT_PROJECT_REF" \
-              --region ap-southeast-1 --size micro --git-branch "$PREVIEW_GIT_BRANCH" --yes --log-level error >/dev/null
+              --region ap-southeast-1 --size micro --git-branch "$APP_PREVIEW_GIT_BRANCH" --yes --log-level error >/dev/null
             for attempt in $(seq 1 60); do
               branches=$(supabase branches list --project-ref "$SUPABASE_PARENT_PROJECT_REF" --output json --log-level error)
               owned=$(printf '%s' "$branches" | node scripts/ci/app-preview-binding.mjs branch)
