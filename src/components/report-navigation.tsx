@@ -58,6 +58,7 @@ function ReportFiltersForm({ organizationId, stalls, selectedStallIds, dateFrom,
   return <form method="get" className={`grid min-w-0 gap-3 border-b border-stone-200 py-3 sm:gap-4 sm:py-5 lg:items-end ${multiStallMode ? "lg:grid-cols-[minmax(0,1.4fr)_minmax(260px,1fr)]" : ""}`}>
     <input type="hidden" name="organizationId" value={organizationId} />
     {pageSize ? <input type="hidden" name="pageSize" value={pageSize} /> : null}
+    {!multiStallMode && selectedStallIds.length < stalls.length ? selectedStallIds.map((id) => <input key={id} type="hidden" name="stallId" value={id} />) : null}
     <div className="min-w-0 max-w-full overflow-x-hidden">
       <span className="text-sm font-medium text-stone-700">{t("reports.filter.dateRange")}</span>
       <div data-testid="report-date-action-scroll" className="relative mt-2 w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain">

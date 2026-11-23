@@ -27,8 +27,12 @@ export function appPreviewEvent(event, env) {
     && pr.base.ref === "staging" && pr.base.sha === stagingBase;
   const repair = pr.number === 415 && pr.head.ref === repairBranch
     && pr.base.ref === "staging" && pr.base.sha === repairBase;
+  const reportScope = pr.number === 416 && pr.head.ref === "codex/pr365-pr366-phase1"
+    && pr.base.ref === "staging" && pr.base.sha === "bb047ce713be8f026057b5727e2c9196e99497c6";
+  const settlement = pr.number === 418 && pr.head.ref === "codex/next-release-evidence"
+    && pr.base.ref === "staging" && pr.base.sha === "7b0198124eece0032eec4a064cc1393899078a70";
   const promotion = pr.number === 414 && pr.head.ref === "staging" && pr.base.ref === "main" && pr.base.sha === mainBase;
-  assert.ok(integration || repair || promotion, "Unreviewed application Preview source");
+  assert.ok(integration || repair || reportScope || settlement || promotion, "Unreviewed application Preview source");
   assert.match(env.GITHUB_RUN_ID, /^[1-9][0-9]*$/);
   assert.match(env.GITHUB_RUN_ATTEMPT, /^[1-9][0-9]*$/);
   return {
@@ -98,7 +102,10 @@ function main(mode, env) {
       assert.equal(git("rev-parse", "refs/remotes/origin/" + promotionGitBranch + "^{tree}"),
         git("rev-parse", binding.head + "^{tree}"));
     }
+    if (binding.branch === "codex/pr365-pr366-phase1") git("merge-base", "--is-ancestor", "b203d3cd6de8a3b4026f815fd297a00bb2204dda", binding.head);
     const allowed = new Set([
+      "scripts/production-application-target.mjs", "scripts/lib/production-application-target.test.mjs",
+      "src/components/report-navigation.tsx", "src/components/merchant-report-behavior.contract.test.tsx",
       ".github/workflows/ephemeral-preview.yml", "docs/ARCHITECTURE_AND_FEATURE_CHANGELOG.md",
       "docs/DEPENDENCY_HOTFIX_20261122.md", "package.json", "package-lock.json",
       "docs/PRODUCTION_ROLLBACK.md", "scripts/production-application-recovery-plan.mjs",
