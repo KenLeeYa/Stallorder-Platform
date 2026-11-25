@@ -405,3 +405,8 @@ Pre-execution review found that Supabase-managed CLI roles cannot be removed by 
 
 - Status: Candidate extracted from PR #365. Localized menu search preserves the current category anchors and active product configuration. The field becomes interactive after hydration.
 - Verification: Browser regression covers delayed hydration and no matches. Protected hosted verification is pending.
+
+### 2026-11-25 QR search release qualification
+
+- Candidate PR #417 isolates menu search from #365. The protected Preview searches a real menu item, checks the empty result and clears the field before placing and tracking its synthetic order. Promotion requires its own Preview and dedicated Git binding.
+- The application Plan checks the serving bdd968cf provider receipt. The owner-dispatched live browser check verifies the exact main revision and Primary epoch before and after search on the dedicated QR. Hosted acceptance and release receipts are pending.

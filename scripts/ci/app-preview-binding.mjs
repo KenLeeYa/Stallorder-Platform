@@ -9,6 +9,9 @@ const headBranch = "codex/dependency-integration-20261123";
 const repairBranch = "codex/app-release-recovery-20261123";
 const promotionGitBranch = "codex/preview-pr-414-20261123";
 const recoveryPromotionBranch = "codex/pr422-recovery-preview";
+const menuBranch = "codex/pr365-menu-search";
+const menuPromotionBranch = "codex/pr423-menu-search-preview";
+const menuMainBase = "0079effa188847f2d3c832c8413e59b82ba5689c";
 const repairBase = "6c7c0524c4e75b2dc06295e2f90303fee4a629f2";
 const stagingBase = "04c6c4678767ad23b2f2d4acbed7157b01250e1b";
 const mainBase = "bf42bdfb10974d8fe57ef3509d2d3dd4d7cef4fa";
@@ -39,7 +42,11 @@ export function appPreviewEvent(event, env) {
     && pr.base.ref === "staging" && pr.base.sha === "e94890556e37dc0afbaffcacb0a1176ad26213af";
   const recoveryPromotion = pr.number === 422 && pr.head.ref === "staging"
     && pr.base.ref === "main" && pr.base.sha === "bdd968cf3fceb6d392e003e32d8f602f633f7541";
-  assert.ok(integration || repair || reportScope || settlement || promotion || batchPromotion || recoveryFix || recoveryPromotion,
+  const menu = pr.number === 417 && pr.head.ref === menuBranch && pr.base.ref === "staging"
+    && pr.base.sha === "d59f693fa4d6273f30b3bb8de08ad28f7cb4dddc";
+  const menuPromotion = pr.number === 423 && pr.head.ref === "staging"
+    && pr.base.ref === "main" && pr.base.sha === menuMainBase;
+  assert.ok(menu || menuPromotion || integration || repair || reportScope || settlement || promotion || batchPromotion || recoveryFix || recoveryPromotion,
     "Unreviewed application Preview source");
   assert.match(env.GITHUB_RUN_ID, /^[1-9][0-9]*$/);
   assert.match(env.GITHUB_RUN_ATTEMPT, /^[1-9][0-9]*$/);
@@ -47,7 +54,7 @@ export function appPreviewEvent(event, env) {
     head: pr.head.sha,
     base: pr.base.sha,
     branch: pr.head.ref,
-    gitBranch: recoveryPromotion ? recoveryPromotionBranch : batchPromotion ? "codex/pr419-app-batch1-preview" : promotion ? promotionGitBranch : pr.head.ref,
+    gitBranch: menuPromotion ? menuPromotionBranch : recoveryPromotion ? recoveryPromotionBranch : batchPromotion ? "codex/pr419-app-batch1-preview" : promotion ? promotionGitBranch : pr.head.ref,
     resource: "pr-" + pr.number + "-app-" + env.GITHUB_RUN_ID + "-" + env.GITHUB_RUN_ATTEMPT,
   };
 }
@@ -106,7 +113,7 @@ function main(mode, env) {
     assert.equal(git("merge-base", binding.head, "42f1ec92ae31f56883f62c04b9bbf8a74eb9ef6b"),
       "42f1ec92ae31f56883f62c04b9bbf8a74eb9ef6b");
     if (binding.gitBranch !== headBranch) git("merge-base", "--is-ancestor", mainBase, binding.head);
-    if ([promotionGitBranch, "codex/pr419-app-batch1-preview", recoveryPromotionBranch].includes(binding.gitBranch)) {
+    if ([promotionGitBranch, "codex/pr419-app-batch1-preview", recoveryPromotionBranch, menuPromotionBranch].includes(binding.gitBranch)) {
       assert.equal(git("rev-parse", "refs/remotes/origin/" + binding.gitBranch + "^{tree}"),
         git("rev-parse", binding.head + "^{tree}"));
     }
@@ -134,7 +141,17 @@ function main(mode, env) {
       "docs/ARCHITECTURE_AND_FEATURE_CHANGELOG.md",
     ]);
     const recovery = ["codex/recovery-loader-fix", recoveryPromotionBranch].includes(binding.gitBranch);
-    const paths = recovery ? recoveryFiles : allowed;
+    const menu = [menuBranch, menuPromotionBranch].includes(binding.gitBranch);
+    const menuFiles = new Set([
+      "src/components/qr-order-menu.tsx", "src/lib/qr-order-i18n.ts", "e2e/public-cache.spec.ts",
+      ".github/workflows/ephemeral-preview.yml", "scripts/ci/app-preview-binding.mjs", "scripts/ci/app-preview-binding.test.mjs",
+      ".github/workflows/production-qr-menu-search.yml", "scripts/qa-qr-menu-search.ts", "scripts/qa-production-qr-menu.ts",
+      "scripts/qa-preview-public-order.ts", "scripts/lib/production-workflow-contract.test.mjs",
+      "scripts/production-application-recovery-plan.mjs", "scripts/lib/production-application-recovery-plan.test.mjs",
+      "docs/ARCHITECTURE_AND_FEATURE_CHANGELOG.md", "docs/PRODUCTION_ROLLBACK.md",
+    ]);
+    if (menu) git("merge-base", "--is-ancestor", menuMainBase, binding.head);
+    const paths = menu ? menuFiles : recovery ? recoveryFiles : allowed;
     assert.ok(git("diff", "--name-only", binding.base, binding.head).split("\n").every(name => paths.has(name)));
     console.log(JSON.stringify({ resource: binding.resource, branch: binding.branch, gitBranch: binding.gitBranch }));
   } else if (mode === "branch") {

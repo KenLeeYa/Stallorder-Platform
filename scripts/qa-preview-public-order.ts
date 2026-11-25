@@ -8,6 +8,7 @@ import { chromium, expect } from "@playwright/test";
 import { assertIsolatedStorageQa } from "./qa-primary-only-storage";
 import { preparePreviewFixture, restorePreviewFixture, type PreviewFixtureState } from "./qa-preview-fixture-state";
 import { readPreviewPrincipalDiagnostic, verifyPreviewDatabasePrincipal } from "./qa-preview-database-principal";
+import { verifyQrMenuSearch } from "./qa-qr-menu-search";
 import { finishPreviewQa, previewQaFailure } from "./qa-preview-cleanup";
 
 const ORGANIZATION = "11111111-1111-4111-8111-111111111111";
@@ -72,6 +73,9 @@ async function main() {
     phase = "qr-menu-ready";
     const add = page.getByRole("button", { name: "增加 冬瓜茶", exact: true });
     await expect(add).toBeEnabled();
+    phase = "qr-menu-search";
+    await verifyQrMenuSearch(page);
+    console.log("PASS: hosted product search, empty results and menu restoration.");
     await mkdir("artifacts", { recursive: true });
     phase = "responsive-menu";
     for (const width of [320, 390, 768, 1440]) {

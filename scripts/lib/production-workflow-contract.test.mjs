@@ -21,6 +21,16 @@ const productionApproval = read("scripts/lib/production-approval.mjs");
 const vercel = JSON.parse(read("vercel.json"));
 
 describe("Production workflow approval contract", () => {
+  it("confines live menu search to the owner on protected main and the dedicated test QR", () => {
+    const workflow = read(".github/workflows/production-qr-menu-search.yml");
+    for (const guard of ["workflow_dispatch:", "github.ref == 'refs/heads/main'", "github.actor == github.repository_owner",
+      "github.triggering_actor == github.repository_owner", "environment: production", "ref: ${{ github.sha }}",
+      "persist-credentials: false", "group: production-application-release", "cancel-in-progress: false"]) {
+      expect(workflow).toContain(guard);
+    }
+    expect(workflow.match(/secrets\.[A-Za-z0-9_]+/g)).toEqual(["secrets.PRODUCTION_TEST_QR_URL"]);
+  });
+
   it("limits the incident smoke to the deployed source and a single dedicated QR secret", () => {
     const smoke = read(".github/workflows/production-qr-recheck.yml");
     expect(smoke).toContain("workflow_dispatch:");
