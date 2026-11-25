@@ -9,15 +9,17 @@ import { RECOVERY, verifyRecoveryProvenance, recoveryPlanParameters, assertRecov
 
 test("requires the exact settled Vercel job for the current Primary deployment", () => {
   const deployment = {
-    id: "dpl_3quCAGsiYikcNsMPc7zPGyFc64dz", projectId: "prj_uoG4FNJIgnF1LdKRiXnfRaieXnUP",
+    id: "dpl_CRCcUb6iw1eZRktvhtEMbnwcCSXB", projectId: "prj_uoG4FNJIgnF1LdKRiXnfRaieXnUP",
     ownerId: "team_MMfsiG94K9Zy3e6w7Ccc9xY4", target: "production", readyState: "READY", source: "cli",
-    meta: { githubCommitSha: "b203d3cd6de8a3b4026f815fd297a00bb2204dda",
-      git_commit: "b203d3cd6de8a3b4026f815fd297a00bb2204dda",
-      approval_plan_run_id: "45118796489", release_mode: "application_only" },
+    meta: { githubCommitSha: "bdd968cf3fceb6d392e003e32d8f602f633f7541",
+      git_commit: "bdd968cf3fceb6d392e003e32d8f602f633f7541",
+      approval_plan_run_id: "45164609710", release_mode: "application_only" },
   };
-  const job = { type: "promote", jobStatus: "succeeded", toDeploymentId: deployment.id, requestedAt: 1795414085368 };
+  const job = { type: "promote", jobStatus: "succeeded", toDeploymentId: deployment.id, requestedAt: 1795434958582 };
   const owner = { targets: { production: { id: deployment.id } }, lastAliasRequest: job };
   assert.doesNotThrow(() => assertPlanPrimary(owner, deployment));
+  assert.throws(() => assertPlanPrimary(owner, { ...deployment,
+    meta: { ...deployment.meta, approval_plan_run_id: "45118796489" } }), /RELEASE_PRIMARY_CHANGED/);
   for (const bad of [undefined, { ...job, jobStatus: "pending" }, { ...job, requestedAt: job.requestedAt + 1 }]) {
     assert.throws(() => assertPlanPrimary({ ...owner, lastAliasRequest: bad }, deployment), /RELEASE_PRIMARY_CHANGED/);
   }

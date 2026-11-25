@@ -21,3 +21,12 @@ it("accepts a new HTTP 201 session but never errors, expired sessions or order-r
     [201, { ...session, orderingMode: "DELIVERY" }],
   ] as const) expect(() => assertPreviewOrderSession(status, body)).toThrow();
 });
+
+it.each([
+  [null, "PREVIEW_QR_SESSION_BODY_INVALID"],
+  [{ ...session, orderSessionToken: "wrong" }, "PREVIEW_QR_SESSION_TOKEN_INVALID"],
+  [{ ...session, expiresAt: "2000-01-01T00:00:00Z" }, "PREVIEW_QR_SESSION_EXPIRY_INVALID"],
+  [{ ...session, orderingMode: "DELIVERY" }, "PREVIEW_QR_SESSION_MODE_INVALID"],
+])("reports a fixed diagnostic without recording the session contents", (body, diagnostic) => {
+  expect(() => assertPreviewOrderSession(201, body)).toThrow(String(diagnostic));
+});

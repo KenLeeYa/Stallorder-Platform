@@ -401,6 +401,17 @@ Pre-execution review found that Supabase-managed CLI roles cannot be removed by 
 - 回復程序改在模組載入後啟動 CLI。測試從實際 CLI 驗證缺少核准 Plan 時按預期拒絕。
 - 增加專用補驗工作，固定使用該次部署的原始碼與正式站，在測試攤位營業時間驗證短效點餐 session。驗收結果使用獨立 run 記錄。
 
+### 2026-11-23 QR menu search
+
+- Status: Candidate extracted from PR #365. Localized menu search preserves the current category anchors and active product configuration. The field becomes interactive after hydration.
+- Verification: Browser regression covers delayed hydration and no matches. Protected hosted verification is pending.
+
+### 2026-11-25 QR search release qualification
+
+- Candidate PR #417 isolates menu search from #365. The protected Preview searches a real menu item, checks the empty result and clears the field before placing and tracking its synthetic order. Promotion requires its own Preview and dedicated Git binding.
+- The application Plan checks the serving bdd968cf provider receipt. The owner-dispatched live browser check verifies the exact main revision and Primary epoch before and after search on the dedicated QR. Hosted acceptance and release receipts are pending.
+- Preview 45608074652 received HTTP 201 and stopped during session response validation, before menu search. The owned resources were removed. Read the browser response when it arrives, retain the token, expiry and mode checks, and report only fixed failure categories.
+
 ## 2026-11-23 — Weekly report intake (QIDAIGO-WEEKLY-01)
 
 The weekly report now has a reviewed JSON handoff, read-only GitHub reconciliation, a serialized manual Issue writer and a low-risk Codex queue. Existing CI, Preview and release jobs retain ownership of deployment evidence. See [weekly report operations](WEEKLY_REPORT.md) and the November 23 sample. The intake tests exercise replay, evidence updates, previously closed items, ambiguous ownership and invalid findings. Hosted activation follows installation on the default branch.
