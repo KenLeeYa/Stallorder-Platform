@@ -1,0 +1,32 @@
+name: Production QR menu search acceptance
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-application-release
+  cancel-in-progress: false
+
+jobs:
+  recheck:
+    if: github.repository == 'KenLeeYa/Stallorder-Platform' && github.ref == 'refs/heads/main' && github.actor == github.repository_owner && github.triggering_actor == github.repository_owner
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts
+      - run: npx --no-install playwright install --with-deps chromium
+      - name: Exercise search on the serving revision using the dedicated QR
+        env:
+          PRODUCTION_TEST_QR_URL: ${{ secrets.PRODUCTION_TEST_QR_URL }}
+        run: node --import tsx scripts/qa-production-qr-menu.ts

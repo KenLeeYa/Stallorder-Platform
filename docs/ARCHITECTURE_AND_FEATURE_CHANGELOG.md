@@ -400,3 +400,14 @@ Pre-execution review found that Supabase-managed CLI roles cannot be removed by 
 - 狀態：候選。Apply 45169140104 已將正式站切至 `bdd968cf`。25/26 項通過，專用 QR 已過最後點餐時間。
 - 回復程序改在模組載入後啟動 CLI。測試從實際 CLI 驗證缺少核准 Plan 時按預期拒絕。
 - 增加專用補驗工作，固定使用該次部署的原始碼與正式站，在測試攤位營業時間驗證短效點餐 session。驗收結果使用獨立 run 記錄。
+
+### 2026-11-23 QR menu search
+
+- Status: Candidate extracted from PR #365. Localized menu search preserves the current category anchors and active product configuration. The field becomes interactive after hydration.
+- Verification: Browser regression covers delayed hydration and no matches. Protected hosted verification is pending.
+
+### 2026-11-25 QR search release qualification
+
+- Candidate PR #417 isolates menu search from #365. The protected Preview searches a real menu item, checks the empty result and clears the field before placing and tracking its synthetic order. Promotion requires its own Preview and dedicated Git binding.
+- The application Plan checks the serving bdd968cf provider receipt. The owner-dispatched live browser check verifies the exact main revision and Primary epoch before and after search on the dedicated QR. Hosted acceptance and release receipts are pending.
+- Preview 45608074652 received HTTP 201 and stopped during session response validation, before menu search. The owned resources were removed. Read the browser response when it arrives, retain the token, expiry and mode checks, and report only fixed failure categories.
