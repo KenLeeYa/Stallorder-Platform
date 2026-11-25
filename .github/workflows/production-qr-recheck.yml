@@ -1,0 +1,45 @@
+name: Production QR recheck for batch one
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-application-release
+  cancel-in-progress: false
+
+jobs:
+  recheck:
+    if: github.repository == 'KenLeeYa/Stallorder-Platform' && github.ref == 'refs/heads/main' && github.actor == github.repository_owner && github.triggering_actor == github.repository_owner
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: bdd968cf3fceb6d392e003e32d8f602f633f7541
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Recheck the serving revision and dedicated QR session
+        env:
+          PRODUCTION_BASE_URL: https://app.qidaigo.com
+          PRODUCTION_TEST_QR_URL: ${{ secrets.PRODUCTION_TEST_QR_URL }}
+          PRODUCTION_TEST_QR_REQUIRED: "true"
+        shell: bash
+        run: |
+          set -euo pipefail
+          check_serving() {
+            curl --fail --silent --show-error --max-time 15 "$PRODUCTION_BASE_URL/api/version" |
+              jq -e --arg sha "$(git rev-parse HEAD)" '.revision == $sha' >/dev/null
+            curl --fail --silent --show-error --max-time 15 "$PRODUCTION_BASE_URL/api/availability/config" |
+              jq -e '.activeBackend == "PRIMARY" and .mode == "NORMAL_PRIMARY" and .promotionEpoch == 3' >/dev/null
+          }
+          check_serving
+          rc=0
+          node scripts/production-smoke-test.mjs || rc=$?
+          check_serving
+          exit "$rc"
