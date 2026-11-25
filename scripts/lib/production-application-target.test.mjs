@@ -495,6 +495,32 @@ it.each(["succeeded", "failed", "missing", "read-error"])("writes a sanitized %s
   }
 });
 
+it("loads the recovery checker from the actual CLI without a module evaluation deadlock", async () => {
+  const f = fixture(), baseline = await captureApplicationBaseline(expected, f.api, f.runtime);
+  const root = resolve(import.meta.dirname, "../../test-results");
+  mkdirSync(root, { recursive: true });
+  const directory = mkdtempSync(resolve(root, "promotion-cli-"));
+  try {
+    const baselinePath = resolve(directory, "baseline.json"), settlement = resolve(directory, "settled.json");
+    writeFileSync(baselinePath, JSON.stringify(baseline), { flag: "wx" });
+    writeFileSync(settlement, JSON.stringify(recoveryAdmission), { flag: "wx" });
+    const cli = fileURLToPath(new URL("../production-application-target.mjs", import.meta.url));
+    const output = resolve(directory, "admitted.json");
+    const result = spawnSync(process.execPath, [cli, "recoverable", output, baselinePath, settlement], {
+      cwd: directory, encoding: "utf8", timeout: 5000,
+      env: { SystemRoot: process.env.SystemRoot, ...expected, VERCEL_PROJECT_ID: project,
+        VERCEL_ORG_ID: team, APP_BASE_URL: "https://app.qidaigo.com", VERCEL_TOKEN: "fixture-private" },
+    });
+    expect(result.error).toBeUndefined();
+    // The missing Plan must fail closed after the recovery module loads.
+    expect(result.status).toBe(1);
+    expect(result.stderr.trim()).toBe("RELEASE_TARGET_FAILED");
+  } finally {
+    if (!directory.startsWith(root + sep + "promotion-cli-")) throw new Error("Unexpected fixture directory");
+    rmSync(directory, { recursive: true });
+  }
+});
+
 it("binds the recovery deployment and SHA to the immutable application Plan", () => {
   const createdAt = new Date("2026-10-12T09:00:00Z");
   const parameters = applicationPlanParameters(expected);

@@ -19,6 +19,13 @@
 
 ## Vercel rollback
 
+正式 Apply 45169140104 已切換至 `bdd968cf`。專用測試 QR 在最後點餐時間後回傳
+`QR_LAST_ORDER_PASSED`。當次自動回復在 CLI 載入時結束，沒有切回舊版。
+後續補驗使用 main 上的「Production QR recheck for batch one」，由專案負責人在
+測試攤位開放點餐時啟動。流程在建立專用短效 session 前後，均核對實際正式版本與
+Primary epoch 3。需確認 recheck 工作確實執行、26 項通過及 session HTTP 201。
+原 Apply 收據保留失敗狀態，補驗 run 另行記錄。
+
 - 從 Vercel deployment history 選擇最近已通過 smoke test 的 commit，使用 Dashboard rollback 或 `vercel rollback <deployment>`。
 - Rollback 後重新確認 Production variables scope、`/api/health`、security headers、login 與 public QR 負向測試。
 - 不用重新 build 的未驗證來源取代已知良好 artifact。
@@ -83,3 +90,9 @@ Primary fence。依 [PRODUCTION_FAILBACK_RUNBOOK.md](PRODUCTION_FAILBACK_RUNBOOK
 ## 2026-11-23 Production promotion readback
 
 Vercel project reads for promotion, baseline and recovery checks include rollbackInfo=true. The observed successful promotion record for the serving b203d3cd deployment binds the next Plan to the exact deployment, source, prior Plan and promotion timestamp. The qualified 4e95d2ea artifact remains the recovery candidate.
+
+## 2026-11-25 QR menu search release
+
+The next application Plan binds its serving baseline to deployment `dpl_CRCcUb6iw1eZRktvhtEMbnwcCSXB`, source `bdd968cf3fceb6d392e003e32d8f602f633f7541`, original Plan 45164609710 and the provider's successful promotion at 1795434958582. Run 45599070216 separately passed the 26 smoke checks. Apply 45169140104 retains its failed conclusion. The qualified recovery deployment stays pinned to `4e95d2ea`.
+
+Before Apply, run the protected baseline QR recheck while the dedicated stall accepts orders. If the session is refused, retain the Plan and check its validity again in the next open window. After a successful Apply, dispatch Production QR menu search acceptance on the serving main revision. It checks the dedicated session and menu search without placing an order. Record both runs alongside the new Plan and Apply.

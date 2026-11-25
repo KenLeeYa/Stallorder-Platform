@@ -1,4 +1,4 @@
-import { Fragment, type RefObject } from "react";
+import { Fragment, useId, useState, useSyncExternalStore, type RefObject } from "react";
 import { Flame, Minus, Plus, ShoppingCart, X } from "lucide-react";
 import { ProductImage } from "@/components/product-image";
 import type { QrProductDraft } from "@/components/qr-order-product-controller";
@@ -58,6 +58,8 @@ type QrOrderMenuProps = {
   onAddProduct: (product: PublicMenuProduct) => void;
 };
 
+const subscribeToHydration = () => () => {};
+
 export function QrOrderMenu({
   categories,
   visibleProducts,
@@ -85,15 +87,35 @@ export function QrOrderMenu({
   onSelectBundleChoice,
   onAddProduct,
 }: QrOrderMenuProps) {
+  const searchId = useId();
+  const ready = useSyncExternalStore(subscribeToHydration, () => true, () => false);
+  const [query, setQuery] = useState("");
+  const term = query.trim().toLocaleLowerCase(locale);
+  const matches = term ? visibleProducts.filter(product => {
+    if (product.id === configuringProductId) return true;
+    const translated = localizedProduct(product);
+    return [translated.name, translated.description, localizedCategory(product.category),
+      localizedProductGroup(product)].some(value => value.toLocaleLowerCase(locale).includes(term));
+  }) : visibleProducts;
+  const matchingCategories = term ? new Set(matches.map(product => product.category)) : null;
   return (
     <>
-      {categories.length > 0 ? (
+      {visibleProducts.length > 0 ? (
+        <div className="mt-5">
+          <label htmlFor={searchId} className="block text-sm font-semibold">{copy.menuSearch}</label>
+          <input id={searchId} type="search" autoComplete="off" maxLength={160}
+            className="mt-2 min-h-11 w-full rounded-lg border border-stone-300 px-3 disabled:opacity-50"
+            disabled={!ready} value={query} onChange={event => setQuery(event.target.value)} />
+        </div>
+      ) : null}
+      {term && matches.length === 0 ? <p role="status" className="mt-3 text-sm">{copy.menuSearchEmpty}</p> : null}
+      {categories.length > 0 && matchingCategories?.size !== 0 ? (
         <nav data-testid="qr-category-navigation" aria-label={copy.categoryNavigation} style={{ position: "sticky", top: "var(--storefront-mode-nav-height, 0px)" }} className="z-30 -mx-4 mt-5 flex gap-2 overflow-x-auto border-y border-stone-200 bg-stone-50/95 px-4 py-2 backdrop-blur sm:mx-0 sm:px-3">
-          {categories.map((category, index) => (
+          {categories.map((category, index) => !matchingCategories || matchingCategories.has(category) ? (
             <a key={category} href={`#qr-category-${index}`} className="inline-flex min-h-10 shrink-0 items-center rounded-md border border-stone-300 bg-white px-3 text-sm font-semibold text-stone-700">
               {localizedCategory(category)}
             </a>
-          ))}
+          ) : null)}
         </nav>
       ) : null}
 
@@ -107,11 +129,11 @@ export function QrOrderMenu({
             {copy.noProductsForSlot}
           </p>
         ) : null}
-        {categories.map((category, categoryIndex) => (
+        {categories.map((category, categoryIndex) => !matchingCategories || matchingCategories.has(category) ? (
           <section key={category} id={`qr-category-${categoryIndex}`} style={{ scrollMarginTop: "calc(var(--storefront-mode-nav-height, 0px) + 5rem)" }}>
             <h2 className="mb-2 text-sm font-semibold text-stone-500 sm:mb-3">{localizedCategory(category)}</h2>
             <div className="grid gap-2 sm:gap-3">
-              {visibleProducts.filter((product) => product.category === category).map((product, productIndex, categoryProducts) => {
+              {matches.filter((product) => product.category === category).map((product, productIndex, categoryProducts) => {
                 const configurable = product.noteGroups.length > 0 || product.bundleChoiceGroups.length > 0;
                 const soldOut = product.isSoldOut;
                 const showGroupHeading = Boolean(product.group)
@@ -284,7 +306,7 @@ export function QrOrderMenu({
               })}
             </div>
           </section>
-        ))}
+        ) : null)}
       </div>
     </>
   );
