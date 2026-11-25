@@ -395,6 +395,12 @@ Pre-execution review found that Supabase-managed CLI roles cannot be removed by 
 - Status: Candidate. Request Vercel rollback metadata so the settlement guard can read the provider job. The next Plan verifies the exact active deployment and existing recovery candidate.
 - Verification: Provider readback and focused release tests. Protected Preview and next Plan remain pending.
 
+### 2026-11-23 正式回復程序與第一批 QR 補驗
+
+- 狀態：候選。Apply 45169140104 已將正式站切至 `bdd968cf`。25/26 項通過，專用 QR 已過最後點餐時間。
+- 回復程序改在模組載入後啟動 CLI。測試從實際 CLI 驗證缺少核准 Plan 時按預期拒絕。
+- 增加專用補驗工作，固定使用該次部署的原始碼與正式站，在測試攤位營業時間驗證短效點餐 session。驗收結果使用獨立 run 記錄。
+
 ## 2026-11-23 — Weekly report intake (QIDAIGO-WEEKLY-01)
 
 The weekly report now has a reviewed JSON handoff, read-only GitHub reconciliation, a serialized manual Issue writer and a low-risk Codex queue. Existing CI, Preview and release jobs retain ownership of deployment evidence. See [weekly report operations](WEEKLY_REPORT.md) and the November 23 sample. The intake tests exercise replay, evidence updates, previously closed items, ambiguous ownership and invalid findings. Hosted activation follows installation on the default branch.

@@ -19,6 +19,19 @@ const env = {
 const binding = appPreviewEvent(event, env);
 
 describe("dedicated application Preview", () => {
+  it.each([
+    [421, "codex/recovery-loader-fix", "staging", "e94890556e37dc0afbaffcacb0a1176ad26213af", "codex/recovery-loader-fix"],
+    [422, "staging", "main", "bdd968cf3fceb6d392e003e32d8f602f633f7541", "codex/pr422-recovery-preview"],
+  ])("binds recovery PR %i to its source and isolated branch", (number, head, base, sha, gitBranch) => {
+    const input = structuredClone(event);
+    input.pull_request.number = number;
+    input.pull_request.head.ref = head;
+    Object.assign(input.pull_request.base, { ref: base, sha });
+    expect(appPreviewEvent(input, env)).toMatchObject({ gitBranch, resource: `pr-${number}-app-123-2` });
+    input.pull_request.base.sha = "c".repeat(40);
+    expect(() => appPreviewEvent(input, env)).toThrow();
+  });
+
   it("admits only the pinned integration PR and exact base", () => {
     expect(binding.resource).toBe("pr-413-app-123-2");
     for (const field of ["number", "base", "head"]) {
