@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
+import { pathToFileURL } from "node:url";
 import { chromium } from "@playwright/test";
 import { resolveProductionTestQrUrl } from "./lib/production-smoke-qr-url.mjs";
 import { verifyQrMenuSearch } from "./qa-qr-menu-search";
 
 const origin = "https://app.qidaigo.com";
+
+export function isProductionQrSession(url: string) {
+  return url === origin + "/api/public-order/create-order-session"
+    || url === "https://eyuctbnlvnbnivwasvqr.supabase.co/functions/v1/create-order-session";
+}
 
 async function checkServing() {
   for (const path of ["/api/version", "/api/availability/config"]) {
@@ -24,19 +30,20 @@ async function main() {
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage({ serviceWorkers: "block", locale: "zh-TW" });
-    // Permit only the dedicated same-origin session write while exercising the public search UI.
+    // The custom hostname can call Primary Edge directly. Allow only the two supported session routes.
     await page.route("**/*", route => {
       const request = route.request();
       const url = new URL(request.url());
       const sameOrigin = url.origin === origin;
       const read = ["GET", "HEAD"].includes(request.method());
-      const session = request.method() === "POST" && url.pathname === "/api/public-order/create-order-session";
-      return sameOrigin && (read || session) ? route.continue() : route.abort();
+      const session = ["POST", "OPTIONS"].includes(request.method()) && isProductionQrSession(url.href);
+      return ((sameOrigin && read) || session) ? route.continue() : route.abort();
     });
     let pageError = false;
     page.on("pageerror", () => { pageError = true; });
-    const session = page.waitForResponse(r => r.request().method() === "POST" && r.url() === origin + "/api/public-order/create-order-session");
+    const session = page.waitForResponse(r => r.request().method() === "POST" && isProductionQrSession(r.url()));
     const [, response] = await Promise.all([page.goto(qr.href), session]);
+    console.log("Dedicated browser session HTTP", response.status());
     assert.ok([200, 201].includes(response.status()));
     await verifyQrMenuSearch(page);
     assert.equal(pageError, false);
@@ -48,4 +55,6 @@ async function main() {
 }
 
 // Browser errors can contain the dedicated URL. Never log the error or attach a trace.
-void main().catch(() => { console.error("PRODUCTION_QR_MENU_ACCEPTANCE_FAILED"); process.exitCode = 1; });
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+  void main().catch(() => { console.error("PRODUCTION_QR_MENU_ACCEPTANCE_FAILED"); process.exitCode = 1; });
+}

@@ -21,6 +21,15 @@ const productionApproval = read("scripts/lib/production-approval.mjs");
 const vercel = JSON.parse(read("vercel.json"));
 
 describe("Production workflow approval contract", () => {
+  it("accepts just the actual app proxy or fixed Primary Edge session URL for the live browser", async () => {
+    const { isProductionQrSession } = await import("../qa-production-qr-menu.ts");
+    for (const url of ["https://app.qidaigo.com/api/public-order/create-order-session",
+      "https://eyuctbnlvnbnivwasvqr.supabase.co/functions/v1/create-order-session"]) expect(isProductionQrSession(url)).toBe(true);
+    for (const url of ["https://another.supabase.co/functions/v1/create-order-session",
+      "https://app.qidaigo.com/api/public-order/create-public-order",
+      "https://eyuctbnlvnbnivwasvqr.supabase.co/functions/v1/create-public-order"]) expect(isProductionQrSession(url)).toBe(false);
+  });
+
   it("confines live menu search to the owner on protected main and the dedicated test QR", () => {
     const workflow = read(".github/workflows/production-qr-menu-search.yml");
     for (const guard of ["workflow_dispatch:", "github.ref == 'refs/heads/main'", "github.actor == github.repository_owner",
