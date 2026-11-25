@@ -21,6 +21,20 @@ const productionApproval = read("scripts/lib/production-approval.mjs");
 const vercel = JSON.parse(read("vercel.json"));
 
 describe("Production workflow approval contract", () => {
+  it("limits the incident smoke to the deployed source and a single dedicated QR secret", () => {
+    const smoke = read(".github/workflows/production-qr-recheck.yml");
+    expect(smoke).toContain("workflow_dispatch:");
+    expect(smoke).toContain("github.ref == 'refs/heads/main'");
+    expect(smoke).toContain("github.actor == github.repository_owner");
+    expect(smoke).toContain("environment: production");
+    expect(smoke).toContain("ref: bdd968cf3fceb6d392e003e32d8f602f633f7541");
+    expect(smoke).toContain('PRODUCTION_TEST_QR_REQUIRED: "true"');
+    expect(smoke.match(/secrets\.[A-Z_]+/g)).toEqual(["secrets.PRODUCTION_TEST_QR_URL"]);
+    expect(smoke).toContain("group: production-application-release");
+    expect(smoke).toContain("node scripts/production-smoke-test.mjs");
+    expect(smoke).not.toMatch(/vercel (?:deploy|promote|rollback)|workflow_call:|pull_request:/);
+  });
+
   it("runs the native WebPRNT regression on Chromium and WebKit in CI", () => {
     expect(ci).toContain("npx playwright test --config playwright.webprnt.config.ts");
     expect(ci).toContain("npx playwright install --with-deps chromium webkit");
