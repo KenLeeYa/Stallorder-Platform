@@ -90,3 +90,9 @@ Primary fence。依 [PRODUCTION_FAILBACK_RUNBOOK.md](PRODUCTION_FAILBACK_RUNBOOK
 ## 2026-11-23 Production promotion readback
 
 Vercel project reads for promotion, baseline and recovery checks include rollbackInfo=true. The observed successful promotion record for the serving b203d3cd deployment binds the next Plan to the exact deployment, source, prior Plan and promotion timestamp. The qualified 4e95d2ea artifact remains the recovery candidate.
+
+## 2026-11-25 QR menu search release
+
+The next application Plan binds its serving baseline to deployment `dpl_CRCcUb6iw1eZRktvhtEMbnwcCSXB`, source `bdd968cf3fceb6d392e003e32d8f602f633f7541`, original Plan 45164609710 and the provider's successful promotion at 1795434958582. Run 45599070216 separately passed the 26 smoke checks. Apply 45169140104 retains its failed conclusion. The qualified recovery deployment stays pinned to `4e95d2ea`.
+
+Before Apply, run the protected baseline QR recheck while the dedicated stall accepts orders. If the session is refused, retain the Plan and check its validity again in the next open window. After a successful Apply, dispatch Production QR menu search acceptance on the serving main revision. It checks the dedicated session and menu search without placing an order. Record both runs alongside the new Plan and Apply.
