@@ -20,6 +20,8 @@ const binding = appPreviewEvent(event, env);
 
 describe("dedicated application Preview", () => {
   it.each([
+    [424, "codex/checkout-print-latency", "staging", "fea99277da62c9a635197bf2353ccda9f36856a8", "codex/checkout-print-latency"],
+    [425, "staging", "main", "750d205f9a9338bdb3c04dedc2fdbd3272862359", "codex/pr425-print-preview"],
     [417, "codex/pr365-menu-search", "staging", "d59f693fa4d6273f30b3bb8de08ad28f7cb4dddc", "codex/pr365-menu-search"],
     [423, "staging", "main", "0079effa188847f2d3c832c8413e59b82ba5689c", "codex/pr423-menu-search-preview"],
     [421, "codex/recovery-loader-fix", "staging", "e94890556e37dc0afbaffcacb0a1176ad26213af", "codex/recovery-loader-fix"],
