@@ -23,9 +23,10 @@ export function assertPreviewOrderSession(status: number, body: unknown) {
   assert.ok(status === 200 || status === 201, "PREVIEW_QR_SESSION_FAILED");
   assert.ok(body && typeof body === "object" && !Array.isArray(body), "PREVIEW_QR_SESSION_BODY_INVALID");
   const session = body as Record<string, unknown>;
-  assert.ok(typeof session.orderSessionToken === "string" && /^stos_[A-Za-z0-9_-]{43}$/.test(session.orderSessionToken)
-    && typeof session.expiresAt === "string" && Date.parse(session.expiresAt) > Date.now()
-    && session.orderingMode === "DEFAULT", "PREVIEW_QR_SESSION_BODY_INVALID");
+  assert.ok(typeof session.orderSessionToken === "string" && /^stos_[A-Za-z0-9_-]{43}$/.test(session.orderSessionToken),
+    "PREVIEW_QR_SESSION_TOKEN_INVALID");
+  assert.ok(typeof session.expiresAt === "string" && Date.parse(session.expiresAt) > Date.now(), "PREVIEW_QR_SESSION_EXPIRY_INVALID");
+  assert.equal(session.orderingMode, "DEFAULT", "PREVIEW_QR_SESSION_MODE_INVALID");
 }
 
 async function main() {
@@ -63,13 +64,20 @@ async function main() {
     page.setDefaultTimeout(30_000);
     const errors: string[] = [];
     page.on("pageerror", () => errors.push("pageerror"));
-    const session = page.waitForResponse((response) => response.url().endsWith("/create-order-session") && response.request().method() === "POST");
     phase = "qr-session";
-    await page.goto(`${base.origin}/q/demo-aming-chicken-table-a1-qr-2026`);
-    const sessionResponse = await session;
-    phase = "qr-session-response";
-    console.log("Hosted QR session response status:", sessionResponse.status());
-    assertPreviewOrderSession(sessionResponse.status(), await sessionResponse.json());
+    // Read the actual browser response as soon as it arrives, independent of page load.
+    const session = page.waitForResponse(response => response.url() === base.origin + "/api/public-order/create-order-session"
+      && response.request().method() === "POST").then(async response => {
+      phase = "qr-session-response";
+      console.log("Hosted QR session response status:", response.status());
+      let body: unknown;
+      try { body = await response.json(); } catch {
+        throw new Error(response.request().failure()?.errorText === "net::ERR_ABORTED"
+          ? "PREVIEW_QR_SESSION_ABORTED" : "PREVIEW_QR_SESSION_BODY_UNREADABLE");
+      }
+      assertPreviewOrderSession(response.status(), body);
+    });
+    await Promise.all([session, page.goto(`${base.origin}/q/demo-aming-chicken-table-a1-qr-2026`, { waitUntil: "domcontentloaded" })]);
     phase = "qr-menu-ready";
     const add = page.getByRole("button", { name: "增加 冬瓜茶", exact: true });
     await expect(add).toBeEnabled();
@@ -133,6 +141,10 @@ if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.m
     ? error.previewCleanupFailures : undefined;
   const cleanup = Array.isArray(candidateCleanup)
     ? ["order", "browser", "fixture", "database"].filter(step => candidateCleanup.includes(step)) : undefined;
-  console.error("PREVIEW_PUBLIC_ORDER_BROWSER_QA_FAILED", { phase, principal, cleanup });
+  const sessionFailure = error instanceof Error && [
+    "PREVIEW_QR_SESSION_FAILED", "PREVIEW_QR_SESSION_BODY_INVALID", "PREVIEW_QR_SESSION_TOKEN_INVALID",
+    "PREVIEW_QR_SESSION_EXPIRY_INVALID", "PREVIEW_QR_SESSION_MODE_INVALID", "PREVIEW_QR_SESSION_ABORTED", "PREVIEW_QR_SESSION_BODY_UNREADABLE",
+  ].includes(error.message) ? error.message : undefined;
+  console.error("PREVIEW_PUBLIC_ORDER_BROWSER_QA_FAILED", { phase, sessionFailure, principal, cleanup });
   process.exitCode = 1;
 });

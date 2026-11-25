@@ -146,7 +146,7 @@ function main(mode, env) {
       "src/components/qr-order-menu.tsx", "src/lib/qr-order-i18n.ts", "e2e/public-cache.spec.ts",
       ".github/workflows/ephemeral-preview.yml", "scripts/ci/app-preview-binding.mjs", "scripts/ci/app-preview-binding.test.mjs",
       ".github/workflows/production-qr-menu-search.yml", "scripts/qa-qr-menu-search.ts", "scripts/qa-production-qr-menu.ts",
-      "scripts/qa-preview-public-order.ts", "scripts/lib/production-workflow-contract.test.mjs",
+      "scripts/qa-preview-public-order.ts", "scripts/qa-preview-public-order.test.ts", "scripts/lib/production-workflow-contract.test.mjs",
       "scripts/production-application-recovery-plan.mjs", "scripts/lib/production-application-recovery-plan.test.mjs",
       "docs/ARCHITECTURE_AND_FEATURE_CHANGELOG.md", "docs/PRODUCTION_ROLLBACK.md",
     ]);
