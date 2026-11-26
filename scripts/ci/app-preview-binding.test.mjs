@@ -19,6 +19,27 @@ const env = {
 const binding = appPreviewEvent(event, env);
 
 describe("dedicated application Preview", () => {
+  it("admits only the registered weekly PR head on its reviewed staging base", () => {
+    const weekly = structuredClone(event);
+    weekly.pull_request.number = 420;
+    weekly.pull_request.head.ref = "codex/qidaigo-intake-20261123";
+    weekly.pull_request.base.sha = "62f473c9c5779117875668716d7aa75b913eba74";
+    const approved = { ...env, WEEKLY_PREVIEW_PR420_HEAD: headSha };
+    expect(appPreviewEvent(weekly, approved)).toMatchObject({
+      gitBranch: "codex/qidaigo-intake-20261123", resource: "pr-420-app-123-2",
+    });
+    expect(() => appPreviewEvent(weekly, env)).toThrow();
+    expect(() => appPreviewEvent(weekly, { ...approved, WEEKLY_PREVIEW_PR420_HEAD: "c".repeat(40) })).toThrow();
+    for (const [side, key, value] of [
+      ["head", "ref", "codex/unregistered"], ["base", "ref", "main"],
+      ["base", "sha", "c".repeat(40)], ["head", "repo", { full_name: "other/repository" }],
+    ]) {
+      const changed = structuredClone(weekly);
+      changed.pull_request[side][key] = value;
+      expect(() => appPreviewEvent(changed, approved)).toThrow();
+    }
+  });
+
   it.each([
     [424, "codex/checkout-print-latency", "staging", "fea99277da62c9a635197bf2353ccda9f36856a8", "codex/checkout-print-latency"],
     [425, "staging", "main", "750d205f9a9338bdb3c04dedc2fdbd3272862359", "codex/pr425-print-preview"],
