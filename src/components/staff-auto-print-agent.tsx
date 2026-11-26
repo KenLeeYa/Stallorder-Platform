@@ -23,6 +23,12 @@ import {
   withStarWebPrntDiagnostics,
 } from "@/lib/star-webprnt-client";
 
+const printQueueChangedEvent = "stallorder:print-queue-changed";
+
+export function notifyStaffPrintQueueChanged(stallSlug: string) {
+  window.dispatchEvent(new CustomEvent(printQueueChangedEvent, { detail: stallSlug }));
+}
+
 type AgentStatus = "CHECKING" | "READY" | "CONNECTED_NO_RULE" | "UNSUPPORTED" | "NOT_CONFIGURED" | "ERROR";
 export type StaffAutoPrintState = { stallSlug: string; status: AgentStatus; detail: string };
 
@@ -74,10 +80,12 @@ export function StaffAutoPrintAgent({ stallSlug, onStatusChange }: {
   useEffect(() => {
     if (environment !== "STAR_WEBPRNT" || !scriptReady) return;
     let disposed = false;
+    let refreshRequested = false;
 
     async function runAgent() {
       if (busyRef.current || disposed || document.hidden) return;
       busyRef.current = true;
+      refreshRequested = false;
       let claimedJob: PrintJobView | null = null;
       let selectedPrinter: PrinterView | null = null;
       try {
@@ -145,18 +153,27 @@ export function StaffAutoPrintAgent({ stallSlug, onStatusChange }: {
         setDetail(printAgentError(t, error));
       } finally {
         busyRef.current = false;
+        if (refreshRequested && !disposed) void runAgent();
       }
+    }
+
+    function handleQueueChanged(event: Event) {
+      if ((event as CustomEvent<string>).detail !== stallSlug) return;
+      refreshRequested = true;
+      void runAgent();
     }
 
     void runAgent();
     const timer = window.setInterval(() => void runAgent(), 5_000);
     document.addEventListener("visibilitychange", runAgent);
     window.addEventListener("pageshow", runAgent);
+    window.addEventListener(printQueueChangedEvent, handleQueueChanged);
     return () => {
       disposed = true;
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", runAgent);
       window.removeEventListener("pageshow", runAgent);
+      window.removeEventListener(printQueueChangedEvent, handleQueueChanged);
     };
   }, [environment, scriptReady, stallSlug, t]);
 
