@@ -411,3 +411,12 @@ Pre-execution review found that Supabase-managed CLI roles cannot be removed by 
 - Candidate PR #417 isolates menu search from #365. The protected Preview searches a real menu item, checks the empty result and clears the field before placing and tracking its synthetic order. Promotion requires its own Preview and dedicated Git binding.
 - The application Plan checks the serving bdd968cf provider receipt. The owner-dispatched live browser check verifies the exact main revision and Primary epoch before and after search on the dedicated QR. Hosted acceptance and release receipts are pending.
 - Preview 45608074652 received HTTP 201 and stopped during session response validation, before menu search. The owned resources were removed. Read the browser response when it arrives, retain the token, expiry and mode checks, and report only fixed failure categories.
+
+### 2026-11-23 Staff checkout print queue wake-up
+
+- Status: Candidate. A successful online checkout wakes the same-stall WebPRNT agent immediately. Concurrent wake-ups are coalesced; the existing claim and print confirmation still control printing.
+- Verification: The Chromium and WebKit regression suite passed all 10 cases. In the local timing check, a synthetic same-stall checkout reached the simulated WebPRNT success callback in 12–86 ms with the change, compared with 1.72–4.78 s on serving source `bdd968cf`. Each version was measured six times at three positions in the polling interval. Every sample claimed and acknowledged one job. Physical paper timing and rollout are pending.
+
+### 2026-11-25 Checkout print release preparation
+
+The candidate is integrated with the verified QR menu tree. The ten Chromium and WebKit cases and sixteen focused print tests passed on the integration. An isolated Preview must qualify this source and its promotion. Actual iPad/MCP31LB checkout-to-paper time and ticket counts at the dedicated test stall remain to be measured.
