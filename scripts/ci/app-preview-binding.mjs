@@ -15,6 +15,9 @@ const menuMainBase = "0079effa188847f2d3c832c8413e59b82ba5689c";
 const printBranch = "codex/checkout-print-latency";
 const printPromotionBranch = "codex/pr425-print-preview";
 const printMainBase = "750d205f9a9338bdb3c04dedc2fdbd3272862359";
+const weeklyBranch = "codex/qidaigo-intake-20261123";
+const weeklyBase = "62f473c9c5779117875668716d7aa75b913eba74";
+const weeklyProduct = "fd750a703abb21de6d1e6cbed3be927d0a15f0fb";
 const repairBase = "6c7c0524c4e75b2dc06295e2f90303fee4a629f2";
 const stagingBase = "04c6c4678767ad23b2f2d4acbed7157b01250e1b";
 const mainBase = "bf42bdfb10974d8fe57ef3509d2d3dd4d7cef4fa";
@@ -53,7 +56,9 @@ export function appPreviewEvent(event, env) {
     && pr.base.sha === "fea99277da62c9a635197bf2353ccda9f36856a8";
   const printPromotion = pr.number === 425 && pr.head.ref === "staging"
     && pr.base.ref === "main" && pr.base.sha === printMainBase;
-  assert.ok(print || printPromotion || menu || menuPromotion || integration || repair || reportScope || settlement || promotion || batchPromotion || recoveryFix || recoveryPromotion,
+  const weekly = pr.number === 420 && pr.head.ref === weeklyBranch && pr.base.ref === "staging"
+    && pr.base.sha === weeklyBase && pr.head.sha === env.WEEKLY_PREVIEW_PR420_HEAD;
+  assert.ok(weekly || print || printPromotion || menu || menuPromotion || integration || repair || reportScope || settlement || promotion || batchPromotion || recoveryFix || recoveryPromotion,
     "Unreviewed application Preview source");
   assert.match(env.GITHUB_RUN_ID, /^[1-9][0-9]*$/);
   assert.match(env.GITHUB_RUN_ATTEMPT, /^[1-9][0-9]*$/);
@@ -166,8 +171,18 @@ function main(mode, env) {
       ".github/workflows/ephemeral-preview.yml", "scripts/ci/app-preview-binding.mjs", "scripts/ci/app-preview-binding.test.mjs",
     ]);
     if (print) git("merge-base", "--is-ancestor", printMainBase, binding.head);
-    const paths = print ? printFiles : menu ? menuFiles : recovery ? recoveryFiles : allowed;
-    assert.ok(git("diff", "--name-only", binding.base, binding.head).split("\n").every(name => paths.has(name)));
+    if (binding.branch === weeklyBranch) {
+      git("merge-base", "--is-ancestor", weeklyProduct, binding.head);
+      const registrationFiles = new Set([
+        ".github/workflows/ephemeral-preview.yml", "scripts/ci/app-preview-binding.mjs",
+        "scripts/ci/app-preview-binding.test.mjs", "docs/GITHUB_PREVIEW_ENVIRONMENT.md",
+      ]);
+      assert.ok(git("diff", "--name-only", "--no-renames", weeklyProduct, binding.head)
+        .split("\n").every(name => registrationFiles.has(name)));
+    } else {
+      const paths = print ? printFiles : menu ? menuFiles : recovery ? recoveryFiles : allowed;
+      assert.ok(git("diff", "--name-only", binding.base, binding.head).split("\n").every(name => paths.has(name)));
+    }
     console.log(JSON.stringify({ resource: binding.resource, branch: binding.branch, gitBranch: binding.gitBranch }));
   } else if (mode === "branch") {
     const branch = ownedBranch(input(), binding);

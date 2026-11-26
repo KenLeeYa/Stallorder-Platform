@@ -420,3 +420,7 @@ Pre-execution review found that Supabase-managed CLI roles cannot be removed by 
 ### 2026-11-25 Checkout print release preparation
 
 The candidate is integrated with the verified QR menu tree. The ten Chromium and WebKit cases and sixteen focused print tests passed on the integration. An isolated Preview must qualify this source and its promotion. Actual iPad/MCP31LB checkout-to-paper time and ticket counts at the dedicated test stall remain to be measured.
+
+## 2026-11-23 — Weekly report intake (QIDAIGO-WEEKLY-01)
+
+The weekly report now has a reviewed JSON handoff, read-only GitHub reconciliation, a serialized manual Issue writer and a low-risk Codex queue. Existing CI, Preview and release jobs retain ownership of deployment evidence. See [weekly report operations](WEEKLY_REPORT.md) and the November 23 sample. The intake tests exercise replay, evidence updates, previously closed items, ambiguous ownership and invalid findings. Hosted activation follows installation on the default branch.

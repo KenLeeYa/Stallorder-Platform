@@ -1,0 +1,49 @@
+[
+  {
+    "key": "security.dependencies-serving",
+    "title": "Integrate the reviewed serving dependency hotfix",
+    "revision": "5ed77ea83c23c6f2d7cbcdd01d53ef1cbedd76a9",
+    "risk": "sensitive",
+    "tracking": 413,
+    "evidence": [
+      "https://github.com/KenLeeYa/Stallorder-Platform/pull/411",
+      "https://github.com/KenLeeYa/Stallorder-Platform/pull/413"
+    ],
+    "acceptance": "Verify the integrated lockfile and exact deployed revision."
+  },
+  {
+    "key": "orders.pickup-dialog",
+    "title": "Close the pickup dialog after completion",
+    "revision": "a155cc5526acb393eab6a338e056b0740e9c3a9d",
+    "risk": "standard",
+    "tracking": 412,
+    "evidence": [
+      "https://github.com/KenLeeYa/Stallorder-Platform/pull/412"
+    ],
+    "acceptance": "Match the tracker source and exercise the transition from ready to completed."
+  },
+  {
+    "key": "release.batch-one",
+    "title": "Promote verified report filtering and release evidence",
+    "revision": "e94890556e37dc0afbaffcacb0a1176ad26213af",
+    "risk": "sensitive",
+    "tracking": 419,
+    "evidence": [
+      "https://github.com/KenLeeYa/Stallorder-Platform/pull/418",
+      "https://github.com/KenLeeYa/Stallorder-Platform/pull/419"
+    ],
+    "acceptance": "Check the approved candidate, protected promotion and actual production alias separately."
+  },
+  {
+    "key": "line.liff-restriction-202611",
+    "title": "Validate the LIFF SDK upgrade in both LINE candidates",
+    "revision": "15345a7e37ba69e384ef941aff94886c0c480662",
+    "risk": "sensitive",
+    "evidence": [
+      "https://github.com/KenLeeYa/Stallorder-Platform/pull/365",
+      "https://github.com/KenLeeYa/Stallorder-Platform/pull/366",
+      "https://developers.line.biz/en/docs/liff/release-notes/"
+    ],
+    "acceptance": "Verify both candidate lockfiles and SDK loading, then complete login, callback and store deep link on a test channel."
+  }
+]
