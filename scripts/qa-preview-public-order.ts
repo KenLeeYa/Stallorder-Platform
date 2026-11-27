@@ -61,6 +61,12 @@ async function main() {
       const report = await verifyPreviewMerchantApplications(prisma, browser, base.origin, headers, sourceSha, ref);
       console.log(JSON.stringify({ event: "preview-merchant-application-qa", ...report }));
     }
+    if (process.env.QA_WEB_CATALOG === "true") {
+      phase = "merchant-catalog-web";
+      const { verifyPreviewCatalog } = await import("./qa-preview-catalog");
+      const result = await verifyPreviewCatalog(prisma, browser, base.origin, headers, sourceSha, ref);
+      console.log(JSON.stringify({ event: "preview-web-catalog", ...result }));
+    }
     phase = "synthetic-fixture";
     // These are the reviewed synthetic fixtures, never a parent or the retired DR.
     fixtureState = await preparePreviewFixture(prisma, prepared => { fixtureState = prepared; });
