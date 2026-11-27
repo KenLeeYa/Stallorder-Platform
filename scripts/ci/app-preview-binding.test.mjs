@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { appDeployment, appPreviewEvent, ownedBranch } from "./app-preview-binding.mjs";
 
@@ -155,4 +156,14 @@ describe("dedicated application Preview", () => {
     expect(() => appDeployment({ ...deployment, meta: { ...deployment.meta,
       stallorderPreviewResource: "pr-389" } }, binding, env)).toThrow();
   });
+});
+
+it("binds the live LINE check to the persisted consumed transaction and its session", () => {
+  const flow = readFileSync(new URL("../../.github/workflows/ephemeral-preview.yml", import.meta.url), "utf8");
+  const identity = readFileSync(new URL("../../src/server/auth/oauth/identity-service.ts", import.meta.url), "utf8");
+  const check = flow.split("select exists (").find(block => block.includes("t.flow='LINE_MINIAPP'"));
+  const persisted = identity.match(/status: "([A-Z]+)",\s*consumedAt: new Date\(\),\s*resultSessionId: session.id/);
+  expect(persisted?.[1]).toBe("CONSUMED");
+  expect(check).toContain("t.status='" + persisted[1] + "' and t.consumed_at is not null");
+  expect(check).toContain("s.id=t.result_session_id");
 });

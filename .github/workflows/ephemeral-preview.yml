@@ -779,7 +779,7 @@ jobs:
           select exists (
             select 1 from oauth_transactions t join auth_sessions s on s.id=t.result_session_id
             join profiles p on p.id=s.profile_id
-            where t.flow='LINE_MINIAPP' and t.provider='LINE' and t.status='COMPLETED'
+            where t.flow='LINE_MINIAPP' and t.provider='LINE' and t.status='CONSUMED' and t.consumed_at is not null
               and t.redirect_uri=:'callback' and s.revoked_at is null and s.expires_at>now()
               and p.platform_role is null and not exists (select 1 from stall_memberships m where m.profile_id=p.id and m.is_active)
               and not exists (select 1 from organization_memberships m where m.profile_id=p.id and m.is_active)
