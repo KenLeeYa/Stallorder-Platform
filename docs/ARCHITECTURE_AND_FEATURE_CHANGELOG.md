@@ -411,3 +411,22 @@ Pre-execution review found that Supabase-managed CLI roles cannot be removed by 
 - Candidate PR #417 isolates menu search from #365. The protected Preview searches a real menu item, checks the empty result and clears the field before placing and tracking its synthetic order. Promotion requires its own Preview and dedicated Git binding.
 - The application Plan checks the serving bdd968cf provider receipt. The owner-dispatched live browser check verifies the exact main revision and Primary epoch before and after search on the dedicated QR. Hosted acceptance and release receipts are pending.
 - Preview 45608074652 received HTTP 201 and stopped during session response validation, before menu search. The owned resources were removed. Read the browser response when it arrives, retain the token, expiry and mode checks, and report only fixed failure categories.
+
+### 2026-11-23 Staff checkout print queue wake-up
+
+- Status: Candidate. A successful online checkout wakes the same-stall WebPRNT agent immediately. Concurrent wake-ups are coalesced; the existing claim and print confirmation still control printing.
+- Verification: The Chromium and WebKit regression suite passed all 10 cases. In the local timing check, a synthetic same-stall checkout reached the simulated WebPRNT success callback in 12–86 ms with the change, compared with 1.72–4.78 s on serving source `bdd968cf`. Each version was measured six times at three positions in the polling interval. Every sample claimed and acknowledged one job. Physical paper timing and rollout are pending.
+
+### 2026-11-25 Checkout print release preparation
+
+The candidate is integrated with the verified QR menu tree. The ten Chromium and WebKit cases and sixteen focused print tests passed on the integration. An isolated Preview must qualify this source and its promotion. Actual iPad/MCP31LB checkout-to-paper time and ticket counts at the dedicated test stall remain to be measured.
+
+## 2026-11-27 - Defer the checkout print pilot from the next two releases
+
+Status: Proposed. The candidate restores the staff composer, order-board controller, print agent, WebPRNT acceptance test and print-center documentation to the serving revision `750d205f`. The print pilot remains available at Staging commit `62f473c9` and PR #424. Reintroduce its reviewed changes with a separate protected PR after physical device acceptance. The new Preview binding checks this candidate against the serving tree, allows only documented release-control changes, and requires the head approved for the protected Preview environment.
+
+The next Production Plan must read the current serving deployment `dpl_J642A7cixC1LJC11hzybjr55FoAb` and Plan receipt `45622833145`; the recovery deployment stays `dpl_B7LAHBYDBE2gtZrmo3upDMFERZ6M`. Validation covers Preview source identity, unchanged application bytes relative to Production, and the recovery plan contract. Hosted acceptance and deployment require their own receipts.
+
+## 2026-11-27 - Web operations contracts and administrator merchant applications
+
+Status: Proposed. Source: PR #366 at `15345a7e`. The web workspace uses Zod 4.6.6 and exposes versioned operations and inbox contracts. The merchant application list and details consume scoped responses with private caching and retain the existing review mutation. Tests cover schema projection, normalized inputs, request retries and stale-authority handling. The remaining web features will ship in independently accepted batches. The native app and checkout print pilot are outside this release. Hosted CI, dedicated Preview, production Plan and live checks each need their own receipt.

@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
@@ -47,6 +47,8 @@ jobs:
         run: npm run ui:audit
       - name: Typecheck
         run: npm run typecheck
+      - name: Install Playwright Chromium and WebKit
+        run: npx playwright install --with-deps chromium webkit
       - name: Unit tests
         run: npm test
       - name: Start local Supabase
@@ -96,8 +98,6 @@ jobs:
         run: npm run build
       - name: Verify independent status Worker bundle
         run: npm run status:check
-      - name: Install Playwright Chromium and WebKit
-        run: npx playwright install --with-deps chromium webkit
       - name: WebPRNT native recovery on Chromium and WebKit
         run: npx playwright test --config playwright.webprnt.config.ts
       - name: Playwright end-to-end tests
