@@ -34,6 +34,18 @@ describe("dedicated application Preview", () => {
     expect(() => appPreviewEvent(input, env)).toThrow();
   });
 
+  it("requires the exact source for PR 432", () => {
+    const candidate = structuredClone(event);
+    Object.assign(candidate.pull_request, { number: 432 });
+    candidate.pull_request.head.ref = "codex/web-catalog-after-print-20261127";
+    candidate.pull_request.base.sha = "63557efdc7523a296e760f931fe97b29326892ff";
+    const pinned = { ...env, WEB_CATALOG_PR432_HEAD: headSha };
+    expect(appPreviewEvent(candidate, pinned).gitBranch).toBe("codex/web-catalog-after-print-20261127");
+    expect(() => appPreviewEvent(candidate, env)).toThrow();
+    candidate.pull_request.base.sha = headSha;
+    expect(() => appPreviewEvent(candidate, pinned)).toThrow();
+  });
+
   it("binds the print deferral to the reviewed head and staging baseline", () => {
     const candidate = structuredClone(event);
     candidate.pull_request.number = 425;
