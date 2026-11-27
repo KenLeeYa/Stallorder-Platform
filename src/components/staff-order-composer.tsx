@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { PaymentOptionKind, UserRole } from "@prisma/client";
 import { ArchiveRestore, ArrowLeft, ChevronDown, List, MessageSquareText, Minus, Package, Plus, Save, Send, ShoppingCart, Trash2, Truck, Utensils, X } from "lucide-react";
 import { FulfillmentTimePicker } from "@/components/fulfillment-time-picker";
-import { notifyStaffPrintQueueChanged } from "@/components/staff-auto-print-agent";
 import { useOperationsLocale } from "@/components/operations-locale";
 import { StaffDiscountSelector } from "@/components/staff-discount-selector";
 import { csrfHeaders } from "@/lib/csrf-client";
@@ -808,7 +807,6 @@ export function StaffOrderComposer({
       idempotencyKeyRef.current = createWebUuid();
       consumeActiveDraft();
       onCreated(payload.order);
-      if (paymentTiming === "PAY_NOW" && modules.print) notifyStaffPrintQueueChanged(stall.slug);
       if (paymentTiming === "PAY_NOW" && usesCash) {
         window.dispatchEvent(new Event("stallorder:cash-payment-completed"));
       }

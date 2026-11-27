@@ -12,14 +12,13 @@ const recoveryPromotionBranch = "codex/pr422-recovery-preview";
 const menuBranch = "codex/pr365-menu-search";
 const menuPromotionBranch = "codex/pr423-menu-search-preview";
 const menuMainBase = "0079effa188847f2d3c832c8413e59b82ba5689c";
-const printBranch = "codex/checkout-print-latency";
-const printPromotionBranch = "codex/pr425-print-preview";
-const printMainBase = "750d205f9a9338bdb3c04dedc2fdbd3272862359";
 const repairBase = "6c7c0524c4e75b2dc06295e2f90303fee4a629f2";
 const stagingBase = "04c6c4678767ad23b2f2d4acbed7157b01250e1b";
 const mainBase = "bf42bdfb10974d8fe57ef3509d2d3dd4d7cef4fa";
 const project = "prj_uoG4FNJIgnF1LdKRiXnfRaieXnUP";
 const team = "team_MMfsiG94K9Zy3e6w7Ccc9xY4";
+const holdPrintBranch = "codex/hold-print-424-20261127";
+const servingBase = "750d205f9a9338bdb3c04dedc2fdbd3272862359";
 const sha = /^[a-f0-9]{40}$/;
 const ref = /^[a-z]{20}$/;
 
@@ -49,11 +48,10 @@ export function appPreviewEvent(event, env) {
     && pr.base.sha === "d59f693fa4d6273f30b3bb8de08ad28f7cb4dddc";
   const menuPromotion = pr.number === 423 && pr.head.ref === "staging"
     && pr.base.ref === "main" && pr.base.sha === menuMainBase;
-  const print = pr.number === 424 && pr.head.ref === printBranch && pr.base.ref === "staging"
-    && pr.base.sha === "fea99277da62c9a635197bf2353ccda9f36856a8";
-  const printPromotion = pr.number === 425 && pr.head.ref === "staging"
-    && pr.base.ref === "main" && pr.base.sha === printMainBase;
-  assert.ok(print || printPromotion || menu || menuPromotion || integration || repair || reportScope || settlement || promotion || batchPromotion || recoveryFix || recoveryPromotion,
+  const holdPrint = pr.number === 425 && pr.head.ref === holdPrintBranch
+    && pr.base.ref === "staging" && pr.base.sha === "62f473c9c5779117875668716d7aa75b913eba74"
+    && pr.head.sha === env.HOLD_PRINT_PR425_HEAD;
+  assert.ok(holdPrint || menu || menuPromotion || integration || repair || reportScope || settlement || promotion || batchPromotion || recoveryFix || recoveryPromotion,
     "Unreviewed application Preview source");
   assert.match(env.GITHUB_RUN_ID, /^[1-9][0-9]*$/);
   assert.match(env.GITHUB_RUN_ATTEMPT, /^[1-9][0-9]*$/);
@@ -61,7 +59,7 @@ export function appPreviewEvent(event, env) {
     head: pr.head.sha,
     base: pr.base.sha,
     branch: pr.head.ref,
-    gitBranch: printPromotion ? printPromotionBranch : menuPromotion ? menuPromotionBranch : recoveryPromotion ? recoveryPromotionBranch : batchPromotion ? "codex/pr419-app-batch1-preview" : promotion ? promotionGitBranch : pr.head.ref,
+    gitBranch: menuPromotion ? menuPromotionBranch : recoveryPromotion ? recoveryPromotionBranch : batchPromotion ? "codex/pr419-app-batch1-preview" : promotion ? promotionGitBranch : pr.head.ref,
     resource: "pr-" + pr.number + "-app-" + env.GITHUB_RUN_ID + "-" + env.GITHUB_RUN_ATTEMPT,
   };
 }
@@ -120,7 +118,7 @@ function main(mode, env) {
     assert.equal(git("merge-base", binding.head, "42f1ec92ae31f56883f62c04b9bbf8a74eb9ef6b"),
       "42f1ec92ae31f56883f62c04b9bbf8a74eb9ef6b");
     if (binding.gitBranch !== headBranch) git("merge-base", "--is-ancestor", mainBase, binding.head);
-    if ([promotionGitBranch, "codex/pr419-app-batch1-preview", recoveryPromotionBranch, menuPromotionBranch, printPromotionBranch].includes(binding.gitBranch)) {
+    if ([promotionGitBranch, "codex/pr419-app-batch1-preview", recoveryPromotionBranch, menuPromotionBranch].includes(binding.gitBranch)) {
       assert.equal(git("rev-parse", "refs/remotes/origin/" + binding.gitBranch + "^{tree}"),
         git("rev-parse", binding.head + "^{tree}"));
     }
@@ -158,16 +156,15 @@ function main(mode, env) {
       "docs/ARCHITECTURE_AND_FEATURE_CHANGELOG.md", "docs/PRODUCTION_ROLLBACK.md",
     ]);
     if (menu) git("merge-base", "--is-ancestor", menuMainBase, binding.head);
-    const print = [printBranch, printPromotionBranch].includes(binding.gitBranch);
-    const printFiles = new Set([
-      "src/components/staff-auto-print-agent.tsx", "src/components/staff-order-board-controller.ts",
-      "src/components/staff-order-composer.tsx", "e2e/webprnt-recovery.component.spec.ts",
-      "docs/ARCHITECTURE_AND_FEATURE_CHANGELOG.md", "docs/INTEGRATED_PRINT_CENTER.md",
-      ".github/workflows/ephemeral-preview.yml", "scripts/ci/app-preview-binding.mjs", "scripts/ci/app-preview-binding.test.mjs",
+    const holdPrint = binding.branch === holdPrintBranch;
+    const holdFiles = new Set([
+      ".github/workflows/ephemeral-preview.yml", "docs/ARCHITECTURE_AND_FEATURE_CHANGELOG.md",
+      "scripts/ci/app-preview-binding.mjs", "scripts/ci/app-preview-binding.test.mjs",
+      "docs/PRODUCTION_ROLLBACK.md", "scripts/production-application-recovery-plan.mjs",
+      "scripts/lib/production-application-recovery-plan.test.mjs",
     ]);
-    if (print) git("merge-base", "--is-ancestor", printMainBase, binding.head);
-    const paths = print ? printFiles : menu ? menuFiles : recovery ? recoveryFiles : allowed;
-    assert.ok(git("diff", "--name-only", binding.base, binding.head).split("\n").every(name => paths.has(name)));
+    const paths = holdPrint ? holdFiles : menu ? menuFiles : recovery ? recoveryFiles : allowed;
+    assert.ok(git("diff", "--no-renames", "--name-only", holdPrint ? servingBase : binding.base, binding.head).split("\n").every(name => paths.has(name)));
     console.log(JSON.stringify({ resource: binding.resource, branch: binding.branch, gitBranch: binding.gitBranch }));
   } else if (mode === "branch") {
     const branch = ownedBranch(input(), binding);

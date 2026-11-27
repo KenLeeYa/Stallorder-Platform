@@ -97,7 +97,3 @@ SDK loaded is not printer connected. WebPRNT liveness must follow a successful d
 - [ ] Thirty sequential orders produce the expected number of rule tickets with no missing or duplicate output.
 
 The database migration, browser path and automated tests may merge through the `staging` source gate before this physical checklist is complete. Automatic Production printing must remain disabled until the MCP31LB/iPad checklist passes. Production deployment separately requires the verified staging tree, a fresh immutable Production Plan approval, migration validation and post-deployment smoke checks.
-
-## Checkout queue refresh
-
-A successful online checkout on the same staff device requests a WebPRNT queue refresh immediately when printing is enabled. A refresh already in progress is followed by one extra check. The normal five-second polling remains available for other devices and orders; CloudPRNT follows the printer polling interval.

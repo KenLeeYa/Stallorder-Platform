@@ -420,3 +420,9 @@ Pre-execution review found that Supabase-managed CLI roles cannot be removed by 
 ### 2026-11-25 Checkout print release preparation
 
 The candidate is integrated with the verified QR menu tree. The ten Chromium and WebKit cases and sixteen focused print tests passed on the integration. An isolated Preview must qualify this source and its promotion. Actual iPad/MCP31LB checkout-to-paper time and ticket counts at the dedicated test stall remain to be measured.
+
+## 2026-11-27 - Defer the checkout print pilot from the next two releases
+
+Status: Proposed. The candidate restores the staff composer, order-board controller, print agent, WebPRNT acceptance test and print-center documentation to the serving revision `750d205f`. The print pilot remains available at Staging commit `62f473c9` and PR #424. Reintroduce its reviewed changes with a separate protected PR after physical device acceptance. The new Preview binding checks this candidate against the serving tree, allows only documented release-control changes, and requires the head approved for the protected Preview environment.
+
+The next Production Plan must read the current serving deployment `dpl_J642A7cixC1LJC11hzybjr55FoAb` and Plan receipt `45622833145`; the recovery deployment stays `dpl_B7LAHBYDBE2gtZrmo3upDMFERZ6M`. Validation covers Preview source identity, unchanged application bytes relative to Production, and the recovery plan contract. Hosted acceptance and deployment require their own receipts.

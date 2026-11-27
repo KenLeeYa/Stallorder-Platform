@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { UserRole } from "@prisma/client";
-import { notifyStaffPrintQueueChanged } from "@/components/staff-auto-print-agent";
 import { useOperationsLocale } from "@/components/operations-locale";
 import type { StaffOrderCheckoutRequest } from "@/components/staff-order-board-checkout";
 import {
@@ -607,7 +606,6 @@ export function useStaffOrderBoardController({
   ) {
     const completed = await updateOrder(order.id, "COMPLETED", { checkout: checkoutRequest });
     if (completed && checkoutUsesCash(checkoutRequest)) notifyCashPaymentCompleted();
-    if (completed && modules.print) notifyStaffPrintQueueChanged(stall.slug);
     return completed;
   }
 
