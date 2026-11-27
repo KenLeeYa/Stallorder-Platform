@@ -415,3 +415,7 @@ Pre-execution review found that Supabase-managed CLI roles cannot be removed by 
 ## 2026-11-27 - Web operations contracts and administrator merchant applications
 
 Status: Proposed. Source: PR #366 at `15345a7e`. The web workspace uses Zod 4.6.6 and exposes versioned operations and inbox contracts. The merchant application list and details consume scoped responses with private caching and retain the existing review mutation. Tests cover schema projection, normalized inputs, request retries and stale-authority handling. The remaining web features will ship in independently accepted batches. The native app and checkout print pilot are outside this release. Hosted CI, dedicated Preview, production Plan and live checks each need their own receipt.
+
+## 2026-11-27 - Web catalog list and editor from PR #366
+
+Status: Proposed. The second web batch adds the scoped catalog list and editor APIs and connects the existing catalog management screen to paginated results. It keeps the selected product and list position across editing; successful saves and cancellations return to the list and failed saves keep the editor open. The acceptance matrix covers search, pagination, stock changes and editing at 320, 390, 768 and 1440 CSS pixels. Dependencies and shared web contracts come from the administrator applications batch. Hosted acceptance, resource cleanup and Production receipts are pending.

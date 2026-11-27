@@ -347,3 +347,10 @@ function matchesExpectedRoute(actualUrl: URL, expectedUrl: URL) {
   }
   return true;
 }
+
+export async function openSharedCatalogManagement(page: Page) {
+  const entry = page.getByRole("button", { name: "完整管理／新增商品", exact: true });
+  await expect(entry).toBeVisible();
+  await entry.click();
+  await expect(page.getByRole("region", { name: "商品批次管理", exact: true })).toBeVisible();
+}
