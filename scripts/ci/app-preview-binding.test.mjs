@@ -47,6 +47,24 @@ describe("dedicated application Preview", () => {
     expect(() => appPreviewEvent(candidate, pinned)).toThrow();
   });
 
+  it("requires the separately registered web application PR, revision and base", () => {
+    const candidate = structuredClone(event);
+    Object.assign(candidate.pull_request, { number: 426 });
+    candidate.pull_request.head.ref = "codex/web-shared-contracts-20261127";
+    const registered = { ...env, WEB_APPLICATIONS_PR426_HEAD: headSha, WEB_APPLICATIONS_PR426_BASE: candidate.pull_request.base.sha };
+    expect(appPreviewEvent(candidate, registered).gitBranch).toBe(candidate.pull_request.head.ref);
+    expect(() => appPreviewEvent(candidate, env)).toThrow();
+    expect(() => appPreviewEvent(candidate, { ...registered, WEB_APPLICATIONS_PR426_BASE: headSha })).toThrow();
+    const promotion = structuredClone(candidate);
+    Object.assign(promotion.pull_request, { number: 428 });
+    promotion.pull_request.head.ref = "staging";
+    Object.assign(promotion.pull_request.base, { ref: "main", sha: "750d205f9a9338bdb3c04dedc2fdbd3272862359" });
+    const pinned = { ...env, WEB_APPLICATIONS_PROMOTION_PR: "428", WEB_APPLICATIONS_PROMOTION_HEAD: headSha };
+    expect(appPreviewEvent(promotion, pinned).gitBranch).toBe("codex/pr428-web-applications-preview");
+    expect(() => appPreviewEvent(promotion, { ...pinned, WEB_APPLICATIONS_PROMOTION_PR: "429" })).toThrow();
+    expect(() => appPreviewEvent(promotion, { ...pinned, WEB_APPLICATIONS_PROMOTION_HEAD: env.GITHUB_SHA })).toThrow();
+  });
+
   it("admits only the pinned integration PR and exact base", () => {
     expect(binding.resource).toBe("pr-413-app-123-2");
     for (const field of ["number", "base", "head"]) {
