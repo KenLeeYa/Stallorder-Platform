@@ -77,6 +77,10 @@ jobs:
           done
       - name: Rebuild local database from migrations
         run: npx supabase db reset
+      - name: Verify LINE member login against the isolated runner database
+        env:
+          LINE_MINIAPP_DB_QA: "true"
+        run: npx vitest run src/server/line-miniapp/login.integration.test.ts
       - name: Database tests
         run: npm run db:test
       - name: Database lint
