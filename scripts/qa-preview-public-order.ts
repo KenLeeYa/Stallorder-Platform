@@ -55,6 +55,12 @@ async function main() {
     await mkdir("artifacts", { recursive: true });
     await writeFile("artifacts/preview-database-principal.json", JSON.stringify(principal, null, 2));
     console.log("PASS: hosted database authorization, anonymous/non-admin/revoked denials and owned fixture cleanup.");
+    if (process.env.QA_WEB_MERCHANT_APPLICATIONS === "true") {
+      phase = "merchant-application-web";
+      const { verifyPreviewMerchantApplications } = await import("./qa-preview-merchant-applications");
+      const report = await verifyPreviewMerchantApplications(prisma, browser, base.origin, headers, sourceSha, ref);
+      console.log(JSON.stringify({ event: "preview-merchant-application-qa", ...report }));
+    }
     phase = "synthetic-fixture";
     // These are the reviewed synthetic fixtures, never a parent or the retired DR.
     fixtureState = await preparePreviewFixture(prisma, prepared => { fixtureState = prepared; });
