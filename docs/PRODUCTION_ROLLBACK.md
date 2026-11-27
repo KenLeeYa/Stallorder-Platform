@@ -102,3 +102,7 @@ Before Apply, run the protected baseline QR recheck while the dedicated stall ac
 [Plan 45622833145](https://github.com/KenLeeYa/Stallorder-Platform/actions/runs/45622833145) and [Apply 45629023753](https://github.com/KenLeeYa/Stallorder-Platform/actions/runs/45629023753) completed for `750d205f9a9338bdb3c04dedc2fdbd3272862359`. The Apply target-readback archive (artifact `15029213158`, SHA-256 `611124047eacd086bc4eced6ecc0a0bd382f35dcb94fbb23b3b69483c5b92181`) identifies `dpl_J642A7cixC1LJC11hzybjr55FoAb` as the settled promotion. The live version and Vercel production target matched; the project's `rollbackInfo=true` read returned the same deployment and a successful promote at `1795615310089`. These are serving-baseline pins, not a new rollback qualification. The independently qualified recovery artifact remains `4e95d2ea`. If the live evidence changes, stop and verify it again; do not reuse this Plan or Apply.
 
 [Customer QR acceptance 45629748280](https://github.com/KenLeeYa/Stallorder-Platform/actions/runs/45629748280) did not reach search. Complete the separate protected QR check on the same serving revision while the dedicated stall accepts orders; a settled promotion is not evidence of a working customer search or physical printer.
+
+## Checkout print release baseline
+
+Protected Apply 45961928193 promoted `a835e3c9` under Plan 45958920547. Its target-readback artifact 15181760054 records a successful promotion of `dpl_BHJ5X8CZsW1sEHwA2h4CbPtsZPgN` at 1795766365420. The separately qualified recovery deployment remains pinned to `4e95d2ea`.

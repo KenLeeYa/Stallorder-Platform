@@ -47,7 +47,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { if (server) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); });
 
-async function setup(page: Page, initialMode = "READY", path = "/board") {
+async function setup(page: Page, initialMode = "READY", path = "/board", beforeReply?: (command: Record<string, unknown>) => Promise<void>) {
   const commands: Record<string, unknown>[] = [];
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
@@ -69,6 +69,7 @@ async function setup(page: Page, initialMode = "READY", path = "/board") {
   await page.route("**/api/stalls/qa/print-jobs", async route => {
     const command = route.request().postDataJSON();
     commands.push(command);
+    await beforeReply?.(command);
     if (!["REFRESH", "HEARTBEAT", "WEBPRNT_DIAGNOSTIC", "TEST_PRINTER"].includes(command.operation)) throw new Error("UNEXPECTED_QA_COMMAND");
     const current = path.endsWith("?manual") ? { ...state, printers: [{ ...printer, autoDetectEnabled: false }] } : state;
     await route.fulfill({ json: { state: current, ...(command.operation === "TEST_PRINTER" ? { printPayload: { content: "QA", dataBase64: "G0BA" } } : {}) } });
@@ -127,5 +128,63 @@ test("staff native callback loss times out without heartbeat, queued native send
   await expect(page.getByTestId("staff-printer-status")).toContainText("尚未建立並啟用自動出單規則");
   // A fresh page can probe again; the timed-out operation is never replayed.
   expect(commands.every(command => !["CLAIM", "RETRY", "SUCCESS"].includes(String(command.operation)))).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test("checkout wakes only its own print queue, then coalesces requests made during refresh", async ({ page }) => {
+  let resolveRefresh!: () => void;
+  const heldRefresh = new Promise<void>(resolve => { resolveRefresh = resolve; });
+  let refreshes = 0;
+  const { commands, errors } = await setup(page, "READY", "/agent", async command => {
+    if (command.operation === "REFRESH" && ++refreshes === 1) await heldRefresh;
+  });
+  const checkout = (stall: string) => page.evaluate(detail => {
+    window.dispatchEvent(new CustomEvent("stallorder:print-queue-changed", { detail }));
+  }, stall);
+  try {
+    await expect.poll(() => refreshes).toBe(1);
+    await checkout("other-stall");
+    await checkout("qa");
+    await checkout("qa");
+    expect(refreshes).toBe(1);
+    resolveRefresh();
+    await expect.poll(() => refreshes, { timeout: 2_000 }).toBe(2);
+    await expect.poll(() => commands.filter(command => command.operation === "HEARTBEAT").length, { timeout: 2_000 }).toBe(2);
+    await checkout("other-stall");
+    expect(refreshes).toBe(2);
+    await checkout("qa");
+    await expect.poll(() => refreshes, { timeout: 2_000 }).toBe(3);
+    expect(errors).toEqual([]);
+  } finally {
+    resolveRefresh();
+  }
+});
+
+test("one paid ticket reaches WebPRNT once without waiting for the next poll", async ({ page }) => {
+  const { commands, errors } = await setup(page, "READY", "/agent");
+  await expect.poll(() => commands.some(command => command.operation === "HEARTBEAT")).toBe(true);
+  const job = { id: "paid-ticket", status: "PENDING", printRule: { autoPrint: true }, printer };
+  const operations: string[] = [];
+  let claimed = false;
+  await page.route("**/api/stalls/qa/print-jobs", async route => {
+    const { operation, jobId } = route.request().postDataJSON();
+    if (jobId === job.id) operations.push(operation);
+    if (operation === "CLAIM") claimed = true;
+    await route.fulfill({ json: {
+      state: { ...state, rules: [{ printerId: printer.id, isEnabled: true, autoPrint: true }], jobs: claimed ? [] : [job] },
+      ...(operation === "CLAIM" ? { printPayload: { dataBase64: "G0BA" } } : {}),
+    } });
+  });
+  const started = performance.now();
+  await page.evaluate(() => {
+    for (let i = 0; i < 2; i++) window.dispatchEvent(new CustomEvent("stallorder:print-queue-changed", { detail: "qa" }));
+  });
+  await expect.poll(() => operations.includes("SUCCESS"), { timeout: 7_000, intervals: [20] }).toBe(true);
+  const elapsed = Math.round(performance.now() - started);
+  console.log(`Checkout signal to simulated print acknowledgement: ${elapsed} ms`);
+  expect(elapsed).toBeLessThan(2_000);
+  expect(operations).toEqual(["CLAIM", "SUCCESS"]);
+  const sends = await page.evaluate(() => (window as unknown as { qaNativeSends: string[] }).qaNativeSends);
+  expect(sends.filter(request => request.includes("G0BA"))).toHaveLength(1);
   expect(errors).toEqual([]);
 });

@@ -430,3 +430,13 @@ The next Production Plan must read the current serving deployment `dpl_J642A7cix
 ## 2026-11-27 - Web operations contracts and administrator merchant applications
 
 Status: Proposed. Source: PR #366 at `15345a7e`. The web workspace uses Zod 4.6.6 and exposes versioned operations and inbox contracts. The merchant application list and details consume scoped responses with private caching and retain the existing review mutation. Tests cover schema projection, normalized inputs, request retries and stale-authority handling. The remaining web features will ship in independently accepted batches. The native app and checkout print pilot are outside this release. Hosted CI, dedicated Preview, production Plan and live checks each need their own receipt.
+
+## 2026-11-27 - Wake the counter printer after online checkout
+
+Status: Tested locally on the tree serving at `a835e3c9`. The staff order composer and single-order checkout notify the same stall's WebPRNT agent once the server confirms payment. The agent coalesces notifications received during an active refresh. Other devices continue to poll every five seconds.
+
+The timing regression submitted one synthetic ticket just after a poll. On the serving source, Chromium acknowledged the simulated print after 4,917 ms. With the fix, Chromium took 26 ms and WebKit took 59 ms; each claimed and acknowledged one ticket and sent its payload once. Physical iPad/MCP31LB paper timing and Production release are pending.
+
+## 2026-11-27 - Checkout print release qualification
+
+PR #429 passed its protected checks. The owner moved physical paper timing and copy confirmation to the first natural checkout after deployment. The application release Plan now validates the settled a835e3c9 deployment against Apply 45961928193. The 70 recovery checks passed locally.
