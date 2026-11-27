@@ -440,3 +440,7 @@ The timing regression submitted one synthetic ticket just after a poll. On the s
 ## 2026-11-27 - Checkout print release qualification
 
 PR #429 passed its protected checks. The owner moved physical paper timing and copy confirmation to the first natural checkout after deployment. The application release Plan now validates the settled a835e3c9 deployment against Apply 45961928193. The 70 recovery checks passed locally.
+
+## 2026-11-27 - Isolate LINE MINI App member login and enrollment
+
+Status: Proposed. Source: PR #365 at `fb397415`. Includes the LIFF entry, one-time browser challenge, customer-only session exchange, versioned membership consent, readback and logout. Two additive migrations extend OAuth transactions and create server-only member and consent-audit tables. Customer identity is stable within a deployment and provider. Platform OA, payment, order ownership and native app routes have independent release scopes. The protected CI includes a loopback database integration suite with a provider fixture. A real login on the registered test MINI App, dedicated hosted Preview, cleanup and Production receipts are separate required evidence.
