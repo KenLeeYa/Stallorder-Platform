@@ -72,10 +72,20 @@ export async function verifyPreviewCatalog(db: PrismaClient, browser: Browser, o
       stage = "edit-control";
       await expect(edit).toBeVisible();
       const listUrl = page.url();
+      stage = "editor-response";
+      const [editorResponse] = await Promise.all([
+        page.waitForResponse(response => response.url() === commandUrl + "/editor"
+          && response.request().method() === "GET", { timeout: 45_000 }),
+        edit.click(),
+      ]);
+      console.log("PREVIEW_CATALOG_EDITOR_RESPONSE", { viewport, status: editorResponse.status() });
+      assert.equal(editorResponse.status(), 200);
+      stage = "editor-content";
+      const payload = await editorResponse.json();
+      assert.ok(payload.editor.initialCatalog.products.some((row: { id: string }) => row.id === product.id));
       stage = "open-editor";
-      await edit.click();
       const dialog = page.getByRole("dialog", { name: "編輯商品", exact: true });
-      await expect(dialog).toBeVisible();
+      await expect(dialog).toBeVisible({ timeout: 30_000 });
       stage = "cancel";
       await dialog.getByRole("button", { name: "關閉", exact: true }).click();
       await expect(dialog).toBeHidden();
