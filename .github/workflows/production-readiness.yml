@@ -50,7 +50,7 @@ concurrency:
 
 jobs:
   verify-local:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
@@ -75,6 +75,8 @@ jobs:
       - run: npm run lint
       - run: npm run ui:audit
       - run: npm run typecheck
+      - name: Install Chromium for browser-backed unit tests
+        run: npx playwright install --with-deps chromium
       - run: npm test
       - run: npx supabase start
       - run: npx supabase db reset
