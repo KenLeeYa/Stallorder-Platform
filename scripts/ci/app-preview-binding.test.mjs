@@ -34,6 +34,19 @@ describe("dedicated application Preview", () => {
     expect(() => appPreviewEvent(input, env)).toThrow();
   });
 
+  it("binds the print deferral to the reviewed head and staging baseline", () => {
+    const candidate = structuredClone(event);
+    candidate.pull_request.number = 425;
+    candidate.pull_request.head.ref = "codex/hold-print-424-20261127";
+    candidate.pull_request.base.sha = "62f473c9c5779117875668716d7aa75b913eba74";
+    const pinned = { ...env, HOLD_PRINT_PR425_HEAD: headSha };
+    expect(appPreviewEvent(candidate, pinned).gitBranch).toBe(candidate.pull_request.head.ref);
+    expect(() => appPreviewEvent(candidate, env)).toThrow();
+    expect(() => appPreviewEvent(candidate, { ...pinned, HOLD_PRINT_PR425_HEAD: env.GITHUB_SHA })).toThrow();
+    candidate.pull_request.base.sha = env.GITHUB_SHA;
+    expect(() => appPreviewEvent(candidate, pinned)).toThrow();
+  });
+
   it("admits only the pinned integration PR and exact base", () => {
     expect(binding.resource).toBe("pr-413-app-123-2");
     for (const field of ["number", "base", "head"]) {

@@ -9,15 +9,20 @@ import { RECOVERY, verifyRecoveryProvenance, recoveryPlanParameters, assertRecov
 
 test("requires the exact settled Vercel job for the current Primary deployment", () => {
   const deployment = {
-    id: "dpl_CRCcUb6iw1eZRktvhtEMbnwcCSXB", projectId: "prj_uoG4FNJIgnF1LdKRiXnfRaieXnUP",
+    id: "dpl_J642A7cixC1LJC11hzybjr55FoAb", projectId: "prj_uoG4FNJIgnF1LdKRiXnfRaieXnUP",
     ownerId: "team_MMfsiG94K9Zy3e6w7Ccc9xY4", target: "production", readyState: "READY", source: "cli",
-    meta: { githubCommitSha: "bdd968cf3fceb6d392e003e32d8f602f633f7541",
-      git_commit: "bdd968cf3fceb6d392e003e32d8f602f633f7541",
-      approval_plan_run_id: "45164609710", release_mode: "application_only" },
+    meta: { githubCommitSha: "750d205f9a9338bdb3c04dedc2fdbd3272862359",
+      git_commit: "750d205f9a9338bdb3c04dedc2fdbd3272862359",
+      approval_plan_run_id: "45622833145", release_mode: "application_only" },
   };
-  const job = { type: "promote", jobStatus: "succeeded", toDeploymentId: deployment.id, requestedAt: 1795434958582 };
+  const job = { type: "promote", jobStatus: "succeeded", toDeploymentId: deployment.id, requestedAt: 1795615310089 };
   const owner = { targets: { production: { id: deployment.id } }, lastAliasRequest: job };
   assert.doesNotThrow(() => assertPlanPrimary(owner, deployment));
+  const oldSha = "bdd968cf3fceb6d392e003e32d8f602f633f7541";
+  const old = { ...deployment, id: "dpl_CRCcUb6iw1eZRktvhtEMbnwcCSXB", meta: { ...deployment.meta,
+    githubCommitSha: oldSha, git_commit: oldSha, approval_plan_run_id: "45164609710" } };
+  assert.throws(() => assertPlanPrimary({ targets: { production: { id: old.id } },
+    lastAliasRequest: { ...job, toDeploymentId: old.id, requestedAt: 1795434958582 } }, old), /RELEASE_PRIMARY_CHANGED/);
   assert.throws(() => assertPlanPrimary(owner, { ...deployment,
     meta: { ...deployment.meta, approval_plan_run_id: "45118796489" } }), /RELEASE_PRIMARY_CHANGED/);
   for (const bad of [undefined, { ...job, jobStatus: "pending" }, { ...job, requestedAt: job.requestedAt + 1 }]) {
