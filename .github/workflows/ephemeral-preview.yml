@@ -237,6 +237,14 @@ jobs:
           else
             printf '%s' "$config" | node scripts/ci/delivery-preview-binding.mjs config >/dev/null
           fi
+          if [[ "$APP_PREVIEW" == true && "$PREVIEW_GIT_BRANCH" == "codex/line-member-login-20261127" ]]; then
+            # Hash the provider record validated above independently of the application's runtime DATABASE_URL.
+            fingerprint="$(jq -r .POSTGRES_URL <<<"$config" | node --input-type=module -e '
+              import { readFileSync } from "node:fs"; import { createHash } from "node:crypto";
+              const u = new URL(readFileSync(0, "utf8").trim());
+              console.log(createHash("sha256").update(JSON.stringify([u.hostname.toLowerCase(),u.port||"5432",u.pathname,u.username])).digest("hex"));')"
+            echo "LINE_PREVIEW_DB_FINGERPRINT=$fingerprint" >> "$GITHUB_ENV"
+          fi
           raw_transaction_url="$(jq -r '.POSTGRES_URL' <<<"$config")"
           supabase_url="$(jq -r '.SUPABASE_URL' <<<"$config")"
           anon_key="$(jq -r '.SUPABASE_ANON_KEY' <<<"$config")"
@@ -511,6 +519,17 @@ jobs:
             )
           fi
 
+          if [[ "$APP_PREVIEW" == true && "$PREVIEW_GIT_BRANCH" == "codex/line-member-login-20261127" ]]; then
+            [[ "$LINE_PREVIEW_DB_FINGERPRINT" =~ ^[a-f0-9]{64}$ ]]
+            data_key="$(openssl rand -base64 32)"
+            echo "::add-mask::$data_key"
+            binding='{"environment":"preview","providerId":"2005461563","channelId":"2011762558","liffId":"2011762558-AZbWkGcb","internalChannel":"developing","termsVersion":"pr427-preview"}'
+            line_env_args+=(--env "LINE_PLATFORM_ENABLED=true" --env "LINE_PLATFORM_ENVIRONMENT=preview"
+              --env "LINE_PLATFORM_PR427_DEPLOYMENT_ENDPOINT=true" --env "LINE_PLATFORM_BINDING_JSON=$binding"
+              --env "LINE_PLATFORM_DATABASE_BINDING_JSON=$(jq -nc --arg f "$LINE_PREVIEW_DB_FINGERPRINT" '{environment:"preview",fingerprint:$f}')"
+              --env "LINE_PLATFORM_DATA_KEY=$data_key")
+          fi
+
           deployment="$(
             npx --yes vercel@58.3.0 deploy . \
               --yes \
@@ -731,6 +750,36 @@ jobs:
           PREVIEW_ORDER_BRANCH_REF: ${{ steps.preview.outputs.branch_ref }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: node ../control/node_modules/tsx/dist/cli.mjs ../control/scripts/qa-preview-public-order.ts
+
+      - name: Verify customer login from the Developing LINE MINI App
+        if: env.APP_PREVIEW == 'true' && github.event.pull_request.number == 427
+        env:
+          LINE_PREVIEW_ORIGIN: ${{ steps.vercel-preview.outputs.url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$LINE_PREVIEW_ORIGIN" =~ ^https://stallorder-platform-[a-z0-9]+-ada76145-8663s-projects\.vercel\.app$ ]]
+          curl --fail --silent --show-error --max-time 25 -H "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
+            "$LINE_PREVIEW_ORIGIN/mini" | grep -F '使用 LINE 顧客身分登入' > /dev/null
+          echo "Developing test endpoint: $LINE_PREVIEW_ORIGIN/mini"
+          for attempt in {1..72}; do
+            accepted="$(psql "$EPHEMERAL_DATABASE_URL" -XAtq -v ON_ERROR_STOP=1 -v "callback=$LINE_PREVIEW_ORIGIN/api/mini/auth/exchange" <<'SQL'
+          select exists (
+            select 1 from oauth_transactions t join auth_sessions s on s.id=t.result_session_id
+            join profiles p on p.id=s.profile_id
+            where t.flow='LINE_MINIAPP' and t.provider='LINE' and t.status='COMPLETED'
+              and t.redirect_uri=:'callback' and s.revoked_at is null and s.expires_at>now()
+              and p.platform_role is null and not exists (select 1 from stall_memberships m where m.profile_id=p.id and m.is_active)
+              and not exists (select 1 from organization_memberships m where m.profile_id=p.id and m.is_active)
+          );
+          SQL
+            )"
+            if [[ "$accepted" == t ]]; then echo "PASS: dedicated LINE customer exchange and active session"; exit 0; fi
+            sleep 10
+          done
+          echo "::error::Developing customer login was not observed before Preview cleanup"
+          exit 1
 
       - name: Preserve public-order browser QA summaries in the run log
         if: always() && steps.vercel-auth.outputs.enabled == 'true'

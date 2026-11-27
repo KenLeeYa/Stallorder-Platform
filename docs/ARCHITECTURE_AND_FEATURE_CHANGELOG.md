@@ -444,3 +444,7 @@ PR #429 passed its protected checks. The owner moved physical paper timing and c
 ## 2026-11-27 - Isolate LINE MINI App member login and enrollment
 
 Status: Proposed. Source: PR #365 at `fb397415`. Includes the LIFF entry, one-time browser challenge, customer-only session exchange, versioned membership consent, readback and logout. Two additive migrations extend OAuth transactions and create server-only member and consent-audit tables. Customer identity is stable within a deployment and provider. Platform OA, payment, order ownership and native app routes have independent release scopes. The protected CI includes a loopback database integration suite with a provider fixture. A real login on the registered test MINI App, dedicated hosted Preview, cleanup and Production receipts are separate required evidence.
+
+### 2026-11-27 — LINE Developing customer login Preview
+
+Implemented for isolated verification on PR #427. The temporary endpoint is bound to the owned deployment and data-less database. A completed LINE transaction and active customer session are required. Developing endpoint restoration and live login are pending. Production release remains pending.

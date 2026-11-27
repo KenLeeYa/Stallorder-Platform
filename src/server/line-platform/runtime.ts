@@ -17,7 +17,15 @@ export type LinePlatformRuntime = z.infer<typeof configuration>;
 /** Server configuration only. No tenant can select a platform sender or environment. */
 export function getLinePlatformRuntime(env: NodeJS.ProcessEnv = process.env): LinePlatformRuntime | null {
   if (env.LINE_PLATFORM_ENABLED !== "true") return null;
-  const parsed = configuration.safeParse(JSON.parse(env.LINE_PLATFORM_BINDING_JSON ?? "{}"));
+  const supplied = JSON.parse(env.LINE_PLATFORM_BINDING_JSON ?? "{}");
+  if (env.LINE_PLATFORM_PR427_DEPLOYMENT_ENDPOINT === "true") {
+    if (env.VERCEL_ENV !== "preview" || supplied.environment !== "preview" || supplied.internalChannel !== "developing"
+      || supplied.endpointUrl !== undefined || !/^stallorder-platform-[a-z0-9]+-ada76145-8663s-projects\.vercel\.app$/.test(env.VERCEL_URL ?? "")) {
+      throw new Error("LINE_PLATFORM_ENVIRONMENT_MISMATCH");
+    }
+    supplied.endpointUrl = `https://${env.VERCEL_URL}/mini`;
+  }
+  const parsed = configuration.safeParse(supplied);
   if (!parsed.success) throw new Error("LINE_PLATFORM_CONFIGURATION_INVALID");
   const binding = parsed.data;
   const expected = env.VERCEL_ENV === "production" ? "production" : env.VERCEL_ENV === "preview" ? "preview"

@@ -22,3 +22,19 @@ describe("MINI runtime configuration", () => {
     expect(miniAppBindingFingerprint(current)).not.toBe(miniAppBindingFingerprint({ ...current, stallId: "33333333-3333-4333-8333-333333333333" }));
   });
 });
+
+
+it("binds the Developing callback to the immutable isolated deployment", async () => {
+  const { getLinePlatformRuntime, platformDatabaseFingerprint } = await import("../line-platform/runtime");
+  const url = "postgresql://postgres.example:test@localhost:6543/postgres";
+  const env: NodeJS.ProcessEnv = { NODE_ENV: "test", VERCEL_ENV: "preview", VERCEL_URL: "stallorder-platform-example-ada76145-8663s-projects.vercel.app",
+    LINE_PLATFORM_ENABLED: "true", LINE_PLATFORM_ENVIRONMENT: "preview", LINE_PLATFORM_PR427_DEPLOYMENT_ENDPOINT: "true",
+    DATABASE_URL: url, LINE_PLATFORM_DATABASE_BINDING_JSON: JSON.stringify({ environment: "preview", fingerprint: platformDatabaseFingerprint(url) }),
+    LINE_PLATFORM_BINDING_JSON: JSON.stringify({ environment: "preview", providerId: "123", channelId: "456",
+      liffId: "456-example", internalChannel: "developing", termsVersion: "preview" }) };
+  expect(getLinePlatformRuntime(env)?.endpointUrl).toBe("https://" + env.VERCEL_URL + "/mini");
+  for (const overrides of [{ VERCEL_URL: "app.qidaigo.com" }, { VERCEL_ENV: "production" },
+    { LINE_PLATFORM_DATABASE_BINDING_JSON: "{}" }]) {
+    expect(() => getLinePlatformRuntime({ ...env, ...overrides })).toThrow();
+  }
+});
