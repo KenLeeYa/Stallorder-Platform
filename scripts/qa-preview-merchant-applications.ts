@@ -19,22 +19,26 @@ export async function verifyPreviewMerchantApplications(db: PrismaClient, browse
   assert.equal((await version.json()).revision, sourceSha);
   const marker = randomUUID();
   const email = "admin-" + marker + "@stallorder.invalid";
-  const applicant = "applicant-" + marker + "@stallorder.invalid";
+  const adminId = randomUUID();
   const password = randomBytes(30).toString("base64url");
   const passwordHash = await hash(password, 10);
-  const applicationId = randomUUID();
-  const adminId = randomUUID();
-  const applicantId = randomUUID();
+  const now = Date.now();
+  const cases = Array.from({ length: 6 }, (_, i) => {
+    const id = randomUUID();
+    const applicant = { id: randomUUID(), email: "applicant-" + id + "@stallorder.invalid", displayName: "Preview applicant" };
+    return { applicant, application: {
+      ...pendingMerchantApplication(applicant, i === 0 ? marker : marker + "-" + i, "qa-" + id),
+      id, assignedReviewerProfileId: adminId, submittedAt: new Date(now - i * 1000),
+    } };
+  });
+  const applicationId = cases[0].application.id;
   const context = await browser.newContext({ locale: "zh-TW", serviceWorkers: "block" });
   let stage = "fixtures";
   try {
     await db.$transaction(async tx => {
       await tx.profile.create({ data: { id: adminId, email, displayName: "Preview administrator", passwordHash, platformRole: "PLATFORM_ADMIN" } });
-      await tx.profile.create({ data: { id: applicantId, email: applicant, displayName: "Preview applicant" } });
-      await tx.merchantApplication.create({ data: {
-        ...pendingMerchantApplication({ id: applicantId, email: applicant, displayName: "Preview applicant" }, marker, "qa-" + marker),
-        id: applicationId,
-      } });
+      await tx.profile.createMany({ data: cases.map(row => row.applicant) });
+      await tx.merchantApplication.createMany({ data: cases.map(row => row.application) });
     });
     // Apply protection headers only to requests targeting the deployment verified above.
     await context.route(origin + "/**", route => route.continue({ headers: { ...route.request().headers(), ...headers } }));
@@ -51,7 +55,8 @@ export async function verifyPreviewMerchantApplications(db: PrismaClient, browse
     await page.getByRole("button", { name: "登入", exact: true }).click();
     await expect(page).not.toHaveURL(/\/login(?:\?|$)/);
     stage = "list";
-    await page.goto(origin + "/admin/merchant-applications?status=PENDING_REVIEW");
+    const filter = new URLSearchParams({ status: "PENDING_REVIEW", reviewerId: adminId, pageSize: "5", sort: "submittedAtDesc" });
+    await page.goto(origin + "/admin/merchant-applications?" + filter);
     await expect(page.getByText(marker, { exact: true }).filter({ visible: true }).first()).toBeVisible();
     stage = "filters";
     const status = page.locator("select").filter({ has: page.locator('option[value="PENDING_REVIEW"]') });
@@ -60,14 +65,24 @@ export async function verifyPreviewMerchantApplications(db: PrismaClient, browse
     await status.selectOption("PENDING_REVIEW");
     await expect(page.getByText(marker, { exact: true }).filter({ visible: true }).first()).toBeVisible();
     stage = "pagination";
-    const list = await page.request.get(endpoint + "?status=PENDING_REVIEW&pageSize=5", { headers, maxRedirects: 0 });
+    const list = await page.request.get(endpoint + "?" + filter, { headers, maxRedirects: 0 });
     assert.equal(list.status(), 200);
     assert.match(list.headers()["cache-control"], /no-store/);
     const result = applicationReadResultSchema.parse(await list.json());
-    assert.ok(result.rows.some(row => row.id === applicationId));
-    const next = await page.request.get(endpoint + "?status=PENDING_REVIEW&page=2&pageSize=5", { headers, maxRedirects: 0 });
+    assert.equal(result.pagination.page, 1);
+    assert.equal(result.pagination.totalPages, 2);
+    assert.equal(result.pagination.total, 6);
+    assert.deepEqual(result.rows.map(row => row.id), cases.slice(0, 5).map(row => row.application.id));
+    const next = await page.request.get(endpoint + "?" + filter + "&page=2", { headers, maxRedirects: 0 });
     assert.equal(next.status(), 200);
-    applicationReadResultSchema.parse(await next.json());
+    const second = applicationReadResultSchema.parse(await next.json());
+    assert.equal(second.pagination.page, 2);
+    assert.deepEqual(second.rows.map(row => row.id), [cases[5].application.id]);
+    await page.getByRole("button", { name: "下一頁", exact: true }).click();
+    await expect(page.getByText(marker + "-5", { exact: true }).filter({ visible: true }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "下一頁", exact: true })).toBeDisabled();
+    await page.getByRole("button", { name: "上一頁", exact: true }).click();
+    await expect(page.getByText(marker, { exact: true }).filter({ visible: true }).first()).toBeVisible();
     stage = "detail";
     const detail = await page.request.get(endpoint + "/" + applicationId, { headers, maxRedirects: 0 });
     assert.equal(detail.status(), 200);
@@ -83,7 +98,7 @@ export async function verifyPreviewMerchantApplications(db: PrismaClient, browse
     throw error;
   } finally {
     await context.close();
-    // Both profiles and the application live solely on the owned ephemeral child.
+    // These synthetic records live solely on the owned ephemeral child.
     // The protected workflow destroys that child and checks for its absence after this step.
   }
 }
