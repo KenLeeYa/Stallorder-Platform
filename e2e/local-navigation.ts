@@ -99,6 +99,9 @@ export async function openSharedCatalogProductActions(
   page: Page,
   productName: string,
 ) {
+  if (await page.getByRole("button", { name: "完整管理／新增商品", exact: true }).isVisible()) {
+    await openSharedCatalogManagement(page);
+  }
   const desktopSearch = page.getByRole("searchbox", { name: "搜尋管理商品", exact: true });
   const navigator = page.getByTestId("catalog-navigator-dialog");
   const openNavigator = page
