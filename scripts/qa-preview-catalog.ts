@@ -110,11 +110,19 @@ export async function verifyPreviewCatalog(db: PrismaClient, browser: Browser, o
         await edit.click();
         stage = "persist-save";
         await dialog.getByLabel("商品名稱", { exact: true }).fill(savedName);
-        await dialog.getByRole("button", { name: "儲存", exact: true }).click();
-        await expect(dialog).toBeHidden();
-        await expect(catalogDesktopEditButton(page, savedName)).toBeVisible();
+        const [save] = await Promise.all([
+          page.waitForResponse(response => response.url() === commandUrl
+            && response.request().method() === "POST", { timeout: 45_000 }),
+          dialog.getByRole("button", { name: "儲存", exact: true }).click(),
+        ]);
+        console.log("PREVIEW_CATALOG_SAVE_RESPONSE", { status: save.status() });
+        assert.ok(save.ok());
+        stage = "database-readback";
         const row = await db.product.findUniqueOrThrow({ where: { id: product.id }, select: { name: true } });
         assert.equal(row.name, savedName);
+        stage = "saved-list-readback";
+        await expect(dialog).toBeHidden({ timeout: 30_000 });
+        await expect(catalogDesktopEditButton(page, savedName)).toBeVisible({ timeout: 30_000 });
       }
       expect(page.url()).toBe(listUrl);
     }
