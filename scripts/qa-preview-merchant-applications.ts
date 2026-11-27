@@ -48,12 +48,18 @@ export async function verifyPreviewMerchantApplications(db: PrismaClient, browse
     const denied = await page.request.get(endpoint, { headers, maxRedirects: 0 });
     assert.equal(denied.status(), 401);
     stage = "admin-login";
-    await page.goto(origin + "/login");
+    await page.goto(origin + "/login?next=%2Fadmin%2Fmerchant-applications");
     await page.getByRole("button", { name: "使用電子郵件與密碼登入", exact: true }).click();
     await page.getByLabel("電子郵件").fill(email);
     await page.getByLabel("密碼", { exact: true }).fill(password);
-    await page.getByRole("button", { name: "登入", exact: true }).click();
-    await expect(page).not.toHaveURL(/\/login(?:\?|$)/);
+    const [login] = await Promise.all([
+      page.waitForResponse(response => response.url() === origin + "/api/auth/login"
+        && response.request().method() === "POST", { timeout: 45_000 }),
+      page.getByRole("button", { name: "登入", exact: true }).click(),
+    ]);
+    assert.equal(login.status(), 200);
+    stage = "authenticated-session-and-redirect";
+    await page.waitForURL(url => url.origin === origin && url.pathname === "/admin/merchant-applications", { timeout: 45_000 });
     stage = "list";
     const filter = new URLSearchParams({ status: "PENDING_REVIEW", reviewerId: adminId, pageSize: "5", sort: "submittedAtDesc" });
     await page.goto(origin + "/admin/merchant-applications?" + filter);
