@@ -47,6 +47,27 @@ describe("dedicated application Preview", () => {
     expect(() => appPreviewEvent(candidate, pinned)).toThrow();
   });
 
+  it("requires the registered checkout hotfix head, PR, branch and Staging revision", () => {
+    const candidate = structuredClone(event);
+    candidate.pull_request.number = 429;
+    candidate.pull_request.head.ref = "codex/checkout-print-hotfix-20261127";
+    candidate.pull_request.base.sha = "434e798642b1d6c56a55e7bfae4c1e31f0490a98";
+    const registered = { ...env, CHECKOUT_PRINT_PR429_HEAD: headSha };
+    expect(appPreviewEvent(candidate, registered).gitBranch).toBe(candidate.pull_request.head.ref);
+    expect(() => appPreviewEvent(candidate, env)).toThrow();
+    for (const alter of [
+      pr => { pr.number++; },
+      pr => { pr.head.ref = "staging"; },
+      pr => { pr.head.sha = env.GITHUB_SHA; },
+      pr => { pr.base.ref = "main"; },
+      pr => { pr.base.sha = env.GITHUB_SHA; },
+    ]) {
+      const wrong = structuredClone(candidate);
+      alter(wrong.pull_request);
+      expect(() => appPreviewEvent(wrong, registered)).toThrow();
+    }
+  });
+
   it("requires the separately registered web application PR, revision and base", () => {
     const candidate = structuredClone(event);
     Object.assign(candidate.pull_request, { number: 426 });
