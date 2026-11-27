@@ -59,3 +59,11 @@ Apple Server-to-Server Event 使用獨立 Ledger 與 Event Hash 去重；未取�
 `npm run auth:migration-report` 只輸出統計，不輸出 Email 或身分值。Platform Admin、Primary Owner、Staff/Kitchen 必須全部有已驗證 Provider Subject，且正式 Callback/Canary 通過後，才可進入 Local Credential Contract Removal。
 
 一般「關閉電子郵件與密碼登入」獨立使用 `AUTH_PASSWORD_LOGIN_ENABLED`，不等同完整 OAuth-only 遷移，也不修改或停用既有帳號。有效入口、目前管理者防鎖定、原子稽核與 LINE OA 的不同授權範圍見 [登入方式控制契約](AUTH_LOGIN_METHOD_POLICY_20260914.md)。
+
+## LINE MINI App customer membership
+
+The customer entry is `/mini`. LIFF login returns a short-lived ID token to the browser, which exchanges it against a single-use, browser-bound challenge. The server checks the LINE issuer, audience, expiry, registered environment and provider. Platform member identities use the existing environment/provider subject hash. Authentication issues the existing device-bound session. Terms acceptance is a separate authenticated, CSRF-protected write. Operator identities cannot enter through the customer exchange. Merchant order access, notifications and payment are outside this rollout.
+
+The protected environment must bind `LINE_PLATFORM_ENABLED`, `LINE_PLATFORM_ENVIRONMENT`, `LINE_PLATFORM_BINDING_JSON`, `LINE_PLATFORM_DATABASE_BINDING_JSON`, `LINE_PLATFORM_DATA_KEY` and the existing OAuth state secret. The binding contains environment, providerId, channelId, liffId, internalChannel, endpointUrl and termsVersion. The database binding compares the actual datasource target with an independently confirmed fingerprint. Use a registered Developing or Review MINI App on the isolated Preview, its exact HTTPS endpoint and a test account. Production requires the Published binding, compatible migrations, a versioned privacy notice and its own receipt.
+
+For the dedicated PR 427 Preview, the trusted Developing LIFF configuration resolves /mini on the provider-generated immutable deployment hostname. The protected job verifies the isolated datasource fingerprint, uses a run-scoped encryption key and waits up to twelve minutes for a completed LINE exchange and unprivileged active session. Restore the Developing endpoint to its prior value after the manual test.

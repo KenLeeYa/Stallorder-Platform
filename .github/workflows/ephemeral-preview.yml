@@ -28,6 +28,7 @@ jobs:
       run:
         working-directory: control
     env:
+      LINE_MEMBER_PR427_HEAD: ${{ vars.LINE_MEMBER_PR427_HEAD }}
       PRINT_RELEASE_PR430_HEAD: ${{ vars.PRINT_RELEASE_PR430_HEAD }}
       PRINT_RELEASE_PR431_HEAD: ${{ vars.PRINT_RELEASE_PR431_HEAD }}
       CHECKOUT_PRINT_PR429_HEAD: ${{ vars.CHECKOUT_PRINT_PR429_HEAD }}
@@ -36,7 +37,7 @@ jobs:
       WEB_APPLICATIONS_PROMOTION_PR: ${{ vars.WEB_APPLICATIONS_PROMOTION_PR }}
       WEB_APPLICATIONS_PROMOTION_HEAD: ${{ vars.WEB_APPLICATIONS_PROMOTION_HEAD }}
       HOLD_PRINT_PR425_HEAD: ${{ vars.HOLD_PRINT_PR425_HEAD }}
-      APP_PREVIEW: ${{ github.event_name == 'pull_request' && ((github.event.pull_request.number == 430 && github.head_ref == 'codex/print-release-baseline-20261127' && github.base_ref == 'staging') || (github.event.pull_request.number == 431 && github.head_ref == 'staging' && github.base_ref == 'main' && github.event.pull_request.base.sha == 'a835e3c9c58e2b9b1fc40fa83c16d3e24262906f') || (github.event.pull_request.number == 429 && github.head_ref == 'codex/checkout-print-hotfix-20261127' && github.base_ref == 'staging' && github.event.pull_request.base.sha == '434e798642b1d6c56a55e7bfae4c1e31f0490a98') || (github.event.pull_request.number == 426 && github.head_ref == 'codex/web-shared-contracts-20261127' && github.base_ref == 'staging') || (format('{0}', github.event.pull_request.number) == vars.WEB_APPLICATIONS_PROMOTION_PR && github.head_ref == 'staging' && github.base_ref == 'main' && github.event.pull_request.base.sha == '750d205f9a9338bdb3c04dedc2fdbd3272862359') || (github.event.pull_request.number == 425 && github.head_ref == 'codex/hold-print-424-20261127' && github.base_ref == 'staging' && github.event.pull_request.base.sha == '62f473c9c5779117875668716d7aa75b913eba74') || github.event.pull_request.number == 413 || (github.event.pull_request.number == 417 && github.head_ref == 'codex/pr365-menu-search' && github.base_ref == 'staging' && github.event.pull_request.base.sha == 'd59f693fa4d6273f30b3bb8de08ad28f7cb4dddc') || (github.event.pull_request.number == 423 && github.head_ref == 'staging' && github.base_ref == 'main' && github.event.pull_request.base.sha == '0079effa188847f2d3c832c8413e59b82ba5689c') || (github.event.pull_request.number == 421 && github.head_ref == 'codex/recovery-loader-fix' && github.base_ref == 'staging' && github.event.pull_request.base.sha == 'e94890556e37dc0afbaffcacb0a1176ad26213af') || (github.event.pull_request.number == 422 && github.head_ref == 'staging' && github.base_ref == 'main' && github.event.pull_request.base.sha == 'bdd968cf3fceb6d392e003e32d8f602f633f7541') || (github.event.pull_request.number == 419 && github.head_ref == 'staging' && github.base_ref == 'main' && github.event.pull_request.base.sha == 'b203d3cd6de8a3b4026f815fd297a00bb2204dda') || (github.event.pull_request.number == 418 && github.head_ref == 'codex/next-release-evidence' && github.base_ref == 'staging' && github.event.pull_request.base.sha == '7b0198124eece0032eec4a064cc1393899078a70') || (github.event.pull_request.number == 416 && github.head_ref == 'codex/pr365-pr366-phase1' && github.base_ref == 'staging' && github.event.pull_request.base.sha == 'bb047ce713be8f026057b5727e2c9196e99497c6') || (github.event.pull_request.number == 415 && github.head_ref == 'codex/app-release-recovery-20261123' && github.base_ref == 'staging' && github.event.pull_request.base.sha == '6c7c0524c4e75b2dc06295e2f90303fee4a629f2') || (github.event.pull_request.number == 414 && github.head_ref == 'staging' && github.base_ref == 'main' && github.event.pull_request.base.sha == 'bf42bdfb10974d8fe57ef3509d2d3dd4d7cef4fa')) }}
+      APP_PREVIEW: ${{ github.event_name == 'pull_request' && ((github.event.pull_request.number == 427 && github.head_ref == 'codex/line-member-login-20261127' && github.base_ref == 'staging' && github.event.pull_request.base.sha == '63557efdc7523a296e760f931fe97b29326892ff') || (github.event.pull_request.number == 430 && github.head_ref == 'codex/print-release-baseline-20261127' && github.base_ref == 'staging') || (github.event.pull_request.number == 431 && github.head_ref == 'staging' && github.base_ref == 'main' && github.event.pull_request.base.sha == 'a835e3c9c58e2b9b1fc40fa83c16d3e24262906f') || (github.event.pull_request.number == 429 && github.head_ref == 'codex/checkout-print-hotfix-20261127' && github.base_ref == 'staging' && github.event.pull_request.base.sha == '434e798642b1d6c56a55e7bfae4c1e31f0490a98') || (github.event.pull_request.number == 426 && github.head_ref == 'codex/web-shared-contracts-20261127' && github.base_ref == 'staging') || (format('{0}', github.event.pull_request.number) == vars.WEB_APPLICATIONS_PROMOTION_PR && github.head_ref == 'staging' && github.base_ref == 'main' && github.event.pull_request.base.sha == '750d205f9a9338bdb3c04dedc2fdbd3272862359') || (github.event.pull_request.number == 425 && github.head_ref == 'codex/hold-print-424-20261127' && github.base_ref == 'staging' && github.event.pull_request.base.sha == '62f473c9c5779117875668716d7aa75b913eba74') || github.event.pull_request.number == 413 || (github.event.pull_request.number == 417 && github.head_ref == 'codex/pr365-menu-search' && github.base_ref == 'staging' && github.event.pull_request.base.sha == 'd59f693fa4d6273f30b3bb8de08ad28f7cb4dddc') || (github.event.pull_request.number == 423 && github.head_ref == 'staging' && github.base_ref == 'main' && github.event.pull_request.base.sha == '0079effa188847f2d3c832c8413e59b82ba5689c') || (github.event.pull_request.number == 421 && github.head_ref == 'codex/recovery-loader-fix' && github.base_ref == 'staging' && github.event.pull_request.base.sha == 'e94890556e37dc0afbaffcacb0a1176ad26213af') || (github.event.pull_request.number == 422 && github.head_ref == 'staging' && github.base_ref == 'main' && github.event.pull_request.base.sha == 'bdd968cf3fceb6d392e003e32d8f602f633f7541') || (github.event.pull_request.number == 419 && github.head_ref == 'staging' && github.base_ref == 'main' && github.event.pull_request.base.sha == 'b203d3cd6de8a3b4026f815fd297a00bb2204dda') || (github.event.pull_request.number == 418 && github.head_ref == 'codex/next-release-evidence' && github.base_ref == 'staging' && github.event.pull_request.base.sha == '7b0198124eece0032eec4a064cc1393899078a70') || (github.event.pull_request.number == 416 && github.head_ref == 'codex/pr365-pr366-phase1' && github.base_ref == 'staging' && github.event.pull_request.base.sha == 'bb047ce713be8f026057b5727e2c9196e99497c6') || (github.event.pull_request.number == 415 && github.head_ref == 'codex/app-release-recovery-20261123' && github.base_ref == 'staging' && github.event.pull_request.base.sha == '6c7c0524c4e75b2dc06295e2f90303fee4a629f2') || (github.event.pull_request.number == 414 && github.head_ref == 'staging' && github.base_ref == 'main' && github.event.pull_request.base.sha == 'bf42bdfb10974d8fe57ef3509d2d3dd4d7cef4fa')) }}
       DO_NOT_TRACK: "1"
       SUPABASE_PARENT_PROJECT_REF: ${{ vars.SUPABASE_PARENT_PROJECT_REF }}
       PREVIEW_BRANCH_NAME: pr-389-oauth-delivery
@@ -235,6 +236,14 @@ jobs:
             printf '%s' "$config" | node scripts/ci/app-preview-binding.mjs config
           else
             printf '%s' "$config" | node scripts/ci/delivery-preview-binding.mjs config >/dev/null
+          fi
+          if [[ "$APP_PREVIEW" == true && "$PREVIEW_GIT_BRANCH" == "codex/line-member-login-20261127" ]]; then
+            # Hash the provider record validated above independently of the application's runtime DATABASE_URL.
+            fingerprint="$(jq -r .POSTGRES_URL <<<"$config" | node --input-type=module -e '
+              import { readFileSync } from "node:fs"; import { createHash } from "node:crypto";
+              const u = new URL(readFileSync(0, "utf8").trim());
+              console.log(createHash("sha256").update(JSON.stringify([u.hostname.toLowerCase(),u.port||"5432",u.pathname,u.username])).digest("hex"));')"
+            echo "LINE_PREVIEW_DB_FINGERPRINT=$fingerprint" >> "$GITHUB_ENV"
           fi
           raw_transaction_url="$(jq -r '.POSTGRES_URL' <<<"$config")"
           supabase_url="$(jq -r '.SUPABASE_URL' <<<"$config")"
@@ -510,6 +519,17 @@ jobs:
             )
           fi
 
+          if [[ "$APP_PREVIEW" == true && "$PREVIEW_GIT_BRANCH" == "codex/line-member-login-20261127" ]]; then
+            [[ "$LINE_PREVIEW_DB_FINGERPRINT" =~ ^[a-f0-9]{64}$ ]]
+            data_key="$(openssl rand -base64 32)"
+            echo "::add-mask::$data_key"
+            binding='{"environment":"preview","providerId":"2005461563","channelId":"2011762558","liffId":"2011762558-AZbWkGcb","internalChannel":"developing","termsVersion":"pr427-preview"}'
+            line_env_args+=(--env "LINE_PLATFORM_ENABLED=true" --env "LINE_PLATFORM_ENVIRONMENT=preview"
+              --env "LINE_PLATFORM_PR427_DEPLOYMENT_ENDPOINT=true" --env "LINE_PLATFORM_BINDING_JSON=$binding"
+              --env "LINE_PLATFORM_DATABASE_BINDING_JSON=$(jq -nc --arg f "$LINE_PREVIEW_DB_FINGERPRINT" '{environment:"preview",fingerprint:$f}')"
+              --env "LINE_PLATFORM_DATA_KEY=$data_key")
+          fi
+
           deployment="$(
             npx --yes vercel@58.3.0 deploy . \
               --yes \
@@ -730,6 +750,47 @@ jobs:
           PREVIEW_ORDER_BRANCH_REF: ${{ steps.preview.outputs.branch_ref }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: node ../control/node_modules/tsx/dist/cli.mjs ../control/scripts/qa-preview-public-order.ts
+
+      - name: Verify customer login from the Developing LINE MINI App
+        if: env.APP_PREVIEW == 'true' && github.event.pull_request.number == 427
+        env:
+          LINE_PREVIEW_ORIGIN: ${{ steps.vercel-preview.outputs.url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$LINE_PREVIEW_ORIGIN" =~ ^https://stallorder-platform-[a-z0-9]+-ada76145-8663s-projects\.vercel\.app$ ]]
+          node --input-type=module <<'JS'
+          import { chromium, expect } from "@playwright/test";
+          const origin = process.env.LINE_PREVIEW_ORIGIN;
+          const browser = await chromium.launch();
+          try {
+            const page = await browser.newPage({ locale: "zh-TW", serviceWorkers: "block" });
+            await page.route(origin + "/**", route => route.continue({ headers: {
+              ...route.request().headers(), "x-vercel-protection-bypass": process.env.VERCEL_AUTOMATION_BYPASS_SECRET,
+            } }));
+            await page.goto(origin + "/mini");
+            await expect(page.getByRole("button", { name: "使用 LINE 顧客身分登入", exact: true })).toBeVisible({ timeout: 45_000 });
+          } finally { await browser.close(); }
+          JS
+          echo "Developing test endpoint: $LINE_PREVIEW_ORIGIN/mini"
+          for attempt in {1..72}; do
+            accepted="$(psql "$EPHEMERAL_DATABASE_URL" -XAtq -v ON_ERROR_STOP=1 -v "callback=$LINE_PREVIEW_ORIGIN/api/mini/auth/exchange" <<'SQL'
+          select exists (
+            select 1 from oauth_transactions t join auth_sessions s on s.id=t.result_session_id
+            join profiles p on p.id=s.profile_id
+            where t.flow='LINE_MINIAPP' and t.provider='LINE' and t.status='CONSUMED' and t.consumed_at is not null
+              and t.redirect_uri=:'callback' and s.revoked_at is null and s.expires_at>now()
+              and p.platform_role is null and not exists (select 1 from stall_memberships m where m.profile_id=p.id and m.is_active)
+              and not exists (select 1 from organization_memberships m where m.profile_id=p.id and m.is_active)
+          );
+          SQL
+            )"
+            if [[ "$accepted" == t ]]; then echo "PASS: dedicated LINE customer exchange and active session"; exit 0; fi
+            sleep 10
+          done
+          echo "::error::Developing customer login was not observed before Preview cleanup"
+          exit 1
 
       - name: Preserve public-order browser QA summaries in the run log
         if: always() && steps.vercel-auth.outputs.enabled == 'true'

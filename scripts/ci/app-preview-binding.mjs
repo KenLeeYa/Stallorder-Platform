@@ -21,6 +21,8 @@ const webApplicationsBranch = "codex/web-shared-contracts-20261127";
 const webApplicationsPayload = "b4a319066c9b5322ecae6cf77335dc6751fef3b6";
 const checkoutPrintBranch = "codex/checkout-print-hotfix-20261127";
 const printReleasePayload = "78474fa6e52ca3dced72286d33a0739e344aefb6";
+const lineMemberBranch = "codex/line-member-login-20261127";
+const lineMemberPayload = "16110ea8b8fcf2d54930c933a05ebb75edf764be";
 const printReleaseBranch = "codex/print-release-baseline-20261127";
 const printReleasePromotion = "codex/pr431-print-release-preview";
 const checkoutPrintPayload = "f29ea3965352f051ef335d92e06c29bb55cb1cc6";
@@ -69,7 +71,9 @@ export function appPreviewEvent(event, env) {
     && pr.base.sha === "756fbc9b027fceacde99002734ffa77948bcac1a" && pr.head.sha === env.PRINT_RELEASE_PR430_HEAD;
   const printPromotion = pr.number === 431 && pr.head.ref === "staging" && pr.base.ref === "main"
     && pr.base.sha === "a835e3c9c58e2b9b1fc40fa83c16d3e24262906f" && pr.head.sha === env.PRINT_RELEASE_PR431_HEAD;
-  assert.ok(printRelease || printPromotion || checkoutPrint || webApplications || webPromotion || holdPrint || menu || menuPromotion || integration || repair || reportScope || settlement || promotion || batchPromotion || recoveryFix || recoveryPromotion,
+  const lineMember = pr.number === 427 && pr.head.ref === lineMemberBranch && pr.base.ref === "staging"
+    && pr.base.sha === "63557efdc7523a296e760f931fe97b29326892ff" && pr.head.sha === env.LINE_MEMBER_PR427_HEAD;
+  assert.ok(lineMember || printRelease || printPromotion || checkoutPrint || webApplications || webPromotion || holdPrint || menu || menuPromotion || integration || repair || reportScope || settlement || promotion || batchPromotion || recoveryFix || recoveryPromotion,
     "Unreviewed application Preview source");
   assert.match(env.GITHUB_RUN_ID, /^[1-9][0-9]*$/);
   assert.match(env.GITHUB_RUN_ATTEMPT, /^[1-9][0-9]*$/);
@@ -192,8 +196,10 @@ function main(mode, env) {
     if (checkoutPrint) git("merge-base", "--is-ancestor", checkoutPrintPayload, binding.head);
     const printRelease = [printReleaseBranch, printReleasePromotion].includes(binding.gitBranch);
     if (printRelease) git("merge-base", "--is-ancestor", printReleasePayload, binding.head);
-    const paths = printRelease || webApplications || checkoutPrint ? previewControls : holdPrint ? holdFiles : menu ? menuFiles : recovery ? recoveryFiles : allowed;
-    const diffBase = printRelease ? printReleasePayload : checkoutPrint ? checkoutPrintPayload : webApplications ? webApplicationsPayload : holdPrint ? servingBase : binding.base;
+    const lineMember = binding.branch === lineMemberBranch;
+    if (lineMember) git("merge-base", "--is-ancestor", lineMemberPayload, binding.head);
+    const paths = lineMember || printRelease || webApplications || checkoutPrint ? previewControls : holdPrint ? holdFiles : menu ? menuFiles : recovery ? recoveryFiles : allowed;
+    const diffBase = lineMember ? lineMemberPayload : printRelease ? printReleasePayload : checkoutPrint ? checkoutPrintPayload : webApplications ? webApplicationsPayload : holdPrint ? servingBase : binding.base;
     assert.ok(git("diff", "--no-renames", "--name-only", diffBase, binding.head).split("\n").every(name => paths.has(name)));
     console.log(JSON.stringify({ resource: binding.resource, branch: binding.branch, gitBranch: binding.gitBranch }));
   } else if (mode === "branch") {
