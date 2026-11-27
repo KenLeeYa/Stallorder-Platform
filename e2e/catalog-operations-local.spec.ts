@@ -1,7 +1,8 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
-import { establishLocalTestSession, gotoLocalPath } from "./local-navigation";
+import { establishLocalTestSession, gotoLocalPath, openSharedCatalogManagement } from "./local-navigation";
+import { assertResponsiveQaTarget } from "../scripts/responsive-qa-target.mjs";
 
 const prisma = new PrismaClient();
 const organizationId = "11111111-1111-4111-8111-111111111111";
@@ -14,16 +15,23 @@ test.use({ serviceWorkers: "block" });
 test.describe.configure({ mode: "serial" });
 test.beforeAll(async () => {
   const db = new URL(process.env.DATABASE_URL ?? "");
-  if (!["127.0.0.1","localhost"].includes(db.hostname) || db.port !== (process.env.CI ? "54322" : "55722")) throw new Error("DEDICATED_CATALOG_LOCAL_LAB_REQUIRED");
+  if (process.env.RESPONSIVE_QA_RUN === "true") assertResponsiveQaTarget(process.env);
+  else if (!["127.0.0.1","localhost"].includes(db.hostname) || db.port !== (process.env.CI ? "54322" : "55722")) throw new Error("DEDICATED_CATALOG_LOCAL_LAB_REQUIRED");
   const flag = await prisma.resilienceFeatureFlag.findUniqueOrThrow({ where: { code: "DUAL_ORDER_INTAKE_ENABLED" }, select: { id: true } });
-  circuitFlagOverrideId = (await prisma.resilienceFeatureFlagOverride.create({ data: {
+  const existingOverride = process.env.RESPONSIVE_QA_RUN === "true"
+    ? await prisma.resilienceFeatureFlagOverride.findFirst({ where: { flagId: flag.id, scopeType: "GLOBAL" }, select: { enabled: true, expiresAt: true } })
+    : null;
+  if (existingOverride && (!existingOverride.enabled || (existingOverride.expiresAt && existingOverride.expiresAt <= new Date()))) throw new Error("RESPONSIVE_CIRCUIT_OVERRIDE_UNAVAILABLE");
+  if (!existingOverride) circuitFlagOverrideId = (await prisma.resilienceFeatureFlagOverride.create({ data: {
     flagId: flag.id, scopeType: "GLOBAL", enabled: true,
     reason: "Isolated catalog Circuit B regression",
     expiresAt: new Date(Date.now() + 15 * 60_000),
   } })).id;
   // Reset this dedicated lab's request counters between reruns; production policies stay enabled.
-  await prisma.publicRateLimitBucket.deleteMany({});
-  await prisma.rateLimitBucket.deleteMany({});
+  if (process.env.RESPONSIVE_QA_RUN !== "true") {
+    await prisma.publicRateLimitBucket.deleteMany({});
+    await prisma.rateLimitBucket.deleteMany({});
+  }
   ownerId = (await prisma.profile.findUniqueOrThrow({ where: { email:"owner@stallorder.test" } })).id;
   originalHours = await prisma.stallBusinessHour.findMany({ where: { stallId } });
   await prisma.stallBusinessHour.updateMany({ where:{stallId}, data:{ opensAt:"00:00",closesAt:"23:59",lastOrderAt:null,isClosed:false } });
@@ -38,6 +46,7 @@ test.beforeAll(async () => {
   qrId=(await prisma.qrCode.create({data:{organizationId,stallId,token:qrToken,label:"Catalog local QA",state:"ACTIVE",tokenVersion:(version._max.tokenVersion??0)+1}})).id;
 });
 test.afterAll(async () => {
+  try {
   if (circuitFlagOverrideId) await prisma.resilienceFeatureFlagOverride.deleteMany({ where: { id: circuitFlagOverrideId } });
   await prisma.order.deleteMany({where:{id:{in:ids}}});
   if(qrId) {
@@ -49,7 +58,9 @@ test.afterAll(async () => {
   await prisma.stallProduct.deleteMany({where:{productId:{in:productIds}}});
   await prisma.product.deleteMany({where:{id:{in:productIds}}});
   for(const row of originalHours??[]) await prisma.stallBusinessHour.update({where:{id:row.id},data:{opensAt:row.opensAt,closesAt:row.closesAt,lastOrderAt:row.lastOrderAt,isClosed:row.isClosed}});
-  await prisma.$disconnect();
+  } finally {
+    await prisma.$disconnect();
+  }
 });
 async function merchantHeaders(page: Page) {
   const csrf=(await page.context().cookies()).find((cookie)=>cookie.name==="stallorder_csrf")?.value??"";
@@ -166,7 +177,12 @@ test("printed table QR survives enabling dine-in, main QR rotation and pause-clo
     await prisma.orderSession.deleteMany({where:{qrCodeId:qr.id}});
     await prisma.qrCode.delete({where:{id:qr.id}});
     await prisma.diningTable.delete({where:{id:table.id}});
-    await prisma.qrCode.deleteMany({where:{stallId,id:{notIn:previousQr.map((row)=>row.id)}}});
+    if (process.env.RESPONSIVE_QA_RUN === "true") {
+      const createdQr = await prisma.qrCode.findMany({where:{stallId,id:{notIn:previousQr.map((row)=>row.id)}},select:{id:true}});
+      await prisma.qrCode.deleteMany({where:{id:{in:createdQr.map((row)=>row.id)}}});
+    } else {
+      await prisma.qrCode.deleteMany({where:{stallId,id:{notIn:previousQr.map((row)=>row.id)}}});
+    }
     for(const row of previousQr)await prisma.qrCode.update({where:{id:row.id},data:{state:row.state}});
     await prisma.stall.update({where:{id:stallId},data:{orderingState:stall.orderingState,isSoldOut:stall.isSoldOut}});
     await prisma.stallOrderingSettings.update({where:{stallId},data:{dineInEnabled:settings.dineInEnabled}});
@@ -187,12 +203,14 @@ test("removing the only stall role blocks an existing login and preserves member
     expect(response.status()).toBe(200);
     expect((await memberPage.request.get("/api/stalls/aming-chicken/orders")).status()).toBe(404);
     expect((await prisma.stallMembership.findUniqueOrThrow({where:{id:membership.id}})).isActive).toBe(false);
-  }finally{await context.close();await prisma.profile.delete({where:{id:profile.id}});}
+  }finally{await context.close();const retainedAudit = await prisma.auditLog.findMany({ where: { actorProfileId: profile.id }, orderBy: { id: "asc" } }); await prisma.authSession.deleteMany({ where: { profileId: profile.id } }); await prisma.profile.deleteMany({where:{id:profile.id,auditLogs:{none:{}}}}); expect(auditFingerprint(await prisma.auditLog.findMany({ where: { id: { in: retainedAudit.map(row => row.id) } }, orderBy: { id: "asc" } }))).toEqual(auditFingerprint(retainedAudit));}
 });
 
 test("catalog desktop/tablet group board and mobile stock editor render without horizontal overflow",async({page})=>{
   test.setTimeout(180000);await establishLocalTestSession(page,prisma,ownerId);
   await gotoLocalPath(page,`/merchant/catalog?organizationId=${organizationId}`);
+  await openSharedCatalogManagement(page);
+  await page.getByRole("region",{name:"商品批次管理"}).getByRole("combobox",{name:"管理攤位"}).selectOption(stallId);
   for(const width of [1440,768,390,320]){
     await page.setViewportSize({width,height:900});
     const board=page.getByRole("region",{name:"商品批次管理"});
@@ -210,6 +228,7 @@ test("catalog desktop/tablet group board and mobile stock editor render without 
       const saved=page.waitForResponse((response)=>response.url().endsWith("/products")&&response.request().method()==="PATCH");
       await dialog.getByRole("button",{name:/^儲存庫存/}).click();expect((await saved).status()).toBe(200);
       expect(await remaining()).toBe(3);await expect(dialog).not.toBeVisible();
+      await board.getByRole("searchbox",{name:"搜尋管理商品"}).fill("庫存驗收餐");
       await board.getByRole("checkbox",{name:"選取 庫存驗收餐",exact:true}).check();
       await board.getByRole("button",{name:"批次供應設定",exact:true}).click();
       const availability=page.getByRole("dialog",{name:"設定供應狀態",exact:true});
@@ -229,3 +248,7 @@ test("catalog desktop/tablet group board and mobile stock editor render without 
     await dialog.getByRole("button",{name:"關閉庫存設定"}).click();
   }
 });
+
+function auditFingerprint(rows: unknown[]) {
+  return { count: rows.length, hash: createHash("sha256").update(JSON.stringify(rows)).digest("hex") };
+}
