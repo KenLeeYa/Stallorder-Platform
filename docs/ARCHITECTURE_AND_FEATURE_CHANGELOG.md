@@ -411,3 +411,7 @@ Pre-execution review found that Supabase-managed CLI roles cannot be removed by 
 - Candidate PR #417 isolates menu search from #365. The protected Preview searches a real menu item, checks the empty result and clears the field before placing and tracking its synthetic order. Promotion requires its own Preview and dedicated Git binding.
 - The application Plan checks the serving bdd968cf provider receipt. The owner-dispatched live browser check verifies the exact main revision and Primary epoch before and after search on the dedicated QR. Hosted acceptance and release receipts are pending.
 - Preview 45608074652 received HTTP 201 and stopped during session response validation, before menu search. The owned resources were removed. Read the browser response when it arrives, retain the token, expiry and mode checks, and report only fixed failure categories.
+
+## 2026-11-27 - Web operations contracts and administrator merchant applications
+
+Status: Proposed. Source: PR #366 at `15345a7e`. The web workspace uses Zod 4.6.6 and exposes versioned operations and inbox contracts. The merchant application list and details consume scoped responses with private caching and retain the existing review mutation. Tests cover schema projection, normalized inputs, request retries and stale-authority handling. The remaining web features will ship in independently accepted batches. The native app and checkout print pilot are outside this release. Hosted CI, dedicated Preview, production Plan and live checks each need their own receipt.
