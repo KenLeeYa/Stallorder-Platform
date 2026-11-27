@@ -1,3 +1,4 @@
+import { pendingMerchantApplication } from "./lib/qa-pending-merchant-application";
 import assert from "node:assert/strict";
 import { randomBytes, randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
@@ -30,8 +31,10 @@ export async function verifyPreviewMerchantApplications(db: PrismaClient, browse
     await db.$transaction(async tx => {
       await tx.profile.create({ data: { id: adminId, email, displayName: "Preview administrator", passwordHash, platformRole: "PLATFORM_ADMIN" } });
       await tx.profile.create({ data: { id: applicantId, email: applicant, displayName: "Preview applicant" } });
-      await tx.merchantApplication.create({ data: { id: applicationId, applicantProfileId: applicantId,
-        applicantEmail: applicant, applicantDisplayName: "Preview applicant", merchantName: marker, status: "PENDING_REVIEW" } });
+      await tx.merchantApplication.create({ data: {
+        ...pendingMerchantApplication({ id: applicantId, email: applicant, displayName: "Preview applicant" }, marker, "qa-" + marker),
+        id: applicationId,
+      } });
     });
     // Apply protection headers only to requests targeting the deployment verified above.
     await context.route(origin + "/**", route => route.continue({ headers: { ...route.request().headers(), ...headers } }));

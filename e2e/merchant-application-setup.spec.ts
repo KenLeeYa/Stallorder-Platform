@@ -1,3 +1,4 @@
+import { pendingMerchantApplication } from "../scripts/lib/qa-pending-merchant-application";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -53,33 +54,8 @@ test.describe("商家申請、核准、測試訂單與開放接單", () => {
       }),
     ]);
     const application = await prisma.merchantApplication.create({
-      data: {
-        applicantProfileId: applicant.id,
-        applicantEmail,
-        applicantDisplayName: applicant.displayName,
-        merchantName: "申請流程測試商家",
-        businessType: "NIGHT_MARKET_STALL",
-        contactName: "測試負責人",
-        phone: "0912345678",
-        phoneHash: "merchant-application-e2e-phone-hash",
-        businessPhone: "0912345678",
-        preferredContactMethod: "PHONE",
-        businessAddress: "台北市測試路 1 號",
-        city: "台北市",
-        stallName: "申請流程測試攤位",
-        stallLocation: "台北測試夜市",
-        requestedSlug,
-        estimatedDailyOrders: 20,
-        requestedPlanCode: "TRIAL",
-        status: "PENDING_REVIEW",
-        currentStep: 4,
-        termsAccepted: true,
-        privacyAccepted: true,
-        dataProcessingAccepted: true,
-        informationConfirmed: true,
-        consentedAt: new Date(),
-        submittedAt: new Date(),
-      },
+      data: pendingMerchantApplication({ id: applicant.id, displayName: applicant.displayName, email: applicantEmail },
+        "申請流程測試商家", requestedSlug),
     });
     applicationId = application.id;
     expect(await prisma.organization.count({ where: { email: applicantEmail } })).toBe(0);
