@@ -110,3 +110,5 @@ Protected Apply 45961928193 promoted `a835e3c9` under Plan 45958920547. Its targ
 The next print release uses the completed promotion of dc752e71 under Plan 45981460509, Apply 46116243807. Target-readback artifact 15251821495 records dpl_FSxK9YxB7Yc47e8vdoy76aEcWwJs at 1795847083098. The qualified recovery deployment remains 4e95d2ea.
 
 The catalog Plan now checks the settled deployment dpl_v6y8hdJxzHUsV18ZcyDbWfCraoNE from Plan 46122947871 and Apply 46125092610. Target-readback artifact 15255770074 records the successful promotion of a55e5ff8 at 1795854035639. The qualified recovery target remains 4e95d2ea.
+
+For the direct-ticket Plan, the verified serving deployment is dpl_GKZt16PQSufjBc15juR6b78VoHas at 7a0c7867. Apply 46132363427 settled the promotion at 1795859611692 under Plan 46130124605. Target-readback artifact 15258606764 binds that receipt. The recovery deployment remains 4e95d2ea.

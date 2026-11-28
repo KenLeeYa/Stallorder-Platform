@@ -631,6 +631,7 @@ export function useStaffOrderBoardController({
       }));
       setOrders((current) => current.filter((order) => !completedIds.has(order.id)));
       setMessage(t("staff.message.mergeDone", { count: completedIds.size }));
+      if (completedIds.size > 0 && modules.print) notifyStaffPrintQueueChanged(stall.slug);
       if (completedIds.size > 0 && checkoutUsesCash(checkoutRequest)) notifyCashPaymentCompleted();
       return true;
     } catch (error) {

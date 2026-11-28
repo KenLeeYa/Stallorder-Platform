@@ -452,3 +452,7 @@ Status: Proposed. The second web batch adds the scoped catalog list and editor A
 ## 2026-11-28 - Catalog integration after WebPRNT release
 
 The catalog candidate incorporates the released WebPRNT fix. Pre-integration catalog Preview 46116737173 passed. Production Apply 46125092610 and provider readback identify a55e5ff8 as the current serving version. The integrated catalog must pass its own Preview and application release checks.
+
+## 2026-11-28 - Direct automatic ticket selection after checkout
+
+Proposed. Field feedback identified a delay after checkout completed. Three staff POS tickets after #433 had a median 4.291 seconds from enqueue to claim. The connected agent now requests the next eligible ticket directly, including after successful table checkout, and avoids dashboard reads on acknowledgements. Physical timing and release acceptance are pending.

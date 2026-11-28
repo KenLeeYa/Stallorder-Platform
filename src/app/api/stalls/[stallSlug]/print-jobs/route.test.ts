@@ -103,6 +103,7 @@ beforeEach(() => {
     name: "櫃台印表機",
     isEnabled: true,
     connectionType: "WEBPRNT_BLUETOOTH",
+    autoDetectEnabled: true,
     model: "MCP31LB",
     paperWidthMm: 58,
   });
@@ -148,6 +149,7 @@ beforeEach(() => {
     productCategory: { count: mocks.productCategoryCount },
     productGroup: { count: mocks.productGroupCount },
     printJob: {
+      fields: { maxAttempts: "maxAttempts" },
       count: mocks.printJobCount,
       findFirst: mocks.printJobFindFirst,
       create: mocks.printJobCreate,
@@ -194,6 +196,7 @@ describe("print queue capability enforcement", () => {
     ["REGISTER_PRINTER", { operation: "REGISTER_PRINTER", name: "Counter printer" }],
     ["QUEUE", { operation: "QUEUE", orderId }],
     ["QUEUE_RECEIPT", { operation: "QUEUE_RECEIPT", orderId }],
+    ["CLAIM_NEXT", { operation: "CLAIM_NEXT", printerId }],
     ["CLAIM", { operation: "CLAIM", jobId, printerId }],
     ["REPRINT", { operation: "REPRINT", jobId }],
   ])("rejects %s when the stall has not enabled its print module", async (_operation, command) => {
@@ -449,6 +452,43 @@ describe("print queue capability enforcement", () => {
     expect(mocks.printerUpdate).toHaveBeenCalledWith({ where: { id: printerId }, data: { lastSeenAt: expect.any(Date) } });
     expect(payload).not.toHaveProperty("state");
     expect(mocks.getState).not.toHaveBeenCalled();
+  });
+
+  it("claims the oldest eligible automatic ticket for this printer without loading the dashboard", async () => {
+    mocks.printJobFindFirst.mockResolvedValue({ id: jobId, orderId, status: "PENDING", maxAttempts: 3, printerId });
+    const response = await postCommand({ operation: "CLAIM_NEXT", printerId });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ entityId: jobId, printPayload: { dataBase64: "G0BA" } });
+    expect(mocks.printJobFindFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ stallId, organizationId, status: "PENDING",
+        printRule: { is: expect.objectContaining({ printerId, autoPrint: true, isEnabled: true, deletedAt: null }) } }),
+      orderBy: [{ queuedAt: "asc" }, { id: "asc" }],
+    }));
+    expect(mocks.getState).not.toHaveBeenCalled();
+  });
+
+  it("returns the stored ticket after the atomic claim without loading order relations", async () => {
+    const payload = { kind: "KITCHEN_58MM_STARPRNT", mediaType: "application/vnd.star.starprnt",
+      version: "kitchen-58mm-starprnt-v1", dataBase64: "G0BA", content: "QA" };
+    mocks.printJobFindFirst.mockResolvedValue({ id: jobId, status: "PENDING", maxAttempts: 3, printerId, payload });
+    const response = await postCommand({ operation: "CLAIM_NEXT", printerId });
+    expect(await response.json()).toEqual({ entityId: jobId, printPayload: payload });
+    expect(mocks.claimedPrintJobFindFirst).not.toHaveBeenCalled();
+    expect(mocks.getState).not.toHaveBeenCalled();
+  });
+
+  it("returns an empty automatic claim without sending or recording a job", async () => {
+    const response = await postCommand({ operation: "CLAIM_NEXT", printerId });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ entityId: null });
+    expect(mocks.printJobUpdateMany).not.toHaveBeenCalled();
+    expect(mocks.recordAuditEvent).not.toHaveBeenCalled();
+  });
+
+  it("rejects an automatic claim after printer autodetection is disabled", async () => {
+    mocks.printerFindFirst.mockResolvedValue({ id: printerId, isEnabled: true, autoDetectEnabled: false, connectionType: "WEBPRNT_BLUETOOTH" });
+    expect((await postCommand({ operation: "CLAIM_NEXT", printerId })).status).toBe(409);
+    expect(mocks.printJobUpdateMany).not.toHaveBeenCalled();
   });
 
   it("returns a retryable conflict when PostgreSQL serializes a browser claim", async () => {

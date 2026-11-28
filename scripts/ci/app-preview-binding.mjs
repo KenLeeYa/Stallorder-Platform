@@ -22,6 +22,9 @@ const webApplicationsPayload = "b4a319066c9b5322ecae6cf77335dc6751fef3b6";
 const catalogBranch = "codex/web-catalog-after-print-20261127";
 const catalogPromotion = "codex/web-catalog-promotion-20261128";
 const catalogPayload = "8789ddcbf33d92b1fd1f748d7efb72d6a6c58348";
+const nextTicketBranch = "codex/webprnt-next-ticket-20261128";
+const nextTicketPromotion = "codex/webprnt-next-ticket-promotion-20261128";
+const nextTicketPayload = "e1f7ddf02401dcf470c378043d2fa7f8139fd69a";
 const fastPrintBranch = "codex/webprnt-claim-20261128";
 const fastPrintPromotion = "codex/webprnt-claim-promotion-20261128";
 const fastPrintPayload = "9a17183217e10267b86069de865f70751f49dc66";
@@ -74,6 +77,11 @@ export function appPreviewEvent(event, env) {
   const catalogRelease = Number.isSafeInteger(pr.number) && pr.number > 434 && String(pr.number) === env.WEB_CATALOG_PROMOTION_PR
     && pr.head.ref === "staging" && pr.base.ref === "main" && pr.base.sha === "a55e5ff8795d539d24d1ac27299e2157b78e4059"
     && pr.head.sha === env.WEB_CATALOG_PROMOTION_HEAD;
+  const nextTicket = pr.number === 436 && pr.head.ref === nextTicketBranch && pr.base.ref === "staging"
+    && pr.base.sha === "13a18caa5fd9914de52a49c518f67b514a5f3755" && pr.head.sha === env.WEBPRNT_NEXT_PR436_HEAD;
+  const nextRelease = Number.isSafeInteger(pr.number) && pr.number > 436 && String(pr.number) === env.WEBPRNT_NEXT_PROMOTION_PR
+    && pr.head.ref === "staging" && pr.base.ref === "main" && pr.base.sha === "7a0c7867e3e076558b1f23e162f047a0f04a7792"
+    && pr.head.sha === env.WEBPRNT_NEXT_PROMOTION_HEAD;
   const fastPrint = pr.number === 433 && pr.head.ref === fastPrintBranch && pr.base.ref === "staging"
     && pr.base.sha === "63557efdc7523a296e760f931fe97b29326892ff" && pr.head.sha === env.WEBPRNT_CLAIM_PR433_HEAD;
   const fastPromotion = Number.isSafeInteger(pr.number) && pr.number > 433 && String(pr.number) === env.WEBPRNT_CLAIM_PROMOTION_PR
@@ -85,7 +93,7 @@ export function appPreviewEvent(event, env) {
     && pr.base.sha === "756fbc9b027fceacde99002734ffa77948bcac1a" && pr.head.sha === env.PRINT_RELEASE_PR430_HEAD;
   const printPromotion = pr.number === 431 && pr.head.ref === "staging" && pr.base.ref === "main"
     && pr.base.sha === "a835e3c9c58e2b9b1fc40fa83c16d3e24262906f" && pr.head.sha === env.PRINT_RELEASE_PR431_HEAD;
-  assert.ok(catalog || catalogRelease || fastPrint || fastPromotion || printRelease || printPromotion || checkoutPrint || webApplications || webPromotion || holdPrint || menu || menuPromotion || integration || repair || reportScope || settlement || promotion || batchPromotion || recoveryFix || recoveryPromotion,
+  assert.ok(nextTicket || nextRelease || catalog || catalogRelease || fastPrint || fastPromotion || printRelease || printPromotion || checkoutPrint || webApplications || webPromotion || holdPrint || menu || menuPromotion || integration || repair || reportScope || settlement || promotion || batchPromotion || recoveryFix || recoveryPromotion,
     "Unreviewed application Preview source");
   assert.match(env.GITHUB_RUN_ID, /^[1-9][0-9]*$/);
   assert.match(env.GITHUB_RUN_ATTEMPT, /^[1-9][0-9]*$/);
@@ -93,7 +101,7 @@ export function appPreviewEvent(event, env) {
     head: pr.head.sha,
     base: pr.base.sha,
     branch: pr.head.ref,
-    gitBranch: catalogRelease ? catalogPromotion : fastPromotion ? fastPrintPromotion : printPromotion ? printReleasePromotion : webPromotion ? "codex/pr" + pr.number + "-web-applications-preview" : menuPromotion ? menuPromotionBranch : recoveryPromotion ? recoveryPromotionBranch : batchPromotion ? "codex/pr419-app-batch1-preview" : promotion ? promotionGitBranch : pr.head.ref,
+    gitBranch: nextRelease ? nextTicketPromotion : catalogRelease ? catalogPromotion : fastPromotion ? fastPrintPromotion : printPromotion ? printReleasePromotion : webPromotion ? "codex/pr" + pr.number + "-web-applications-preview" : menuPromotion ? menuPromotionBranch : recoveryPromotion ? recoveryPromotionBranch : batchPromotion ? "codex/pr419-app-batch1-preview" : promotion ? promotionGitBranch : pr.head.ref,
     resource: "pr-" + pr.number + "-app-" + env.GITHUB_RUN_ID + "-" + env.GITHUB_RUN_ATTEMPT,
   };
 }
@@ -158,7 +166,7 @@ function main(mode, env) {
       git("merge-base", "--is-ancestor", webApplicationsPayload, binding.head);
       if (!webPromotion) assert.equal(git("rev-parse", binding.base + "^{tree}"), git("rev-parse", "62af67d5a24dbf62ce878a3b7c9af4a9c04d600a^{tree}"));
     }
-    if (binding.gitBranch === catalogPromotion || binding.gitBranch === fastPrintPromotion || binding.gitBranch === printReleasePromotion || webPromotion || [promotionGitBranch, "codex/pr419-app-batch1-preview", recoveryPromotionBranch, menuPromotionBranch].includes(binding.gitBranch)) {
+    if (binding.gitBranch === nextTicketPromotion || binding.gitBranch === catalogPromotion || binding.gitBranch === fastPrintPromotion || binding.gitBranch === printReleasePromotion || webPromotion || [promotionGitBranch, "codex/pr419-app-batch1-preview", recoveryPromotionBranch, menuPromotionBranch].includes(binding.gitBranch)) {
       assert.equal(git("rev-parse", "refs/remotes/origin/" + binding.gitBranch + "^{tree}"),
         git("rev-parse", binding.head + "^{tree}"));
     }
@@ -212,8 +220,10 @@ function main(mode, env) {
     if (fastPrint) git("merge-base", "--is-ancestor", fastPrintPayload, binding.head);
     const catalog = [catalogBranch, catalogPromotion].includes(binding.gitBranch);
     if (catalog) git("merge-base", "--is-ancestor", catalogPayload, binding.head);
-    const paths = catalog || fastPrint || printRelease || webApplications || checkoutPrint ? previewControls : holdPrint ? holdFiles : menu ? menuFiles : recovery ? recoveryFiles : allowed;
-    const diffBase = catalog ? catalogPayload : fastPrint ? fastPrintPayload : printRelease ? printReleasePayload : checkoutPrint ? checkoutPrintPayload : webApplications ? webApplicationsPayload : holdPrint ? servingBase : binding.base;
+    const nextTicket = [nextTicketBranch, nextTicketPromotion].includes(binding.gitBranch);
+    if (nextTicket) git("merge-base", "--is-ancestor", nextTicketPayload, binding.head);
+    const paths = nextTicket || catalog || fastPrint || printRelease || webApplications || checkoutPrint ? previewControls : holdPrint ? holdFiles : menu ? menuFiles : recovery ? recoveryFiles : allowed;
+    const diffBase = nextTicket ? nextTicketPayload : catalog ? catalogPayload : fastPrint ? fastPrintPayload : printRelease ? printReleasePayload : checkoutPrint ? checkoutPrintPayload : webApplications ? webApplicationsPayload : holdPrint ? servingBase : binding.base;
     assert.ok(git("diff", "--no-renames", "--name-only", diffBase, binding.head).split("\n").every(name => paths.has(name)));
     console.log(JSON.stringify({ resource: binding.resource, branch: binding.branch, gitBranch: binding.gitBranch }));
   } else if (mode === "branch") {

@@ -10,6 +10,7 @@ import {
 } from "@/lib/manager-authorization";
 import {
   createPrinterTestPayload,
+  printTicketPayloadSchema,
   type PrintTicketPayload,
   type PrintPaperWidth,
 } from "@/lib/kitchen-print-ticket";
@@ -66,6 +67,7 @@ const capabilityGatedOperations = new Set<PrintQueueCommand["operation"]>([
   "QUEUE",
   "QUEUE_RECEIPT",
   "CLAIM",
+  "CLAIM_NEXT",
   "REPRINT",
 ]);
 
@@ -76,6 +78,7 @@ const serializableOperations = new Set<PrintQueueCommand["operation"]>([
   "UPDATE_RULE",
   "DELETE_RULE",
   "CLAIM",
+  "CLAIM_NEXT",
 ]);
 
 export async function GET(request: Request, context: RouteContext) {
@@ -109,7 +112,7 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const command = parsed.data;
-  const ticketOnly = command.operation === "CLAIM" && request.headers.get("x-print-response") === "ticket";
+  const ticketOnly = command.operation === "CLAIM_NEXT" || (command.operation === "CLAIM" && request.headers.get("x-print-response") === "ticket");
   const organizationId = authorization.stall.organizationId;
   const stallId = authorization.stall.id;
   try {
@@ -481,20 +484,35 @@ export async function POST(request: Request, context: RouteContext) {
         return job.id;
       }
 
-      const job = await transaction.printJob.findFirst({
-        where: { id: command.jobId, organizationId, stallId },
-      });
-      if (!job) throw new PrintQueueNotFoundError();
+      const automaticPrinter = command.operation === "CLAIM_NEXT"
+        ? await findScopedPrinter(transaction, command.printerId, organizationId, stallId) : null;
+      if (automaticPrinter && (!automaticPrinter.isEnabled || !automaticPrinter.autoDetectEnabled
+        || automaticPrinter.connectionType !== "WEBPRNT_BLUETOOTH")) throw new PrintQueueConflictError();
 
-      if (command.operation === "CLAIM") {
-        const printer = await findScopedPrinter(transaction, command.printerId, organizationId, stallId);
+      const job = command.operation === "CLAIM_NEXT"
+        ? await transaction.printJob.findFirst({
+          where: {
+            organizationId, stallId, status: "PENDING", attemptCount: { lt: transaction.printJob.fields.maxAttempts },
+            OR: [{ printerId: command.printerId }, { printerId: null }],
+            printRule: { is: { organizationId, stallId, printerId: command.printerId, autoPrint: true, isEnabled: true, deletedAt: null } },
+          },
+          orderBy: [{ queuedAt: "asc" }, { id: "asc" }],
+        })
+        : await transaction.printJob.findFirst({ where: { id: command.jobId, organizationId, stallId } });
+      if (!job) {
+        if (command.operation === "CLAIM_NEXT") return null;
+        throw new PrintQueueNotFoundError();
+      }
+
+      if (command.operation === "CLAIM" || command.operation === "CLAIM_NEXT") {
+        const printer = automaticPrinter ?? await findScopedPrinter(transaction, command.printerId, organizationId, stallId);
         if (!printer.isEnabled || (job.printerId && job.printerId !== printer.id)) {
           throw new PrintQueueConflictError();
         }
         if (printer.connectionType === "CLOUDPRNT") {
           throw new PrintQueueConflictError("CLOUDPRNT_DEVICE_CLAIM_REQUIRED");
         }
-        if (job.printRuleId) {
+        if (job.printRuleId && command.operation === "CLAIM") {
           const activeRule = await transaction.printRule.findFirst({
             where: {
               id: job.printRuleId,
@@ -519,6 +537,10 @@ export async function POST(request: Request, context: RouteContext) {
           },
         });
         if (changed.count !== 1) throw new PrintQueueConflictError();
+        if (command.operation === "CLAIM_NEXT") {
+          const stored = printTicketPayloadSchema.safeParse(job.payload);
+          if (stored.success) printPayload = stored.data;
+        }
         if (ticketOnly) {
           await transaction.printer.update({ where: { id: printer.id }, data: { lastSeenAt: new Date() } });
         }
@@ -580,7 +602,10 @@ export async function POST(request: Request, context: RouteContext) {
       return job.id;
     }, transactionOptions);
 
-    if (command.operation === "CLAIM") {
+    if (entityId === null) {
+      return NextResponse.json({ entityId: null }, { headers: { "cache-control": "no-store", "x-request-id": authorization.requestId } });
+    }
+    if (!printPayload && (command.operation === "CLAIM" || command.operation === "CLAIM_NEXT")) {
       const claimedJob = await prisma.printJob.findFirst({
         where: {
           id: entityId,
@@ -626,9 +651,11 @@ export async function POST(request: Request, context: RouteContext) {
         ipHash: hashClientIp(request),
       });
     }
+    const acknowledgementOnly = request.headers.get("x-print-response") === "ack"
+      && (command.operation === "HEARTBEAT" || command.operation === "SUCCESS" || command.operation === "FAIL");
     return NextResponse.json(
       {
-        ...(ticketOnly ? {} : { state: await getPrintQueueState(stallId, organizationId) }),
+        ...(ticketOnly || acknowledgementOnly ? {} : { state: await getPrintQueueState(stallId, organizationId) }),
         entityId,
         ...(printPayload ? { printPayload } : {}),
         ...(cloudPrntSetup ? { cloudPrntSetup } : {}),
