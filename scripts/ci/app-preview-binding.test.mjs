@@ -34,13 +34,16 @@ describe("dedicated application Preview", () => {
     expect(() => appPreviewEvent(input, env)).toThrow();
   });
 
-  it("requires the exact source for PR 432", () => {
+  it.each([
+    [433, "codex/webprnt-claim-20261128", "staging", "63557efdc7523a296e760f931fe97b29326892ff", "codex/webprnt-claim-20261128"],
+    [434, "staging", "main", "dc752e718a1a04c096637c8d39757aa8eb062bfa", "codex/webprnt-claim-promotion-20261128"],
+  ])("requires the pinned WebPRNT head and base for PR %i", (number, branch, base, sha, gitBranch) => {
     const candidate = structuredClone(event);
-    Object.assign(candidate.pull_request, { number: 432 });
-    candidate.pull_request.head.ref = "codex/web-catalog-after-print-20261127";
-    candidate.pull_request.base.sha = "63557efdc7523a296e760f931fe97b29326892ff";
-    const pinned = { ...env, WEB_CATALOG_PR432_HEAD: headSha };
-    expect(appPreviewEvent(candidate, pinned).gitBranch).toBe("codex/web-catalog-after-print-20261127");
+    Object.assign(candidate.pull_request, { number });
+    candidate.pull_request.head.ref = branch;
+    Object.assign(candidate.pull_request.base, { ref: base, sha });
+    const pinned = { ...env, WEBPRNT_CLAIM_PR433_HEAD: headSha, WEBPRNT_CLAIM_PROMOTION_PR: "434", WEBPRNT_CLAIM_PROMOTION_HEAD: headSha };
+    expect(appPreviewEvent(candidate, pinned).gitBranch).toBe(gitBranch);
     expect(() => appPreviewEvent(candidate, env)).toThrow();
     candidate.pull_request.base.sha = headSha;
     expect(() => appPreviewEvent(candidate, pinned)).toThrow();
