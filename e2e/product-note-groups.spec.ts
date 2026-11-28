@@ -12,6 +12,7 @@ import {
   dismissStaffStartReminder,
   continueQrCheckout,
   loginLocalTestAccount,
+  openSharedCatalogManagement,
   qrProductSelectionControl,
 } from "./local-navigation";
 
@@ -272,6 +273,9 @@ async function acknowledgeSettingsFeedback(
 }
 
 async function openNoteGroupNavigator(page: Page) {
+  if (await page.getByRole("button", { name: "完整管理／新增商品", exact: true }).isVisible()) {
+    await openSharedCatalogManagement(page);
+  }
   const singleNotes = page.getByTestId("reusable-note-navigator-dialog");
   if (await singleNotes.isVisible()) {
     await singleNotes.getByRole("button", { name: "關閉", exact: true }).click();
@@ -460,6 +464,7 @@ test("商家可新增、修改、指派與刪除商品註記群組", async ({ pa
 
   await login(page, "owner@stallorder.test");
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
+  await openSharedCatalogManagement(page);
   await expect(
     page.getByRole("heading", { name: "商品註記設定" }),
   ).toBeVisible();
@@ -621,6 +626,7 @@ test("群組內共用與專用註記排序可儲存並於重載後保留", async
 
   await login(page, "owner@stallorder.test");
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
+  await openSharedCatalogManagement(page);
 
   const reusableEditor = await openNewReusableNoteEditor(page);
   await reusableEditor.getByLabel("註記名稱").fill(reusableName);
@@ -729,6 +735,7 @@ test("商家可原子批次加入多個既有共用註記", async ({ page }) => 
 
   await login(page, "owner@stallorder.test");
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
+  await openSharedCatalogManagement(page);
 
   for (const noteName of noteNames) {
     const noteEditor = await openNewReusableNoteEditor(page);
@@ -1034,6 +1041,7 @@ test("共用單一註記可加入多個群組、同步更新並阻擋使用中�
 
   await login(page, "owner@stallorder.test");
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
+  await openSharedCatalogManagement(page);
   // Require a unique visible entry while Next.js retains hidden streaming markup.
   await expect(page.getByTestId("open-reusable-note-navigator").filter({ visible: true })).toHaveCount(1);
   await expect(page.getByTestId("open-reusable-note-navigator").filter({ visible: true })).toBeVisible();
@@ -1222,6 +1230,7 @@ test("商品註記可匯出、預覽並以單一交易匯入", async ({ page }) 
 
   await login(page, "owner@stallorder.test");
   await page.goto(`/merchant/catalog?organizationId=${organizationId}`);
+  await openSharedCatalogManagement(page);
   await page.getByTestId("open-reusable-note-navigator").filter({ visible: true }).click();
   const transferNavigator = page.getByTestId("reusable-note-navigator-dialog");
   await expect(transferNavigator).toBeVisible();

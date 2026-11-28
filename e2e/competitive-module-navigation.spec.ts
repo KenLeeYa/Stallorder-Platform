@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { gotoLocalPath } from "./local-navigation";
+import { gotoLocalPath, openSharedCatalogManagement } from "./local-navigation";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
 
@@ -51,6 +51,7 @@ test("已啟用的庫存、成長與菜單版本可由商家介面開啟", async
     `/merchant/catalog?organizationId=${organizationId}`,
   );
   const mainContent = page.locator("#main-content");
+  await openSharedCatalogManagement(page);
   const versionsAction = mainContent.getByTestId("catalog-versions-action");
   await expect(versionsAction).toBeVisible();
   await versionsAction.click();

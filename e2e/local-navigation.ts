@@ -99,6 +99,9 @@ export async function openSharedCatalogProductActions(
   page: Page,
   productName: string,
 ) {
+  if (await page.getByRole("button", { name: "完整管理／新增商品", exact: true }).isVisible()) {
+    await openSharedCatalogManagement(page);
+  }
   const desktopSearch = page.getByRole("searchbox", { name: "搜尋管理商品", exact: true });
   const navigator = page.getByTestId("catalog-navigator-dialog");
   const openNavigator = page
@@ -346,4 +349,11 @@ function matchesExpectedRoute(actualUrl: URL, expectedUrl: URL) {
     values.splice(index, 1);
   }
   return true;
+}
+
+export async function openSharedCatalogManagement(page: Page) {
+  const entry = page.getByRole("button", { name: "完整管理／新增商品", exact: true });
+  await expect(entry).toBeVisible();
+  await entry.click();
+  await expect(page.getByRole("region", { name: "商品批次管理", exact: true })).toBeVisible();
 }

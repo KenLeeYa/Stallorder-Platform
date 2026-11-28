@@ -34,10 +34,10 @@ const SOURCE_SCOPES = ["prisma", "supabase", "src/server/resilience", "src/lib/d
   "next.config.ts", "vercel.json", "src/server/database/read-router.ts", "src/app/auth/callback/route.ts", "src/server/auth/oauth/login-method-availability.ts"];
 
 const CURRENT_PRIMARY = Object.freeze({
-  id: "dpl_FSxK9YxB7Yc47e8vdoy76aEcWwJs",
-  sha: "dc752e718a1a04c096637c8d39757aa8eb062bfa",
-  planRun: "45981460509",
-  requestedAt: 1795847083098,
+  id: "dpl_v6y8hdJxzHUsV18ZcyDbWfCraoNE",
+  sha: "a55e5ff8795d539d24d1ac27299e2157b78e4059",
+  planRun: "46122947871",
+  requestedAt: 1795854035639,
 });
 
 export function assertPlanPrimary(owner, deployment) {
