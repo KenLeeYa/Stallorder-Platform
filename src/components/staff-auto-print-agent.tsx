@@ -8,7 +8,6 @@ import { csrfHeaders } from "@/lib/csrf-client";
 import { reportStarWebPrntFailure } from "@/lib/star-webprnt-diagnostics";
 import type {
   PrinterView,
-  PrintJobView,
   PrintQueueCommandResponse,
   PrintQueueState,
 } from "@/lib/print-center-types";
@@ -81,26 +80,39 @@ export function StaffAutoPrintAgent({ stallSlug, onStatusChange }: {
     if (environment !== "STAR_WEBPRNT" || !scriptReady) return;
     let disposed = false;
     let refreshRequested = false;
+    let snapshotRequest: AbortController | null = null;
 
     async function runAgent() {
       if (busyRef.current || disposed || document.hidden) return;
       busyRef.current = true;
+      const checkoutPrinter = refreshRequested ? activePrinterRef.current : null;
       refreshRequested = false;
-      let claimedJob: PrintJobView | null = null;
+      let claimedJobId: string | null = null;
       let selectedPrinter: PrinterView | null = null;
-      try {
-        const refreshed = await postPrintCommand(stallSlug, { operation: "REFRESH" });
+      async function claimFromQueue() {
+        const controller = new AbortController();
+        snapshotRequest = controller;
+        let refreshed;
+        try {
+          refreshed = await postPrintCommand(stallSlug, { operation: "REFRESH" }, controller.signal);
+        } catch (error) {
+          if (controller.signal.aborted) return null;
+          throw error;
+        } finally {
+          snapshotRequest = null;
+        }
+        if (disposed || controller.signal.aborted) return null;
         const printer = selectAutomaticPrinter(refreshed.state, stallSlug);
         selectedPrinter = printer;
         if (!printer) {
           activePrinterRef.current = null;
           setStatus("NOT_CONFIGURED");
           setDetail(t("print.agent.noPrinter"));
-          return;
+          return null;
         }
 
         await probeStarWebPrnt();
-        if (disposed || document.visibilityState === "hidden") return;
+        if (disposed || document.visibilityState === "hidden") return null;
         activePrinterRef.current = printer;
         window.localStorage.setItem(`stallorder_printer_${stallSlug}`, printer.id);
         const automatic = hasAutomaticPrintRule(refreshed.state, printer.id);
@@ -115,22 +127,38 @@ export function StaffAutoPrintAgent({ stallSlug, onStatusChange }: {
         if (!automatic) {
           setStatus("CONNECTED_NO_RULE");
           setDetail(t("print.agent.noAutoRule"));
-          return;
+          return null;
         }
         setStatus("READY");
         setDetail(t("print.device.detected", { printer: printer.name }));
-        if (!job) return;
-        claimedJob = job;
+        if (!job) return null;
         const claimed = await postPrintCommand<Pick<PrintQueueCommandResponse, "printPayload">>(stallSlug, {
           operation: "CLAIM",
           jobId: job.id,
           printerId: printer.id,
         });
+        return { entityId: job.id, printPayload: claimed.printPayload };
+      }
+
+      try {
+        let claimed;
+        if (checkoutPrinter) {
+          selectedPrinter = checkoutPrinter;
+          await probeStarWebPrnt();
+          if (disposed || document.hidden) return;
+          claimed = await postPrintCommand<{ entityId: string | null; printPayload?: PrintQueueCommandResponse["printPayload"] }>(
+            stallSlug, { operation: "CLAIM_NEXT", printerId: checkoutPrinter.id },
+          );
+        } else {
+          claimed = await claimFromQueue();
+        }
+        if (!claimed?.entityId) return;
+        claimedJobId = claimed.entityId;
         if (!claimed.printPayload) throw new Error(t("print.bluetooth.payloadMissing"));
         await printWithStarWebPrnt(claimed.printPayload.dataBase64);
-        claimedJob = null;
+        claimedJobId = null;
         try {
-          await postPrintCommand(stallSlug, { operation: "SUCCESS", jobId: job.id });
+          await postPrintCommand(stallSlug, { operation: "SUCCESS", jobId: claimed.entityId });
         } catch {
           setStatus("ERROR");
           setDetail(t("print.bluetooth.statusUnknown"));
@@ -139,12 +167,12 @@ export function StaffAutoPrintAgent({ stallSlug, onStatusChange }: {
         setDetail(t("print.agent.printed"));
       } catch (error) {
         activePrinterRef.current = null;
-        if (selectedPrinter) reportStarWebPrntFailure(stallSlug, selectedPrinter.id, claimedJob ? "PRINT" : "PROBE", error);
-        if (claimedJob) {
+        if (selectedPrinter) reportStarWebPrntFailure(stallSlug, selectedPrinter.id, claimedJobId ? "PRINT" : "PROBE", error);
+        if (claimedJobId) {
           try {
             await postPrintCommand(stallSlug, {
               operation: "FAIL",
-              jobId: claimedJob.id,
+              jobId: claimedJobId,
               error: printAgentError(t, error),
             });
           } catch {
@@ -162,6 +190,7 @@ export function StaffAutoPrintAgent({ stallSlug, onStatusChange }: {
     function handleQueueChanged(event: Event) {
       if ((event as CustomEvent<string>).detail !== stallSlug) return;
       refreshRequested = true;
+      if (activePrinterRef.current) snapshotRequest?.abort();
       void runAgent();
     }
 
@@ -172,6 +201,7 @@ export function StaffAutoPrintAgent({ stallSlug, onStatusChange }: {
     window.addEventListener(printQueueChangedEvent, handleQueueChanged);
     return () => {
       disposed = true;
+      snapshotRequest?.abort();
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", runAgent);
       window.removeEventListener("pageshow", runAgent);
@@ -261,10 +291,14 @@ export function hasAutomaticPrintRule(state: Pick<PrintQueueState, "rules">, pri
   ));
 }
 
-async function postPrintCommand<T = PrintQueueCommandResponse>(stallSlug: string, command: Record<string, unknown>) {
+async function postPrintCommand<T = PrintQueueCommandResponse>(stallSlug: string, command: Record<string, unknown>, signal?: AbortSignal) {
+  const headers: Record<string, string> = csrfHeaders();
+  if (command.operation === "CLAIM") headers["x-print-response"] = "ticket";
+  if (["HEARTBEAT", "SUCCESS", "FAIL"].includes(String(command.operation))) headers["x-print-response"] = "ack";
   const response = await fetch(`/api/stalls/${stallSlug}/print-jobs`, {
     method: "POST",
-    headers: command.operation === "CLAIM" ? { ...csrfHeaders(), "x-print-response": "ticket" } : csrfHeaders(),
+    signal,
+    headers,
     body: JSON.stringify(command),
   });
   const payload = await response.json() as T & { error?: string };

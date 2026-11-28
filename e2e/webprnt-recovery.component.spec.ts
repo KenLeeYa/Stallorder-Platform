@@ -70,7 +70,7 @@ async function setup(page: Page, initialMode = "READY", path = "/board", beforeR
     const command = route.request().postDataJSON();
     commands.push(command);
     await beforeReply?.(command);
-    if (!["REFRESH", "HEARTBEAT", "WEBPRNT_DIAGNOSTIC", "TEST_PRINTER"].includes(command.operation)) throw new Error("UNEXPECTED_QA_COMMAND");
+    if (!["REFRESH", "HEARTBEAT", "CLAIM_NEXT", "WEBPRNT_DIAGNOSTIC", "TEST_PRINTER"].includes(command.operation)) throw new Error("UNEXPECTED_QA_COMMAND");
     const current = path.endsWith("?manual") ? { ...state, printers: [{ ...printer, autoDetectEnabled: false }] } : state;
     await route.fulfill({ json: { state: current, ...(command.operation === "TEST_PRINTER" ? { printPayload: { content: "QA", dataBase64: "G0BA" } } : {}) } });
   });
@@ -148,12 +148,13 @@ test("checkout wakes only its own print queue, then coalesces requests made duri
     await checkout("qa");
     expect(refreshes).toBe(1);
     resolveRefresh();
-    await expect.poll(() => refreshes, { timeout: 2_000 }).toBe(2);
-    await expect.poll(() => commands.filter(command => command.operation === "HEARTBEAT").length, { timeout: 2_000 }).toBe(2);
+    const directClaims = () => commands.filter(command => command.operation === "CLAIM_NEXT").length;
+    await expect.poll(directClaims).toBe(1);
     await checkout("other-stall");
-    expect(refreshes).toBe(2);
+    expect(directClaims()).toBe(1);
     await checkout("qa");
-    await expect.poll(() => refreshes, { timeout: 2_000 }).toBe(3);
+    await expect.poll(directClaims).toBe(2);
+    expect(refreshes).toBe(1);
     expect(errors).toEqual([]);
   } finally {
     resolveRefresh();
@@ -168,13 +169,15 @@ test("one paid ticket reaches WebPRNT once without waiting for the next poll", a
   let claimed = false;
   await page.route("**/api/stalls/qa/print-jobs", async route => {
     const { operation, jobId } = route.request().postDataJSON();
-    if (operation === "HEARTBEAT" && !claimed) operations.push("HEARTBEAT_BEFORE_CLAIM");
-    if (jobId === job.id) operations.push(operation);
-    if (operation === "CLAIM") claimed = true;
-    await route.fulfill({ json: {
-      state: { ...state, rules: [{ printerId: printer.id, isEnabled: true, autoPrint: true }], jobs: claimed ? [] : [job] },
-      ...(operation === "CLAIM" ? { printPayload: { dataBase64: "G0BA" } } : {}),
-    } });
+    if (operation === "CLAIM_NEXT") {
+      operations.push(operation);
+      const ticket = claimed ? { entityId: null } : { entityId: job.id, printPayload: { dataBase64: "G0BA" } };
+      claimed = true;
+      await route.fulfill({ json: ticket });
+      return;
+    }
+    if (jobId === job.id || operation === "REFRESH" || operation === "HEARTBEAT") operations.push(operation);
+    await route.fulfill({ json: { state } });
   });
   const started = performance.now();
   await page.evaluate(() => {
@@ -184,8 +187,39 @@ test("one paid ticket reaches WebPRNT once without waiting for the next poll", a
   const elapsed = Math.round(performance.now() - started);
   console.log(`Checkout signal to simulated print acknowledgement: ${elapsed} ms`);
   expect(elapsed).toBeLessThan(2_000);
-  expect(operations).toEqual(["CLAIM", "SUCCESS"]);
+  expect(operations.slice(0, 2)).toEqual(["CLAIM_NEXT", "SUCCESS"]);
+  expect(operations).not.toContain("REFRESH");
   const sends = await page.evaluate(() => (window as unknown as { qaNativeSends: string[] }).qaNativeSends);
   expect(sends.filter(request => request.includes("G0BA"))).toHaveLength(1);
   expect(errors).toEqual([]);
+});
+
+test("a warm checkout bypasses an outstanding status refresh", async ({ page }) => {
+  const { commands } = await setup(page, "READY", "/agent");
+  await expect.poll(() => commands.some(command => command.operation === "HEARTBEAT")).toBe(true);
+  let snapshotStarted = false;
+  let releaseSnapshot!: () => void;
+  const held = new Promise<void>(resolve => { releaseSnapshot = resolve; });
+  const operations: string[] = [];
+  await page.route("**/api/stalls/qa/print-jobs", async route => {
+    const { operation } = route.request().postDataJSON();
+    operations.push(operation);
+    if (operation === "REFRESH") {
+      snapshotStarted = true;
+      await held;
+      await route.abort().catch(() => {});
+      return;
+    }
+    await route.fulfill({ json: operation === "CLAIM_NEXT"
+      ? { entityId: "fixture-ticket", printPayload: { dataBase64: "G0BA" } } : {} });
+  });
+  try {
+    await page.evaluate(() => window.dispatchEvent(new Event("pageshow")));
+    await expect.poll(() => snapshotStarted).toBe(true);
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent("stallorder:print-queue-changed", { detail: "qa" })));
+    await expect.poll(() => operations.includes("SUCCESS")).toBe(true);
+    expect(operations).toEqual(["REFRESH", "CLAIM_NEXT", "SUCCESS"]);
+  } finally {
+    releaseSnapshot();
+  }
 });
