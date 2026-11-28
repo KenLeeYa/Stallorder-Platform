@@ -31,8 +31,7 @@ export async function verifyPreviewWebPrntClaim(db: PrismaClient, browser: Brows
   try {
     await db.$transaction(async tx => {
       await tx.profile.create({ data: { id: profileId, displayName: marker, email, passwordHash,
-        organizationMemberships: { create: { organizationId, role: "ORGANIZATION_OWNER" } },
-        stallMemberships: { create: { organizationId, stallId, role: "MERCHANT_OWNER" } } } });
+        organizationMemberships: { create: { organizationId, role: "ORGANIZATION_OWNER" } } } });
       await tx.printer.create({ data: { id: printerId, organizationId, stallId, name: marker, connectionType: "WEBPRNT_BLUETOOTH" } });
       await tx.printRule.create({ data: { id: ruleId, organizationId, stallId, printerId, name: marker, autoPrint: true } });
       if (!settings.printModuleEnabled) await tx.stallOrderingSettings.update({ where: { stallId }, data: { printModuleEnabled: true } });
@@ -94,7 +93,8 @@ export async function verifyPreviewWebPrntClaim(db: PrismaClient, browser: Brows
     assert.ok(report.directMedianMs < report.snapshotMedianMs, "PREVIEW_WEBPRNT_NO_MEASURED_GAIN");
     return report;
   } catch (error) {
-    console.error("PREVIEW_WEBPRNT_CHECK_FAILED", { stage });
+    const reason = error instanceof Error ? error.message.match(/PREVIEW_WEBPRNT_[A-Z0-9_]+/)?.[0] : undefined;
+    console.error("PREVIEW_WEBPRNT_CHECK_FAILED", { stage, reason });
     throw error;
   } finally {
     await context.close();
