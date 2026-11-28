@@ -1,3 +1,4 @@
+import { openSharedCatalogManagement } from "./local-navigation";
 import { PrismaClient } from "@prisma/client";
 import { expect, test } from "@playwright/test";
 import { continueQrCheckout, dismissStaffStartReminder, establishLocalTestSession, gotoLocalPath } from "./local-navigation";
@@ -38,6 +39,7 @@ for (const [surface, route] of [
     const controls = page.locator('input[type="checkbox"]:visible');
     await expect(controls.first()).toBeVisible();
     if (surface === "catalog") {
+      await openSharedCatalogManagement(page);
       const all = page.getByRole("checkbox", { name: /全選本清單/ });
       await expect.poll(() => all.evaluate((element) => Object.entries(element).some(([key, value]) =>
         key.startsWith("__reactProps$") && typeof value?.onChange === "function"))).toBe(true);

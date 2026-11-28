@@ -1,3 +1,4 @@
+import { openSharedCatalogManagement } from "./local-navigation";
 import { test, expect, type BrowserContext, type Page, type APIResponse, type Locator } from "@playwright/test";
 import { PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
@@ -227,6 +228,7 @@ test("電腦平板手機供應選單與勾選控制正常，巢狀視窗保持�
   for (const width of [1440, 1024, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 950 });
     await page.goto(`/merchant/catalog?organizationId=${org}`);
+    await openSharedCatalogManagement(page);
     if (width < 768) {
       await waitForHydratedControl(page.getByTestId("open-catalog-navigator"));
       await page.getByTestId("open-catalog-navigator").click();
