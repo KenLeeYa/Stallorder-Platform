@@ -53,34 +53,32 @@ export async function verifyPreviewWebPrntClaim(db: PrismaClient, browser: Brows
     stage = "authenticated-redirect";
     await page.waitForURL(url => url.origin === origin && url.pathname === "/merchant/catalog", { timeout: 45_000 });
     const endpoint = "/api/stalls/" + encodeURIComponent(stall.slug) + "/print-jobs";
+    const command = (body: Record<string, string>, responseMode: string) => page.evaluate(async input => {
+      const csrf = document.cookie.split("; ").find(value => value.startsWith("stallorder_csrf="))?.split("=")[1];
+      if (!csrf) throw new Error("PREVIEW_WEBPRNT_CSRF_MISSING");
+      const response = await fetch(input.endpoint, { method: "POST", redirect: "error",
+        headers: { "Content-Type": "application/json", "x-csrf-token": decodeURIComponent(csrf), "x-print-response": input.responseMode },
+        body: JSON.stringify(input.body) });
+      if (!response.ok) throw new Error("PREVIEW_WEBPRNT_" + input.body.operation + "_" + response.status);
+      return response.json();
+    }, { endpoint, body, responseMode });
     // Alternate the two supported request paths against the same isolated database and login.
     for (const mode of ["snapshot", "direct", "direct", "snapshot", "snapshot", "direct"]) {
-      stage = mode;
+      stage = mode + "-fixture";
       const jobId = randomUUID();
       const payload = { kind: "KITCHEN_58MM_STARPRNT", version: "kitchen-58mm-starprnt-v1",
         mediaType: "application/vnd.star.starprnt", content: "PREVIEW", dataBase64: "G0BA" };
       await db.printJob.create({ data: { id: jobId, organizationId, stallId, orderId, printerId, printRuleId: ruleId, payload } });
-      const elapsed = await page.evaluate(async ({ mode, endpoint, jobId, printerId }) => {
-        const csrf = document.cookie.split("; ").find(v => v.startsWith("stallorder_csrf="))?.split("=")[1];
-        if (!csrf) throw new Error("PREVIEW_WEBPRNT_CSRF_MISSING");
-        const command = async (body: Record<string, string>, responseMode: string) => {
-          const response = await fetch(endpoint, { method: "POST", redirect: "error",
-            headers: { "Content-Type": "application/json", "x-csrf-token": decodeURIComponent(csrf), "x-print-response": responseMode },
-            body: JSON.stringify(body) });
-          if (!response.ok) throw new Error("PREVIEW_WEBPRNT_" + body.operation + "_" + response.status);
-          return response.json();
-        };
-        const start = performance.now();
-        if (mode === "snapshot") {
-          const snapshot = await command({ operation: "REFRESH" }, "");
-          if (!snapshot.state.jobs.some((job: { id: string }) => job.id === jobId)) throw new Error("PREVIEW_TICKET_NOT_LISTED");
-        }
-        const ticket = await command(mode === "direct" ? { operation: "CLAIM_NEXT", printerId } : { operation: "CLAIM", printerId, jobId }, "ticket");
-        const duration = Math.round(performance.now() - start);
-        if (ticket.entityId !== jobId || ticket.printPayload?.dataBase64 !== "G0BA") throw new Error("PREVIEW_TICKET_MISMATCH");
-        await command({ operation: "SUCCESS", jobId }, "ack");
-        return duration;
-      }, { mode, endpoint, jobId, printerId });
+      stage = mode + "-request";
+      const start = performance.now();
+      if (mode === "snapshot") {
+        const snapshot = await command({ operation: "REFRESH" }, "");
+        assert.ok(snapshot.state.jobs.some((job: { id: string }) => job.id === jobId), "PREVIEW_WEBPRNT_TICKET_NOT_LISTED");
+      }
+      const ticket = await command(mode === "direct" ? { operation: "CLAIM_NEXT", printerId } : { operation: "CLAIM", printerId, jobId }, "ticket");
+      const elapsed = Math.round(performance.now() - start);
+      assert.ok(ticket.entityId === jobId && ticket.printPayload?.dataBase64 === "G0BA", "PREVIEW_WEBPRNT_TICKET_MISMATCH");
+      await command({ operation: "SUCCESS", jobId }, "ack");
       const job = await db.printJob.findUniqueOrThrow({ where: { id: jobId }, select: { status: true, attemptCount: true, copies: true } });
       assert.deepEqual(job, { status: "SUCCEEDED", attemptCount: 1, copies: 1 });
       times[mode].push(elapsed);
@@ -94,7 +92,8 @@ export async function verifyPreviewWebPrntClaim(db: PrismaClient, browser: Brows
     return report;
   } catch (error) {
     const reason = error instanceof Error ? error.message.match(/PREVIEW_WEBPRNT_[A-Z0-9_]+/)?.[0] : undefined;
-    console.error("PREVIEW_WEBPRNT_CHECK_FAILED", { stage, reason });
+    const dbCode = error && typeof error === "object" && "code" in error && /^P[0-9]{4}$/.test(String(error.code)) ? String(error.code) : undefined;
+    console.error("PREVIEW_WEBPRNT_CHECK_FAILED", { stage, reason, dbCode });
     throw error;
   } finally {
     await context.close();
