@@ -106,3 +106,5 @@ Before Apply, run the protected baseline QR recheck while the dedicated stall ac
 ## Checkout print release baseline
 
 Protected Apply 45961928193 promoted `a835e3c9` under Plan 45958920547. Its target-readback artifact 15181760054 records a successful promotion of `dpl_BHJ5X8CZsW1sEHwA2h4CbPtsZPgN` at 1795766365420. The separately qualified recovery deployment remains pinned to `4e95d2ea`.
+
+The next print release uses the completed promotion of dc752e71 under Plan 45981460509, Apply 46116243807. Target-readback artifact 15251821495 records dpl_FSxK9YxB7Yc47e8vdoy76aEcWwJs at 1795847083098. The qualified recovery deployment remains 4e95d2ea.
