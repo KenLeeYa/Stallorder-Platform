@@ -35,6 +35,21 @@ describe("dedicated application Preview", () => {
   });
 
   it.each([
+    [436, "codex/webprnt-next-ticket-20261128", "staging", "13a18caa5fd9914de52a49c518f67b514a5f3755", "codex/webprnt-next-ticket-20261128"],
+    [437, "staging", "main", "7a0c7867e3e076558b1f23e162f047a0f04a7792", "codex/webprnt-next-ticket-promotion-20261128"],
+  ])("requires the pinned next-ticket head and base for PR %i", (number, branch, base, sha, gitBranch) => {
+    const candidate = structuredClone(event);
+    Object.assign(candidate.pull_request, { number });
+    candidate.pull_request.head.ref = branch;
+    Object.assign(candidate.pull_request.base, { ref: base, sha });
+    const pinned = { ...env, WEBPRNT_NEXT_PR436_HEAD: headSha, WEBPRNT_NEXT_PROMOTION_PR: "437", WEBPRNT_NEXT_PROMOTION_HEAD: headSha };
+    expect(appPreviewEvent(candidate, pinned).gitBranch).toBe(gitBranch);
+    expect(() => appPreviewEvent(candidate, env)).toThrow();
+    candidate.pull_request.base.sha = headSha;
+    expect(() => appPreviewEvent(candidate, pinned)).toThrow();
+  });
+
+  it.each([
     [432, "codex/web-catalog-after-print-20261127", "staging", "3a31fbfdf9a7ea35cdc916089c917cbd46283624", "codex/web-catalog-after-print-20261127"],
     [435, "staging", "main", "a55e5ff8795d539d24d1ac27299e2157b78e4059", "codex/web-catalog-promotion-20261128"],
   ])("requires the pinned catalog head and base for PR %i", (number, branch, base, sha, gitBranch) => {
