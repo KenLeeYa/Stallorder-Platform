@@ -127,6 +127,11 @@ async function main() {
     await expect(page).toHaveURL(/\/order\/sto_/);
     await expect(page.getByTestId("public-order-tracker-header")).toBeVisible();
     assert.equal(errors.length, 0, "PREVIEW_QR_BROWSER_ERROR");
+    if (process.env.QA_WEBPRNT_CLAIM_NEXT === "true") {
+      phase = "webprnt-claim-latency";
+      const { verifyPreviewWebPrntClaim } = await import("./qa-preview-webprnt-claim");
+      await verifyPreviewWebPrntClaim(prisma, browser, base.origin, headers, sourceSha, ref, orderId);
+    }
     await writeFile("artifacts/preview-public-order.json", JSON.stringify({ sourceSha, backend: ref,
       origin: base.origin, widths: [320, 390, 768, 1440], realBrowserSession: true, realBrowserOrderTracker: true,
       physicalPrinting: "disabled", turnstile: "official-test-key", serviceWorkers: "blocked-for-protection-header-test" }, null, 2));
