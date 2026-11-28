@@ -103,23 +103,25 @@ export function StaffAutoPrintAgent({ stallSlug, onStatusChange }: {
         if (disposed || document.visibilityState === "hidden") return;
         activePrinterRef.current = printer;
         window.localStorage.setItem(`stallorder_printer_${stallSlug}`, printer.id);
-        await postPrintCommand(stallSlug, { operation: "HEARTBEAT", printerId: printer.id });
-        if (!hasAutomaticPrintRule(refreshed.state, printer.id)) {
+        const automatic = hasAutomaticPrintRule(refreshed.state, printer.id);
+        const job = automatic && [...refreshed.state.jobs].reverse().find((candidate) => (
+          candidate.status === "PENDING"
+          && candidate.printRule?.autoPrint
+          && (!candidate.printer || candidate.printer.id === printer.id)
+        ));
+        if (!job) {
+          await postPrintCommand(stallSlug, { operation: "HEARTBEAT", printerId: printer.id });
+        }
+        if (!automatic) {
           setStatus("CONNECTED_NO_RULE");
           setDetail(t("print.agent.noAutoRule"));
           return;
         }
         setStatus("READY");
         setDetail(t("print.device.detected", { printer: printer.name }));
-
-        const job = [...refreshed.state.jobs].reverse().find((candidate) => (
-          candidate.status === "PENDING"
-          && candidate.printRule?.autoPrint
-          && (!candidate.printer || candidate.printer.id === printer.id)
-        ));
         if (!job) return;
         claimedJob = job;
-        const claimed = await postPrintCommand(stallSlug, {
+        const claimed = await postPrintCommand<Pick<PrintQueueCommandResponse, "printPayload">>(stallSlug, {
           operation: "CLAIM",
           jobId: job.id,
           printerId: printer.id,
@@ -259,13 +261,13 @@ export function hasAutomaticPrintRule(state: Pick<PrintQueueState, "rules">, pri
   ));
 }
 
-async function postPrintCommand(stallSlug: string, command: Record<string, unknown>) {
+async function postPrintCommand<T = PrintQueueCommandResponse>(stallSlug: string, command: Record<string, unknown>) {
   const response = await fetch(`/api/stalls/${stallSlug}/print-jobs`, {
     method: "POST",
-    headers: csrfHeaders(),
+    headers: command.operation === "CLAIM" ? { ...csrfHeaders(), "x-print-response": "ticket" } : csrfHeaders(),
     body: JSON.stringify(command),
   });
-  const payload = await response.json() as PrintQueueCommandResponse & { error?: string };
+  const payload = await response.json() as T & { error?: string };
   if (!response.ok) throw new Error(payload.error ?? "PRINT_AGENT_REQUEST_FAILED");
   return payload;
 }

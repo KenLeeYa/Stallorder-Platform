@@ -168,6 +168,7 @@ test("one paid ticket reaches WebPRNT once without waiting for the next poll", a
   let claimed = false;
   await page.route("**/api/stalls/qa/print-jobs", async route => {
     const { operation, jobId } = route.request().postDataJSON();
+    if (operation === "HEARTBEAT" && !claimed) operations.push("HEARTBEAT_BEFORE_CLAIM");
     if (jobId === job.id) operations.push(operation);
     if (operation === "CLAIM") claimed = true;
     await route.fulfill({ json: {
