@@ -109,6 +109,7 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const command = parsed.data;
+  const ticketOnly = command.operation === "CLAIM" && request.headers.get("x-print-response") === "ticket";
   const organizationId = authorization.stall.organizationId;
   const stallId = authorization.stall.id;
   try {
@@ -518,6 +519,9 @@ export async function POST(request: Request, context: RouteContext) {
           },
         });
         if (changed.count !== 1) throw new PrintQueueConflictError();
+        if (ticketOnly) {
+          await transaction.printer.update({ where: { id: printer.id }, data: { lastSeenAt: new Date() } });
+        }
       } else if (command.operation === "SUCCESS") {
         const changed = await transaction.printJob.updateMany({
           where: { id: job.id, status: "PRINTING" },
@@ -624,7 +628,7 @@ export async function POST(request: Request, context: RouteContext) {
     }
     return NextResponse.json(
       {
-        state: await getPrintQueueState(stallId, organizationId),
+        ...(ticketOnly ? {} : { state: await getPrintQueueState(stallId, organizationId) }),
         entityId,
         ...(printPayload ? { printPayload } : {}),
         ...(cloudPrntSetup ? { cloudPrntSetup } : {}),

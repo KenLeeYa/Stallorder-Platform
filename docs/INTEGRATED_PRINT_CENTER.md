@@ -101,3 +101,5 @@ The database migration, browser path and automated tests may merge through the `
 ## Checkout queue refresh
 
 A successful online checkout on the same staff device requests a WebPRNT queue refresh immediately when printing is enabled. A refresh already in progress is followed by one extra check. The normal five-second polling remains available for other devices and orders; CloudPRNT follows the printer polling interval.
+
+The automatic WebPRNT agent probes the selected printer before claiming a pending ticket. Its ticket-only claim updates the printer heartbeat in the same transaction as the claim and returns the immutable print payload. Idle agents still send a heartbeat. Print Center commands retain their full queue response.

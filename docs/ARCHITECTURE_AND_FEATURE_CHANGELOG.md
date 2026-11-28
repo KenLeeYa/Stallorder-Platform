@@ -440,3 +440,7 @@ The timing regression submitted one synthetic ticket just after a poll. On the s
 ## 2026-11-27 - Checkout print release qualification
 
 PR #429 passed its protected checks. The owner moved physical paper timing and copy confirmation to the first natural checkout after deployment. The application release Plan now validates the settled a835e3c9 deployment against Apply 45961928193. The 70 recovery checks passed locally.
+
+## 2026-11-28 - WebPRNT automatic claim latency
+
+Proposed. The first staff POS checkout observed after #429 took 5,495 ms from queue to claim and 3,176 ms from claim to device acknowledgement. The automatic agent now folds its heartbeat into the existing claim and requests only the ticket after the claim. The physical paper timing and Production acceptance of this change remain pending.

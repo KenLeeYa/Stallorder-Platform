@@ -440,6 +440,17 @@ describe("print queue capability enforcement", () => {
     }));
   });
 
+  it("returns the claimed ticket to the automatic agent without rereading the queue", async () => {
+    mocks.printJobFindFirst.mockResolvedValue({ id: jobId, orderId, status: "PENDING", attemptCount: 0, maxAttempts: 3 });
+    const response = await postCommand({ operation: "CLAIM", jobId, printerId }, { "x-print-response": "ticket" });
+    const payload = await response.json();
+    expect(response.status).toBe(200);
+    expect(payload.printPayload.dataBase64).toBe("G0BA");
+    expect(mocks.printerUpdate).toHaveBeenCalledWith({ where: { id: printerId }, data: { lastSeenAt: expect.any(Date) } });
+    expect(payload).not.toHaveProperty("state");
+    expect(mocks.getState).not.toHaveBeenCalled();
+  });
+
   it("returns a retryable conflict when PostgreSQL serializes a browser claim", async () => {
     mocks.transaction.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError(
       "transaction conflict",
@@ -691,11 +702,12 @@ function buildRule() {
   };
 }
 
-async function postCommand(command: unknown) {
+async function postCommand(command: unknown, headers?: HeadersInit) {
   const route = await import("./route");
   return route.POST(
     new Request("https://example.test/api/stalls/demo/print-jobs", {
       method: "POST",
+      headers,
       body: JSON.stringify(command),
     }),
     { params: Promise.resolve({ stallSlug: "demo" }) },
